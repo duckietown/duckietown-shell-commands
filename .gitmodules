@@ -1,0 +1,3 @@
+[submodule "lib/compose_python"]
+	path = lib/compose_python
+	url = https://github.com/afdaniele/compose-python

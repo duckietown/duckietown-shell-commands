@@ -2,27 +2,43 @@ from dt_shell import DTCommandAbs
 
 class DTCommand(DTCommandAbs):
 
+    config_key = 'aido18'
+    config = {
+        'host' : {
+            'text' : 'Dashboard hostname',
+            'default' : 'http://localhost:8080/'
+            # 'default' : 'http://dashboard.duckietown.org'
+        },
+        'api_version' : {
+            'text' : 'API version',
+            'default' : '1.0'
+        },
+        'app_id' : {
+            'text' : 'Your API Application ID',
+            'default' : ''
+        },
+        'app_secret' : {
+            'text' : 'Your API Application Secret',
+            'default' : ''
+        }
+    }
+
     @staticmethod
     def command(shell, line):
         app_id = None
         app_secret = None
         # get config
-        if 'aido18' in shell.config:
-            if 'app_id' in shell.config['aido18']: app_id = shell.config['aido18']['app_id']
-            if 'app_secret' in shell.config['aido18']: app_secret = shell.config['aido18']['app_secret']
-        else:
-            shell.config['aido18'] = {}
-        # get app_id
-        msg = 'Your Application ID%s: ' % (' [%s]'%app_id if app_id is not None else '')
-        app_id_in = raw_input(msg)
-        app_id = app_id_in if len(app_id_in.strip()) > 0 else app_id
-        # get app_secret
-        msg = 'Your Application Secret%s: ' % (' [%s]'%app_secret if app_secret is not None else '')
-        app_secret_in = raw_input(msg)
-        app_secret = app_secret_in if len(app_secret_in.strip()) > 0 else app_secret
-        # store app_id and app_secret
-        shell.config['aido18']['app_id'] = app_id
-        shell.config['aido18']['app_secret'] = app_secret
+        config = {}
+        for k,v in AIDOCommand.config.items():
+            val = AIDOCommand.config[k]['default']
+            if AIDOCommand.config_key in shell.config and k in shell.config[AIDOCommand.config_key]:
+                val = shell.config[AIDOCommand.config_key][k]
+            msg = '%s%s: ' % (
+                AIDOCommand.config[k]['text'],
+                ' [current: %s]' % val if len(val.strip())>0 else ''
+            )
+            val_in = raw_input(msg)
+            shell.config[AIDOCommand.config_key][k] = val_in if len(val_in.strip()) > 0 else val
         # commit
         shell.save_config()
         print 'OK'
