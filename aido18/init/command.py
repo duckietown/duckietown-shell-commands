@@ -29,16 +29,16 @@ class DTCommand(DTCommandAbs):
         app_secret = None
         # get config
         config = {}
-        for k,v in AIDOCommand.config.items():
-            val = AIDOCommand.config[k]['default']
-            if AIDOCommand.config_key in shell.config and k in shell.config[AIDOCommand.config_key]:
-                val = shell.config[AIDOCommand.config_key][k]
+        for k,v in DTCommand.config.items():
+            val = DTCommand.config[k]['default']
+            if DTCommand.config_key in shell.config and k in shell.config[DTCommand.config_key]:
+                val = shell.config[DTCommand.config_key][k]
             msg = '%s%s: ' % (
-                AIDOCommand.config[k]['text'],
+                DTCommand.config[k]['text'],
                 ' [current: %s]' % val if len(val.strip())>0 else ''
             )
             val_in = raw_input(msg)
-            shell.config[AIDOCommand.config_key][k] = val_in if len(val_in.strip()) > 0 else val
+            shell.config[DTCommand.config_key][k] = val_in if len(val_in.strip()) > 0 else val
         # commit
         shell.save_config()
         print 'OK'
