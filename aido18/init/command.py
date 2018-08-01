@@ -22,6 +22,7 @@ class DTCommand(DTCommandAbs):
             'default' : ''
         }
     }
+    config_key_order = ['host', 'api_version', 'app_id', 'app_secret']
 
     @staticmethod
     def command(shell, line):
@@ -29,7 +30,7 @@ class DTCommand(DTCommandAbs):
         app_secret = None
         # get config
         config = {}
-        for k,v in DTCommand.config.items():
+        for k in DTCommand.config_key_order:
             val = DTCommand.config[k]['default']
             if DTCommand.config_key in shell.config and k in shell.config[DTCommand.config_key]:
                 val = shell.config[DTCommand.config_key][k]
@@ -37,7 +38,10 @@ class DTCommand(DTCommandAbs):
                 DTCommand.config[k]['text'],
                 ' [current: %s]' % val if len(val.strip())>0 else ''
             )
+
+            # TODO: validate host and add http://
             val_in = raw_input(msg)
+
             shell.config[DTCommand.config_key][k] = val_in if len(val_in.strip()) > 0 else val
         # commit
         shell.save_config()
