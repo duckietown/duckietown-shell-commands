@@ -25,7 +25,7 @@ class DTCommand(DTCommandAbs):
     config_key_order = ['host', 'api_version', 'app_id', 'app_secret']
 
     @staticmethod
-    def command(shell, line):
+    def command(shell, args):
         app_id = None
         app_secret = None
         # get config
