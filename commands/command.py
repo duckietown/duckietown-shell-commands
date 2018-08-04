@@ -11,7 +11,7 @@ class DTCommand(DTCommandAbs):
         # get installed commands
         installed = set(shell.commands.keys()).difference(shell.core_commands)
         # get the commands that are available but not installed
-        res = shell._get_commands(shell.commands_path, all=True)
+        res = shell._get_commands(shell.commands_path, all_commands=True)
         all_commands = set(res.keys()) if res is not None else set()
         not_installed = all_commands.difference( set(shell.commands.keys()) )
         # parse args
