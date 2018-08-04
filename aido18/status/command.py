@@ -1,7 +1,6 @@
 from __future__ import print_function
 from dt_shell import DTCommandAbs
-from compose_python import Compose
-from texttable import Texttable
+
 
 
 class DTCommand(DTCommandAbs):
@@ -11,6 +10,8 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def init(shell):
         if DTCommand.compose is None:
+            from compose_python import Compose
+            from texttable import Texttable
             app_id = None
             app_secret = None
             # get config
