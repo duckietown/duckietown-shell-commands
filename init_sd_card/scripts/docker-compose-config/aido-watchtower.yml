@@ -1,0 +1,38 @@
+version: '3'
+services:
+# AIDO-Watchtower containers
+    roscore:
+        image: duckietown/rpi-ros-kinetic-roscore:latest
+        restart: unless-stopped
+        network_mode: "host"
+    rosbridge-websocket:
+        image: duckietown/rpi-duckiebot-rosbridge-websocket:latest
+        restart: unless-stopped
+        network_mode: "host"
+    dashboard:
+        image: duckietown/rpi-watchtower-dashboard:latest
+        restart: unless-stopped
+        network_mode: "host"
+# Default containers
+    wifi:
+        image: cjimti/iotwifi
+        restart: unless-stopped
+        privileged: true
+        network_mode: "host"
+        volumes:
+            - /var/local/wificfg.json:/cfg/wificfg.json
+            - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
+    portainer:
+        image: portainer/portainer:linux-arm
+        command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+    watchtower:
+        image: v2tec/watchtower:armhf-latest
+        command: ["--cleanup"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
