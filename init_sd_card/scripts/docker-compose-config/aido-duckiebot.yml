@@ -13,6 +13,8 @@ services:
         image: duckietown/rpi-duckiebot-dashboard:latest
         restart: unless-stopped
         network_mode: "host"
+        volumes:
+            - dashboard_volume:/var/www/html
 # Default containers
     wifi:
         image: cjimti/iotwifi
