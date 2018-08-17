@@ -1,6 +1,6 @@
 version: '3'
 services:
-# AIDO-Watchtower containers
+# Duckietown and Blockly containers
     roscore:
         image: duckietown/rpi-ros-kinetic-roscore:latest
         restart: unless-stopped
@@ -9,18 +9,16 @@ services:
         image: duckietown/rpi-duckiebot-rosbridge-websocket:latest
         restart: unless-stopped
         network_mode: "host"
-    system-monitor:
-        image: duckietown/rpi-ros-kinetic-system-monitor:latest
+    blockly-backend:
+        image: duckietown/rpi-ros-kinetic-blockly-backend:latest
         restart: unless-stopped
-        privileged: true
         network_mode: "host"
-    dashboard:
-        image: duckietown/rpi-watchtower-dashboard:latest
+    blockly-frontend:
+        image: duckietown/rpi-duckiebot-blockly-frontend:latest
         restart: unless-stopped
         network_mode: "host"
         volumes:
-            - dashboard_volume:/var/www/html
-            
+            - blockly_frontend_volume:/var/www/html
 # Default containers
     wifi:
         image: cjimti/iotwifi

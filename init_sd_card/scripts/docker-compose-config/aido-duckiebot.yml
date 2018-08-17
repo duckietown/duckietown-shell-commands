@@ -9,6 +9,11 @@ services:
         image: duckietown/rpi-duckiebot-rosbridge-websocket:latest
         restart: unless-stopped
         network_mode: "host"
+    system-monitor:
+        image: duckietown/rpi-ros-kinetic-system-monitor:latest
+        restart: unless-stopped
+        privileged: true
+        network_mode: "host"
     dashboard:
         image: duckietown/rpi-duckiebot-dashboard:latest
         restart: unless-stopped
