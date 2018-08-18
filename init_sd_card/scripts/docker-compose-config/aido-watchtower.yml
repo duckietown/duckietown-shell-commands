@@ -14,13 +14,20 @@ services:
         restart: unless-stopped
         privileged: true
         network_mode: "host"
+        environment:
+            CPU_MONITOR: 'true'
+            HDD_MONITOR: 'false'
+            MEM_MONITOR: 'true'
+            NTP_MONITOR: 'false'
+            NET_MONITOR: 'false'
+            CONFIG: 'aido'
     dashboard:
         image: duckietown/rpi-watchtower-dashboard:latest
         restart: unless-stopped
         network_mode: "host"
         volumes:
             - dashboard_volume:/var/www/html
-            
+
 # Default containers
     wifi:
         image: cjimti/iotwifi
