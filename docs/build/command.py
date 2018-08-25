@@ -3,12 +3,14 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs
+from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        check_docker_environment()
 
         from system_cmd import system_cmd_result
 
