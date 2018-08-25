@@ -1,9 +1,10 @@
 import getpass
 import os
 import subprocess
+import sys
 
 from dt_shell import DTCommandAbs
-from dt_shell.env_checks import check_docker_environment
+from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 
 class DTCommand(DTCommandAbs):
@@ -11,6 +12,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         check_docker_environment()
+        # check_git_supports_superproject()
 
         from system_cmd import system_cmd_result
 
@@ -26,10 +28,10 @@ class DTCommand(DTCommandAbs):
         resources = os.path.join(pwd, 'resources')
         if not os.path.exists(os.path.join(resources, 'templates')):
             msg = 'It looks like that the "resources" repo is not checked out.'
-            msg += '\nMaybe try:'
-            msg += '\n\n   git submodule init'
-            msg += '\n   git submodule init update'
-            raise Exception(msg) # XXX
+            msg += '\nMaybe try:\n'
+            msg += '\n   git submodule init'
+            msg += '\n   git submodule update'
+            raise Exception(msg)  # XXX
 
         entries = list(os.listdir(bookdir))
         entries = [_ for _ in entries if not _[0] == '.']
@@ -39,27 +41,32 @@ class DTCommand(DTCommandAbs):
         bookname = entries[0]
         src = os.path.join(bookdir, bookname)
 
-        # gitdir_super:=$(shell git rev-parse --show-superproject-working-tree)
-        # gitdir:=$(shell git rev-parse --show-toplevel)
+        res = system_cmd_result(pwd, ['git', '--version'],
+                                raise_on_error=True)
+        git_version = res.stdout
+        print('git version: %s' % git_version)
 
         res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-superproject-working-tree'],
                                 raise_on_error=True)
+        if '--show' in res.stdout:
+            msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
+            msg += '\n\nDetected: %s' % git_version
+            raise InvalidEnvironment(msg)
+
         gitdir_super = res.stdout
 
+        print('gitdir_super: %r' % gitdir_super)
         res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel'],
                                 raise_on_error=True)
         gitdir = res.stdout
 
-        # gitdir0 = os.path.join(pwd, '.git')
-        # if os.path.exists(gitdir0):
-        #     gitdir_super = gitdir0
-        #     gitdir = gitdir0
-        # else:
-        #     msg = 'Cannot work with this directory structure - %r' % gitdir0
-        #     DTCommandAbs.fail(msg)
+        if '--show' in res.stdout:
+            msg = "Your git version is too low, as it does not support --show-toplevel"
+            msg += '\n\nDetected: %s' % git_version
+            raise InvalidEnvironment(msg)
 
-        # res = system_cmd_result(pwd, ['tput', 'cols'], raise_on_error=True)
-        # cols = res.stdout
+        print('gitdir: %r' % gitdir)
+
         pwd1 = os.path.realpath(pwd)
         user = getpass.getuser()
 
@@ -72,22 +79,33 @@ class DTCommand(DTCommandAbs):
         image = 'andreacensi/mcdp_books:duckuments'
         uid1 = os.getuid()
 
+        if sys.platform == 'darwin':
+            flag = ':delegated'
+        else:
+            flag = ''
+
         cmd = ['docker', 'run',
-               '-v', '%s:%s' % (gitdir, gitdir),
-               '-v', '%s:%s' % (gitdir_super, gitdir_super),
-               '-v', '%s:%s' % (pwd1, pwd1),
-               '-v', '%s:%s' % (fake_home, '/home/%s' % user),
+               '-v', '%s:%s%s' % (gitdir, gitdir, flag),
+               '-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag),
+               '-v', '%s:%s%s' % (pwd1, pwd1, flag),
+               '-v', '%s:%s%s' % (fake_home, '/home/%s' % user, flag),
                '-e', 'USER=%s' % user,
                '-e', 'USERID=%s' % uid1,
-               '--user', '%s' % uid1,
-               '-i',
-               image,
-               '/project/run-book-native.sh',
-               bookname,
-               src,
-               resources,
-               pwd1
-               ]
+               '--user', '%s' % uid1]
+
+        interactive = True
+
+        if interactive:
+            cmd.append('-it')
+
+        cmd += [
+            image,
+            '/project/run-book-native.sh',
+            bookname,
+            src,
+            resources,
+            pwd1
+        ]
 
         print('executing:\nls ' + " ".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
@@ -99,8 +117,9 @@ class DTCommand(DTCommandAbs):
             if e.errno == 2:
                 msg = 'Could not find "docker" executable.'
                 DTCommandAbs.fail(msg)
+            raise
 
-        p.wait()
+        p.communicate()
 
         # mkdir - p / tmp / fake -$(USER) - home
         # 	docker run \
@@ -117,7 +136,7 @@ class DTCommand(DTCommandAbs):
         # 		"$(pwd1)"
         #
 
-        print('hello')
+        print('\n\nCompleted.')
 #
 #
 #
