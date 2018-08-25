@@ -1,0 +1,44 @@
+version: '3'
+services:
+# Duckietown and Blockly containers
+    roscore:
+        image: duckietown/rpi-ros-kinetic-roscore:latest
+        restart: unless-stopped
+        network_mode: "host"
+    rosbridge-websocket:
+        image: duckietown/rpi-duckiebot-rosbridge-websocket:latest
+        restart: unless-stopped
+        network_mode: "host"
+    blockly-backend:
+        image: duckietown/rpi-ros-kinetic-blockly-backend:latest
+        restart: unless-stopped
+        network_mode: "host"
+    blockly-frontend:
+        image: duckietown/rpi-duckiebot-blockly-frontend:latest
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+            - blockly_frontend_volume:/var/www/html
+# Default containers
+    wifi:
+        image: cjimti/iotwifi
+        restart: unless-stopped
+        privileged: true
+        network_mode: "host"
+        volumes:
+            - /var/local/wificfg.json:/cfg/wificfg.json
+            - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
+    portainer:
+        image: portainer/portainer:linux-arm
+        command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+    watchtower:
+        image: v2tec/watchtower:armhf-latest
+        command: ["--cleanup"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
