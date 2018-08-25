@@ -43,12 +43,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        k = DTShellConstants.DT1_TOKEN_CONFIG_KEY
-        if k not in shell.config:
-            msg = 'Please set up a token for this.'
-            raise Exception(msg)
-
-        token = shell.config[k]
+        token = shell.get_dt1_token()
 
         k = DTShellConstants.CONFIG_DOCKER_USERNAME
         if k not in shell.config:
