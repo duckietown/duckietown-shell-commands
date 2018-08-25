@@ -18,4 +18,4 @@ class DTCommand(DTCommandAbs):
         print('You are succesfully authenticated.\n')
         print('   name: %s' % info['name'])
         print('  login: %s' % info['user_login'])
-        print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
+        # print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
