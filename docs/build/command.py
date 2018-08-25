@@ -21,6 +21,16 @@ class DTCommand(DTCommandAbs):
             msg = 'Could not find "book" directory %r.' % bookdir
             DTCommandAbs.fail(msg)
 
+        # check that the resources directory is present
+
+        resources = os.path.join(pwd, 'resources')
+        if not os.path.exists(os.path.join(resources, '00_main_template.html')):
+            msg = 'It looks like that the "resources" repo is not checked out.'
+            msg += '\nMaybe try:'
+            msg += '\n\n   git submodule init'
+            msg += '\n   git submodule init update'
+            raise Exception(msg) # XXX
+
         entries = list(os.listdir(bookdir))
         entries = [_ for _ in entries if not _[0] == '.']
         if len(entries) > 1:
@@ -79,7 +89,7 @@ class DTCommand(DTCommandAbs):
                pwd1
                ]
 
-        print('executing: ' + "\n".join(cmd))
+        print('executing:\nls ' + " ".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
 
         try:
