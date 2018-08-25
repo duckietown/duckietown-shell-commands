@@ -24,7 +24,7 @@ class DTCommand(DTCommandAbs):
         # check that the resources directory is present
 
         resources = os.path.join(pwd, 'resources')
-        if not os.path.exists(os.path.join(resources, '00_main_template.html')):
+        if not os.path.exists(os.path.join(resources, 'templates')):
             msg = 'It looks like that the "resources" repo is not checked out.'
             msg += '\nMaybe try:'
             msg += '\n\n   git submodule init'
