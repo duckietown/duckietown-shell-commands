@@ -1,5 +1,5 @@
-from dt_shell import DTCommandAbs
-from dt_shell import __version__
+from dt_shell import DTCommandAbs, __version__
+
 
 class DTCommand(DTCommandAbs):
     help = 'Prints out the version of the shell and returns.'

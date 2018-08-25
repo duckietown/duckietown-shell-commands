@@ -2,14 +2,14 @@ from __future__ import print_function
 from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
+token_dt1_config_key = 'token_dt1'
 
 class DTCommand(DTCommandAbs):
-    config_key = 'token_dt1'
 
     @staticmethod
     def command(shell, args):
         msg = """
-Please enter your AI-DO token.
+Please enter your Duckietown token.
 
 It looks something like this:
 
@@ -41,5 +41,5 @@ Enter token: """
             print(msg)
             return
 
-        shell.config[DTCommand.config_key] = s
+        shell.config[token_dt1_config_key] = s
         shell.save_config()
