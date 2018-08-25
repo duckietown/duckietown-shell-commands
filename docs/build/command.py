@@ -80,9 +80,16 @@ class DTCommand(DTCommandAbs):
         print('executing: ' + "\n".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
 
-        p = subprocess.Popen(cmd, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None, preexec_fn=None,
+        try:
+            p = subprocess.Popen(cmd, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None, preexec_fn=None,
                              shell=False, cwd=pwd, env=None)
+        except OSError as e:
+            if e.errno == 2:
+                msg = 'Could not find "docker" executable.'
+                DTCommandAbs.fail(msg)
+
         p.wait()
+
 
         # mkdir - p / tmp / fake -$(USER) - home
         # 	docker run \
