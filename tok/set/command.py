@@ -15,12 +15,9 @@ It looks something like this:
 
     dt1-7vEuJsaxeXXXXX-43dzqWFnWd8KBa1yev1g3UKnzVxZkkTbfSJnxzuJjWaANeMf4y6XSXBWTpJ7vWXXXX
     
-To find your token, login to duckietown.org and open the page:
+To find your token, first login to duckietown.org, and open the page:
 
-    https://www.duckietown.org/wp-admin/profile.php     
-    
-Scroll down to where it says "AI-DO I token".
-        
+    https://www.duckietown.org/site/your-token
 
 
 Enter token: """
