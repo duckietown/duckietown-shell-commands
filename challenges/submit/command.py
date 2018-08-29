@@ -68,9 +68,6 @@ class DTCommand(DTCommandAbs):
 
         data = {'hash': hashname}
 
-        info = dtserver_submit(token, challenge, data)
-        if not info['ok']:
-            msg = info['error']
-            raise Exception(msg)  # XXX
-        submission_id = info['submission_id']
+        submission_id = dtserver_submit(token, challenge, data)
+
         print('Successfully created submission %s' % submission_id)

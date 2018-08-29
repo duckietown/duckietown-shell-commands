@@ -11,10 +11,6 @@ class DTCommand(DTCommandAbs):
 
         for a in args:
             submission_id = int(a)
-            info = dtserver_retire(token, submission_id)
+            submission_id = dtserver_retire(token, submission_id)
 
-            if not info['ok']:
-                msg = info['error']
-                raise Exception(msg)  # XXX
-            # submission_id = info['submission_id']
             print('Successfully retired submission %s' % submission_id)
