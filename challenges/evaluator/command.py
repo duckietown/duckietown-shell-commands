@@ -1,7 +1,7 @@
 import argparse
 import os
 import socket
-
+from dt_shell import dtslogger
 from dt_shell import DTCommandAbs
 from dt_shell.remote import get_duckietown_server_url
 
@@ -36,6 +36,8 @@ class DTCommand(DTCommandAbs):
         h = socket.gethostname()
         env['DTSERVER'] = get_duckietown_server_url().replace("localhost", h + '.local')
 
+
+        dtslogger.info('Starting container %s' % image)
         client.containers.run(image, command, volumes=volumes, environment=env,
                               network_mode='host')
 
