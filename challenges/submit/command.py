@@ -6,7 +6,7 @@ import subprocess
 from dt_shell import DTCommandAbs
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import dtserver_submit
-from duckietown_challenges.local_config import read_challenge_info
+
 
 
 def tag_from_date(d):
@@ -92,3 +92,47 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, challenge, data)
             print('Successfully created submission %s' % submission_id)
+
+
+        # try:
+        #     from duckietown_challenges.local_config import read_challenge_info
+        # except ImportError as e:
+        #     msg = 'Please install or update duckietown_challenges.'
+        #     msg += '\n\n pip install -U --user duckietown-challenges '
+
+
+# FIXME: repeated code - because no robust way to have imports in duckietown-shell-commands
+
+
+class ChallengeInfoLocal():
+    def __init__(self, challenge_name):
+        self.challenge_name = challenge_name
+
+
+def read_challenge_info(dirname):
+    bn = 'challenge.yaml'
+    fn = os.path.join(dirname, bn)
+
+    data = read_yaml_file(fn)
+    try:
+        challenge_name = data['challenge']
+
+        return ChallengeInfoLocal(challenge_name)
+    except Exception as e:
+        msg = 'Could not read file %r: %s' % (fn, e)
+        raise Exception(msg)
+
+import os
+
+# noinspection PyUnresolvedReferences
+import ruamel.ordereddict as s
+from ruamel import yaml
+
+
+def read_yaml_file(fn):
+    assert os.path.exists(fn)
+
+    with open(fn) as f:
+        data = f.read()
+        return yaml.load(data, Loader=yaml.Loader)
+
