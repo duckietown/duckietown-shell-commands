@@ -1,8 +1,8 @@
 import argparse
 import os
 import socket
-from dt_shell import dtslogger
-from dt_shell import DTCommandAbs
+
+from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.remote import get_duckietown_server_url
 
 
@@ -26,7 +26,8 @@ class DTCommand(DTCommandAbs):
         command = ['dt-challenges-evaluator', '--continuous']
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'}
+            os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'},
+            '/tmp': {'bind': '/tmp', 'mode': 'rw'}
         }
         env = {}
 
@@ -36,10 +37,16 @@ class DTCommand(DTCommandAbs):
         h = socket.gethostname()
         env['DTSERVER'] = get_duckietown_server_url().replace("localhost", h + '.local')
 
-
         dtslogger.info('Starting container %s' % image)
-        client.containers.run(image, command, volumes=volumes, environment=env,
-                              network_mode='host')
+        container = client.containers.run(image, command, volumes=volumes, environment=env,
+                                          network_mode='host', detach=True)
+        try:
+            for line in container.logs(stdout=True, stderr=True, stream=True, follow=True):
+                print(line)
+        except KeyboardInterrupt:
+            dtslogger.info('Received CTRL-C. Stopping container...')
+            container.stop()
+            dtslogger.info('Container stopped.')
 
 
 def ensure_watchtower_active(client):
