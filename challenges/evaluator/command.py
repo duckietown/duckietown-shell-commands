@@ -3,6 +3,7 @@ import os
 import socket
 
 from dt_shell import dtslogger, DTCommandAbs
+from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
 
 
@@ -10,6 +11,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        check_docker_environment()
+
         home = os.path.expanduser('~')
         parser = argparse.ArgumentParser()
         parser.add_argument('--no-watchtower', dest='no_watchtower', action='store_true', default=False,

@@ -4,7 +4,7 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs
-from dt_shell.env_checks import get_dockerhub_username
+from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit
 
 
@@ -68,6 +68,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        check_docker_environment()
+
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
