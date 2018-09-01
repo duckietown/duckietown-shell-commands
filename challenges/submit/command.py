@@ -58,6 +58,7 @@ def build(username, challenge, do_push=True, no_cache=False):
 
         if p.returncode != 0:
             msg = 'Could not run docker push.'
+            msg += '\nTry to login using "docker login".'
             raise Exception(msg)
 
     return image
