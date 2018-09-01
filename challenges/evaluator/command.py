@@ -22,7 +22,7 @@ class DTCommand(DTCommandAbs):
         import docker
         client = docker.from_env()
 
-        image = 'andreacensi/dt-challenges-evaluator'
+        image = 'andreacensi/dt-challenges-evaluator:latest'
         command = ['dt-challenges-evaluator', '--continuous']
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
@@ -39,15 +39,18 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Starting container %s' % image)
         container = client.containers.run(image, command, volumes=volumes, environment=env,
-                                          network_mode='host', detach=True)
+                                          network_mode='host', detach=True,
+                                          tty=True)
         try:
             for line in container.logs(stdout=True, stderr=True, stream=True, follow=True):
-                print(line)
+                sys.stdout.write(line)
+                # print(line)
         except KeyboardInterrupt:
             dtslogger.info('Received CTRL-C. Stopping container...')
             container.stop()
             dtslogger.info('Container stopped.')
 
+import sys
 
 def ensure_watchtower_active(client):
     containers = client.containers.list(filters=dict(status='running'))
