@@ -1,12 +1,10 @@
 import argparse
 import datetime
-import os
 import subprocess
 
 from dt_shell import DTCommandAbs
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
-from dt_shell.remote import dtserver_submit
-
+from dt_shell.remote import dtserver_submit, get_duckietown_server_url
 
 
 def tag_from_date(d):
@@ -94,7 +92,9 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, challenge, data)
             print('Successfully created submission %s' % submission_id)
-
+            print('')
+            url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
+            print('You can track the progress at: %s' % url)
 
         # try:
         #     from duckietown_challenges.local_config import read_challenge_info
@@ -124,6 +124,7 @@ def read_challenge_info(dirname):
         msg = 'Could not read file %r: %s' % (fn, e)
         raise Exception(msg)
 
+
 import os
 
 # noinspection PyUnresolvedReferences
@@ -137,4 +138,3 @@ def read_yaml_file(fn):
     with open(fn) as f:
         data = f.read()
         return yaml.load(data, Loader=yaml.Loader)
-
