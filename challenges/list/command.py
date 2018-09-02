@@ -1,3 +1,4 @@
+import termcolor
 from dt_shell import DTCommandAbs
 
 from dt_shell.remote import dtserver_get_user_submissions
@@ -20,8 +21,28 @@ class DTCommand(DTCommandAbs):
             def d(dt):
                 return dt.isoformat()
 
-            print('%4d  %20s %10s   %20s   %s' % (submission['submission_id'],
-                                                  d(submission['date_submitted']),
-                                                  submission['status'],
-                                                  d(submission['last_status_change']),
-                                                  submission['parameters']))
+            url = 'https://challenges.duckietown.org/v2/humans/submissions/%s' % submission_id
+
+            s = ('%4s  %20s %10s   %20s   %s' % (submission_id,
+                                                 d(submission['date_submitted']),
+                                                 (submission['status']),
+                                                 d(submission['last_status_change']),
+                                                 url))
+
+            color = color_status(submission['status'])
+            print(termcolor.colored(s, color))
+
+
+def color_status(s):
+    colors = {
+        'success': 'green',
+        'evaluating': 'blue',
+        'failed': 'red',
+        'retired': 'cyan',
+        'error': 'red',
+    }
+
+    if s in colors:
+        return colors[s]
+    else:
+        return 'white'

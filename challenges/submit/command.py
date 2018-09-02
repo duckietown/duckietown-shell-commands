@@ -1,12 +1,10 @@
 import argparse
 import datetime
-import os
 import subprocess
 
 from dt_shell import DTCommandAbs
-from dt_shell.env_checks import get_dockerhub_username
-from dt_shell.remote import dtserver_submit
-from duckietown_challenges.local_config import read_challenge_info
+from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
+from dt_shell.remote import dtserver_submit, get_duckietown_server_url
 
 
 def tag_from_date(d):
@@ -68,6 +66,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        check_docker_environment()
+
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
@@ -92,3 +92,63 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, challenge, data)
             print('Successfully created submission %s' % submission_id)
+            print('')
+            url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
+            print('You can track the progress at: %s' % url)
+
+
+# FIXME: repeated code - because no robust way to have imports in duckietown-shell-commands
+
+
+def find_conf_file(d, fn0):
+    print d, fn0
+    fn = os.path.join(d, fn0)
+    if os.path.exists(fn):
+        return fn
+    else:
+        d0 = os.path.dirname(d)
+        if not d0 or d0 == '/':
+            msg = 'Could not find file %r' % fn0
+            raise Exception(msg)
+        return find_conf_file(d0, fn0)
+
+
+class ChallengeInfoLocal():
+    def __init__(self, challenge_name):
+        self.challenge_name = challenge_name
+
+
+def read_challenge_info(dirname):
+    bn = 'challenge.yaml'
+    dirname = os.path.realpath(dirname)
+    fn = find_conf_file(dirname, bn)
+
+    data = read_yaml_file(fn)
+    try:
+        challenge_name = data['challenge']
+        return ChallengeInfoLocal(challenge_name)
+    except Exception as e:
+        msg = 'Could not read file %r: %s' % (fn, e)
+        raise Exception(msg)
+
+
+import os
+
+# noinspection PyUnresolvedReferences
+import ruamel.ordereddict as s
+from ruamel import yaml
+
+
+def read_yaml_file(fn):
+    if not os.path.exists(fn):
+        msg = 'File does not exist: %s' % fn
+        raise Exception(msg)
+
+    with open(fn) as f:
+        data = f.read()
+
+        try:
+            return yaml.load(data, Loader=yaml.Loader)
+        except Exception as e:
+            msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
+            raise Exception(msg)

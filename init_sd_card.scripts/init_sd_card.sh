@@ -101,7 +101,7 @@ prompt_for_configs() {
     if $READ_TOKEN; then
         read_password "Please enter your duckietown.org Duckie Token > " DUCKIE_TOKEN
 
-        if [ !$(dt tok verify $DUCKIE_TOKEN) ]; then
+        if [ !$(dts tok verify $DUCKIE_TOKEN) ]; then
             >&2 echo "Critical error! Unable to verify Duckie Token."
             exit 1 
         fi
