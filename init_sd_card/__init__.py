@@ -2,7 +2,6 @@
 #
 # Maintainer: Andrea F. Daniele
 
-print('one')
 # import current command
 from .command import *
 
