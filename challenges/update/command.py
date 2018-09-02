@@ -75,6 +75,19 @@ def tag_from_date(d):
 # FIXME: repeated code - because no robust way to have imports in duckietown-shell-commands
 
 
+def find_conf_file(d, fn0):
+    print d, fn0
+    fn = os.path.join(d, fn0)
+    if os.path.exists(fn):
+        return fn
+    else:
+        d0 = os.path.dirname(d)
+        if not d0 or d0 == '/':
+            msg = 'Could not find file %r' % fn0
+            raise Exception(msg)
+        return find_conf_file(d0, fn0)
+
+
 class ChallengeInfoLocal():
     def __init__(self, challenge_name):
         self.challenge_name = challenge_name
@@ -82,12 +95,12 @@ class ChallengeInfoLocal():
 
 def read_challenge_info(dirname):
     bn = 'challenge.yaml'
-    fn = os.path.join(dirname, bn)
+    dirname = os.path.realpath(dirname)
+    fn = find_conf_file(dirname, bn)
 
     data = read_yaml_file(fn)
     try:
         challenge_name = data['challenge']
-
         return ChallengeInfoLocal(challenge_name)
     except Exception as e:
         msg = 'Could not read file %r: %s' % (fn, e)
@@ -102,8 +115,15 @@ from ruamel import yaml
 
 
 def read_yaml_file(fn):
-    assert os.path.exists(fn)
+    if not os.path.exists(fn):
+        msg = 'File does not exist: %s' % fn
+        raise Exception(msg)
 
     with open(fn) as f:
         data = f.read()
-        return yaml.load(data, Loader=yaml.Loader)
+
+        try:
+            return yaml.load(data, Loader=yaml.Loader)
+        except Exception as e:
+            msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
+            raise Exception(msg)
