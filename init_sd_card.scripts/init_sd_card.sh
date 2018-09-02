@@ -5,7 +5,8 @@
 # Usage: DuckieOS1-RPI3Bp.sh [--duckietoken]
 #
 # Options:
-#           --duckietoken Writes user's Duckie Token to HypriotOS parition: ~/.dt-shell/duckie_token
+
+# If DUCKIE_TOKEN is set, uses its content as the token.
 
 #for debugging, enable command printout
 if [ -n "$DEBUG" ]; then
@@ -24,13 +25,13 @@ fi
 
 DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip dt)
 
-if [[ $* == *--duckietoken* ]]; then
-    READ_TOKEN=true
-    echo "Duckie Token enabled..."
-    DEPS_LIST+=(dt)
-else
-    READ_TOKEN=false
-fi
+# if [[ $* == *--duckietoken* ]]; then
+#     READ_TOKEN=true
+#     echo "Duckie Token enabled..."
+#     DEPS_LIST+=(dt)
+# else
+#     READ_TOKEN=false
+# fi
 
 TMP_DIR="/tmp/duckietown"
 mkdir -p ${TMP_DIR}
@@ -98,14 +99,14 @@ prompt_for_configs() {
     DEFAULT_WIFISSID="duckietown"
     DEFAULT_WIFIPASS="quackquack"
 
-    if $READ_TOKEN; then
-        read_password "Please enter your duckietown.org Duckie Token > " DUCKIE_TOKEN
+    # if $READ_TOKEN; then
+    #     read_password "Please enter your duckietown.org Duckie Token > " DUCKIE_TOKEN
 
-        if [ !$(dts tok verify $DUCKIE_TOKEN) ]; then
-            >&2 echo "Critical error! Unable to verify Duckie Token."
-            exit 1 
-        fi
-    fi
+    #     if [ !$(dts tok verify $DUCKIE_TOKEN) ]; then
+    #         >&2 echo "Critical error! Unable to verify Duckie Token."
+    #         exit 1 
+    #     fi
+    # fi
     
     read -p "Please enter a username (default is $DEFAULT_USERNAME) > " USERNAME
     USERNAME=${USERNAME:-$DEFAULT_USERNAME}
