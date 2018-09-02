@@ -1,6 +1,7 @@
 import argparse
 import os
 import socket
+import time
 
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
@@ -44,14 +45,21 @@ class DTCommand(DTCommandAbs):
         container = client.containers.run(image, command, volumes=volumes, environment=env,
                                           network_mode='host', detach=True,
                                           tty=True)
-        try:
-            for line in container.logs(stdout=True, stderr=True, stream=True, follow=True):
-                sys.stdout.write(line)
-                # print(line)
-        except KeyboardInterrupt:
-            dtslogger.info('Received CTRL-C. Stopping container...')
-            container.stop()
-            dtslogger.info('Container stopped.')
+        while True:
+            try:
+                for line in container.logs(stdout=True, stderr=True, stream=True, follow=True):
+                    sys.stdout.write(line)
+                    # print(line)
+            except Exception as e:
+                dtslogger.error(e)
+                dtslogger.info('Will try to re-attach to container.')
+                time.sleep(1)
+            except KeyboardInterrupt:
+                dtslogger.info('Received CTRL-C. Stopping container...')
+                container.stop()
+                dtslogger.info('Container stopped.')
+                break
+
 
 import sys
 
