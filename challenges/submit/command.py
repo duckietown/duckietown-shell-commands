@@ -71,14 +71,21 @@ class DTCommand(DTCommandAbs):
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
+        parser.add_argument('-m', dest='message', action="store", nargs='+', default=None, type=str,
+                            help="Submission message")
         parser.add_argument('--no-push', dest='no_push', action='store_true', default=False,
                             help="Disable pushing of container")
         parser.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
                             help="Disable submission (only build and push)")
         parser.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
+        parser.add_argument('--meta', dest='metadata', action='store', nargs='+', default=None,
+                            help="Custom JSON string to attach to the submission")
         parsed = parser.parse_args(args)
 
         do_push = not parsed.no_push
+
+        submission_label = ' '.join(parsed.message) if parsed.message!=None else None
+        submission_metadata = ' '.join(parsed.metadata)if parsed.metadata!=None else None
 
         username = get_dockerhub_username(shell)
 
@@ -87,7 +94,7 @@ class DTCommand(DTCommandAbs):
 
         hashname = build(username, challenge, do_push, no_cache=parsed.no_cache)
 
-        data = {'hash': hashname}
+        data = {'hash': hashname, 'user-label': submission_label, 'user-payload': submission_metadata}
 
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, challenge, data)
