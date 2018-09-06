@@ -6,6 +6,8 @@ import sys
 from dt_shell import DTCommandAbs
 from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
+image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
+
 
 class DTCommand(DTCommandAbs):
 
@@ -75,7 +77,6 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(fake_home):
             os.makedirs(fake_home)
         resources = 'resources'
-        image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
         uid1 = os.getuid()
 
         if sys.platform == 'darwin':
