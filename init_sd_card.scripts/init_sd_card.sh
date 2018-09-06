@@ -380,7 +380,20 @@ copy_ssh_credentials() {
 
 mount_disks() {
     # wait 1 second for the /dev/disk/by-label to be refreshed
-    sleep 1s
+    echo "Refreshing disks"
+    sudo udevadm trigger
+    sleep 5
+    # TODO: check existence of /dev/disk/by-label/root and /dev/disk/by-label/HypriotOS
+    echo "."
+    sleep 1
+    echo "."
+    sleep 1
+    echo "Please remove and reinsert the SD card."
+    sleep 5
+    echo ""
+    echo "Only after you have done it, pless any key to continue."
+    read -n 1
+    
     TMP_ROOT_MOUNTPOINT="/media/$USER/root"
     TMP_HYPRIOT_MOUNTPOINT="/media/$USER/HypriotOS"
     udisksctl mount -b /dev/disk/by-label/HypriotOS
@@ -424,7 +437,17 @@ unmount_disks
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
-CURRENT_WIFI=$(iwgetid -r)
+echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
+
+# XXX: this fails if the current computer does not have wifi enabled
+# for example if it connects to the wifi using an ethernet connection to the switch
+if iwgetid -r; then
+    CURRENT_WIFI=$(iwgetid -r)
+else
+    exit 0
+fi
+
 if [ "$CURRENT_WIFI" != "$WIFISSID" ]; then
     echo "Notice: the current WiFi network is '$CURRENT_WIFI', not '$WIFISSID'"
     echo "If you do not join '$WIFISSID', then $HOST_NAME might be unreachable"
