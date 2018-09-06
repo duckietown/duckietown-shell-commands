@@ -2,18 +2,18 @@
 
 # This script will flash an SD card with the necessary dependencies to run DuckieOS.
 #
-# Usage: DuckieOS1-RPI3Bp.sh [--duckietoken]
+# Usage: [duckiebot_compose=<PATH>] [duckietoken=<TOKEN>] DuckieOS1-RPI3Bp.sh
 #
-# Options:
-
-# If DUCKIE_TOKEN is set, uses its content as the token.
+# Environment variables:
+#           duckietoken:       User's Duckietown token. Will be flashed to root partition at ~/.dt-shell/duckietoken.
+#           duckiebot_compose: Path to the Duckiebot's primary docker-compose.yml config. Will use default if empty.
 
 #for debugging, enable command printout
 if [ -n "$DEBUG" ]; then
-    set -x
+    set -xu
 fi
 
-set -eu
+set -e
 # We need root to install
 if [ $(id -u) -eq "0" ]; then
     echo "Please, do not run this script as SUDO or root ^C..."
@@ -23,15 +23,7 @@ if [ $(id -u) -eq "0" ]; then
     exit 1
 fi
 
-DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip dt)
-
-# if [[ $* == *--duckietoken* ]]; then
-#     READ_TOKEN=true
-#     echo "Duckie Token enabled..."
-#     DEPS_LIST+=(dt)
-# else
-#     READ_TOKEN=false
-# fi
+DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip)
 
 TMP_DIR="/tmp/duckietown"
 mkdir -p ${TMP_DIR}
@@ -98,16 +90,7 @@ prompt_for_configs() {
     DEFAULT_PASSWORD="quackquack"
     DEFAULT_WIFISSID="duckietown"
     DEFAULT_WIFIPASS="quackquack"
-
-    # if $READ_TOKEN; then
-    #     read_password "Please enter your duckietown.org Duckie Token > " DUCKIE_TOKEN
-
-    #     if [ !$(dts tok verify $DUCKIE_TOKEN) ]; then
-    #         >&2 echo "Critical error! Unable to verify Duckie Token."
-    #         exit 1 
-    #     fi
-    # fi
-    
+   
     read -p "Please enter a username (default is $DEFAULT_USERNAME) > " USERNAME
     USERNAME=${USERNAME:-$DEFAULT_USERNAME}
     read_password "Please enter a password (default is $DEFAULT_PASSWORD) > " PASSWORD
@@ -131,6 +114,7 @@ validate_userdata() {
 ###############################################################################
 ####### WARNING: Be very careful when modifying the cloud-init payload. #######
 ####### Each and every character has been choosen with the utmost care. #######
+####### We attempt to validate the userdata, but this is not foolproof. #######
 ###############################################################################
 USER_DATA=$(cat <<EOF
 #cloud-config
@@ -170,6 +154,9 @@ write_files:
     permissions: '0755'
   - content: $PUB_KEY
     path: /home/$USERNAME/.ssh/authorized_keys
+  - content: | 
+$duckiebot_compose_yaml
+    path: /var/local/docker-compose.yml
   - content: |
       {
           "dnsmasq_cfg": {
@@ -188,9 +175,6 @@ write_files:
           }
       }
     path: /var/local/wificfg.json
-${DUCKIE_TOKEN+"  - content: $DUCKIE_TOKEN
-    path: /home/$USERNAME/.dt_shell/duckie_token"
-}
   - content: |
       country=CA
       ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
@@ -202,8 +186,8 @@ ${DUCKIE_TOKEN+"  - content: $DUCKIE_TOKEN
       }
     path: /etc/wpa_supplicant/wpa_supplicant.conf
   - content: |
-        i2c-bcm2708
-        i2c-dev
+      i2c-bcm2708
+      i2c-dev
     path: /etc/modules
   - content: |
       [Unit]
@@ -217,6 +201,9 @@ ${DUCKIE_TOKEN+"  - content: $DUCKIE_TOKEN
       [Install]
       WantedBy=sockets.target
     path: /etc/systemd/system/docker-tcp.socket
+${duckietoken+"  - content: $duckietoken
+    path: /home/$USERNAME/.dt_shell/duckie_token"
+}
 
 # These commands will be run once on first boot only
 runcmd:
@@ -241,22 +228,20 @@ runcmd:
 #  - [ docker, load, "--input", "/var/local/software.tar.gz"]
 
 # RESTful WiFi configuration
-  - [ docker, load, "--input", "/var/local/iotwifi.tar.gz" ]
-  - 'docker run -d --privileged --restart unless-stopped --name wifi --net host -v /var/local/wificfg.json:/cfg/wificfg.json cjimti/iotwifi'
-
+  - [ docker, load, --input, "/var/local/iotwifi.tar.gz" ]
 # Portainer Web UI
-  - [ docker, load, "--input", "/var/local/portainer.tar.gz" ]
-  - 'docker run -d --restart unless-stopped --name portainer -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock portainer/portainer:linux-arm -H unix:///var/run/docker.sock --no-auth'
-
+  - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
 # Watchtower live updates
-  - [ docker, load, "--input", "/var/local/watchtower.tar.gz" ]
-  - 'docker run -d --restart unless-stopped --name watchtower -v /var/run/docker.sock:/var/run/docker.sock v2tec/watchtower:armhf-latest --cleanup'
+  - [ docker, load, --input, "/var/local/watchtower.tar.gz" ]
+# Launch the previous containers
+  - [ docker-compose, --file, "/var/local/docker-compose.yml", up ]
 
-# Python Slim Image
-  - [ docker, load, "--input", "/var/local/raspberry-pi-alpine-python.tar.gz" ]
-
-# TODO: cjimti/iotwifi fails to configure the default station mode with wpa_supplicant.conf alone, need to figure out how to get rid of this hack
-  - 'curl -w "\n" -d ''{"ssid":"$WIFISSID", "psk":"$WIFIPASS"}'' -H "Content-Type: application/json" -X POST localhost:8080/connect'
+# Python Slim Image (maybe useful for setting up Python)
+  - [ docker, load, --input, "/var/local/raspberry-pi-alpine-python.tar.gz" ]
+  - [ docker, pull, "duckietown/rpi-duckiebot-lanefollowing-demo" ]
+  - [ docker, pull, "duckietown/rpi-duckiebot-joystick-demo" ]
+  - [ docker, pull, "duckietown/rpi-duckiebot-calibration" ]
+  - [ docker, pull, "duckietown/gym-duckietown-agent:arm" ]
 EOF
 )
 ###############################################################################
@@ -265,10 +250,63 @@ EOF
 
     echo "Validating user-data file..."
     VALIDATION_RESULT=$(wget -qO- "https://validate.core-os.net/validate" --method=PUT --body-data="$USER_DATA")
-    echo "$VALIDATION_RESULT"
+    echo "Validation result: $(echo "$VALIDATION_RESULT" | python -m json.tool)"
     if echo "$VALIDATION_RESULT" | grep -q '"kind":"error"'; then
-        >&2 echo "Critical error! Invalid cloud-init user-data."
+        >&2 echo "Critical error! Invalid cloud-init user-data: $USER_DATA"
         exit 1 
+    fi
+}
+
+validate_duckiebot_compose() {
+    if [ -z "$duckiebot_compose" ]; then
+        duckiebot_compose="$TMP_DIR/duckiebot-compose.yml"
+        echo "Using default Docker compose config, $duckiebot_compose"
+        echo "$(cat <<EOF
+version: '3'
+services:
+    wifi:
+        image: cjimti/iotwifi
+        restart: unless-stopped
+        privileged: true
+        network_mode: "host"
+        volumes:
+        - /var/local/wificfg.json:/cfg/wificfg.json
+        - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
+    portainer:
+        image: portainer/portainer:linux-arm
+        command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+    watchtower:
+        image: v2tec/watchtower:armhf-latest
+        command: ["--cleanup"]
+        restart: unless-stopped
+        network_mode: "host"
+        volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+EOF
+)" > $duckiebot_compose
+    fi
+
+    # If docker-compose is available on the host, attempt to validate
+    if [ $(command -v docker-compose) ]; then
+        docker-compose -f $duckiebot_compose config --quiet
+        if [ $? -ne 0 ]; then
+            >&2 echo "Critical error! Invalid Duckiebot compose: $duckiebot_compose"
+            exit 1
+        fi
+    fi
+    duckiebot_compose_yaml=$(cat $duckiebot_compose | sed -e 's/^/      /')
+}
+
+verify_duckietoken() {
+    if [ -n "$duckietoken" ]; then
+        if [ !$(dt tok verify $duckietoken) ]; then
+            >&2 echo "Critical error! Unable to verify Duckie Token."
+            exit 1 
+        fi
     fi
 }
 
@@ -365,7 +403,7 @@ write_configurations() {
     echo "dtparam=i2c_arm=on" >> $_cfg
 }
 
-write_motd() {
+fetch_motd() {
     # todo: check if the file on the server changed
     if [ ! -f $MOD_FILE ]; then
         echo "Downloading Message of the Day"
@@ -410,14 +448,22 @@ write_userdata() {
     echo "$USER_DATA" > $TMP_HYPRIOT_MOUNTPOINT/user-data
 }
 
+unset_env_vars() {
+    unset duckiebot_compose
+    unset duckietoken
+}
+
 # main()
 
 # configs
 check_deps
 prompt_for_configs
-write_motd
+fetch_motd
 copy_ssh_credentials
+validate_duckiebot_compose
+verify_duckietoken
 validate_userdata
+unset_env_vars
 
 # downloads
 download_etcher
@@ -434,6 +480,7 @@ mount_disks
     write_userdata
     sync  # flush all buffers
 unmount_disks
+
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
