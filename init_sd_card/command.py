@@ -19,6 +19,7 @@ class DTCommand(DTCommandAbs):
         script_cmd = '/bin/bash %s' % script_file
         token = shell.get_dt1_token()
         env = dict(DUCKIE_TOKEN=token)
+        env.update(os.environ)
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
         # process.communicate()
         if ret == 0:
