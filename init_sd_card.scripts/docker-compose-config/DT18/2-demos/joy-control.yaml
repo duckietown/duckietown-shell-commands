@@ -1,4 +1,7 @@
 # Works on DB17 hardware (adafruit)
+
+# TODO: remove the adafruit driver from here, have it launch in the 1-drivers/actuation-adafruit.yaml 
+
 version: '3'
 services:
 
