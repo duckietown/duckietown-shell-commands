@@ -3,7 +3,7 @@ version: '3'
 services:
 
     joystick:
-        image: duckietown/rpi-duckiebot-joystick-demo
+        image: duckietown/rpi-duckiebot-joystick-demo:master18
         restart: unless-stopped
         network_mode: host
 

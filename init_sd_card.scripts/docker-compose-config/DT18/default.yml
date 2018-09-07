@@ -1,14 +1,13 @@
 version: '3'
 services:
-#    wifi:
-#        image: cjimti/iotwifi
-#        restart: unless-stopped
-#        privileged: true
-#        network_mode: "host"
-#        volumes:
-#            #- /var/local/wificfg.json:/cfg/wificfg.json
-#            - /var/local:/cfg
-#            - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
+    wifi:
+        image: cjimti/iotwifi
+        restart: unless-stopped
+        privileged: true
+        network_mode: "host"
+        volumes:
+            - /var/local/wificfg.json:/cfg/wificfg.json
+            - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
     portainer:
         image: portainer/portainer:linux-arm
         command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
