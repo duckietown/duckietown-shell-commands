@@ -1,0 +1,17 @@
+version: '3'
+services:
+
+    camera:
+        image: duckietown/rpi-duckiebot-camera-node:master18
+        restart: unless-stopped
+        network_mode: host
+
+        devices:
+        - "/dev/vchiq:/dev/vchiq"
+
+    video_server:
+
+        image: duckietown/rpi-duckiebot-web_video_server:master18
+        restart: unless-stopped
+        network_mode: host
+

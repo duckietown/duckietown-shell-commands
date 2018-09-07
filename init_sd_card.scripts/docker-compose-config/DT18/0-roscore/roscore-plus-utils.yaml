@@ -1,0 +1,12 @@
+# Works on DB17 hardware (adafruit)
+version: '3'
+services:
+
+    roscore:
+        image: duckietown/rpi-ros-kinetic-roscore:latest
+        restart: unless-stopped
+        network_mode: host
+        ports: # this is redundant if network_mode = host
+        - "11311:11311"
+        environment:
+          DISABLE_CONTRACTS: 1
