@@ -14,14 +14,6 @@ if [ -n "$DEBUG" ]; then
 fi
 
 set -e
-# We need root to install
-if [ $(id -u) -eq "0" ]; then
-    echo "Please, do not run this script as SUDO or root ^C..."
-    echo "The script requires SUDO/root access for flashing the image "
-    echo "and to write config files to HyrpiotOS."
-    echo "You will be asked for your password at that time."
-    exit 1
-fi
 
 DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm)
 
@@ -242,6 +234,7 @@ runcmd:
   - [ docker, pull, "duckietown/rpi-duckiebot-joystick-demo" ]
   - [ docker, pull, "duckietown/rpi-duckiebot-calibration" ]
   - [ docker, pull, "duckietown/gym-duckietown-agent:arm" ]
+  - [ docker, pull, "duckietown/duckietown-slimremote" ]
 EOF
 )
 ###############################################################################
@@ -298,6 +291,7 @@ EOF
             exit 1
         fi
     fi
+    # Fixes indentation for nesting YAML into cloud-init userdata properly
     duckiebot_compose_yaml=$(cat $duckiebot_compose | sed -e 's/^/      /')
 }
 
