@@ -23,7 +23,7 @@ if [ $(id -u) -eq "0" ]; then
     exit 1
 fi
 
-DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip)
+DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm)
 
 TMP_DIR="/tmp/duckietown"
 mkdir -p ${TMP_DIR}
@@ -352,7 +352,7 @@ download_hypriot() {
 
 flash_hypriot() {
     echo "Flashing Hypriot image $HYPRIOT_LOCAL to disk..."
-    sudo -k -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
+    sudo -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
         ${ETCHER_DIR}/etcher -u false ${HYPRIOT_LOCAL}
     echo "Flashing Hypriot image succeeded."
 }
@@ -386,11 +386,9 @@ preload_docker_images() {
         docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
         image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
         # TODO: find a way to pre-load docker containers without needing SUDO access
-        sudo -p "[sudo] Enter password for '%p' which is required to pre-load Docker containers: " \
-            cp ${image_filename} $TMP_ROOT_MOUNTPOINT/var/local/
+        sudo cp ${image_filename} $TMP_ROOT_MOUNTPOINT/var/local/
         echo "Loaded $image_filename to $TMP_ROOT_MOUNTPOINT/var/local"
     done
-    sudo -K # forget any cached sudo credentials
 }
 
 write_configurations() {
@@ -421,17 +419,20 @@ mount_disks() {
     echo "Refreshing disks"
     sudo udevadm trigger
     sleep 5
-    # TODO: check existence of /dev/disk/by-label/root and /dev/disk/by-label/HypriotOS
-    echo "."
-    sleep 1
-    echo "."
-    sleep 1
-    echo "Please remove and reinsert the SD card."
-    sleep 5
-    echo ""
-    echo "Only after you have done it, pless any key to continue."
-    read -n 1
-    
+
+    if [ ! -e "/dev/disk/by-label/root" ] || [ ! -e "/dev/disk/by-label/HypriotOS" ]; then
+        echo "Downloading Message of the Day"
+        echo "."
+        sleep 1
+        echo "."
+        sleep 1
+        echo "Please remove and reinsert the SD card."
+        sleep 5
+        echo ""
+        echo "Only after you have done it, pless any key to continue."
+        read -n 1
+    fi
+
     TMP_ROOT_MOUNTPOINT="/media/$USER/root"
     TMP_HYPRIOT_MOUNTPOINT="/media/$USER/HypriotOS"
     udisksctl mount -b /dev/disk/by-label/HypriotOS
