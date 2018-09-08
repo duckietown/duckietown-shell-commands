@@ -94,7 +94,7 @@ class DTCommand(DTCommandAbs):
 
         hashname = build(username, challenge, do_push, no_cache=parsed.no_cache)
 
-        data = {'hash': hashname, 'user-label': submission_label, 'user-payload': submission_metadata}
+        data = {'hash': hashname, 'user_label': submission_label, 'user_payload': submission_metadata}
 
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, challenge, data)
