@@ -228,13 +228,8 @@ runcmd:
 # Launch the previous containers
   - [ docker-compose, --file, "/var/local/docker-compose.yml", up ]
 
-# Python Slim Image (maybe useful for setting up Python)
+# Lightweight Python image
   - [ docker, load, --input, "/var/local/raspberry-pi-alpine-python.tar.gz" ]
-  - [ docker, pull, "duckietown/rpi-duckiebot-lanefollowing-demo" ]
-  - [ docker, pull, "duckietown/rpi-duckiebot-joystick-demo" ]
-  - [ docker, pull, "duckietown/rpi-duckiebot-calibration" ]
-  - [ docker, pull, "duckietown/gym-duckietown-agent:arm" ]
-  - [ docker, pull, "duckietown/duckietown-slimremote" ]
 EOF
 )
 ###############################################################################
@@ -282,6 +277,43 @@ services:
 EOF
 )" > $duckiebot_compose
     fi
+
+# TODO: create separate docker-compose.yml file for duckietown containers
+# lanefollowing-demo:
+#         image: duckietown/rpi-duckiebot-lanefollowing-demo
+#         command: ["sleep infinity"]
+#         volumes:
+#         - data:/duckietown-data
+#         depends_on:
+#         - "wifi"
+#     joystick-demo:
+#         image: duckietown/rpi-duckiebot-joystick-demo
+#         command: ["sleep infinity"]
+#         volumes:
+#         - data:/duckietown-data
+#         depends_on:
+#         - "wifi"
+#     calibration:
+#         image: duckietown/rpi-duckiebot-calibration
+#         command: ["sleep infinity"]
+#         volumes:
+#         - data:/duckietown-data
+#         depends_on:
+#         - "wifi"
+#     gym-duckietown-agent:
+#         image: duckietown/gym-duckietown-agent:arm
+#         command: ["sleep infinity"]
+#         volumes:
+#         - data:/duckietown-data
+#         depends_on:
+#         - "wifi"
+#     slimremote:
+#         image: duckietown/duckietown-slimremote
+#         command: ["sleep infinity"]
+#         depends_on:
+#         - "wifi"
+# volumes:
+#     data:
 
     # If docker-compose is available on the host, attempt to validate
     if [ $(command -v docker-compose) ]; then
