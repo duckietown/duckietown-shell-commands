@@ -61,7 +61,7 @@ read_password() {
             break
         fi
         # thanks: https://askubuntu.com/questions/299437/how-can-i-use-the-backspace-character-as-a-backspace-when-entering-a-password
-        if [[ $char == $'\177' ]];  then
+        if [[ $char == $'\177' ]]; then
             prompt=$'\b \b'
             password="${password%?}"
         else
@@ -89,13 +89,14 @@ prompt_for_configs() {
     PASSWORD=${PASSWORD:-$DEFAULT_PASSWORD}
     read -p "Please enter a hostname (default is $DEFAULT_HOSTNAME) > " HOST_NAME
     HOST_NAME=${HOST_NAME:-$DEFAULT_HOSTNAME}
+
     read -p "Please enter a WiFi SSID (default is $DEFAULT_WIFISSID) > " WIFISSID
     WIFISSID=${WIFISSID:-$DEFAULT_WIFISSID}
     read_password "Please enter a WiFi PSK (default is $DEFAULT_WIFIPASS) > " WIFIPASS
     WIFIPASS=${WIFIPASS:-$DEFAULT_WIFIPASS}
 
     DEFAULT_DUCKPASS="$DEFAULT_PASSWORD"
-    DEFAULT_DUCKSSID="$HOST_NAME-$RANDOM"
+    DEFAULT_DUCKSSID="$HOST_NAME"
     read -p "Please enter a Duckiebot SSID (default is $DEFAULT_DUCKSSID) > " DUCKSSID
     DUCKSSID=${DUCKSSID:-$DEFAULT_DUCKSSID}
     read_password "Please enter Duckiebot PSK (default is $DEFAULT_DUCKPASS) > " DUCKPASS
@@ -152,18 +153,18 @@ $duckiebot_compose_yaml
   - content: |
       {
           "dnsmasq_cfg": {
-      	      "address": "/#/192.168.27.1",
-      	      "dhcp_range": "192.168.27.100,192.168.27.150,1h",
-      	      "vendor_class": "set:device,IoT"
+             "address": "/#/192.168.27.1",
+             "dhcp_range": "192.168.27.100,192.168.27.150,1h",
+             "vendor_class": "set:device,IoT"
           },
           "host_apd_cfg": {
-      	      "ip": "192.168.27.1",
-      	      "ssid": "$DUCKSSID",
-      	      "wpa_passphrase": "$DUCKPASS",
-      	      "channel": "6"
+             "ip": "192.168.27.1",
+             "ssid": "$DUCKSSID",
+             "wpa_passphrase": "$DUCKPASS",
+             "channel": "6"
           },
           "wpa_supplicant_cfg": {
-      	      "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
+             "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
           }
       }
     path: /var/local/wificfg.json
@@ -214,7 +215,7 @@ runcmd:
   - [ systemctl, enable, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker ]
-
+  - 'echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$(cat /sys/class/net/eth0/address | shasum | cut -c1-5)\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
 # Disabled pre-loading duckietown/software due to insuffient space on /var/local
 # https://github.com/hypriot/image-builder-rpi/issues/244#issuecomment-390512469
 #  - [ docker, load, "--input", "/var/local/software.tar.gz"]
@@ -230,6 +231,11 @@ runcmd:
 
 # Lightweight Python image
   - [ docker, load, --input, "/var/local/raspberry-pi-alpine-python.tar.gz" ]
+
+# These commands will be run on every boot
+bootcmd:
+# Generate the unique duckiebot SSID on first boot, based on the MAC address, broadcast to random channel
+  - 'echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$(cat /sys/class/net/eth0/address | shasum | cut -c1-5)\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
 EOF
 )
 ###############################################################################
