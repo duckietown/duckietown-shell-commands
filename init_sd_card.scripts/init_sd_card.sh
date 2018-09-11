@@ -243,7 +243,7 @@ EOF
 ###############################################################################
 
     echo "Validating user-data file..."
-    VALIDATION_RESULT=$(wget -qO- "https://validate.core-os.net/validate" --method=PUT --body-data="$USER_DATA")
+    VALIDATION_RESULT=$(wget -qO- "https://validate.core-os.net/validate" --method=PUT --body-data="$USER_DATA" || true)
     echo "Validation result: $(echo "$VALIDATION_RESULT" | python -m json.tool)"
     if echo "$VALIDATION_RESULT" | grep -q '"kind":"error"'; then
         >&2 echo "Critical error! Invalid cloud-init user-data: $USER_DATA"
