@@ -31,7 +31,7 @@ IMAGE_DOWNLOADER_CACHEDIR="${TMP_DIR}/docker_images"
 mkdir -p ${IMAGE_DOWNLOADER_CACHEDIR}
 
 MOD_FILE="${TMP_DIR}/mod"
-DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master/misc/duckie.art"
+DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
 
 IDENTITY_FILE="/home/${USER}/.ssh/id_rsa.pub"
 DUCKIEBOT_IDENTITY_FILE="/home/${USER}/.ssh/duckiebot_rsa"
