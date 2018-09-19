@@ -442,10 +442,10 @@ write_configurations() {
 
 fetch_motd() {
     # todo: check if the file on the server changed
-    if [ ! -f $MOD_FILE ]; then
-        echo "Downloading Message of the Day"
-        wget --no-check-certificate -O $MOD_FILE $DUCKIE_ART_URL
-    fi
+    #if [ ! -f $MOD_FILE ]; then
+    echo "Downloading Message of the Day"
+    wget --no-check-certificate -O $MOD_FILE $DUCKIE_ART_URL
+    #fi
     DUCKIE_ART=$(cat $MOD_FILE | base64 -w 0)
 }
 
