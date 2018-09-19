@@ -228,7 +228,7 @@ runcmd:
 #  - [ docker, load, "--input", "/var/local/software.tar.gz"]
 
 # RESTful WiFi configuration
-  - [ docker, load, --input, "/var/local/iotwifi.tar.gz" ]
+# - [ docker, load, --input, "/var/local/iotwifi.tar.gz" ]
 # Portainer Web UI
   - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
 # Watchtower live updates
