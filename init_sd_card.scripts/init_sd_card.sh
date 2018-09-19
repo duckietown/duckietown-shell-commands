@@ -20,7 +20,14 @@ DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm)
 TMP_DIR="/tmp/duckietown"
 mkdir -p ${TMP_DIR}
 
-ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.4-linux-x86.tar.gz"
+if [[ $(uname -a) = *"x86_64"* ]]; then
+    echo "64-bit OS detected..."
+    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.4-linux-x64.tar.gz"
+else
+    echo "Non 64-bit OS detected..."
+    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.4-linux-x86.tar.gz"
+fi
+
 ETCHER_DIR="${TMP_DIR}/etcher-cli"
 TMP_ETCHER_LOCAL=$(mktemp -p ${TMP_DIR})
 
