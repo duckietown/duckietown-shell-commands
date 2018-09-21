@@ -209,8 +209,13 @@ ${duckietoken+"  - content: $duckietoken
 # These commands will be run once on first boot only
 runcmd:
   - 'systemctl restart avahi-daemon'
+# Create /data directory for storing Duckiebot-local configuration files
   - 'mkdir /data && chown 1000:1000 /data'
+# Change the date to use the date of the flashing machine
   - 'date -s $(date '+%Y-%m-%d %H:%M:%S')'
+# Copy all the hardware information (e.g. serial number) to /data/proc
+  - 'mkdir /data/proc && cp /proc/*info /data/proc'
+
 #   - [ modprobe, i2c-bcm2708 ]
 #   - [ modprobe, i2c-dev ]
   - [ systemctl, stop, docker ]
