@@ -54,7 +54,7 @@ fi
 declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
     ["watchtower"]="v2tec/watchtower:armhf-latest" \
-    ["raspberry-pi-alpine-python"]="resin/raspberry-pi-alpine-python:2-slim"
+    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
     # ["duckietown"]="duckietown/software:latest" \
 )
 
@@ -232,11 +232,11 @@ runcmd:
   - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
 # Watchtower live updates
   - [ docker, load, --input, "/var/local/watchtower.tar.gz" ]
+# Lightweight Python image / Simple HTTP Server
+  - [ docker, load, --input, "/var/local/raspberrypi3-alpine-python.tar.gz" ]
+
 # Launch the previous containers
   - [ docker-compose, --file, "/var/local/docker-compose.yml", up ]
-
-# Lightweight Python image
-  - [ docker, load, --input, "/var/local/raspberry-pi-alpine-python.tar.gz" ]
 
 # These commands will be run on every boot
 bootcmd:
@@ -264,26 +264,41 @@ validate_duckiebot_compose() {
         echo "$(cat <<EOF
 version: '3'
 services:
-    portainer:
-        image: portainer/portainer:linux-arm
-        command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
-        restart: unless-stopped
-        network_mode: "host"
-        volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
-    watchtower:
-        image: v2tec/watchtower:armhf-latest
-        command: ["--cleanup"]
-        restart: unless-stopped
-        network_mode: "host"
-        volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
+  portainer:
+    image: portainer/portainer:linux-arm
+    command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  watchtower:
+    image: v2tec/watchtower:armhf-latest
+    command: ["--cleanup"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  http-server:
+    image: resin/raspberrypi3-alpine-python:slim
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - data-volume:/data
+    working_dir: /data
+    command: ["python", "-m", "SimpleHTTPServer", "8082"]
+volumes:
+  data-volume:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data
+      o: bind
 EOF
 )" > $duckiebot_compose_file
     fi
 
 # TODO: create separate docker-compose.yml file for duckietown containers
-# lanefollowing-demo:
+#     lanefollowing-demo:
 #         image: duckietown/rpi-duckiebot-lanefollowing-demo
 #         command: ["sleep infinity"]
 #         volumes:
