@@ -2,11 +2,11 @@
 
 # This script will flash an SD card with the necessary dependencies to run DuckieOS.
 #
-# Usage: [duckiebot_compose=<PATH>] [duckietoken=<TOKEN>] DuckieOS1-RPI3Bp.sh
+# Usage: [duckiebot_compose_file=<ABSOLUTE PATH>] [duckietoken=<TOKEN>] DuckieOS1-RPI3Bp.sh
 #
 # Environment variables:
-#           duckietoken:       User's Duckietown token. Will be flashed to root partition at ~/.dt-shell/duckietoken.
-#           duckiebot_compose: Path to the Duckiebot's primary docker-compose.yml config. Will use default if empty.
+#           duckietoken:		User's Duckietown token. Will be flashed to root partition at ~/.dt-shell/duckietoken.
+#           duckiebot_compose_file: 	Path to the Duckiebot's primary docker-compose.yml config. Will use default if empty.
 
 #for debugging, enable command printout
 if [ -n "$DEBUG" ]; then
@@ -15,7 +15,7 @@ fi
 
 set -e
 
-DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm)
+DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm date)
 
 TMP_DIR="/tmp/duckietown"
 mkdir -p ${TMP_DIR}
@@ -210,6 +210,7 @@ ${duckietoken+"  - content: $duckietoken
 runcmd:
   - 'systemctl restart avahi-daemon'
   - 'mkdir /data && chown 1000:1000 /data'
+  - 'date -s $(date '+%Y-%m-%d %H:%M:%S')'
 #   - [ modprobe, i2c-bcm2708 ]
 #   - [ modprobe, i2c-dev ]
   - [ systemctl, stop, docker ]
@@ -252,9 +253,9 @@ EOF
 }
 
 validate_duckiebot_compose() {
-    if [ -z "$duckiebot_compose" ]; then
-        duckiebot_compose="$TMP_DIR/duckiebot-compose.yml"
-        echo "Using default Docker compose config, $duckiebot_compose"
+    if [ -z "$duckiebot_compose_file" ]; then
+        duckiebot_compose_file="$TMP_DIR/duckiebot-compose.yml"
+        echo "Using default Docker compose config, $duckiebot_compose_file"
         echo "$(cat <<EOF
 version: '3'
 services:
@@ -273,7 +274,7 @@ services:
         volumes:
         - /var/run/docker.sock:/var/run/docker.sock
 EOF
-)" > $duckiebot_compose
+)" > $duckiebot_compose_file
     fi
 
 # TODO: create separate docker-compose.yml file for duckietown containers
@@ -315,14 +316,14 @@ EOF
 
     # If docker-compose is available on the host, attempt to validate
     if [ $(command -v docker-compose) ]; then
-        docker-compose -f $duckiebot_compose config --quiet
+        docker-compose -f $duckiebot_compose_file config --quiet
         if [ $? -ne 0 ]; then
-            >&2 echo "Critical error! Invalid Duckiebot compose: $duckiebot_compose"
+            >&2 echo "Critical error! Invalid Duckiebot compose: $duckiebot_compose_file"
             exit 1
         fi
     fi
     # Fixes indentation for nesting YAML into cloud-init userdata properly
-    duckiebot_compose_yaml=$(cat $duckiebot_compose | sed -e 's/^/      /')
+    duckiebot_compose_yaml=$(cat $duckiebot_compose_file | sed -e 's/^/      /')
 }
 
 verify_duckietoken() {
@@ -474,7 +475,7 @@ write_userdata() {
 }
 
 unset_env_vars() {
-    unset duckiebot_compose
+    unset duckiebot_compose_file
     unset duckietoken
 }
 
