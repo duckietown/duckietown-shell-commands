@@ -212,7 +212,7 @@ runcmd:
 # Create /data directory for storing Duckiebot-local configuration files
   - 'mkdir /data && chown 1000:1000 /data'
 # Change the date to use the date of the flashing machine
-  - 'date -s $(date "+%Y-%m-%d %H:%M:%S")'
+  - 'date -s "$(date "+%Y-%m-%d %H:%M:%S")"'
 # Copy all the hardware information (e.g. serial number) to /data/proc
   - 'mkdir /data/proc && cp /proc/*info /data/proc'
 
