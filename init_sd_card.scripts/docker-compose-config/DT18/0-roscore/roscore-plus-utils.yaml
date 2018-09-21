@@ -1,4 +1,3 @@
-# Works on DB17 hardware (adafruit)
 version: '3'
 services:
 
