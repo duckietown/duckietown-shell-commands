@@ -43,6 +43,8 @@ DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/m
 IDENTITY_FILE="/home/${USER}/.ssh/id_rsa.pub"
 DUCKIEBOT_IDENTITY_FILE="/home/${USER}/.ssh/duckiebot_rsa"
 
+WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
+
 if [ ! -f $IDENTITY_FILE ]; then
     echo "No SSH identity file was found. Generating..."
     ssh-keygen -t rsa -N "" -f $DUCKIEBOT_IDENTITY_FILE
@@ -50,7 +52,6 @@ if [ ! -f $IDENTITY_FILE ]; then
 fi
 
 declare -A PRELOADED_DOCKER_IMAGES=( \
-    ["iotwifi"]="cjimti/iotwifi" \
     ["portainer"]="portainer/portainer:linux-arm" \
     ["watchtower"]="v2tec/watchtower:armhf-latest" \
     ["raspberry-pi-alpine-python"]="resin/raspberry-pi-alpine-python:2-slim"
@@ -207,12 +208,6 @@ ${duckietoken+"  - content: $duckietoken
 
 # These commands will be run once on first boot only
 runcmd:
-# Disable wpa_supplicant as it competes with the cjimti/iotwifi container
-# https://github.com/cjimti/iotwifi#disable-wpa_supplicant-on-raspberry-pi
-  - [ systemctl, mask, wpa_supplicant.service ]
-  - [ mv, "/sbin/wpa_supplicant", "/sbin/no_wpa_supplicant" ]
-  - [ pkill, wpa_supplicant ]
-
   - 'systemctl restart avahi-daemon'
   - 'mkdir /data && chown 1000:1000 /data'
 #   - [ modprobe, i2c-bcm2708 ]
@@ -227,8 +222,6 @@ runcmd:
 # https://github.com/hypriot/image-builder-rpi/issues/244#issuecomment-390512469
 #  - [ docker, load, "--input", "/var/local/software.tar.gz"]
 
-# RESTful WiFi configuration
-# - [ docker, load, --input, "/var/local/iotwifi.tar.gz" ]
 # Portainer Web UI
   - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
 # Watchtower live updates
@@ -265,14 +258,6 @@ validate_duckiebot_compose() {
         echo "$(cat <<EOF
 version: '3'
 services:
-    wifi:
-        image: cjimti/iotwifi
-        restart: unless-stopped
-        privileged: true
-        network_mode: "host"
-        volumes:
-        - /var/local/wificfg.json:/cfg/wificfg.json
-        - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
     portainer:
         image: portainer/portainer:linux-arm
         command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
