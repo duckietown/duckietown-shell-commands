@@ -54,7 +54,7 @@ fi
 declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
     ["watchtower"]="v2tec/watchtower:armhf-latest" \
-    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
+    ["rpi-python-slim"]="duckietown/rpi-python-slim"
     # ["duckietown"]="duckietown/software:latest" \
 )
 
@@ -232,8 +232,8 @@ runcmd:
   - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
 # Watchtower live updates
   - [ docker, load, --input, "/var/local/watchtower.tar.gz" ]
-# Lightweight Python image / Simple HTTP Server
-  - [ docker, load, --input, "/var/local/raspberrypi3-alpine-python.tar.gz" ]
+# Lightweight Python image / Simple HTTP Server / Picamera
+  - [ docker, load, --input, "/var/local/rpi-python-slim.tar.gz" ]
 
 # Launch the previous containers
   - [ docker-compose, --file, "/var/local/docker-compose.yml", up ]
@@ -279,7 +279,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
   http-server:
-    image: resin/raspberrypi3-alpine-python:slim
+    image: duckietown/rpi-python-slim
     restart: unless-stopped
     network_mode: "host"
     volumes:
