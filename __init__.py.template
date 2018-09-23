@@ -3,7 +3,7 @@ try: from .command import *
 except ImportError: pass
 
 # import subcommands
-from os.path import dirname, basename, isfile, isdir
+from os.path import dirname, basename, isdir
 import glob
 
 modules = glob.glob(dirname(__file__)+"/*")

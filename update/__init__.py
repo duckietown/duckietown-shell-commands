@@ -6,9 +6,9 @@
 try: from .command import *
 except ImportError: pass
 
-# import subcommands
-from os.path import dirname, basename, isfile, isdir
 import glob
+# import subcommands
+from os.path import dirname, basename, isdir
 
 modules = glob.glob(dirname(__file__)+"/*")
 

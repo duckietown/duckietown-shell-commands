@@ -84,8 +84,8 @@ class DTCommand(DTCommandAbs):
 
         do_push = not parsed.no_push
 
-        submission_label = ' '.join(parsed.message) if parsed.message!=None else None
-        submission_metadata = ' '.join(parsed.metadata)if parsed.metadata!=None else None
+        submission_label = ' '.join(parsed.message) if parsed.message is not None else None
+        submission_metadata = ' '.join(parsed.metadata) if parsed.metadata is not None else None
 
         username = get_dockerhub_username(shell)
 
@@ -120,7 +120,7 @@ def find_conf_file(d, fn0):
         return find_conf_file(d0, fn0)
 
 
-class ChallengeInfoLocal():
+class ChallengeInfoLocal:
     def __init__(self, challenge_name):
         self.challenge_name = challenge_name
 

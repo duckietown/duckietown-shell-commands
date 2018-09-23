@@ -88,7 +88,7 @@ def find_conf_file(d, fn0):
         return find_conf_file(d0, fn0)
 
 
-class ChallengeInfoLocal():
+class ChallengeInfoLocal:
     def __init__(self, challenge_name):
         self.challenge_name = challenge_name
 
