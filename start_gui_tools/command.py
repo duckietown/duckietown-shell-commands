@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import subprocess
 import sys
+from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs
 
@@ -10,7 +11,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        script_cmd = '/bin/bash start_gui_tools.sh %r' % args[0]
+        script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
+        script_cmd = '/bin/bash %s %r' % (script_file, args[0])
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
         # process.communicate()
         if ret == 0:
