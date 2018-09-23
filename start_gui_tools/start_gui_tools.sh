@@ -30,9 +30,9 @@ fi
 
 if [[ $platform == 'linux' ]]; then
   xhost +
-  docker run -it --net host --privileged --env ROS_MASTER=$MDNS_ALIAS --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" duckietown/rpi-gui-tools /bin/bash -c "echo $DUCKIEBOT_IP $MDNS_ALIAS | sudo tee -a /etc/hosts && bash"
+  docker run -it --net host --privileged --env ROS_MASTER=$1 --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" duckietown/rpi-gui-tools /bin/bash -c "echo $DUCKIEBOT_IP $MDNS_ALIAS | sudo tee -a /etc/hosts && bash"
 elif [[ $platform == 'macos' ]]; then
   IP=$(ifconfig en0 | grep inet | awk '$1=="inet" {print $2}')
   xhost +$IP
-  docker run -it --net host --privileged --env ROS_MASTER=$MDNS_ALIAS --env="QT_X11_NO_MITSHM=1" -e DISPLAY=$IP:0 -v /tmp/.X11-unix:/tmp/.X11-unix duckietown/rpi-gui-tools  /bin/bash -c "echo $DUCKIEBOT_IP $MDNS_ALIAS | sudo tee -a /etc/hosts && bash"
+  docker run -it --net host --privileged --env ROS_MASTER=$1 --env="QT_X11_NO_MITSHM=1" -e DISPLAY=$IP:0 -v /tmp/.X11-unix:/tmp/.X11-unix duckietown/rpi-gui-tools  /bin/bash -c "echo $DUCKIEBOT_IP $MDNS_ALIAS | sudo tee -a /etc/hosts && bash"
 fi
