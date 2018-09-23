@@ -3,13 +3,15 @@ from __future__ import print_function
 from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
-token_dt1_config_key = 'token_dt1'
+import webbrowser
 
+token_dt1_config_key = 'token_dt1'
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        webbrowser.open('https://www.duckietown.org/site/your-token', new=2)
         msg = """
 Please enter your Duckietown token.
 
