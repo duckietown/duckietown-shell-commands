@@ -15,10 +15,17 @@ fi
 
 set -e
 
-DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm date)
-
+VERSION=1 # Increment version to bust the cache
 TMP_DIR="/tmp/duckietown"
+
+if [ ! -f $TMP_DIR/version ] || [ "$(cat $TMP_DIR/version)" != "$VERSION" ]; then
+   rm -rf $TMP_DIR
+fi
+
 mkdir -p ${TMP_DIR}
+echo "$VERSION" > $TMP_DIR/version
+
+DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm date)
 
 if [[ $(uname -a) = *"x86_64"* ]]; then
     echo "64-bit OS detected..."
@@ -50,6 +57,7 @@ if [ ! -f $IDENTITY_FILE ]; then
     ssh-keygen -t rsa -N "" -f $DUCKIEBOT_IDENTITY_FILE
     IDENTITY_FILE="$DUCKIEBOT_IDENTITY_FILE.pub"
 fi
+
 
 declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
