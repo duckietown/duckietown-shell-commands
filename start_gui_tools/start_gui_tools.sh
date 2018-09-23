@@ -28,6 +28,8 @@ elif [[ "$unamestr" == 'Darwin' ]]; then
    platform='macos'
 fi
 
+docker pull duckietown/rpi-gui-tools
+
 if [[ $platform == 'linux' ]]; then
   xhost +
   docker run -it --net host --privileged --env ROS_MASTER=$1 --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" duckietown/rpi-gui-tools /bin/bash -c "echo $DUCKIEBOT_IP $MDNS_ALIAS | sudo tee -a /etc/hosts && bash"
