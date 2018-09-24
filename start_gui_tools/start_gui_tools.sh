@@ -1,24 +1,7 @@
 #!/usr/bin/env bash
 
-if [ -z "$1" ]; then
-    echo "No Duckiebot name received, aborting!"
-    exit 1
-fi
-
-echo "$1.local"
-
-DUCKIEBOT_IP=$(ping -c1 "$1.local" | grep -oP 'PING.*?\(\K[^)]+')
-MDNS_ALIAS="$1.local"
-
-if [ -z "$DUCKIEBOT_IP" ]; then
-    DUCKIEBOT_IP=$(ping -c1 $1 | grep -oP 'PING.*?\(\K[^)]+')
-    MDNS_ALIAS="$1"
-fi
-
-if [ -z "$DUCKIEBOT_IP" ]; then
-    echo "Unable to locate locate $1, aborting!"
-    exit 1
-fi
+MDNS_ALIAS=$1
+DUCKIEBOT_IP=$2
 
 platform='unknown'
 unamestr=$(uname)
