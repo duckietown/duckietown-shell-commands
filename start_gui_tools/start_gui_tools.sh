@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-MDNS_ALIAS=$1
-DUCKIEBOT_IP=$2
+MDNS_ALIAS="$1"
+DUCKIEBOT_IP="$2"
 
 platform='unknown'
 unamestr=$(uname)
