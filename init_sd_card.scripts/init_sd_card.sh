@@ -111,12 +111,13 @@ prompt_for_configs() {
     read_password "Please enter a WiFi PSK (default is $DEFAULT_WIFIPASS) > " WIFIPASS
     WIFIPASS=${WIFIPASS:-$DEFAULT_WIFIPASS}
 
-    DEFAULT_DUCKPASS="$DEFAULT_PASSWORD"
-    DEFAULT_DUCKSSID="$HOST_NAME"
-    read -p "Please enter a Duckiebot SSID (default is $DEFAULT_DUCKSSID) > " DUCKSSID
-    DUCKSSID=${DUCKSSID:-$DEFAULT_DUCKSSID}
-    read_password "Please enter Duckiebot PSK (default is $DEFAULT_DUCKPASS) > " DUCKPASS
-    DUCKPASS=${DUCKPASS:-$DEFAULT_DUCKPASS}
+    #Removed until we can get a stable wifi
+    #DEFAULT_DUCKPASS="$DEFAULT_PASSWORD"
+    #DEFAULT_DUCKSSID="$HOST_NAME"
+    #read -p "Please enter a Duckiebot SSID (default is $DEFAULT_DUCKSSID) > " DUCKSSID
+    #DUCKSSID=${DUCKSSID:-$DEFAULT_DUCKSSID}
+    #read_password "Please enter Duckiebot PSK (default is $DEFAULT_DUCKPASS) > " DUCKPASS
+    #DUCKPASS=${DUCKPASS:-$DEFAULT_DUCKPASS}
 }
 
 validate_userdata() {
@@ -166,24 +167,24 @@ write_files:
   - content: | 
 $duckiebot_compose_yaml
     path: /var/local/docker-compose.yml
-  - content: |
-      {
-          "dnsmasq_cfg": {
-             "address": "/#/192.168.27.1",
-             "dhcp_range": "192.168.27.100,192.168.27.150,1h",
-             "vendor_class": "set:device,IoT"
-          },
-          "host_apd_cfg": {
-             "ip": "192.168.27.1",
-             "ssid": "$DUCKSSID",
-             "wpa_passphrase": "$DUCKPASS",
-             "channel": "6"
-          },
-          "wpa_supplicant_cfg": {
-             "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
-          }
-      }
-    path: /var/local/wificfg.json
+#  - content: |
+#      {
+#          "dnsmasq_cfg": {
+#             "address": "/#/192.168.27.1",
+#             "dhcp_range": "192.168.27.100,192.168.27.150,1h",
+#             "vendor_class": "set:device,IoT"
+#          },
+#          "host_apd_cfg": {
+#             "ip": "192.168.27.1",
+#             "ssid": "$DUCKSSID",
+#             "wpa_passphrase": "$DUCKPASS",
+#             "channel": "6"
+#          },
+#          "wpa_supplicant_cfg": {
+#             "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
+#          }
+#      }
+#    path: /var/local/wificfg.json
   - content: |
       country=CA
       ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
@@ -231,7 +232,7 @@ runcmd:
   - [ systemctl, enable, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker ]
-  - 'LAST4_MAC=\$(sed -rn "s/^.*([0-9A-F:]{5})$/\\1/gi;s/://p" /sys/class/net/eth0/address); SUFFIX=\${LAST4_MAC:-0000}; echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$SUFFIX\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
+#  - 'LAST4_MAC=\$(sed -rn "s/^.*([0-9A-F:]{5})$/\\1/gi;s/://p" /sys/class/net/eth0/address); SUFFIX=\${LAST4_MAC:-0000}; echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$SUFFIX\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
 # Disabled pre-loading duckietown/software due to insuffient space on /var/local
 # https://github.com/hypriot/image-builder-rpi/issues/244#issuecomment-390512469
 #  - [ docker, load, "--input", "/var/local/software.tar.gz"]
@@ -249,7 +250,6 @@ runcmd:
 # These commands will be run on every boot
 bootcmd:
 # Generate the unique duckiebot SSID on first boot, based on the MAC address, broadcast to random channel
-  - 'LAST4_MAC=\$(sed -rn "s/^.*([0-9A-F:]{5})$/\\1/gi;s/://p" /sys/class/net/eth0/address); SUFFIX=\${LAST4_MAC:-0000}; echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$SUFFIX\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
   - 'iwconfig wlan0 power off'
 EOF
 )
@@ -554,7 +554,7 @@ if [ "$CURRENT_WIFI" != "$WIFISSID" ]; then
     echo "Notice: the current WiFi network is '$CURRENT_WIFI', not '$WIFISSID'"
     echo "If you do not join '$WIFISSID', then $HOST_NAME might be unreachable"
 fi
-echo "Alternately, join the WiFi '$DUCKSSID' to connect to $HOST_NAME directly"
+#echo "Alternately, join the WiFi '$DUCKSSID' to connect to $HOST_NAME directly"
 echo "Press any key to continue"
 read -n 1 -s -r 
 
