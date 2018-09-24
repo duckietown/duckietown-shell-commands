@@ -41,4 +41,4 @@ def get_ip_from_ping(alias):
     if m:
         return m.group(1)
     else:
-        raise Exception("Unable to locate locate alias, aborting!")
+        raise Exception("Unable to locate %s, aborting!" % alias)
