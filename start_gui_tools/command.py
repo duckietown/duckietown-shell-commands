@@ -26,6 +26,7 @@ class DTCommand(DTCommandAbs):
             duckiebot_ip = get_ip_from_ping(mdns_alias)
 
         script_cmd = '/bin/bash %s %s %s' % (script_file, mdns_alias, duckiebot_ip)
+        print('Running %s' % script_cmd)
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
         # process.communicate()
         if ret == 0:
