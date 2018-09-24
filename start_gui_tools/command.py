@@ -37,7 +37,7 @@ class DTCommand(DTCommandAbs):
 
 def get_ip_from_ping(alias):
     response = os.popen('ping -c 1 -w2 %s' % alias).read()
-    m = re.search('PING.*?\((.*)\)+', response)
+    m = re.search('PING.*?\((.*?)\)+', response)
     if m:
         return m.group(1)
     else:
