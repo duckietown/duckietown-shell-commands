@@ -11,11 +11,11 @@ elif [[ "$unamestr" == 'Darwin' ]]; then
    platform='macos'
 fi
 
-docker pull duckietown/rpi-gui-tools
+docker pull duckietown/rpi-duckiebot-keyboard-demo
 
 if [[ $platform == 'linux' ]]; then
   xhost +
-  docker run -it --net host --privileged --env ROS_MASTER=$DUCKIEBOT_NAME --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" duckietown/rpi-gui-tools /bin/bash -c "echo $DUCKIEBOT_IP $DUCKIEBOT_NAME $DUCKIEBOT_NAME.local | sudo tee -a /etc/hosts && bash"
+  docker run -it --net host --privileged --env ROS_MASTER=$DUCKIEBOT_NAME --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" duckietown/rpi-duckiebot-keyboard-demo /bin/bash -c "echo $DUCKIEBOT_IP $DUCKIEBOT_NAME $DUCKIEBOT_NAME.local | sudo tee -a /etc/hosts && bash"
 elif [[ $platform == 'macos' ]]; then
   IP=$(ifconfig en0 | grep inet | awk '$1=="inet" {print $2}')
   xhost +$IP
