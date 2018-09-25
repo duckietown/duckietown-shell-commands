@@ -8,6 +8,8 @@ from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs
 
+from utils.networking import get_duckiebot_ip
+
 
 class DTCommand(DTCommandAbs):
 
@@ -18,12 +20,7 @@ class DTCommand(DTCommandAbs):
         if len(args) < 1:
             raise Exception('No Duckiebot name received, aborting!')
 
-        try:
-            mdns_alias = '%s.local' % args[0]
-            duckiebot_ip = get_ip_from_ping(mdns_alias)
-        except:
-            mdns_alias = args[0]
-            duckiebot_ip = get_ip_from_ping(mdns_alias)
+        get_duckiebot_ip(duckiebot_name=args[0])
 
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
         print('Running %s' % script_cmd)
@@ -34,11 +31,3 @@ class DTCommand(DTCommandAbs):
         else:
             msg = ('An error occurred while starting the GUI tools container, please check and try again (%s).' % ret)
             raise Exception(msg)
-
-def get_ip_from_ping(alias):
-    response = os.popen('ping -c 1 %s' % alias).read()
-    m = re.search('PING.*?\((.*?)\)+', response)
-    if m:
-        return m.group(1)
-    else:
-        raise Exception("Unable to locate %s, aborting!" % alias)

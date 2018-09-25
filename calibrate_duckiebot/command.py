@@ -6,7 +6,7 @@ from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs
 
-from calibrate_duckiebot.networking import get_ip_from_ping
+from utils.networking import get_ip_from_ping
 
 
 class DTCommand(DTCommandAbs):
