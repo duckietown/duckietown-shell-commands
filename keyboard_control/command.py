@@ -10,7 +10,6 @@ from dt_shell import DTCommandAbs
 
 from utils.networking import get_duckiebot_ip
 
-
 class DTCommand(DTCommandAbs):
 
     @staticmethod
@@ -22,6 +21,7 @@ class DTCommand(DTCommandAbs):
 
         get_duckiebot_ip(duckiebot_name=args[0])
 
+        duckiebot_ip = get_duckiebot_ip(args[0])
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
         print('Running %s' % script_cmd)
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
