@@ -8,6 +8,7 @@ from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs
 
+from utils.networking import get_duckiebot_ip
 
 class DTCommand(DTCommandAbs):
 
@@ -16,15 +17,9 @@ class DTCommand(DTCommandAbs):
         script_file = join(dirname(realpath(__file__)), 'start_keyboard_control.sh')
 
         if len(args) < 1:
-            raise Exception('No Duckiebot name received, aborting!')
+            raise Exception('Usage: calibrate <DUCKIEBOT_NAME_GOES_HERE>')
 
-        try:
-            mdns_alias = '%s.local' % args[0]
-            duckiebot_ip = get_ip_from_ping(mdns_alias)
-        except:
-            mdns_alias = args[0]
-            duckiebot_ip = get_ip_from_ping(mdns_alias)
-
+        duckiebot_ip = get_duckiebot_ip(args[0])
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
         print('Running %s' % script_cmd)
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
