@@ -9,10 +9,6 @@ from os.path import join, realpath, dirname
 from dt_shell import DTCommandAbs
 
 from utils.networking import get_duckiebot_ip
-<<<<<<< HEAD
-=======
-
->>>>>>> 284cc91aa0d633c1dcdcfff41b000efde2d56391
 
 class DTCommand(DTCommandAbs):
 
