@@ -12,6 +12,7 @@ elif [[ "$unamestr" == 'Darwin' ]]; then
 fi
 
 docker pull duckietown/rpi-duckiebot-calibration
+docker -H kalman.local pull duckietown/rpi-duckiebot-base
 
 if [[ $platform == 'linux' ]]; then
   xhost +
@@ -21,3 +22,22 @@ elif [[ $platform == 'macos' ]]; then
   xhost +$IP
   docker run -it --net host -v $HOME/data:/data --privileged --env ROS_MASTER=$DUCKIEBOT_NAME --env DUCKIEBOT_NAME=$DUCKIEBOT_NAME --env DUCKIEBOT_IP=$DUCKIEBOT_IP --env QT_X11_NO_MITSHM=1 -e DISPLAY=$IP:0 -v /tmp/.X11-unix:/tmp/.X11-unix duckietown/rpi-duckiebot-calibration
 fi
+
+docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
+
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+NAME="out-calibrate-extrinsics-$TIMESTAMP"
+VNAME="out-pipeline-$TIMESTAMP"
+
+echo "********************"
+echo "Place the Duckiebot on the calibration patterns and press ENTER."
+read
+
+docker -H "$DUCKIEBOT_NAME.local" run -it --name calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/$NAME > /data/$NAME.log"
+rosrun calibrate_extrinsics -o /data/$NAME > /data/$NAME.log
+
+echo "********************"
+echo "Place the Duckiebot in a lane and press ENTER."
+read
+
+docker -H "$DUCKIEBOT_NAME.local" run -it --name calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
