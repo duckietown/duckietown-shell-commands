@@ -13,19 +13,18 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
+        script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
         if len(args) < 1:
-            raise Exception('No Duckiebot name received, aborting!')
+            raise Exception('Usage: calibrate <DUCKIEBOT_NAME_GOES_HERE>')
 
-        duckiebot_ip = get_duckiebot_ip(duckiebot_name=args[0])
-
+        duckiebot_ip = get_duckiebot_ip(args[0])
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
-        print('Running %s' % script_cmd)
+
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
         # process.communicate()
         if ret == 0:
             print('Done!')
         else:
-            msg = ('An error occurred while starting the GUI tools container, please check and try again (%s).' % ret)
+            msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
