@@ -12,7 +12,7 @@ elif [[ "$unamestr" == 'Darwin' ]]; then
 fi
 
 docker pull duckietown/rpi-duckiebot-calibration
-docker -H kalman.local pull duckietown/rpi-duckiebot-base
+docker -H "$DUCKIEBOT_NAME.local" pull duckietown/rpi-duckiebot-base
 
 if [[ $platform == 'linux' ]]; then
   xhost +
