@@ -33,14 +33,14 @@ echo "********************"
 echo "Place the Duckiebot on the calibration patterns and press ENTER."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --name calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/$NAME > /data/$NAME.log"
+docker -H "$DUCKIEBOT_NAME.local" run -it --name intrinsic_calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/$NAME > /data/$NAME.log"
 rosrun calibrate_extrinsics -o /data/$NAME > /data/$NAME.log
 
 echo "********************"
 echo "Place the Duckiebot in a lane and press ENTER."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --name calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
+docker -H "$DUCKIEBOT_NAME.local" run -it --name extrinsic_calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
 
 echo "********************"
 echo "To perform the wheel calibration, follow the steps described in the Duckiebook."
@@ -48,4 +48,4 @@ echo "http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.h
 echo "You will now be given a container running on the Duckiebot for wheel calibration."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged --name base duckietown/rpi-duckiebot-base /bin/bash
+docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged --name odometry_calibration duckietown/rpi-duckiebot-base /bin/bash
