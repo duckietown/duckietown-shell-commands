@@ -27,7 +27,7 @@ docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
 
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 NAME="out-calibrate-extrinsics-$DUCKIEBOT_NAME-$TIMESTAMP"
-SNAME="out-simulation-$DUCKIEBOT_NAME-$TIMESTAMP"
+#SNAME="out-simulation-$DUCKIEBOT_NAME-$TIMESTAMP"
 VNAME="out-pipeline-$DUCKIEBOT_NAME-$TIMESTAMP"
 
 echo "********************"
@@ -37,10 +37,10 @@ read
 docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/$NAME > /data/$NAME.log"
 
 
-echo "Running Simulated Verification"
+#echo "Running Simulated Verification"
 
 
-docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline validate_calibration -o /data/$SNAME > /data/$SNAME.log"
+#docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline validate_calibration -o /data/$SNAME > /data/$SNAME.log"
 
 
 echo "********************"
