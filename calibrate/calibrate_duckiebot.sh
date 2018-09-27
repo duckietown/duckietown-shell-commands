@@ -40,7 +40,7 @@ echo "********************"
 echo "Place the Duckiebot in a lane and press ENTER."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --name extrinsic_calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
+docker -H "$DUCKIEBOT_NAME.local" run -it --name extrinsic_calibration --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
 
 echo "********************"
 echo "To perform the wheel calibration, follow the steps described in the Duckiebook."
