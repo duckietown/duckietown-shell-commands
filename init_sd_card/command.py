@@ -74,6 +74,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(msg)
             current = ""
         else:
+
             current = open(ssh_config).read()
 
         bit0 = """
@@ -83,6 +84,7 @@ Host $HOSTNAME
     User $USERNAME
     Hostname $HOSTNAME.local
     IdentityFile $IDENTITY
+    StrictHostKeyChecking no
 # ------------------------------        
         
 """
