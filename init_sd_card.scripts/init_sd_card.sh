@@ -521,10 +521,10 @@ mount_disks() {
         sleep 1
         echo "."
         sleep 1
-        echo "Please remove and reinsert the SD card."
+        echo "If you are using Ubuntu 16: Please remove and reinsert the SD card."
         sleep 5
         echo ""
-        echo "Only after you have done it, pless any key to continue."
+        echo "Press any key to continue."
         read -n 1
     fi
 
