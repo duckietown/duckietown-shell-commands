@@ -1,11 +1,13 @@
 from __future__ import print_function
 
+import os
 import subprocess
 import sys
 from os.path import join, realpath, dirname
 
-from dt_shell import DTCommandAbs
+from dt_shell import dtslogger
 
+from dt_shell import DTCommandAbs
 from utils.networking import get_duckiebot_ip
 
 
@@ -20,10 +22,19 @@ class DTCommand(DTCommandAbs):
 
         duckiebot_ip = get_duckiebot_ip(duckiebot_name=args[0])
 
+        env = {}
+        env.update(os.environ)
+        V = 'DOCKER_HOST'
+        if V in env:
+            msg = 'I will ignore %s in the environment because we want to run things on the laptop.' % V
+            dtslogger.info(msg)
+            env.pop(V)
+
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
+
         print('Running %s' % script_cmd)
-        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
-        # process.communicate()
+        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+
         if ret == 0:
             print('Done!')
         else:
