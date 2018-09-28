@@ -47,15 +47,47 @@ mkdir -p ${IMAGE_DOWNLOADER_CACHEDIR}
 MOD_FILE="${TMP_DIR}/mod"
 DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
 
-IDENTITY_FILE="/home/${USER}/.ssh/id_rsa.pub"
-DUCKIEBOT_IDENTITY_FILE="/home/${USER}/.ssh/duckiebot_rsa"
-
 WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
 
+
+echo ---- Configuration passed: ---
+echo IDENTITY_FILE=$IDENTITY_FILE
+echo HOST_NAME=$HOST_NAME
+echo USERNAME=$USERNAME
+echo PASSWORD=$PASSWORD
+echo WIFISSID=$WIFISSID
+echo WIFIPASS=$WIFIPASS
+echo ------------------------------
+
 if [ ! -f $IDENTITY_FILE ]; then
-    echo "No SSH identity file was found. Generating..."
-    ssh-keygen -t rsa -N "" -f $DUCKIEBOT_IDENTITY_FILE
-    IDENTITY_FILE="$DUCKIEBOT_IDENTITY_FILE.pub"
+    echo "Please set the environment variable IDENTITY_FILE to the path of a public key. "
+    exit 1
+fi
+
+
+if [ -z "$HOST_NAME" ]; then
+    echo "Please set variable HOST_NAME"
+    exit 1
+fi
+
+if [ -z "$USERNAME" ]; then
+    echo "Please set variable $USERNAME"
+    exit 1
+fi
+
+if [ -z "$PASSWORD" ]; then
+    echo "Please set variable $PASSWORD"
+    exit 1
+fi
+
+if [ -z "WIFISSID" ]; then
+    echo "Please set variable WIFISSID"
+    exit 1
+fi
+
+if [ -z "WIFIPASS" ]; then
+    echo "Please set variable WIFIPASS"
+    exit 1
 fi
 
 
@@ -93,23 +125,27 @@ read_password() {
 prompt_for_configs() {
     echo "Configuring DuckiebotOS (press ^C to cancel)..."
     
-    DEFAULT_HOSTNAME="duckiebot"
-    DEFAULT_USERNAME="duckie"
-    DEFAULT_PASSWORD="quackquack"
-    DEFAULT_WIFISSID="duckietown"
-    DEFAULT_WIFIPASS="quackquack"
-   
-    read -p "Please enter a username (default is $DEFAULT_USERNAME) > " USERNAME
-    USERNAME=${USERNAME:-$DEFAULT_USERNAME}
-    read_password "Please enter a password (default is $DEFAULT_PASSWORD) > " PASSWORD
-    PASSWORD=${PASSWORD:-$DEFAULT_PASSWORD}
-    read -p "Please enter a hostname (default is $DEFAULT_HOSTNAME) > " HOST_NAME
-    HOST_NAME=${HOST_NAME:-$DEFAULT_HOSTNAME}
+#    DEFAULT_HOSTNAME="duckiebot"
+#    DEFAULT_USERNAME="duckie"
+#    DEFAULT_PASSWORD="quackquack"
+#    DEFAULT_WIFISSID="duckietown"
+#    DEFAULT_WIFIPASS="quackquack"
+#
+    #read -p "Please enter a username (default is $DEFAULT_USERNAME) > " USERNAME
+    #USERNAME=${USERNAME:-$DEFAULT_USERNAME}
+#    USERNAME=${DEFAULT_USERNAME}
+    #read_password "Please enter a password (default is $DEFAULT_PASSWORD) > " PASSWORD
+    #PASSWORD=${PASSWORD:-$DEFAULT_PASSWORD}
+#    PASSWORD=${DEFAULT_PASSWORD}
 
-    read -p "Please enter a WiFi SSID (default is $DEFAULT_WIFISSID) > " WIFISSID
-    WIFISSID=${WIFISSID:-$DEFAULT_WIFISSID}
-    read_password "Please enter a WiFi PSK (default is $DEFAULT_WIFIPASS) > " WIFIPASS
-    WIFIPASS=${WIFIPASS:-$DEFAULT_WIFIPASS}
+#    read -p "Please enter a hostname (default is $DEFAULT_HOSTNAME) > " HOST_NAME
+#    HOST_NAME=${HOST_NAME:-$DEFAULT_HOSTNAME}
+
+
+#    read -p "Please enter a WiFi SSID (default is $DEFAULT_WIFISSID) > " WIFISSID
+#    WIFISSID=${WIFISSID:-$DEFAULT_WIFISSID}
+#    read_password "Please enter a WiFi PSK (default is $DEFAULT_WIFIPASS) > " WIFIPASS
+#    WIFIPASS=${WIFIPASS:-$DEFAULT_WIFIPASS}
 
     #Removed until we can get a stable wifi
     #DEFAULT_DUCKPASS="$DEFAULT_PASSWORD"
