@@ -1,15 +1,14 @@
 from __future__ import print_function
 
-import subprocess
+import os
+import platform
 import sys
-from os.path import join, realpath, dirname
+from os.path import join, realpath, dirname, expanduser
+from subprocess import call
 
 import docker
-from os.path import expanduser
-import platform
-from subprocess import call
-from dt_shell import DTCommandAbs
 
+from dt_shell import DTCommandAbs, dtslogger
 from utils.networking import get_duckiebot_ip
 
 
@@ -23,11 +22,19 @@ class DTCommand(DTCommandAbs):
             raise Exception('Usage: calibrate <DUCKIEBOT_NAME_GOES_HERE>')
 
         duckiebot_ip = get_duckiebot_ip(args[0])
-        #shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
+        # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
         script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
 
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
-        # process.communicate()
+        env = {}
+        env.update(os.environ)
+        V = 'DOCKER_HOST'
+        if V in env:
+            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
+            dtslogger.info(msg)
+            env.pop(V)
+
+        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+
         if ret == 0:
             print('Done!')
         else:
@@ -39,10 +46,13 @@ class DTCommand(DTCommandAbs):
         duckiebot_client = docker.DockerClient()
         operating_system = platform.system()
 
-        duckiebot_client.images.pull('duckietown/rpi-duckiebot-base')
-        local_client.images.pull('duckietown/rpi-duckiebot-calibration')
+        IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
+        IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
+
+        duckiebot_client.images.pull(IMAGE_BASE)
+        local_client.images.pull(IMAGE_CALIBRATION)
         user_home = expanduser("~")
-        datavol = {'%s/data' % user_home: {'bind':'/data'}}
+        datavol = {'%s/data' % user_home: {'bind': '/data'}}
 
         env_vars = {
             'ROS_MASTER': duckiebot_name,
@@ -53,11 +63,9 @@ class DTCommand(DTCommandAbs):
 
         if operating_system == 'Linux':
             call(["xhost", "+"])
-            local_client.containers.run(image='duckietown/rpi-duckiebot-calibration',
+            local_client.containers.run(image=IMAGE_CALIBRATION,
                                         network_mode='host',
                                         volumes=datavol,
                                         privileged=True)
         if operating_system == 'Darwin':
             call(["xhost", "+IP"])
-
-
