@@ -583,8 +583,8 @@ unmount_disks
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
-echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
-echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 # XXX: this fails if the current computer does not have wifi enabled
 # for example if it connects to the wifi using an ethernet connection to the switch
@@ -602,7 +602,7 @@ fi
 echo "Press any key to continue"
 read -n 1 -s -r 
 
-echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
-echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 #end main()
