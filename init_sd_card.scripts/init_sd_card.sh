@@ -94,8 +94,9 @@ fi
 declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
     ["watchtower"]="v2tec/watchtower:armhf-latest" \
-    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
-    # ["duckietown"]="duckietown/software:latest" \
+    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim" \
+    ["rpi-health"]="duckietown/rpi-health:master18" \
+    ["simple-server"]="duckietown/rpi-simple-server:master18"
 )
 
 read_password() {
@@ -324,13 +325,17 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
   http-server:
-    image: resin/raspberrypi3-alpine-python:slim
+    image: duckietown/rpi-simple-server:master18
     restart: unless-stopped
     network_mode: "host"
     volumes:
       - data-volume:/data
     working_dir: /data
-    command: ["python", "-m", "SimpleHTTPServer", "8082"]
+  rpi-health:
+    image: duckietown/rpi-health:master18
+    restart: unless-stopped
+    network_mode: "host"
+
 volumes:
   data-volume:
     driver: local
