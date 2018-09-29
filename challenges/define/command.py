@@ -5,13 +5,19 @@ import yaml
 
 from dt_shell import DTCommandAbs
 from dt_shell.remote import dtserver_challenge_define
-from duckietown_challenges.challenge import ChallengeDescription
+
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        try:
+            from duckietown_challenges.challenge import ChallengeDescription
+        except ImportError as e:
+            msg = 'You need to install duckietown-challenges'
+            raise Exception(msg)
+
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()

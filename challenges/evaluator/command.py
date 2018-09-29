@@ -26,7 +26,7 @@ class DTCommand(DTCommandAbs):
         import docker
         client = docker.from_env()
 
-        image = 'andreacensi/dt-challenges-evaluator:v3'
+        image = 'duckietown/dt-challenges-evaluator:v3'
         command = ['dt-challenges-evaluator', '--continuous']
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
