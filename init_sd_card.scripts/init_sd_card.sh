@@ -247,7 +247,8 @@ $duckiebot_compose_yaml
       [Install]
       WantedBy=sockets.target
     path: /etc/systemd/system/docker-tcp.socket
-  - content: docker exec -it rpi-duckiebot-base bash || docker start -i rpi-duckiebot-base || docker run -it --name rpi-duckiebot-base -v /var/run/docker.sock:/var/run/docker.sock -v /data:/data --privileged --net host duckietown/rpi-duckiebot-base bash
+  - content: |
+      docker exec -it rpi-duckiebot-base bash || docker start -i rpi-duckiebot-base || docker run -it --name rpi-duckiebot-base -v /var/run/docker.sock:/var/run/docker.sock -v /data:/data --privileged --net host duckietown/rpi-duckiebot-base bash
     path: /home/$USERNAME/.bash_profile
 ${duckietoken+"  - content: $duckietoken
     path: /home/$USERNAME/.dt_shell/duckie_token"
