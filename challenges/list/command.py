@@ -21,7 +21,7 @@ class DTCommand(DTCommandAbs):
             def d(dt):
                 return dt.isoformat()
 
-            url = 'https://challenges.duckietown.org/v2/humans/submissions/%s' % submission_id
+            url = 'https://challenges.duckietown.org/v3/humans/submissions/%s' % submission_id
 
             s = ('%4s  %20s %10s   %20s   %s' % (submission_id,
                                                  d(submission['date_submitted']),
