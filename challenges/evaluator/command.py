@@ -41,6 +41,8 @@ class DTCommand(DTCommandAbs):
         h = socket.gethostname()
         env['DTSERVER'] = get_duckietown_server_url().replace("localhost", h + '.local')
 
+        dtslogger.info('Updating container %s' % image)
+        client.images.pull('duckietown/dt-challenges-evaluator', 'v3')
         dtslogger.info('Starting container %s' % image)
         container = client.containers.run(image, command, volumes=volumes, environment=env,
                                           network_mode='host', detach=True,
