@@ -95,7 +95,9 @@ declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
     ["watchtower"]="v2tec/watchtower:armhf-latest" \
     ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
-    # ["duckietown"]="duckietown/software:latest" \
+# unfortunately we don't have space on the 1GB partition
+#    ["rpi-health"]="duckietown/rpi-health:master18" \
+#    ["simple-server"]="duckietown/rpi-simple-server:master18"
 )
 
 read_password() {
@@ -327,13 +329,19 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
   http-server:
-    image: resin/raspberrypi3-alpine-python:slim
+    image: duckietown/rpi-simple-server:master18
     restart: unless-stopped
     network_mode: "host"
     volumes:
       - data-volume:/data
     working_dir: /data
-    command: ["python", "-m", "SimpleHTTPServer", "8082"]
+  rpi-health:
+    image: duckietown/rpi-health:master18
+    restart: unless-stopped
+    network_mode: "host"
+    devices:
+    - "/dev/vchiq:/dev/vchiq"
+
 volumes:
   data-volume:
     driver: local
@@ -519,10 +527,10 @@ mount_disks() {
         sleep 1
         echo "."
         sleep 1
-        echo "Please remove and reinsert the SD card."
+        echo "If you are using Ubuntu 16: Please remove and reinsert the SD card."
         sleep 5
         echo ""
-        echo "Only after you have done it, pless any key to continue."
+        echo "Press any key to continue."
         read -n 1
     fi
 
@@ -578,8 +586,8 @@ unmount_disks
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
-echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
-echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 # XXX: this fails if the current computer does not have wifi enabled
 # for example if it connects to the wifi using an ethernet connection to the switch
@@ -597,7 +605,7 @@ fi
 echo "Press any key to continue"
 read -n 1 -s -r 
 
-echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
-echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 #end main()
