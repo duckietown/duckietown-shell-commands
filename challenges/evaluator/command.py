@@ -26,7 +26,7 @@ class DTCommand(DTCommandAbs):
         import docker
         client = docker.from_env()
 
-        image = 'andreacensi/dt-challenges-evaluator:latest'
+        image = 'duckietown/dt-challenges-evaluator:v3'
         command = ['dt-challenges-evaluator', '--continuous']
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
@@ -41,6 +41,8 @@ class DTCommand(DTCommandAbs):
         h = socket.gethostname()
         env['DTSERVER'] = get_duckietown_server_url().replace("localhost", h + '.local')
 
+        dtslogger.info('Updating container %s' % image)
+        client.images.pull('duckietown/dt-challenges-evaluator', 'v3')
         dtslogger.info('Starting container %s' % image)
         container = client.containers.run(image, command, volumes=volumes, environment=env,
                                           network_mode='host', detach=True,

@@ -5,3 +5,5 @@ from .list import *
 from .retire import *
 from .submit import *
 from .update import *
+from .define import *
+from .reset import *
