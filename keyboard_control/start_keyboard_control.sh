@@ -11,7 +11,7 @@ elif [[ "$unamestr" == 'Darwin' ]]; then
    platform='macos'
 fi
 
-docker pull duckietown/rpi-duckiebot-keyboard-demo
+docker pull duckietown/rpi-duckiebot-keyboard-demo:master18
 
 if [[ $platform == 'linux' ]]; then
   xhost +
