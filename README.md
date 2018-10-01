@@ -1,3 +1,3 @@
 # duckietown-shell-commands
 
-Commands for the Duckietown Shell.
+Commands for the Duckietown Shell
