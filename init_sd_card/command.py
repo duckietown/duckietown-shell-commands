@@ -50,7 +50,7 @@ class DTCommand(DTCommandAbs):
         env['WIFISSID'] = parsed.wifissid
         env['WIFIPASS'] = parsed.wifipass
         env['HOST_NAME'] = parsed.hostname
-        env['USERNAME'] = parsed.linux_username
+        env['DTS_USERNAME'] = parsed.linux_username
         env['PASSWORD'] = parsed.linux_password
 
         # add other environment
@@ -81,7 +81,7 @@ class DTCommand(DTCommandAbs):
 
 # --- init_sd_card generated ---
 Host $HOSTNAME
-    User $USERNAME
+    User $DTS_USERNAME
     Hostname $HOSTNAME.local
     IdentityFile $IDENTITY
     StrictHostKeyChecking no
@@ -89,7 +89,7 @@ Host $HOSTNAME
         
 """
 
-        subs = dict(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, USERNAME=parsed.linux_username)
+        subs = dict(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
 
         bit = Template(bit0).substitute(**subs)
 
