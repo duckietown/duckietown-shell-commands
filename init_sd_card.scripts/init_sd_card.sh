@@ -53,7 +53,7 @@ WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/downlo
 echo ---- Configuration passed: ---
 echo IDENTITY_FILE=$IDENTITY_FILE
 echo HOST_NAME=$HOST_NAME
-echo USERNAME=$USERNAME
+echo DTS_USERNAME=$DTS_USERNAME
 echo PASSWORD=$PASSWORD
 echo WIFISSID=$WIFISSID
 echo WIFIPASS=$WIFIPASS
@@ -70,8 +70,8 @@ if [ -z "$HOST_NAME" ]; then
     exit 1
 fi
 
-if [ -z "$USERNAME" ]; then
-    echo "Please set variable $USERNAME"
+if [ -z "$DTS_USERNAME" ]; then
+    echo "Please set variable $DTS_USERNAME"
     exit 1
 fi
 
@@ -175,7 +175,7 @@ hostname: $HOST_NAME
 manage_etc_hosts: true
 
 users:
-  - name: $USERNAME
+  - name: $DTS_USERNAME
     gecos: "Duckietown"
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
@@ -201,7 +201,7 @@ write_files:
     path: /etc/update-motd.d/20-duckie
     permissions: '0755'
   - content: $PUB_KEY
-    path: /home/$USERNAME/.ssh/authorized_keys
+    path: /home/$DTS_USERNAME/.ssh/authorized_keys
   - content: | 
 $duckiebot_compose_yaml
     path: /var/local/docker-compose.yml
@@ -249,11 +249,11 @@ $duckiebot_compose_yaml
       [Install]
       WantedBy=sockets.target
     path: /etc/systemd/system/docker-tcp.socket
-  - content: |
-      docker exec -it rpi-duckiebot-base bash || docker start -i rpi-duckiebot-base || docker run -it --name rpi-duckiebot-base -v /var/run/docker.sock:/var/run/docker.sock -v /data:/data --privileged --net host duckietown/rpi-duckiebot-base bash
-    path: /home/$USERNAME/.bash_profile
+#  - content: |
+#    docker exec -it rpi-duckiebot-base bash || docker start -i rpi-duckiebot-base || docker run -it --name rpi-duckiebot-base -v /var/run/docker.sock:/var/run/docker.sock -v /data:/data --privileged --net host duckietown/rpi-duckiebot-base bash
+#    path: /home/$USERNAME/.bash_profile
 ${duckietoken+"  - content: $duckietoken
-    path: /home/$USERNAME/.dt_shell/duckie_token"
+    path: /home/$DTS_USERNAME/.dt_shell/duckie_token"
 }
 
 # These commands will be run once on first boot only
@@ -586,7 +586,7 @@ unmount_disks
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
-# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME.local:9000/"
 # echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 # XXX: this fails if the current computer does not have wifi enabled

@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,39 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--wifi-ssid', dest="wifissid", default='duckietown')
         parser.add_argument('--wifi-password', dest="wifipass", default='quackquack')
         parsed = parser.parse_args(args=args)
+
+        if not is_valid_hostname(parsed.hostname):
+            msg = 'This is not a valid hostname: %r.' % parsed.hostname
+            raise Exception(msg)
+
+        if '-' in parsed.hostname:
+            msg = 'Cannot use the hostname %r. It cannot contain "-" because of a ROS limitation. ' % parsed.hostname
+            raise Exception(msg)
+
+        if len(parsed.hostname) < 3:
+            msg = 'This hostname is too short. Choose something more descriptive.'
+            raise Exception(msg)
+
+        MIN_AVAILABLE_GB = 10.0
+        try:
+            import psutil
+        except ImportError:
+            msg = 'Skipping disk check because psutil not installed.'
+            dtslogger.info(msg)
+        else:
+            disk = psutil.disk_usage(os.getcwd())
+            disk_available_gb = disk.free / (1024 * 1024 * 1024.0)
+
+            if disk_available_gb < MIN_AVAILABLE_GB:
+                msg = 'This procedure requires that you have at least %f GB of memory.' % MIN_AVAILABLE_GB
+                msg += '\nYou only have %f GB available.' % disk_available_gb
+                raise Exception(msg)
+
+        p = platform.system().lower()
+
+        if 'darwin' in p:
+            msg = 'This procedure cannot be run on Mac. You need an Ubuntu machine.'
+            raise Exception(msg)
 
         this = dirname(realpath(__file__))
         script_files = realpath(join(this, '..', 'init_sd_card.scripts'))
@@ -50,7 +84,7 @@ class DTCommand(DTCommandAbs):
         env['WIFISSID'] = parsed.wifissid
         env['WIFIPASS'] = parsed.wifipass
         env['HOST_NAME'] = parsed.hostname
-        env['USERNAME'] = parsed.linux_username
+        env['DTS_USERNAME'] = parsed.linux_username
         env['PASSWORD'] = parsed.linux_password
 
         # add other environment
@@ -80,8 +114,12 @@ class DTCommand(DTCommandAbs):
         bit0 = """
 
 # --- init_sd_card generated ---
+
+# Use the key for all hosts
+IdentityFile $IDENTITY
+
 Host $HOSTNAME
-    User $USERNAME
+    User $DTS_USERNAME
     Hostname $HOSTNAME.local
     IdentityFile $IDENTITY
     StrictHostKeyChecking no
@@ -89,7 +127,7 @@ Host $HOSTNAME
         
 """
 
-        subs = dict(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, USERNAME=parsed.linux_username)
+        subs = dict(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
 
         bit = Template(bit0).substitute(**subs)
 
@@ -107,3 +145,14 @@ Host $HOSTNAME
         else:
             msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
             raise Exception(msg)
+
+
+def is_valid_hostname(hostname):
+    import re
+    # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
+
+    if len(hostname) > 253:
+        return False
+
+    allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
+    return allowed.match(hostname)

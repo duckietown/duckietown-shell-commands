@@ -15,7 +15,7 @@ class DTCommand(DTCommandAbs):
         try:
             from duckietown_challenges.challenge import ChallengeDescription
         except ImportError as e:
-            msg = 'You need to install duckietown-challenges'
+            msg = 'You need to install or update duckietown-challenges:\n%s' % e
             raise Exception(msg)
 
         token = shell.get_dt1_token()
