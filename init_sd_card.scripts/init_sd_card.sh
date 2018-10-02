@@ -586,7 +586,7 @@ unmount_disks
 
 echo "Finished preparing SD card. Please remove it and insert into $HOST_NAME."
 
-# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
+# echo "Wait for a minute, then visit the following URL: http://$HOST_NAME.local:9000/"
 # echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
 
 # XXX: this fails if the current computer does not have wifi enabled
