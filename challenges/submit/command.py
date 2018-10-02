@@ -27,16 +27,9 @@ def build(username, challenge, do_push=True, no_cache=False):
         msg = 'I expected to find the file "%s".' % df
         raise Exception(msg)
 
-    # try:
-    #     from duckietown_challenges import CHALLENGE_SOLUTION
-    # except ImportError as e:
-    #     msg = 'Need to install the duckietown-challenges package: %s' % e
-    #     raise Exception(msg)  # XXX
-
     cmd = ['docker', 'build', '.',
            '-t', image,
            '-f', df,
-           # '--build-arg', 'CHALLENGE_SOLUTION=%s' % CHALLENGE_SOLUTION,
            ]
 
     if no_cache:
