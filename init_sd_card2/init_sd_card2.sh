@@ -122,7 +122,8 @@ expand_partition() {
 
     if [ -f $PARTITION_TABLE ]; then
         echo "Expanding partition table"
-        sudo dd of=/dev/mmcblk0 if=$PARTITION_TABLE bs=512 count=1
+        #sudo dd of=/dev/mmcblk0 if=$PARTITION_TABLE bs=512 count=1
+        sudo parted -s /dev/mmcblk0 resizepart 2 "100%"
         sudo resize2fs /dev/mmcblk0p2
     else
         echo "Skipping expansion of partition table."
