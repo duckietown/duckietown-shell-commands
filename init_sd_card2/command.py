@@ -33,6 +33,8 @@ Can specify one or more networks: "network:password,network:password,..."
         parser.add_argument('--ethz-password', default=None)
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
+        parser.add_argument('--stacks', default="dt0,dt1",
+                            help="which stacks to run")
 
         parsed = parser.parse_args(args=args)
 
@@ -121,28 +123,37 @@ Can specify one or more networks: "network:password,network:password,..."
                        local=ssh_key_pub)
 
         # read and validate duckiebot-compose
-        duckiebot_compose = join(script_files, 'duckiebot_compose.yaml')
-        if not os.path.exists(duckiebot_compose):
-            raise Exception(duckiebot_compose)
+        cfs = parsed.stacks.split(',')
+        dtslogger.info('Will run the stacks %s' % cfs)
+        for cf in cfs:
+            lpath = join(script_files, 'stacks', cf + '.yaml')
+            if not os.path.exists(lpath):
+                raise Exception(lpath)
 
-        from whichcraft import which
-        if which('docker-compose') is None:
-            msg = 'Could not find docker-compose. Cannot validate file.'
-            dtslogger.error(msg)
-        else:
-            ret = subprocess.check_call(['docker-compose', '-f', duckiebot_compose, 'config', '--quiet'], )
-            if ret > 0:
-                msg = 'Invalid compose file: %s' % duckiebot_compose
-                raise Exception(msg)
+            from whichcraft import which
+            if which('docker-compose') is None:
+                msg = 'Could not find docker-compose. Cannot validate file.'
+                dtslogger.error(msg)
+            else:
+                ret = subprocess.check_call(['docker-compose', '-f', lpath, 'config', '--quiet'], )
+                if ret > 0:
+                    msg = 'Invalid compose file: %s' % lpath
+                    raise Exception(msg)
 
-            add_file_local(path='/var/local/docker-compose.yml',
-                           local=duckiebot_compose)
+            rpath = '/var/local/%s.yaml' % cf
+            add_file_local(path=rpath, local=lpath)
+            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up']
+
+            user_data['runcmd'].append(cmd) # first boot
+            user_data['bootcmd'].append(cmd) # every boot
+
+        user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
         dtshell_config = {
             'token_dt1': token
         }
 
-        add_file(path='/home/{}/.dt-shell/config'.format(parsed.linux_username),
+        add_file(path=os.path.join(user_home_path,'.dt-shell/config'),
                  content=json.dumps(dtshell_config))
 
         # TODO: make configurable

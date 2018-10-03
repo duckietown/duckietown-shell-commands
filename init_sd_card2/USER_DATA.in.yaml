@@ -31,42 +31,7 @@ write_files:
       allow-hotplug wlan0
       iface wlan0 inet dhcp
     path: /etc/network/interfaces.d/wlan0
-#  - encoding: b64
-#    content: $DUCKIE_ART
-#    path: /etc/update-motd.d/duckie.art
-#  - content: |
-#      #!/bin/sh
-#      printf "\n\$(cat /etc/update-motd.d/duckie.art)\n"
-#    path: /etc/update-motd.d/20-duckie
-#    permissions: '0755'
-#  - content: |
-#      {
-#          "dnsmasq_cfg": {
-#             "address": "/#/192.168.27.1",
-#             "dhcp_range": "192.168.27.100,192.168.27.150,1h",
-#             "vendor_class": "set:device,IoT"
-#          },
-#          "host_apd_cfg": {
-#             "ip": "192.168.27.1",
-#             "ssid": "$DUCKSSID",
-#             "wpa_passphrase": "$DUCKPASS",
-#             "channel": "6"
-#          },
-#          "wpa_supplicant_cfg": {
-#             "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
-#          }
-#      }
-#    path: /var/local/wificfg.json
-#  - content: |
-#      country=CA
-#      ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-#      update_config=1
-#      network={
-#          ssid="$WIFISSID"
-#          psk="$WIFIPASS"
-#          key_mgmt=WPA-PSK
-#      }
-#    path: /etc/wpa_supplicant/wpa_supplicant.conf
+
   - content: |
       i2c-bcm2708
       i2c-dev
@@ -118,10 +83,6 @@ runcmd:
 # Lightweight Python image / Simple HTTP Server
   - [ docker, load, --input, "/var/local/raspberrypi3-alpine-python.tar.gz" ]
 
-# Launch the previous containers
-  - [ docker-compose, --file, "/var/local/docker-compose.yml", up ]
-
 # These commands will be run on every boot
 bootcmd:
-# Generate the unique duckiebot SSID on first boot, based on the MAC address, broadcast to random channel
-  - 'iwconfig wlan0 power off'
+  - [iwconfig, wlan0, power, off]
