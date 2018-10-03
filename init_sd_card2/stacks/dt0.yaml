@@ -16,11 +16,3 @@ services:
     network_mode: "host"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-
-volumes:
-  data-volume:
-    driver: local
-    driver_opts:
-      type: none
-      device: /data
-      o: bind

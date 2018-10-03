@@ -1,13 +1,14 @@
 from __future__ import print_function
 
 import argparse
+import gzip
 import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from os.path import join, realpath, dirname
 
 import yaml
@@ -41,6 +42,15 @@ Can specify one or more networks: "network:password,network:password,..."
         parsed = parser.parse_args(args=args)
 
         check_docker_environment()
+
+        preload_images = OrderedDict()
+        preload_images["portainer"] = "portainer/portainer:linux-arm"
+        preload_images["watchtower"] = "v2tec/watchtower:armhf-latest"
+        # preload_images["raspberrypi3-alpine-python"] = "resin/raspberrypi3-alpine-python:slim"
+        preload_images["rpi-health"] = "duckietown/rpi-health:master18"
+        preload_images["rpi-simple-server"] = "duckietown/rpi-simple-server:master18"
+
+        image2tgz = download_images(preload_images)
 
         if not is_valid_hostname(parsed.hostname):
             msg = 'This is not a valid hostname: %r.' % parsed.hostname
@@ -144,7 +154,7 @@ Can specify one or more networks: "network:password,network:password,..."
 
             rpath = '/var/local/%s.yaml' % cf
             add_file_local(path=rpath, local=lpath)
-            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up']
+            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
 
             user_data['runcmd'].append(cmd)  # first boot
             user_data['bootcmd'].append(cmd)  # every boot
@@ -366,3 +376,32 @@ def interpret_wifi_string(s):
         name = 'network%d' % (i + 1)
         results.append(Wifi(wifissid, wifipass, name))
     return results
+
+
+def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
+    image2tmpfilename = OrderedDict()
+    import docker
+    client = docker.from_env()
+    for name, image_name in preload_images.items():
+
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        destination = os.path.join(cache_dir, name + '.tar.gz')
+        image2tmpfilename[name] = destination
+
+        if os.path.exists(destination):
+            dtslogger.info('already know %s' % destination)
+        else:
+
+            repo, tag = image_name.split(':')
+            dtslogger.info('pulling %s' % image_name)
+            client.images.pull(repository=repo, tag=tag)
+            image = client.images.get(image_name)
+
+            dtslogger.info('saving to %s' % destination)
+            destination0 = destination + '.tmp'
+            with gzip.open(destination0, 'wb') as f:
+                for chunk in image.save():
+                    f.write(chunk)
+            os.rename(destination0, destination)
+    return image2tmpfilename
