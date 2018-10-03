@@ -1,0 +1,37 @@
+version: '3'
+services:
+  portainer:
+    image: portainer/portainer:linux-arm
+    command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  watchtower:
+    image: v2tec/watchtower:armhf-latest
+    command: ["--cleanup"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  http-server:
+    image: duckietown/rpi-simple-server:master18
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - data-volume:/data
+    working_dir: /data
+  rpi-health:
+    image: duckietown/rpi-health:master18
+    restart: unless-stopped
+    network_mode: "host"
+    devices:
+    - "/dev/vchiq:/dev/vchiq"
+
+volumes:
+  data-volume:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data
+      o: bind
