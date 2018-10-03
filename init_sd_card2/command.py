@@ -146,8 +146,8 @@ Can specify one or more networks: "network:password,network:password,..."
             add_file_local(path=rpath, local=lpath)
             cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up']
 
-            user_data['runcmd'].append(cmd) # first boot
-            user_data['bootcmd'].append(cmd) # every boot
+            user_data['runcmd'].append(cmd)  # first boot
+            user_data['bootcmd'].append(cmd)  # every boot
 
         user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
@@ -155,7 +155,7 @@ Can specify one or more networks: "network:password,network:password,..."
             'token_dt1': token
         }
 
-        add_file(path=os.path.join(user_home_path,'.dt-shell/config'),
+        add_file(path=os.path.join(user_home_path, '.dt-shell/config'),
                  content=json.dumps(dtshell_config))
 
         # TODO: make configurable
@@ -233,9 +233,15 @@ network={{
             raise Exception(msg)
         env['USER_DATA'] = user_data_yaml
 
-        partition_table = join(script_files, 'partition-table.bin')
-        if parsed.expand:
-            env['$PARTITION_TABLE'] = partition_table
+        if parsed.expand32:
+            partition_table = join(script_files, 'partition-table.bin')
+            if not os.path.exists(partition_table):
+                msg = 'Cannot find partition table %s' % partition_table
+                raise Exception(msg)
+            dtslogger.info('Expanding partition to 32 GB')
+            env['PARTITION_TABLE'] = partition_table
+        else:
+            dtslogger.info('Not expanding partition')
 
         tmpdata = 'user_data.yaml'
         with open(tmpdata, 'w') as f:
