@@ -253,7 +253,7 @@ network={{
             dtslogger.info('Expanding partition to 32 GB')
             env['PARTITION_TABLE'] = partition_table
         if parsed.expand16:
-            partition_table = join(script_files, 'partition-table-16.bin')
+            partition_table = join(script_files, 'partition-table.bin')
             if not os.path.exists(partition_table):
                 msg = 'Cannot find partition table %s' % partition_table
                 raise Exception(msg)
