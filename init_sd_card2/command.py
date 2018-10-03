@@ -24,6 +24,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-password', default='quackquack')
         parser.add_argument('--wifi-ssid', dest="wifissid", default='duckietown')
         parser.add_argument('--wifi-password', dest="wifipass", default='quackquack')
+        parser.add_argument('--ethz-username', default=None)
+        parser.add_argument('--ethz-password', default=None)
+        parser.add_argument('--country', default="US",
+                            help="2-letter country code (US, CA, CH, etc.)")
+
         parsed = parser.parse_args(args=args)
 
         check_docker_environment()
@@ -90,6 +95,8 @@ class DTCommand(DTCommandAbs):
 
         def add_file(path, content, permissions="0755"):
             d = dict(content=content, path=path, permissions=permissions)
+
+            dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
             user_data['write_files'].append(d)
 
         def add_file_local(path, local, permissions="0755"):
@@ -133,17 +140,6 @@ class DTCommand(DTCommandAbs):
         add_file(path='/home/{}/.dt-shell/config'.format(parsed.linux_username),
                  content=json.dumps(dtshell_config))
 
-        add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf",
-                 content="""
-country=CA
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-network={{
-  ssid="{WIFISSID}"
-  psk="{WIFIPASS}"
-  key_mgmt=WPA-PSK
-}}""".format(WIFISSID=parsed.wifissid, WIFIPASS=parsed.wifipass))
-
         # TODO: make configurable
         DUCKSSID = parsed.hostname + '-wifi'
         DUCKPASS = 'quackquack'
@@ -159,14 +155,56 @@ network={{
      "ip": "192.168.27.1",
      "ssid": "{DUCKSSID}",
      "wpa_passphrase": "{DUCKPASS}",
-     #"channel": "6"
+     "channel": "6"
   }},
   "wpa_supplicant_cfg": {{
      "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
   }}
 }}
-
 """.format(DUCKSSID=DUCKSSID, DUCKPASS=DUCKPASS))
+        wpa_supplicant = """
+        
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country={country}
+
+""".format(country=parsed.country)
+
+        wpa_supplicant += """
+network={{
+  id_str="default"
+  ssid="{WIFISSID}"
+  psk="{WIFIPASS}"
+  key_mgmt=WPA-PSK
+}}
+        """.format(WIFISSID=parsed.wifissid, WIFIPASS=parsed.wifipass)
+
+        if parsed.ethz_username:
+            if parsed.ethz_password is None:
+                msg = 'You should provide a password for ETH account using --ethz-password.'
+                raise Exception(msg)
+
+            wpa_supplicant += """
+            
+network={{
+    id_str="eth_network"
+    ssid="eth"
+    key_mgmt=WPA-EAP
+    group=CCMP TKIP
+    pairwise=CCMP TKIP
+    eap=PEAP
+    proto=RSN
+    identity={username}
+    password={password}
+    phase1="peaplabel=0"
+    phase2="auth=MSCHAPV2"
+    priority=1
+}}
+
+""".format(username=parsed.ethz_username, password=parsed.ethz_password)
+
+        add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf",
+                 content=wpa_supplicant)
 
         user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
         if 'VARIABLE' in user_data_yaml:
@@ -174,8 +212,6 @@ network={{
             msg += '\n\nThe above contains VARIABLE'
             raise Exception(msg)
         env['USER_DATA'] = user_data_yaml
-
-
 
         tmpdata = 'user_data.yaml'
         with open(tmpdata, 'w') as f:
@@ -200,7 +236,7 @@ network={{
                 line = x['line']
                 message = x['message']
                 m = 'Invalid at line %s:\n\n\t%s' % (line, message)
-                m += '\n\n\n\t>\t %s' % user_data_yaml.split('\n')[line-1]
+                m += '\n\n\n\t>\t %s' % user_data_yaml.split('\n')[line - 1]
                 m += '\n\n'
 
                 if kind == 'error':

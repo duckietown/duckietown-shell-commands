@@ -2,10 +2,9 @@
 
 # This script will flash an SD card with the necessary dependencies to run DuckieOS.
 #
-# Usage DuckieOS1-RPI3Bp.sh
-#
 # Environment variables:
-#  USER_DATA
+#
+#  USER_DATA: user data payload
 
 #for debugging, enable command printout
 if [ -n "$DEBUG" ]; then
@@ -24,7 +23,7 @@ fi
 mkdir -p ${TMP_DIR}
 echo "$VERSION" > $TMP_DIR/version
 
-DEPS_LIST=(wget tar udisksctl docker base64 ssh-keygen iwgetid gzip udevadm date)
+DEPS_LIST=(wget tar udisksctl docker base64  gzip udevadm)
 
 if [[ $(uname -a) = *"x86_64"* ]]; then
     echo "64-bit OS detected..."
@@ -49,11 +48,6 @@ DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/m
 WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
 
 
-echo ---- Configuration passed: ---
-
-echo ------------------------------
-
-
 
 
 if [ -z "$USER_DATA" ]; then
@@ -71,16 +65,6 @@ declare -A PRELOADED_DOCKER_IMAGES=( \
 #    ["simple-server"]="duckietown/rpi-simple-server:master18"
 )
 
-
-validate_userdata() {
-    echo "Validating user-data file..."
-    VALIDATION_RESULT=$(wget -qO- "https://validate.core-os.net/validate" --method=PUT --body-data="$USER_DATA" || true)
-    echo "Validation result: $(echo "$VALIDATION_RESULT" | python -m json.tool)"
-    if echo "$VALIDATION_RESULT" | grep -q '"kind":"error"'; then
-        >&2 echo "Critical error! Invalid cloud-init user-data: $USER_DATA"
-        exit 1 
-    fi
-}
 
 
 check_deps() {
@@ -181,7 +165,6 @@ mount_disks() {
     sleep 5
 
     if [ ! -e "/dev/disk/by-label/root" ] || [ ! -e "/dev/disk/by-label/HypriotOS" ]; then
-        echo "Downloading Message of the Day"
         echo "."
         sleep 1
         echo "."
@@ -214,7 +197,6 @@ write_userdata() {
 
 # configs
 check_deps
-validate_userdata
 
 # downloads
 download_etcher
