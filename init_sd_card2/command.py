@@ -16,6 +16,40 @@ from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
 
+def get_stack2yaml(stacks, base):
+    all_stacks = ['dt0', 'dt1']
+
+    use = []
+    for s in stacks:
+        if not s in all_stacks:
+            msg = 'Cannot find stack %r in %s' % (s, all_stacks)
+            raise Exception(msg)
+        use.append(s)
+
+    stacks2yaml = OrderedDict()
+    for sn in use:
+        lpath = join(base, sn + '.yaml')
+        if not os.path.exists(lpath):
+            raise Exception(lpath)
+
+        stacks2yaml[sn] = yaml.load(open(lpath).read())
+    return stacks2yaml
+
+
+def get_mentioned_images(stacks2yaml):
+    preload_images = OrderedDict()
+    for sn, compose in stacks2yaml.items():
+        for name, service in compose['services'].items():
+            preload_images[name] = service['image']
+    return preload_images
+
+    # preload_images["portainer"] = "portainer/portainer:linux-arm"
+    # preload_images["watchtower"] = "v2tec/watchtower:armhf-latest"
+    # # preload_images["raspberrypi3-alpine-python"] = "resin/raspberrypi3-alpine-python:slim"
+    # preload_images["rpi-health"] = "duckietown/rpi-health:master18"
+    # preload_images["rpi-simple-server"] = "duckietown/rpi-simple-server:master18"
+
+
 class DTCommand(DTCommandAbs):
 
     @staticmethod
@@ -45,12 +79,11 @@ Can specify one or more networks: "network:password,network:password,..."
 
         check_docker_environment()
 
-        preload_images = OrderedDict()
-        preload_images["portainer"] = "portainer/portainer:linux-arm"
-        preload_images["watchtower"] = "v2tec/watchtower:armhf-latest"
-        # preload_images["raspberrypi3-alpine-python"] = "resin/raspberrypi3-alpine-python:slim"
-        preload_images["rpi-health"] = "duckietown/rpi-health:master18"
-        preload_images["rpi-simple-server"] = "duckietown/rpi-simple-server:master18"
+        script_files = dirname(realpath(__file__))
+
+        stacks_to_use = parsed.stacks.split(',')
+        stack2yaml = get_stack2yaml(stacks_to_use, join(script_files, 'stacks'))
+        preload_images = get_mentioned_images(stack2yaml)
 
         image2tgz = download_images(preload_images)
 
@@ -87,7 +120,6 @@ Can specify one or more networks: "network:password,network:password,..."
             msg = 'This procedure cannot be run on Mac. You need an Ubuntu machine.'
             raise Exception(msg)
 
-        script_files = dirname(realpath(__file__))
 
         script_file = join(script_files, 'init_sd_card2.sh')
 
@@ -276,7 +308,6 @@ network={{
         else:
             url = 'https://validate.core-os.net/validate'
             r = requests.put(url, data=user_data_yaml)
-            print(r.content)
             info = json.loads(r.content)
             result = info['result']
             nerrors = 0
@@ -284,9 +315,8 @@ network={{
                 kind = x['kind']
                 line = x['line']
                 message = x['message']
-                m = 'Invalid at line %s:\n\n\t%s' % (line, message)
-                m += '\n\n\n\t>\t %s' % user_data_yaml.split('\n')[line - 1]
-                m += '\n\n'
+                m = 'Invalid at line %s: %s' % (line, message)
+                m += '| %s' % user_data_yaml.split('\n')[line - 1]
 
                 if kind == 'error':
                     dtslogger.error(m)
@@ -409,8 +439,12 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
 
             dtslogger.info('saving to %s' % destination)
             destination0 = destination + '.tmp'
-            with gzip.open(destination0, 'wb') as f:
+            with open(destination0, 'wb') as f:
                 for chunk in image.save():
                     f.write(chunk)
-            os.rename(destination0, destination)
+            destination1 = destination + '.tmp2'
+            subprocess.check_call(['gzip', '--best', '-o', destination1, destination0])
+            os.unlink(destination0)
+            os.rename(destination1, destination)
+
     return image2tmpfilename

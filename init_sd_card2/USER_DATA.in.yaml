@@ -18,7 +18,7 @@ users:
     gecos: "Duckietown"
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
-    groups: users,docker,video
+    groups: [users, docker,video]
     plain_text_passwd: VARIABLE_TO_BE_SET_BY_PYTHON
     lock_passwd: false
     ssh_pwauth: true
