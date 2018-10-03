@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import sys
+from collections import namedtuple
 from os.path import join, realpath, dirname
 
 import yaml
@@ -22,8 +23,12 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--hostname', default='duckiebot')
         parser.add_argument('--linux-username', default='duckie')
         parser.add_argument('--linux-password', default='quackquack')
-        parser.add_argument('--wifi-ssid', dest="wifissid", default='duckietown')
-        parser.add_argument('--wifi-password', dest="wifipass", default='quackquack')
+        parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
+                            help="""
+Can specify one or more networks: "network:password,network:password,..."
+                            
+                            """)
+
         parser.add_argument('--ethz-username', default=None)
         parser.add_argument('--ethz-password', default=None)
         parser.add_argument('--country', default="US",
@@ -169,15 +174,17 @@ update_config=1
 country={country}
 
 """.format(country=parsed.country)
-
-        wpa_supplicant += """
+        networks = interpret_wifi_string(parsed.wifi)
+        for connection in networks:
+            wpa_supplicant += """
 network={{
-  id_str="default"
+  id_str="{cname}"
   ssid="{WIFISSID}"
   psk="{WIFIPASS}"
   key_mgmt=WPA-PSK
 }}
-        """.format(WIFISSID=parsed.wifissid, WIFIPASS=parsed.wifipass)
+            """.format(WIFISSID=connection.ssid,
+                       cname=connection.name, WIFIPASS=connection.password)
 
         if parsed.ethz_username:
             if parsed.ethz_password is None:
@@ -318,3 +325,21 @@ def is_valid_hostname(hostname):
         return False
     allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
     return allowed.match(hostname)
+
+
+Wifi = namedtuple('Wifi', 'ssid password name')
+
+
+def interpret_wifi_string(s):
+    results = []
+    for i, connection in enumerate(s.split(',')):
+        tokens = connection.split(':')
+        if len(tokens) != 2:
+            msg = 'Invalid wifi string %r' % s
+            raise Exception(msg)
+        wifissid, wifipass = tokens
+        wifissid = wifissid.strip()
+        wifipass = wifipass.strip()
+        name = 'network%d' % (i + 1)
+        results.append(Wifi(wifissid, wifipass, name))
+    return results
