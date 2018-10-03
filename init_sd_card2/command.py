@@ -35,8 +35,8 @@ Can specify one or more networks: "network:password,network:password,..."
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--stacks', default="dt0,dt1",
                             help="which stacks to run")
-        parser.add_argument('--expand', action="store_true", default=False,
-                            help="Expand partition table hack")
+        parser.add_argument('--expand32', action="store_true", default=False,
+                            help="Expand partition table hack (32 GB)")
 
         parsed = parser.parse_args(args=args)
 
