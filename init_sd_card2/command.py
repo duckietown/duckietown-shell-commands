@@ -38,6 +38,8 @@ Can specify one or more networks: "network:password,network:password,..."
                             help="which stacks to run")
         parser.add_argument('--expand32', action="store_true", default=False,
                             help="Expand partition table hack (32 GB)")
+        parser.add_argument('--expand16', action="store_true", default=False,
+                            help="Expand partition table hack (16 GB)")
 
         parsed = parser.parse_args(args=args)
 
@@ -249,6 +251,13 @@ network={{
                 msg = 'Cannot find partition table %s' % partition_table
                 raise Exception(msg)
             dtslogger.info('Expanding partition to 32 GB')
+            env['PARTITION_TABLE'] = partition_table
+        if parsed.expand16:
+            partition_table = join(script_files, 'partition-table-16.bin')
+            if not os.path.exists(partition_table):
+                msg = 'Cannot find partition table %s' % partition_table
+                raise Exception(msg)
+            dtslogger.info('Expanding partition to 16 GB')
             env['PARTITION_TABLE'] = partition_table
         else:
             dtslogger.info('Not expanding partition')
