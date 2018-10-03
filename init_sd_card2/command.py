@@ -194,8 +194,8 @@ network={{
     pairwise=CCMP TKIP
     eap=PEAP
     proto=RSN
-    identity={username}
-    password={password}
+    identity="{username}"
+    password="{password}"
     phase1="peaplabel=0"
     phase2="auth=MSCHAPV2"
     priority=1
