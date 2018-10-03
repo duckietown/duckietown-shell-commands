@@ -112,6 +112,12 @@ flash_hypriot() {
     sudo -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
         ${ETCHER_DIR}/etcher -u false ${HYPRIOT_LOCAL}
     echo "Flashing Hypriot image succeeded."
+
+    if [ -f $PARTITION_TABLE ]; then
+        echo "Expanding partition table"
+        sudo dd of=/dev/mmcblk0 if=$PARTITION_TABLE bs=512 count=1
+        sudo resize2fs /dev/mmcblk0p2
+    fi
 }
 
 download_docker_image() {

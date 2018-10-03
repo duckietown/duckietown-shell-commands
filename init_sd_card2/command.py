@@ -35,6 +35,8 @@ Can specify one or more networks: "network:password,network:password,..."
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--stacks', default="dt0,dt1",
                             help="which stacks to run")
+        parser.add_argument('--expand', action="store_true", default=False,
+                            help="Expand partition table hack")
 
         parsed = parser.parse_args(args=args)
 
@@ -230,6 +232,10 @@ network={{
             msg += '\n\nThe above contains VARIABLE'
             raise Exception(msg)
         env['USER_DATA'] = user_data_yaml
+
+        partition_table = join(script_files, 'partition-table.bin')
+        if parsed.expand:
+            env['$PARTITION_TABLE'] = partition_table
 
         tmpdata = 'user_data.yaml'
         with open(tmpdata, 'w') as f:
