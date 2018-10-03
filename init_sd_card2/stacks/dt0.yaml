@@ -1,3 +1,5 @@
+# Note: only pre-loaded containers here
+
 version: '3'
 services:
   portainer:
@@ -14,19 +16,6 @@ services:
     network_mode: "host"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-  http-server:
-    image: duckietown/rpi-simple-server:master18
-    restart: unless-stopped
-    network_mode: "host"
-    volumes:
-      - data-volume:/data
-    working_dir: /data
-  rpi-health:
-    image: duckietown/rpi-health:master18
-    restart: unless-stopped
-    network_mode: "host"
-    devices:
-    - "/dev/vchiq:/dev/vchiq"
 
 volumes:
   data-volume:
