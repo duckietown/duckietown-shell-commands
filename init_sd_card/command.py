@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import argparse
 import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -90,6 +89,12 @@ class DTCommand(DTCommandAbs):
         # add other environment
         env.update(os.environ)
 
+        if 'DOCKER_HOST' in env:
+            r = env['DOCKER_HOST']
+            msg = 'I will IGNORE the DOCKER_HOST variable that is currently set to %r' % r
+            dtslogger.warning(msg)
+            env.pop('DOCKER_HOST')
+
         ssh_dir = os.path.expanduser('~/.ssh')
         if not os.path.exists(ssh_dir):
             os.makedirs(ssh_dir)
@@ -114,10 +119,6 @@ class DTCommand(DTCommandAbs):
         bit0 = """
 
 # --- init_sd_card generated ---
-
-# Use the key for all hosts
-IdentityFile $IDENTITY
-
 Host $HOSTNAME
     User $DTS_USERNAME
     Hostname $HOSTNAME.local
@@ -145,14 +146,3 @@ Host $HOSTNAME
         else:
             msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
             raise Exception(msg)
-
-
-def is_valid_hostname(hostname):
-    import re
-    # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
-
-    if len(hostname) > 253:
-        return False
-
-    allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
-    return allowed.match(hostname)
