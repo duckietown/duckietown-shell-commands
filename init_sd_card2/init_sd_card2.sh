@@ -50,11 +50,6 @@ WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/downlo
 
 
 
-if [ -z "$USER_DATA" ]; then
-    echo "Please set variable USER_DATA"
-     exit 1
-fi
-
 
 declare -A PRELOADED_DOCKER_IMAGES=( \
     ["portainer"]="portainer/portainer:linux-arm" \
@@ -204,10 +199,10 @@ unmount_disks() {
     udisksctl unmount -b /dev/disk/by-label/root
 }
 
-write_userdata() {
-    echo "Writing custom cloud-init user-data..."
-    echo "$USER_DATA" > $TMP_HYPRIOT_MOUNTPOINT/user-data
-}
+#write_userdata() {
+#    echo "Writing custom cloud-init user-data..."
+#    echo "$USER_DATA" > $TMP_HYPRIOT_MOUNTPOINT/user-data
+#}
 
 
 # main()
@@ -228,9 +223,9 @@ mount_disks
     expand_partition
     preload_docker_images
     write_configurations
-    write_userdata
+#    write_userdata
     sync  # flush all buffers
-unmount_disks
+#unmount_disks
 
 
 echo "Finished preparing SD card. Please remove it and insert into the robot."

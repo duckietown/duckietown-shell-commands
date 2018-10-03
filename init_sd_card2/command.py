@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import argparse
-import gzip
+import getpass
 import json
 import os
 import platform
@@ -15,39 +15,12 @@ import yaml
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
+USER = getpass.getuser()
+TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
+TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
 
-def get_stack2yaml(stacks, base):
-    all_stacks = ['dt0', 'dt1']
-
-    use = []
-    for s in stacks:
-        if not s in all_stacks:
-            msg = 'Cannot find stack %r in %s' % (s, all_stacks)
-            raise Exception(msg)
-        use.append(s)
-
-    stacks2yaml = OrderedDict()
-    for sn in use:
-        lpath = join(base, sn + '.yaml')
-        if not os.path.exists(lpath):
-            raise Exception(lpath)
-
-        stacks2yaml[sn] = yaml.load(open(lpath).read())
-    return stacks2yaml
-
-
-def get_mentioned_images(stacks2yaml):
-    preload_images = OrderedDict()
-    for sn, compose in stacks2yaml.items():
-        for name, service in compose['services'].items():
-            preload_images[name] = service['image']
-    return preload_images
-
-    # preload_images["portainer"] = "portainer/portainer:linux-arm"
-    # preload_images["watchtower"] = "v2tec/watchtower:armhf-latest"
-    # # preload_images["raspberrypi3-alpine-python"] = "resin/raspberrypi3-alpine-python:slim"
-    # preload_images["rpi-health"] = "duckietown/rpi-health:master18"
-    # preload_images["rpi-simple-server"] = "duckietown/rpi-simple-server:master18"
+DISK_HYPRIOTOS = '/dev/disk/by-label/HypriotOS'
+DISK_ROOT = '/dev/disk/by-label/root'
 
 
 class DTCommand(DTCommandAbs):
@@ -68,12 +41,18 @@ Can specify one or more networks: "network:password,network:password,..."
         parser.add_argument('--ethz-password', default=None)
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
-        parser.add_argument('--stacks', default="dt0,dt1",
+        parser.add_argument('--stacks', default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to run")
-        parser.add_argument('--expand32', action="store_true", default=False,
-                            help="Expand partition table hack (32 GB)")
-        parser.add_argument('--expand16', action="store_true", default=False,
-                            help="Expand partition table hack (16 GB)")
+        #
+        # DT18_00_basic.yaml
+        # DT18_01_health_stats.yaml
+        # DT18_03_roscore.yaml
+        # DT18_04_camera.yaml
+        # DT18_99_swarm.yaml
+        parser.add_argument('--expand', action="store_true", default=False,
+                            help="Expand partition table")
+        parser.add_argument('--no-flash', dest='no_flash', action="store_true", default=False,
+                            help="Do not flash, only update")
 
         parsed = parser.parse_args(args=args)
 
@@ -86,6 +65,7 @@ Can specify one or more networks: "network:password,network:password,..."
         preload_images = get_mentioned_images(stack2yaml)
 
         image2tgz = download_images(preload_images)
+        dtslogger.info("loading %s" % image2tgz)
 
         if not is_valid_hostname(parsed.hostname):
             msg = 'This is not a valid hostname: %r.' % parsed.hostname
@@ -99,7 +79,7 @@ Can specify one or more networks: "network:password,network:password,..."
             msg = 'This hostname is too short. Choose something more descriptive.'
             raise Exception(msg)
 
-        MIN_AVAILABLE_GB = 0.0
+        MIN_AVAILABLE_GB = 1.0
         try:
             import psutil
         except ImportError:
@@ -113,13 +93,16 @@ Can specify one or more networks: "network:password,network:password,..."
                 msg = 'This procedure requires that you have at least %f GB of memory.' % MIN_AVAILABLE_GB
                 msg += '\nYou only have %f GB available.' % disk_available_gb
                 raise Exception(msg)
+            else:
+
+                msg = 'You have %f GB available.' % disk_available_gb
+                dtslogger.info(msg)
 
         p = platform.system().lower()
 
         if 'darwin' in p:
             msg = 'This procedure cannot be run on Mac. You need an Ubuntu machine.'
             raise Exception(msg)
-
 
         script_file = join(script_files, 'init_sd_card2.sh')
 
@@ -270,62 +253,16 @@ network={{
         add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf",
                  content=wpa_supplicant)
 
-        user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
-        if 'VARIABLE' in user_data_yaml:
-            msg = 'Invalid user_data_yaml:\n' + user_data_yaml
-            msg += '\n\nThe above contains VARIABLE'
-            raise Exception(msg)
-        env['USER_DATA'] = user_data_yaml
-
-        if parsed.expand32:
+        if parsed.expand:
             partition_table = join(script_files, 'partition-table.bin')
             if not os.path.exists(partition_table):
                 msg = 'Cannot find partition table %s' % partition_table
                 raise Exception(msg)
             dtslogger.info('Expanding partition to 32 GB')
             env['PARTITION_TABLE'] = partition_table
-        if parsed.expand16:
-            partition_table = join(script_files, 'partition-table.bin')
-            if not os.path.exists(partition_table):
-                msg = 'Cannot find partition table %s' % partition_table
-                raise Exception(msg)
-            dtslogger.info('Expanding partition to 16 GB')
-            env['PARTITION_TABLE'] = partition_table
+
         else:
             dtslogger.info('Not expanding partition')
-
-        tmpdata = 'user_data.yaml'
-        with open(tmpdata, 'w') as f:
-            f.write(user_data_yaml)
-        dtslogger.info('written user_data to %s ' % tmpdata)
-
-        # validate user data
-        try:
-            import requests
-        except ImportError:
-            msg = 'Skipping validation because "requests" not installed.'
-            dtslogger.warning(msg)
-        else:
-            url = 'https://validate.core-os.net/validate'
-            r = requests.put(url, data=user_data_yaml)
-            info = json.loads(r.content)
-            result = info['result']
-            nerrors = 0
-            for x in result:
-                kind = x['kind']
-                line = x['line']
-                message = x['message']
-                m = 'Invalid at line %s: %s' % (line, message)
-                m += '| %s' % user_data_yaml.split('\n')[line - 1]
-
-                if kind == 'error':
-                    dtslogger.error(m)
-                    nerrors += 1
-                else:
-                    dtslogger.warning(m)
-            if nerrors:
-                msg = 'There are %d errors: exiting' % nerrors
-                raise Exception(msg)
 
         # add other environment
         env.update(os.environ)
@@ -381,14 +318,47 @@ Host {HOSTNAME}
         else:
             dtslogger.info('Configuration already found in ~/.ssh/config')
 
-        ret = subprocess.call(script_cmd, shell=True, env=env,
-                              stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
-        if ret == 0:
-            dtslogger.info('Done!')
-        else:
-            msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
-            raise Exception(msg)
+        if not parsed.no_flash:
 
+            ret = subprocess.call(script_cmd, shell=True, env=env,
+                                  stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
+            if ret == 0:
+                dtslogger.info('Done!')
+            else:
+                msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
+                raise Exception(msg)
+
+
+
+        user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
+        if 'VARIABLE' in user_data_yaml:
+            msg = 'Invalid user_data_yaml:\n' + user_data_yaml
+            msg += '\n\nThe above contains VARIABLE'
+            raise Exception(msg)
+        validate_user_data(user_data_yaml)
+        write_to_root('/user-data', user_data_yaml)
+
+        write_to_hypriot('config_txt', '''
+hdmi_force_hotplug=1
+enable_uart=0
+
+# camera settings, see http://elinux.org/RPiconfig#Camera
+start_x=1
+disable_camera_led=1
+gpu_mem=16
+
+# Enable audio (added by raspberrypi-sys-mods)
+dtparam=audio=on
+
+dtparam=i2c1=on
+dtparam=i2c_arm=on
+        
+        ''')
+
+
+
+
+        unmount_disks()
 
 def is_valid_hostname(hostname):
     import re
@@ -401,6 +371,28 @@ def is_valid_hostname(hostname):
 
 Wifi = namedtuple('Wifi', 'ssid password name')
 
+
+def write_to_root(rpath, contents):
+    if not os.path.exists(TMP_ROOT_MOUNTPOINT):
+        msg = 'Disk not mounted: %s' % TMP_ROOT_MOUNTPOINT
+        raise Exception(msg)
+    x = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
+    d = os.path.dirname(x)
+    if not os.path.exists(d):
+        os.makedirs(d)
+    with open(x, 'w') as f:
+        f.write(contents)
+
+def write_to_hypriot(rpath, contents):
+    if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
+        msg = 'Disk not mounted: %s' % TMP_HYPRIOT_MOUNTPOINT
+        raise Exception(msg)
+    x = os.path.join(TMP_HYPRIOT_MOUNTPOINT, rpath)
+    d = os.path.dirname(x)
+    if not os.path.exists(d):
+        os.makedirs(d)
+    with open(x, 'w') as f:
+        f.write(contents)
 
 def interpret_wifi_string(s):
     results = []
@@ -448,3 +440,70 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
             os.rename(destination1, destination)
 
     return image2tmpfilename
+
+
+def get_stack2yaml(stacks, base):
+    names = os.listdir(base)
+    all_stacks = [os.path.splitext(_)[0] for _ in names if _.endswith("yaml")]
+    dtslogger.info('The stacks that are available are: %s' % ",".join(all_stacks))
+    use = []
+    for s in stacks:
+        if not s in all_stacks:
+            msg = 'Cannot find stack %r in %s' % (s, all_stacks)
+            raise Exception(msg)
+        use.append(s)
+
+    stacks2yaml = OrderedDict()
+    for sn in use:
+        lpath = join(base, sn + '.yaml')
+        if not os.path.exists(lpath):
+            raise Exception(lpath)
+
+        stacks2yaml[sn] = yaml.load(open(lpath).read())
+    return stacks2yaml
+
+
+def get_mentioned_images(stacks2yaml):
+    preload_images = OrderedDict()
+    for sn, compose in stacks2yaml.items():
+        for name, service in compose['services'].items():
+            preload_images[name] = service['image']
+    return preload_images
+
+
+def validate_user_data(user_data_yaml):
+    try:
+        import requests
+    except ImportError:
+        msg = 'Skipping validation because "requests" not installed.'
+        dtslogger.warning(msg)
+    else:
+        url = 'https://validate.core-os.net/validate'
+        r = requests.put(url, data=user_data_yaml)
+        info = json.loads(r.content)
+        result = info['result']
+        nerrors = 0
+        for x in result:
+            kind = x['kind']
+            line = x['line']
+            message = x['message']
+            m = 'Invalid at line %s: %s' % (line, message)
+            m += '| %s' % user_data_yaml.split('\n')[line - 1]
+
+            if kind == 'error':
+                dtslogger.error(m)
+                nerrors += 1
+            else:
+                dtslogger.warning(m)
+        if nerrors:
+            msg = 'There are %d errors: exiting' % nerrors
+            raise Exception(msg)
+
+
+
+def unmount_disks():
+    # TODO: sync
+    cmd = ['udisksctl', 'unmount', '-b', DISK_HYPRIOTOS]
+    subprocess.check_call(cmd)
+    cmd = ['udisksctl', 'unmount', '-b', DISK_ROOT]
+    subprocess.check_call(cmd)
