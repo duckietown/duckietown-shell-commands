@@ -108,11 +108,17 @@ download_hypriot() {
 }
 
 flash_hypriot() {
-    echo PARTITION_TABLE=$PARTITION_TABLE
+
     echo "Flashing Hypriot image $HYPRIOT_LOCAL to disk..."
     sudo -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
         ${ETCHER_DIR}/etcher -u false ${HYPRIOT_LOCAL}
     echo "Flashing Hypriot image succeeded."
+
+}
+
+
+expand_partition() {
+    echo PARTITION_TABLE=$PARTITION_TABLE
 
     if [ -f $PARTITION_TABLE ]; then
         echo "Expanding partition table"
@@ -122,6 +128,7 @@ flash_hypriot() {
         echo "Skipping expansion of partition table."
     fi
 }
+
 
 download_docker_image() {
     image_name="$1"
@@ -217,6 +224,7 @@ flash_hypriot
 
 #write_custom_files
 mount_disks
+    expand_partition
     preload_docker_images
     write_configurations
     write_userdata
