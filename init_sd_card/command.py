@@ -36,7 +36,7 @@ class DTCommand(DTCommandAbs):
             msg = 'This hostname is too short. Choose something more descriptive.'
             raise Exception(msg)
 
-        MIN_AVAILABLE_GB = 10.0
+        MIN_AVAILABLE_GB = 0.0
         try:
             import psutil
         except ImportError:
