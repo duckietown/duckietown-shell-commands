@@ -155,7 +155,7 @@ Host $HOSTNAME
 def is_valid_hostname(hostname):
     import re
     # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
-     if len(hostname) > 253:
+    if len(hostname) > 253:
         return False
-     allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
+    allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
     return allowed.match(hostname)
