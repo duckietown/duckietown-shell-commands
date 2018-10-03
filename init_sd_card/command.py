@@ -10,6 +10,7 @@ from os.path import join, realpath, dirname
 from string import Template
 
 from dt_shell import dtslogger, DTCommandAbs
+from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
@@ -23,6 +24,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--wifi-ssid', dest="wifissid", default='duckietown')
         parser.add_argument('--wifi-password', dest="wifipass", default='quackquack')
         parsed = parser.parse_args(args=args)
+
+        check_docker_environment()
 
         if not is_valid_hostname(parsed.hostname):
             msg = 'This is not a valid hostname: %r.' % parsed.hostname
