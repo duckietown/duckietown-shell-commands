@@ -25,6 +25,8 @@ DISK_HYPRIOTOS = '/dev/disk/by-label/HypriotOS'
 DISK_ROOT = '/dev/disk/by-label/root'
 
 
+
+
 class InvalidUserInput(Exception):
     pass
 
@@ -34,29 +36,27 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         parser = argparse.ArgumentParser()
-        parser.add_argument('--hostname', default='duckiebot')
-        parser.add_argument('--linux-username', default='duckie')
-        parser.add_argument('--linux-password', default='quackquack')
-        parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
-                            help="""
-Can specify one or more networks: "network:password,network:password,..."
-                            
-                            """)
-
-        parser.add_argument('--ethz-username', default=None)
-        parser.add_argument('--ethz-password', default=None)
-        parser.add_argument('--country', default="US",
-                            help="2-letter country code (US, CA, CH, etc.)")
-        parser.add_argument('--stacks', default="DT18_00_basic,DT18_01_health_stats",
-                            help="which stacks to run")
-
-        parser.add_argument('--expand', action="store_true", default=False,
-                            help="Expand partition table")
-        parser.add_argument('--no-flash', dest='no_flash', action="store_true", default=False,
-                            help="Do not flash, only update")
 
         parser.add_argument('--steps', default="flash,expand,mount,setup,unmount",
                             help="Steps to perform")
+
+        parser.add_argument('--hostname', default='duckiebot')
+        parser.add_argument('--linux-username', default='duckie')
+        parser.add_argument('--linux-password', default='quackquack')
+
+        parser.add_argument('--stacks', default="DT18_00_basic,DT18_01_health_stats",
+                            help="which stacks to run")
+
+        parser.add_argument('--country', default="US",
+                            help="2-letter country code (US, CA, CH, etc.)")
+        parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
+                            help="""
+        Can specify one or more networks: "network:password,network:password,..."
+
+                                    """)
+
+        parser.add_argument('--ethz-username', default=None)
+        parser.add_argument('--ethz-password', default=None)
 
         parsed = parser.parse_args(args=args)
 
@@ -64,6 +64,8 @@ Can specify one or more networks: "network:password,network:password,..."
         check_good_platform()
         check_dependencies()
 
+        dtslogger.setLevel(logging.DEBUG)
+        
         steps = parsed.steps.split(',')
         step2function = {
             'flash': step_flash,
@@ -153,6 +155,9 @@ def step_expand(shell, parsed):
     if not os.path.exists(DEV):
         msg = 'This only works assuming device == %s' % DEV
         raise Exception(msg)
+    else:
+        msg = 'Found device %s.' % DEV
+        dtslogger.info(msg)
 
     cmd = 'sudo parted -s /dev/mmcblk0 resizepart 2 "100%"'
     _run_cmd(cmd)
@@ -378,7 +383,7 @@ def configure_ssh(parsed, ssh_key_pri, ssh_key_pub):
 
     """.format(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
 
-    if not bit in current:
+    if bit not in current:
         dtslogger.info('Updating ~/.ssh/config with: ' + bit)
         with open(ssh_config, 'a') as f:
             f.write(bit)
@@ -600,6 +605,5 @@ def check_has_space(where, min_available_gb):
             dtslogger.error(msg)
             raise NotEnoughSpace(msg)
         else:
-
             msg = 'You have %f GB available on %s. ' % (disk_available_gb, where)
             dtslogger.info(msg)

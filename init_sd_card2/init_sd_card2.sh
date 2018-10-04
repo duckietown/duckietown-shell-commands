@@ -59,22 +59,22 @@ declare -A PRELOADED_DOCKER_IMAGES=( \
 #    ["rpi-health"]="duckietown/rpi-health:master18" \
 #    ["simple-server"]="duckietown/rpi-simple-server:master18"
 )
-
-
-
-check_deps() {
-    missing_deps=()
-    for dep in ${DEPS_LIST[@]}; do
-        if [ ! $(command -v ${dep}) ]; then
-            missing_deps+=("${dep}")
-        fi
-    done
-    if [ ${#missing_deps[@]} -ne 0 ]; then
-        echo "The following dependencies are missing. Please install corresponding packages for:"
-        echo "${missing_deps[@]}"
-        [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
-    fi
-}
+#
+#
+#
+#check_deps() {
+#    missing_deps=()
+#    for dep in ${DEPS_LIST[@]}; do
+#        if [ ! $(command -v ${dep}) ]; then
+#            missing_deps+=("${dep}")
+#        fi
+#    done
+#    if [ ${#missing_deps[@]} -ne 0 ]; then
+#        echo "The following dependencies are missing. Please install corresponding packages for:"
+#        echo "${missing_deps[@]}"
+#        [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
+#    fi
+#}
 
 download_etcher() {
     if [ -f "$ETCHER_DIR/etcher" ]; then
@@ -126,26 +126,26 @@ flash_hypriot() {
 #}
 
 
-download_docker_image() {
-    image_name="$1"
-    docker_tag="$2"
-    image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
+#download_docker_image() {
+#    image_name="$1"
+#    docker_tag="$2"
+#    image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
+#
+#    # download docker image if it doesn't exist
+#    if [ -f ${image_filename} ]; then
+#        echo "${docker_tag} was previously downloaded to ${image_filename}, skipping..."
+#    else
+#        echo "Downloading ${docker_tag} from Docker Hub..."
+#        docker pull ${docker_tag} && docker save ${docker_tag} | gzip --best > ${image_filename}
+#    fi
+#}
 
-    # download docker image if it doesn't exist
-    if [ -f ${image_filename} ]; then
-        echo "${docker_tag} was previously downloaded to ${image_filename}, skipping..."
-    else
-        echo "Downloading ${docker_tag} from Docker Hub..."
-        docker pull ${docker_tag} && docker save ${docker_tag} | gzip --best > ${image_filename}
-    fi
-}
-
-download_docker_images() {
-    for image_name in "${!PRELOADED_DOCKER_IMAGES[@]}"; do
-        docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
-        download_docker_image ${image_name} ${docker_tag}
-    done
-}
+#download_docker_images() {
+#    for image_name in "${!PRELOADED_DOCKER_IMAGES[@]}"; do
+#        docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
+#        download_docker_image ${image_name} ${docker_tag}
+#    done
+#}
 
 preload_docker_images() {
     echo "Configuring DuckieOS installation..." 
@@ -194,10 +194,10 @@ preload_docker_images() {
 #    udisksctl mount -b /dev/disk/by-label/root
 #}
 
-unmount_disks() {
-    udisksctl unmount -b /dev/disk/by-label/HypriotOS
-    udisksctl unmount -b /dev/disk/by-label/root
-}
+#unmount_disks() {
+#    udisksctl unmount -b /dev/disk/by-label/HypriotOS
+#    udisksctl unmount -b /dev/disk/by-label/root
+#}
 
 #write_userdata() {
 #    echo "Writing custom cloud-init user-data..."
@@ -208,7 +208,7 @@ unmount_disks() {
 # main()
 
 # configs
-check_deps
+#check_deps
 
 # downloads
 download_etcher
@@ -219,7 +219,7 @@ download_docker_images
 flash_hypriot
 
 #write_custom_files
-mount_disks
+#mount_disks
     preload_docker_images
 #    write_configurations
 #    write_userdata
@@ -245,8 +245,8 @@ echo "Finished preparing SD card. Please remove it and insert into the robot."
 #    echo "If you do not join '$WIFISSID', then $HOST_NAME might be unreachable"
 #fi
 #echo "Alternately, join the WiFi '$DUCKSSID' to connect to $HOST_NAME directly"
-echo "Press any key to continue"
-read -n 1 -s -r 
+#echo "Press any key to continue"
+#read -n 1 -s -r
 
 # echo "Wait for a minute, then visit the following URL: http://$HOST_NAME:9000/"
 # echo "SSH access is also provided by: ssh $HOST_NAME.local [-i $IDENTITY_FILE]"
