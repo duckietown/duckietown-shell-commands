@@ -294,10 +294,11 @@ def step_setup(shell, parsed):
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
-    configure_images(parsed, user_data, add_file_local)
 
     user_data['runcmd'].append('cat /sys/class/net/eth0/address > /data/eth0-mac')
     user_data['runcmd'].append('cat /sys/class/net/wlan0/address > /data/wlan0-mac')
+
+    configure_images(parsed, user_data, add_file_local)
 
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
