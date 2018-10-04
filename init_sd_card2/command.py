@@ -363,7 +363,7 @@ def configure_images(parsed, user_data, add_file_local):
         _run_cmd(cmd)
 
         p = os.path.join('/', rpath)
-        log_current_phase(user_data, PHASE_LOADING, "Loading container %s" p)
+        log_current_phase(user_data, PHASE_LOADING, "Loading container %s" % p)
         user_data['runcmd'].append(['docker', 'load', '--input', p])
         # user_data['runcmd'].append(['rm', p])
 
