@@ -649,7 +649,7 @@ def validate_user_data(user_data_yaml):
                 ignore = ['bootcmd', 'package_upgrade', 'runcmd', 'ssh_pwauth', 'sudo', 'chpasswd', 'lock_passwd', 'plain_text_passwd']
                 show = False
                 for i in ignore:
-                    if 'unrecognized key "%s"' in m:
+                    if 'unrecognized key "%s"' % i in m:
                         break
                 else:
                     show = True
