@@ -90,11 +90,11 @@ def step_mount(shell, parsed):
 
     if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
         refresh()
-        cmd = ['udisksctl', 'mount', '-b', '/dev/disk/by-label/HypriotOS']
+        cmd = ['udisksctl', 'mount', '-b', DISK_HYPRIOTOS]
         _run_cmd(cmd)
     if not os.path.exists(TMP_ROOT_MOUNTPOINT):
         refresh()
-        cmd = ['udisksctl', 'mount', '-b', '/dev/disk/by-label/root']
+        cmd = ['udisksctl', 'mount', '-b', DISK_ROOT]
         _run_cmd(cmd)
 
 
@@ -255,16 +255,15 @@ dtparam=i2c_arm=on
 
 def configure_images(parsed, user_data, add_file_local):
     # read and validate duckiebot-compose
-    cfs = parsed.stacks.split(',')
-    dtslogger.info('Will run the stacks %s' % cfs)
     stacks_to_use = parsed.stacks.split(',')
+    dtslogger.info('Will run the stacks %s' % stacks_to_use)
     stack2yaml = get_stack2yaml(stacks_to_use, get_resource('stacks'))
     preload_images = get_mentioned_images(stack2yaml)
 
     image2tgz = download_images(preload_images)
     dtslogger.info("loading %s" % image2tgz)
 
-    for cf in cfs:
+    for cf in stacks_to_use:
         # local path
         lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
         # path on PI
@@ -455,17 +454,26 @@ def check_valid_hostname(hostname):
 
 Wifi = namedtuple('Wifi', 'ssid password name')
 
+import tempfile
+
 
 def write_to_root(rpath, contents):
     if not os.path.exists(TMP_ROOT_MOUNTPOINT):
         msg = 'Disk not mounted: %s' % TMP_ROOT_MOUNTPOINT
         raise Exception(msg)
+    # for some reason it is mounted as root
+
     x = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
     d = os.path.dirname(x)
     if not os.path.exists(d):
         os.makedirs(d)
-    with open(x, 'w') as f:
+        cmd = ['sudo', 'mkdirs', d]
+        _run_cmd(cmd)
+    t = tempfile.mktemp()
+    with open(t, 'w') as f:
         f.write(contents)
+    cmd = ['sudo', 'cp', t, x]
+    _run_cmd(cmd)
 
 
 def write_to_hypriot(rpath, contents):
@@ -536,7 +544,7 @@ def get_stack2yaml(stacks, base):
     dtslogger.info('The stacks that are available are: %s' % ",".join(all_stacks))
     use = []
     for s in stacks:
-        if not s in all_stacks:
+        if s not in all_stacks:
             msg = 'Cannot find stack %r in %s' % (s, all_stacks)
             raise Exception(msg)
         use.append(s)
