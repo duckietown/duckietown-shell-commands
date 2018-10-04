@@ -151,6 +151,7 @@ def step_expand(shell, parsed):
     check_program_dependency('parted')
     check_program_dependency('resize2fs')
     DEV = '/dev/mmcblk0'
+    DEVp2 = DEV + 'p2'
     if not os.path.exists(DEV):
         msg = 'This only works assuming device == %s' % DEV
         raise Exception(msg)
@@ -158,11 +159,17 @@ def step_expand(shell, parsed):
         msg = 'Found device %s.' % DEV
         dtslogger.info(msg)
 
+    dtslogger.info('Current status:')
+    cmd = ['sudo', 'lsblk', DEV]
+    _run_cmd(cmd)
     cmd = ['sudo', 'parted', '-s', DEV, 'resizepart', '2', '100%']
     _run_cmd(cmd)
-    cmd = ['sudo', 'e2fsck', '-f', '/dev/mmcblk0p2']
+    cmd = ['sudo', 'e2fsck', '-f', DEVp2]
     _run_cmd(cmd)
-    cmd = ['sudo', 'resize2fs', '/dev/mmcblk0p2']
+    cmd = ['sudo', 'resize2fs', DEVp2]
+    _run_cmd(cmd)
+    dtslogger.info('Updated status:')
+    cmd = ['sudo', 'lsblk', DEV]
     _run_cmd(cmd)
 
 
