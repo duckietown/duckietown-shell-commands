@@ -646,7 +646,15 @@ def validate_user_data(user_data_yaml):
                 dtslogger.error(m)
                 nerrors += 1
             else:
-                dtslogger.warning(m)
+                ignore = ['bootcmd', 'package_upgrade', 'runcmd', 'ssh_pwauth', 'sudo', 'chpasswd', 'lock_passwd', 'plain_text_passwd']
+                show = False
+                for i in ignore:
+                    if 'unrecognized key "%s"' in m:
+                        break
+                else:
+                    show = True
+                if show:
+                    dtslogger.warning(m)
         if nerrors:
             msg = 'There are %d errors: exiting' % nerrors
             raise Exception(msg)
