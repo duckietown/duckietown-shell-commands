@@ -436,16 +436,16 @@ def configure_images(parsed, user_data, add_file_local):
                 print(cmd)
                 add_run_cmd(user_data, cmd)
 
-        if cf in stacks_to_run:
-            msg = 'Adding the stack %r as default running' % cf
-            dtslogger.info(msg)
+            if cf in stacks_to_run:
+                msg = 'Adding the stack %r as default running' % cf
+                dtslogger.info(msg)
 
-            log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
-            cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
-            add_run_cmd(user_data, cmd)
-            # XXX
-            cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
-            user_data['bootcmd'].append(cmd)  # every boot
+                log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
+                cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
+                add_run_cmd(user_data, cmd)
+                # XXX
+                cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
+                user_data['bootcmd'].append(cmd)  # every boot
 
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
