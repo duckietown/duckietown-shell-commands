@@ -62,6 +62,11 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args=args)
 
+        if 'DOCKER_HOST' in os.environ:
+            msg = 'Removing DOCKER_HOST from os.environ.'
+            dtslogger.info(msg)
+            os.environ.pop('DOCKER_HOST')
+
         check_docker_environment()
         check_good_platform()
         check_dependencies()
@@ -292,14 +297,14 @@ def configure_images(parsed, user_data, add_file_local):
     preload_images = get_mentioned_images(stack2yaml)
 
     image2tgz = download_images(preload_images)
-    dtslogger.info("loading %s" % image2tgz)
+    # dtslogger.info("loading %s" % image2tgz)
 
     buffer_bytes = 100 * 1024 * 1024
     written = []
     # write images until we have space
     for image_name, tgz in image2tgz.items():
         size = os.stat(tgz).st_size
-        print('%s: %s bytes' % (tgz, size))
+        dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size(size)))
 
         rpath = os.path.join('var', 'local', os.path.basename(tgz))
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
@@ -308,25 +313,38 @@ def configure_images(parsed, user_data, add_file_local):
             msg = 'You have %s available on %s but need %s for %s' % (
                 friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size(size), tgz)
             dtslogger.warning(msg)
-            break
+            continue
 
+        dtslogger.info('OK, copying, and loading it on first boot.')
         cmd = ['sudo', 'cp', tgz, destination]
         _run_cmd(cmd)
 
         user_data['runcmd'].append(['docker', 'load', '--input', os.path.join('/', rpath)])
         written.append(image_name)
 
-    for cf in stacks_to_run:
+    def any_missing(cf):
         needed = stack2yaml[cf]['services']
         missing = []
         for x in needed:
             if x in written:
-                msg = 'For stack %r: container %r could be written.' % (cf, x)
-                dtslogger.info(msg)
+                # msg = 'For stack %r: container %r could be written.' % (cf, x)
+                # dtslogger.info(msg)
+                pass
             else:
-                msg = 'For stack %r: container %r could NOT be written.' % (cf, x)
-                dtslogger.warning(msg)
+                # msg = 'For stack %r: container %r could NOT be written.' % (cf, x)
+                # dtslogger.warning(msg)
                 missing.append(x)
+
+        return missing
+
+    for cf in stacks_to_load:
+        missing = any_missing(cf)
+        if missing:
+            msg = 'I could not completely load the stack %r because these did not fit: %s' % (cf, missing)
+            dtslogger.error(msg)
+
+    for cf in stacks_to_run:
+        missing = any_missing(cf)
 
         if missing:
             msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing)
