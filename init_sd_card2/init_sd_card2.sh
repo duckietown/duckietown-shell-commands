@@ -39,10 +39,10 @@ HYPRIOT_LOCAL="${TMP_DIR}/${HYPRIOT_URL##*/}"
 IMAGE_DOWNLOADER_CACHEDIR="${TMP_DIR}/docker_images"
 mkdir -p ${IMAGE_DOWNLOADER_CACHEDIR}
 
-MOD_FILE="${TMP_DIR}/mod"
-DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
+#MOD_FILE="${TMP_DIR}/mod"
+#DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
 
-WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
+#WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
 
 
 

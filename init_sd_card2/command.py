@@ -32,6 +32,8 @@ DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
+# TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
+
 
 class InvalidUserInput(Exception):
     pass
@@ -451,7 +453,7 @@ def configure_images(parsed, user_data, add_file_local):
             # XXX
             cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
             user_data['bootcmd'].append(cmd)  # every boot
-            
+
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
