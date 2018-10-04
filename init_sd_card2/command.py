@@ -26,8 +26,6 @@ DISK_HYPRIOTOS = '/dev/disk/by-label/HypriotOS'
 DISK_ROOT = '/dev/disk/by-label/root'
 
 
-
-
 class InvalidUserInput(Exception):
     pass
 
@@ -86,7 +84,7 @@ class DTCommand(DTCommandAbs):
 
 def step_mount(shell, parsed):
     def refresh():
-        cmd = ['sudo','udevadm','trigger']
+        cmd = ['sudo', 'udevadm', 'trigger']
         _run_cmd(cmd)
         time.sleep(4)
 
@@ -162,7 +160,9 @@ def step_expand(shell, parsed):
 
     cmd = ['sudo', 'parted', '-s', DEV, 'resizepart', '2', '100%']
     _run_cmd(cmd)
-    cmd = ['sudo','resize2fs','/dev/mmcblk0p2']
+    cmd = ['sudo', 'e2fsck', '-f', '/dev/mmcblk0p2']
+    _run_cmd(cmd)
+    cmd = ['sudo', 'resize2fs', '/dev/mmcblk0p2']
     _run_cmd(cmd)
 
 
