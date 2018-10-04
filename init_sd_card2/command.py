@@ -32,6 +32,7 @@ DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
+
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
 
@@ -58,6 +59,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
 
+        parser.add_argument('--reset-cache', dest = 'reset_cache', default=False, action='store_true', help='Deletes the cached images')
+
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
@@ -70,6 +73,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--ethz-password', default=None)
 
         parsed = parser.parse_args(args=args)
+
+        if parsed.reset_cache:
+            dtslogger.info('Removing cache')
+            if os.path.exists(DUCKIETOWN_TMP):
+                shutil.rmtree(DUCKIETOWN_TMP)
 
         msg = """
         
@@ -93,14 +101,7 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card2 --steps expand    
-        
-
-In particular you can only update the containers using:
-
-
-    dts init_sd_card2 --steps mount,setup,unmount    
-        
+    dts init_sd_card2 --steps expand,mount    
         
         
         
@@ -235,7 +236,7 @@ def step_setup(shell, parsed):
     if not os.path.exists(DUCKIETOWN_TMP):
         os.makedirs(DUCKIETOWN_TMP)
 
-    check_has_space(where=DUCKIETOWN_TMP, min_available_gb=5.0)
+    # check_has_space(where=DUCKIETOWN_TMP, min_available_gb=20.0)
 
     try:
         check_valid_hostname(parsed.hostname)
@@ -360,17 +361,15 @@ def configure_images(parsed, user_data, add_file_local):
         add_file_local(path=rpath, local=lpath)
 
     stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
-    # service name 2 tag
-    service2image = get_mentioned_images(stack2yaml)
 
-    service2tgz = download_images(service2image)
-    dtslogger.info("loading %s" % service2tgz)
+    stack2info = save_images(stack2yaml)
 
     buffer_bytes = 100 * 1024 * 1024
-    services_written = []
-    # write images until we have space
-    service2rtpath = {}
-    for service, tgz in service2tgz.items():
+    stacks_written = []
+    stack2archive_rpath = {}
+
+    for stack, stack_info in stack2info.items():
+        tgz = stack_info.archive
         size = os.stat(tgz).st_size
         dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size_file(tgz)))
 
@@ -395,30 +394,13 @@ def configure_images(parsed, user_data, add_file_local):
             _run_cmd(cmd)
             sync_data()
 
-        service2rtpath[service] = os.path.join('/', rpath)
-        # user_data['runcmd'].append(['rm', p])
+        stack2archive_rpath[stack] = os.path.join('/', rpath)
 
-        services_written.append(service)
-
-    def any_missing_service(cf):
-        needed = stack2yaml[cf]['services']
-        missing = []
-        for x in needed:
-            if x in services_written:
-                # msg = 'For stack %r: container %r could be written.' % (cf, x)
-                # dtslogger.info(msg)
-                pass
-            else:
-                # msg = 'For stack %r: container %r could NOT be written.' % (cf, x)
-                # dtslogger.warning(msg)
-                missing.append(x)
-
-        return missing
+        stacks_written.append(stack)
 
     for cf in stacks_to_load:
-        missing_services = any_missing_service(cf)
-        if missing_services:
-            msg = 'I could not completely load the stack %r because these did not fit: %s' % (cf, missing_services)
+        if not cf in stacks_written:
+            msg = 'I could not completely load the stack %r.' % cf
             dtslogger.error(msg)
 
     import docker
@@ -428,28 +410,28 @@ def configure_images(parsed, user_data, add_file_local):
 
     order = stacks_to_run + stacks_not_to_run
 
+
     for cf in order:
 
-        for service in stack2yaml[cf]['services']:
-            if service in services_written:
-                log_current_phase(user_data, PHASE_LOADING,
-                                  "Stack %s: Loading container for service %s" % (cf, service))
+        if cf in stacks_written:
 
-                cmd = ['docker', 'load', '--input', service2rtpath[service]]
-                add_run_cmd(user_data, cmd)
+            log_current_phase(user_data, PHASE_LOADING,
+                              "Stack %s: Loading containers" % (cf))
 
-                image = client.images.get(service2image[service])
+            cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
+            add_run_cmd(user_data, cmd)
+            cmd = ['rm', stack2archive_rpath[cf]]
+            add_run_cmd(user_data, cmd)
+
+            for image_name, image_id in stack2info[cf].image_name2id.items():
+                image = client.images.get(image_name)
                 image_id = str(image.id)
-                dtslogger.info('id for %s: %s' % (service2image[service], image_id))
-                cmd = ['docker', 'tag', image_id, service2image[service]]
-                # print(cmd)
+                dtslogger.info('id for %s: %s' % (image_name, image_id))
+                cmd = ['docker', 'tag', image_id, image_name]
+                print(cmd)
                 add_run_cmd(user_data, cmd)
 
-        missing_services = any_missing_service(cf)
-        if missing_services:
-            msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing_services)
-            dtslogger.error(msg)
-        else:
+        if cf in stacks_to_run:
             msg = 'Adding the stack %r as default running' % cf
             dtslogger.info(msg)
 
@@ -689,53 +671,56 @@ def interpret_wifi_string(s):
     return results
 
 
-def download_images(preload_images):
-    service2tmpfilename = OrderedDict()
+StackInfo = namedtuple('StackInfo', 'archive image_name2id')
+
+
+def save_images(stack2yaml):
+    """
+        returns stack2info
+    """
     cache_dir = DOCKER_IMAGES_CACHE_DIR
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
 
-    for name, image_name in preload_images.items():
+    import docker
+    client = docker.from_env()
 
-        if not os.path.exists(cache_dir):
-            os.makedirs(cache_dir)
-        destination = os.path.join(cache_dir, name + '.tar.gz')
-        service2tmpfilename[name] = destination
+    stack2info = {}
+
+    for cf, config in stack2yaml.items():
+        destination = os.path.join(cache_dir, cf + '.tar.gz')
 
         if os.path.exists(destination):
-            dtslogger.info('Already know %s of size %s' % (destination, friendly_size_file(destination)))
-        else:
+            msg = 'Using cached file %s' % destination
+            dtslogger.info(msg)
+            continue
 
-            # repo, tag = image_name.split(':')
+        destination0 = os.path.join(cache_dir, cf + '.tar')
+        image_name2id = {}
+        for service, service_config in config['services'].items():
+            image_name = service_config['image']
             dtslogger.info('Pulling %s' % image_name)
             cmd = ['docker', 'pull', image_name]
             _run_cmd(cmd)
-            # image = client.images.pull(repository=repo, tag=tag)
+            image = client.images.get(image_name)
+            image_id = str(image.id)
+            image_name2id[image_name] = image_id
 
-            #
-            destination0 = destination + '.tmp'
-            dtslogger.info('Saving to %s' % destination0)
-            cmd = ['docker', 'save', image_name, '-o', destination0]
-            _run_cmd(cmd)
-            #
-            #
-            # with open(destination0, 'wb') as f:
-            #     for chunk in image.save().stream():
-            #         f.write(chunk)
-            destination1 = destination + '.tmp2'
+        dtslogger.info('Saving to %s' % destination0)
+        cmd = ['docker', 'save', '-o', destination0] + list(image_name2id.values())
+        _run_cmd(cmd)
+        cmd = ['gzip', '-f', destination0]
+        _run_cmd(cmd)
 
-            dtslogger.info('Compressing tar of size %s' % friendly_size_file(destination0))
-            cmd = 'gzip -c "%s" > "%s"' % (destination0, destination1)
-            ret = os.system(cmd)
-            if ret:
-                msg = 'Command %r failed with retcode %s' % (cmd, ret)
-                raise Exception(msg)
+        assert not os.path.exists(destination0)
+        assert os.path.exists(destination)
 
-            os.unlink(destination0)
-            os.rename(destination1, destination)
+        msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
+        dtslogger.info(msg)
 
-            msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
-            dtslogger.info(msg)
+        stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id)
 
-    return service2tmpfilename
+    return stack2info
 
 
 def log_current_phase(user_data, phase, msg):
@@ -772,14 +757,14 @@ def get_stack2yaml(stacks, base):
 
         stacks2yaml[sn] = yaml.load(open(lpath).read())
     return stacks2yaml
-
-
-def get_mentioned_images(stacks2yaml):
-    preload_images = OrderedDict()
-    for sn, compose in stacks2yaml.items():
-        for name, service in compose['services'].items():
-            preload_images[name] = service['image']
-    return preload_images
+#
+#
+# def get_mentioned_images(stacks2yaml):
+#     preload_images = OrderedDict()
+#     for sn, compose in stacks2yaml.items():
+#         for name, service in compose['services'].items():
+#             preload_images[name] = service['image']
+#     return preload_images
 
 
 def validate_user_data(user_data_yaml):
