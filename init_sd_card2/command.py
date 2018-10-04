@@ -367,7 +367,7 @@ def configure_images(parsed, user_data, add_file_local):
 
     stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
 
-    stack2info = save_images(stack2yaml)
+    stack2info = save_images(stack2yaml, compress=parsed.compress)
 
     buffer_bytes = 100 * 1024 * 1024
     stacks_written = []
@@ -678,7 +678,7 @@ def interpret_wifi_string(s):
 StackInfo = namedtuple('StackInfo', 'archive image_name2id')
 
 
-def save_images(stack2yaml):
+def save_images(stack2yaml, compress):
     """
         returns stack2info
     """
@@ -692,8 +692,6 @@ def save_images(stack2yaml):
     stack2info = {}
 
     for cf, config in stack2yaml.items():
-
-        compress = False
 
         if compress:
             destination = os.path.join(cache_dir, cf + '.tar.gz')
