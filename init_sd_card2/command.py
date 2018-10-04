@@ -8,12 +8,14 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from collections import namedtuple, OrderedDict
-from os.path import join, realpath, dirname
+from os.path import join
 
 import yaml
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
+from whichcraft import which
 
 USER = getpass.getuser()
 TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
@@ -21,6 +23,10 @@ TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
 
 DISK_HYPRIOTOS = '/dev/disk/by-label/HypriotOS'
 DISK_ROOT = '/dev/disk/by-label/root'
+
+
+class InvalidUserInput(Exception):
+    pass
 
 
 class DTCommand(DTCommandAbs):
@@ -43,302 +49,180 @@ Can specify one or more networks: "network:password,network:password,..."
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--stacks', default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to run")
-        #
-        # DT18_00_basic.yaml
-        # DT18_01_health_stats.yaml
-        # DT18_03_roscore.yaml
-        # DT18_04_camera.yaml
-        # DT18_99_swarm.yaml
+
         parser.add_argument('--expand', action="store_true", default=False,
                             help="Expand partition table")
         parser.add_argument('--no-flash', dest='no_flash', action="store_true", default=False,
                             help="Do not flash, only update")
 
+        parser.add_argument('--steps', default="flash,expand,mount,setup,unmount",
+                            help="Steps to perform")
+
         parsed = parser.parse_args(args=args)
 
         check_docker_environment()
+        check_good_platform()
+        check_dependencies()
 
-        script_files = dirname(realpath(__file__))
-
-        stacks_to_use = parsed.stacks.split(',')
-        stack2yaml = get_stack2yaml(stacks_to_use, join(script_files, 'stacks'))
-        preload_images = get_mentioned_images(stack2yaml)
-
-        image2tgz = download_images(preload_images)
-        dtslogger.info("loading %s" % image2tgz)
-
-        if not is_valid_hostname(parsed.hostname):
-            msg = 'This is not a valid hostname: %r.' % parsed.hostname
-            raise Exception(msg)
-
-        if '-' in parsed.hostname:
-            msg = 'Cannot use the hostname %r. It cannot contain "-" because of a ROS limitation. ' % parsed.hostname
-            raise Exception(msg)
-
-        if len(parsed.hostname) < 3:
-            msg = 'This hostname is too short. Choose something more descriptive.'
-            raise Exception(msg)
-
-        MIN_AVAILABLE_GB = 1.0
-        try:
-            import psutil
-        except ImportError:
-            msg = 'Skipping disk check because psutil not installed.'
-            dtslogger.info(msg)
-        else:
-            disk = psutil.disk_usage(os.getcwd())
-            disk_available_gb = disk.free / (1024 * 1024 * 1024.0)
-
-            if disk_available_gb < MIN_AVAILABLE_GB:
-                msg = 'This procedure requires that you have at least %f GB of memory.' % MIN_AVAILABLE_GB
-                msg += '\nYou only have %f GB available.' % disk_available_gb
-                raise Exception(msg)
-            else:
-
-                msg = 'You have %f GB available.' % disk_available_gb
-                dtslogger.info(msg)
-
-        p = platform.system().lower()
-
-        if 'darwin' in p:
-            msg = 'This procedure cannot be run on Mac. You need an Ubuntu machine.'
-            raise Exception(msg)
-
-        script_file = join(script_files, 'init_sd_card2.sh')
-
-        if not os.path.exists(script_file):
-            msg = 'Could not find script %s' % script_file
-            raise Exception(msg)
-
-        ssh_key_pri = join(script_files, 'DT18_key_00')
-        ssh_key_pub = join(script_files, 'DT18_key_00.pub')
-
-        for f in [ssh_key_pri, ssh_key_pub]:
-            if not os.path.exists(f):
-                msg = 'Could not find file %s' % f
-                raise Exception(msg)
-
-        script_cmd = '/bin/bash %s' % script_file
-        token = shell.get_dt1_token()
-        env = dict()
-
-        user_data_file = join(script_files, 'USER_DATA.in.yaml')
-        if not os.path.exists(user_data_file):
-            msg = 'Could not find %s' % user_data_file
-            raise Exception(msg)
-
-        user_data = yaml.load(open(user_data_file).read())
-
-        def add_file(path, content, permissions="0755"):
-            d = dict(content=content, path=path, permissions=permissions)
-
-            dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
-            user_data['write_files'].append(d)
-
-        def add_file_local(path, local, permissions="0755"):
-            if not os.path.exists(local):
-                msg = 'Could not find %s' % local
-                raise Exception(msg)
-            content = open(local).read()
-            add_file(path, content, permissions)
-
-        user_data['hostname'] = parsed.hostname
-        user_data['users'][0]['name'] = parsed.linux_username
-        user_data['users'][0]['plain_text_passwd'] = parsed.linux_password
-
-        user_home_path = '/home/{0}/'.format(parsed.linux_username)
-
-        add_file_local(path=os.path.join(user_home_path, '.ssh/authorized_keys'),
-                       local=ssh_key_pub)
-
-        # read and validate duckiebot-compose
-        cfs = parsed.stacks.split(',')
-        dtslogger.info('Will run the stacks %s' % cfs)
-        for cf in cfs:
-            lpath = join(script_files, 'stacks', cf + '.yaml')
-            if not os.path.exists(lpath):
-                raise Exception(lpath)
-
-            from whichcraft import which
-            if which('docker-compose') is None:
-                msg = 'Could not find docker-compose. Cannot validate file.'
-                dtslogger.error(msg)
-            else:
-                ret = subprocess.check_call(['docker-compose', '-f', lpath, 'config', '--quiet'], )
-                if ret > 0:
-                    msg = 'Invalid compose file: %s' % lpath
-                    raise Exception(msg)
-
-            rpath = '/var/local/%s.yaml' % cf
-            add_file_local(path=rpath, local=lpath)
-            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
-
-            user_data['runcmd'].append(cmd)  # first boot
-            user_data['bootcmd'].append(cmd)  # every boot
-
-        user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
-
-        dtshell_config = {
-            'token_dt1': token
+        steps = parsed.steps.split(',')
+        step2function = {
+            'flash': step_flash,
+            'expand': step_expand,
+            'mount': step_unmount,
+            'setup': step_setup,
+            'unmount': step_unmount
         }
 
-        add_file(path=os.path.join(user_home_path, '.dt-shell/config'),
-                 content=json.dumps(dtshell_config))
+        for step_name in steps:
+            if step_name not in step2function:
+                msg = 'Cannot find step %r in %s' % (step_name, list(step2function))
+                raise InvalidUserInput(msg)
 
-        # TODO: make configurable
-        DUCKSSID = parsed.hostname + '-wifi'
-        DUCKPASS = 'quackquack'
-        add_file(path="/var/local/wificfg.json",
-                 content="""
-{{
-  "dnsmasq_cfg": {{
-     "address": "/#/192.168.27.1",
-     "dhcp_range": "192.168.27.100,192.168.27.150,1h",
-     "vendor_class": "set:device,IoT"
-  }},
-  "host_apd_cfg": {{
-     "ip": "192.168.27.1",
-     "ssid": "{DUCKSSID}",
-     "wpa_passphrase": "{DUCKPASS}",
-     "channel": "6"
-  }},
-  "wpa_supplicant_cfg": {{
-     "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
-  }}
-}}
-""".format(DUCKSSID=DUCKSSID, DUCKPASS=DUCKPASS))
-        wpa_supplicant = """
-        
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country={country}
-
-""".format(country=parsed.country)
-        networks = interpret_wifi_string(parsed.wifi)
-        for connection in networks:
-            wpa_supplicant += """
-network={{
-  id_str="{cname}"
-  ssid="{WIFISSID}"
-  psk="{WIFIPASS}"
-  key_mgmt=WPA-PSK
-}}
-            """.format(WIFISSID=connection.ssid,
-                       cname=connection.name, WIFIPASS=connection.password)
-
-        if parsed.ethz_username:
-            if parsed.ethz_password is None:
-                msg = 'You should provide a password for ETH account using --ethz-password.'
-                raise Exception(msg)
-
-            wpa_supplicant += """
-            
-network={{
-    id_str="eth_network"
-    ssid="eth"
-    key_mgmt=WPA-EAP
-    group=CCMP TKIP
-    pairwise=CCMP TKIP
-    eap=PEAP
-    proto=RSN
-    identity="{username}"
-    password="{password}"
-    phase1="peaplabel=0"
-    phase2="auth=MSCHAPV2"
-    priority=1
-}}
-
-""".format(username=parsed.ethz_username, password=parsed.ethz_password)
-
-        add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf",
-                 content=wpa_supplicant)
-
-        if parsed.expand:
-            partition_table = join(script_files, 'partition-table.bin')
-            if not os.path.exists(partition_table):
-                msg = 'Cannot find partition table %s' % partition_table
-                raise Exception(msg)
-            dtslogger.info('Expanding partition to 32 GB')
-            env['PARTITION_TABLE'] = partition_table
-
-        else:
-            dtslogger.info('Not expanding partition')
-
-        # add other environment
-        env.update(os.environ)
-
-        # remove DOCKER_HOST if present
-        if 'DOCKER_HOST' in env:
-            r = env['DOCKER_HOST']
-            msg = 'I will IGNORE the DOCKER_HOST variable that is currently set to %r' % r
-            dtslogger.warning(msg)
-            env.pop('DOCKER_HOST')
-
-        ssh_dir = os.path.expanduser('~/.ssh')
-        if not os.path.exists(ssh_dir):
-            os.makedirs(ssh_dir)
-
-        ssh_key_pri_copied = os.path.join(ssh_dir, 'DT18_key_00')
-        ssh_key_pub_copied = os.path.join(ssh_dir, 'DT18_key_00.pub')
-
-        if not os.path.exists(ssh_key_pri_copied):
-            shutil.copy(ssh_key_pri, ssh_key_pri_copied)
-        if not os.path.exists(ssh_key_pub_copied):
-            shutil.copy(ssh_key_pub, ssh_key_pub_copied)
-
-        ssh_config = os.path.join(ssh_dir, 'config')
-        if not os.path.exists(ssh_config):
-            msg = ('Could not find ssh config file %s' % ssh_config)
-            dtslogger.info(msg)
-            current = ""
-        else:
-
-            current = open(ssh_config).read()
-
-        bit = """
-
-# --- init_sd_card generated ---
-
-# Use the key for all hosts
-IdentityFile {IDENTITY}
-
-Host {HOSTNAME}
-    User {DTS_USERNAME}
-    Hostname {HOSTNAME}.local
-    IdentityFile {IDENTITY}
-    StrictHostKeyChecking no
-# ------------------------------        
-        
-""".format(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
-
-        if not bit in current:
-            dtslogger.info('Updating ~/.ssh/config with: ' + bit)
-            with open(ssh_config, 'a') as f:
-                f.write(bit)
-        else:
-            dtslogger.info('Configuration already found in ~/.ssh/config')
-
-        if not parsed.no_flash:
-
-            ret = subprocess.call(script_cmd, shell=True, env=env,
-                                  stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
-            if ret == 0:
-                dtslogger.info('Done!')
-            else:
-                msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
-                raise Exception(msg)
+            step2function[step_name](shell, parsed)
 
 
+def step_mount(shell, parsed):
+    def refresh():
+        cmd = 'sudo udevadm trigger'
+        _run_cmd(cmd)
+        time.sleep(4)
 
-        user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
-        if 'VARIABLE' in user_data_yaml:
-            msg = 'Invalid user_data_yaml:\n' + user_data_yaml
-            msg += '\n\nThe above contains VARIABLE'
+    if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
+        refresh()
+        cmd = 'udisksctl mount -b /dev/disk/by-label/HypriotOS'
+        _run_cmd(cmd)
+    if not os.path.exists(TMP_ROOT_MOUNTPOINT):
+        refresh()
+        cmd = 'udisksctl mount -b /dev/disk/by-label/root'
+        _run_cmd(cmd)
+
+
+def step_unmount(shell, parsed):
+    cmd = ['sync']
+    _run_cmd(cmd)
+
+    cmd = ['udisksctl', 'unmount', '-b', DISK_HYPRIOTOS]
+    _run_cmd(cmd)
+    cmd = ['udisksctl', 'unmount', '-b', DISK_ROOT]
+    _run_cmd(cmd)
+
+
+def check_good_platform():
+    p = platform.system().lower()
+
+    if 'darwin' in p:
+        msg = 'This procedure cannot be run on Mac. You need an Ubuntu machine.'
+        raise Exception(msg)
+
+
+def step_flash(shell, parsed):
+    deps = ['wget', 'tar', 'udisksctl', 'docker', 'base64', 'gzip', 'udevadm']
+    for dep in deps:
+        check_program_dependency(dep)
+    script_file = get_resource('init_sd_card2.sh')
+    script_cmd = '/bin/bash %s' % script_file
+    env = get_environment_clean()
+    ret = subprocess.call(script_cmd, shell=True, env=env,
+                          stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
+    if ret == 0:
+        dtslogger.info('Done!')
+    else:
+        msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
+        raise Exception(msg)
+
+
+def get_environment_clean():
+    env = {}
+
+    # add other environment
+    env.update(os.environ)
+
+    # remove DOCKER_HOST if present
+    if 'DOCKER_HOST' in env:
+        r = env['DOCKER_HOST']
+        msg = 'I will IGNORE the DOCKER_HOST variable that is currently set to %r' % r
+        dtslogger.warning(msg)
+        env.pop('DOCKER_HOST')
+    return env
+
+
+def step_expand(shell, parsed):
+    check_program_dependency('parted')
+    check_program_dependency('resize2fs')
+    DEV = '/dev/mmcblk0'
+    if not os.path.exists(DEV):
+        msg = 'This only works assuming device == %s' % DEV
+        raise Exception(msg)
+
+    cmd = 'sudo parted -s /dev/mmcblk0 resizepart 2 "100%"'
+    _run_cmd(cmd)
+    cmd = 'sudo resize2fs /dev/mmcblk0p2'
+    _run_cmd(cmd)
+
+
+def step_setup(shell, parsed):
+    token = shell.get_dt1_token()
+    check_has_space(where=os.getcwd(), min_available_gb=1.0)
+
+    try:
+        check_valid_hostname(parsed.hostname)
+    except ValueError as e:
+        msg = 'The string %r is not a valid hostname: %s.' % (parsed.hostname, e)
+        raise Exception(msg)
+
+    if not os.path.exists(TMP_ROOT_MOUNTPOINT):
+        msg = 'Disk not mounted: %s' % TMP_ROOT_MOUNTPOINT
+        raise Exception(msg)
+
+    if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
+        msg = 'Disk not mounted: %s' % TMP_HYPRIOT_MOUNTPOINT
+        raise Exception(msg)
+
+    ssh_key_pri = get_resource('DT18_key_00')
+    ssh_key_pub = get_resource('DT18_key_00.pub')
+    user_data_file = get_resource('USER_DATA.in.yaml')
+
+    user_data = yaml.load(open(user_data_file).read())
+
+    def add_file(path, content, permissions="0755"):
+        d = dict(content=content, path=path, permissions=permissions)
+
+        dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
+        user_data['write_files'].append(d)
+
+    def add_file_local(path, local, permissions="0755"):
+        if not os.path.exists(local):
+            msg = 'Could not find %s' % local
             raise Exception(msg)
-        validate_user_data(user_data_yaml)
-        write_to_root('/user-data', user_data_yaml)
+        content = open(local).read()
+        add_file(path, content, permissions)
 
-        write_to_hypriot('config_txt', '''
+    user_data['hostname'] = parsed.hostname
+    user_data['users'][0]['name'] = parsed.linux_username
+    user_data['users'][0]['plain_text_passwd'] = parsed.linux_password
+
+    user_home_path = '/home/{0}/'.format(parsed.linux_username)
+
+    add_file_local(path=os.path.join(user_home_path, '.ssh/authorized_keys'),
+                   local=ssh_key_pub)
+
+    user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
+
+    # DT shell config
+    dtshell_config = dict(token_dt1=token)
+    add_file(path=os.path.join(user_home_path, '.dt-shell/config'),
+             content=json.dumps(dtshell_config))
+
+    configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
+    configure_networks(parsed, add_file)
+    configure_images(parsed, user_data, add_file_local)
+
+    user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
+
+    validate_user_data(user_data_yaml)
+    write_to_root('/user-data', user_data_yaml)
+
+    write_to_hypriot('config_txt', '''
 hdmi_force_hotplug=1
 enable_uart=0
 
@@ -352,21 +236,208 @@ dtparam=audio=on
 
 dtparam=i2c1=on
 dtparam=i2c_arm=on
-        
-        ''')
+
+            ''')
 
 
+def configure_images(parsed, user_data, add_file_local):
+    # read and validate duckiebot-compose
+    cfs = parsed.stacks.split(',')
+    dtslogger.info('Will run the stacks %s' % cfs)
+    stacks_to_use = parsed.stacks.split(',')
+    stack2yaml = get_stack2yaml(stacks_to_use, get_resource('stacks'))
+    preload_images = get_mentioned_images(stack2yaml)
+
+    image2tgz = download_images(preload_images)
+    dtslogger.info("loading %s" % image2tgz)
+
+    for cf in cfs:
+        # local path
+        lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
+        # path on PI
+        rpath = '/var/local/%s.yaml' % cf
+
+        if which('docker-compose') is None:
+            msg = 'Could not find docker-compose. Cannot validate file.'
+            dtslogger.error(msg)
+        else:
+            _run_cmd(['docker-compose', '-f', lpath, 'config', '--quiet'])
+
+        add_file_local(path=rpath, local=lpath)
+        cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
+
+        user_data['runcmd'].append(cmd)  # first boot
+        user_data['bootcmd'].append(cmd)  # every boot
 
 
-        unmount_disks()
+def configure_networks(parsed, add_file):
+    # TODO: make configurable
+    DUCKSSID = parsed.hostname + '-wifi'
+    DUCKPASS = 'quackquack'
+    add_file(path="/var/local/wificfg.json",
+             content="""
+    {{
+      "dnsmasq_cfg": {{
+         "address": "/#/192.168.27.1",
+         "dhcp_range": "192.168.27.100,192.168.27.150,1h",
+         "vendor_class": "set:device,IoT"
+      }},
+      "host_apd_cfg": {{
+         "ip": "192.168.27.1",
+         "ssid": "{DUCKSSID}",
+         "wpa_passphrase": "{DUCKPASS}",
+         "channel": "6"
+      }},
+      "wpa_supplicant_cfg": {{
+         "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
+      }}
+    }}
+    """.format(DUCKSSID=DUCKSSID, DUCKPASS=DUCKPASS))
+    wpa_supplicant = """
 
-def is_valid_hostname(hostname):
+    ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+    update_config=1
+    country={country}
+
+    """.format(country=parsed.country)
+    networks = interpret_wifi_string(parsed.wifi)
+    for connection in networks:
+        wpa_supplicant += """
+    network={{
+      id_str="{cname}"
+      ssid="{WIFISSID}"
+      psk="{WIFIPASS}"
+      key_mgmt=WPA-PSK
+    }}
+                """.format(WIFISSID=connection.ssid,
+                           cname=connection.name, WIFIPASS=connection.password)
+
+    if parsed.ethz_username:
+        if parsed.ethz_password is None:
+            msg = 'You should provide a password for ETH account using --ethz-password.'
+            raise Exception(msg)
+
+        wpa_supplicant += """
+
+    network={{
+        id_str="eth_network"
+        ssid="eth"
+        key_mgmt=WPA-EAP
+        group=CCMP TKIP
+        pairwise=CCMP TKIP
+        eap=PEAP
+        proto=RSN
+        identity="{username}"
+        password="{password}"
+        phase1="peaplabel=0"
+        phase2="auth=MSCHAPV2"
+        priority=1
+    }}
+
+    """.format(username=parsed.ethz_username, password=parsed.ethz_password)
+
+    add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf",
+             content=wpa_supplicant)
+
+
+def configure_ssh(parsed, ssh_key_pri, ssh_key_pub):
+    ssh_dir = os.path.expanduser('~/.ssh')
+    if not os.path.exists(ssh_dir):
+        os.makedirs(ssh_dir)
+
+    ssh_key_pri_copied = os.path.join(ssh_dir, 'DT18_key_00')
+    ssh_key_pub_copied = os.path.join(ssh_dir, 'DT18_key_00.pub')
+
+    if not os.path.exists(ssh_key_pri_copied):
+        shutil.copy(ssh_key_pri, ssh_key_pri_copied)
+    if not os.path.exists(ssh_key_pub_copied):
+        shutil.copy(ssh_key_pub, ssh_key_pub_copied)
+
+    ssh_config = os.path.join(ssh_dir, 'config')
+    if not os.path.exists(ssh_config):
+        msg = ('Could not find ssh config file %s' % ssh_config)
+        dtslogger.info(msg)
+        current = ""
+    else:
+
+        current = open(ssh_config).read()
+
+    bit = """
+
+    # --- init_sd_card generated ---
+
+    # Use the key for all hosts
+    IdentityFile {IDENTITY}
+
+    Host {HOSTNAME}
+        User {DTS_USERNAME}
+        Hostname {HOSTNAME}.local
+        IdentityFile {IDENTITY}
+        StrictHostKeyChecking no
+    # ------------------------------        
+
+    """.format(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
+
+    if not bit in current:
+        dtslogger.info('Updating ~/.ssh/config with: ' + bit)
+        with open(ssh_config, 'a') as f:
+            f.write(bit)
+    else:
+        dtslogger.info('Configuration already found in ~/.ssh/config')
+
+
+def _run_cmd(cmd):
+    dtslogger.debug('$ %s' % cmd)
+    subprocess.check_call(cmd)
+
+
+def check_program_dependency(exe):
+    p = which(exe)
+    if p is None:
+        msg = 'Could not find program %r' % exe
+        raise Exception(msg)
+    dtslogger.debug('Found %r at %s' % (exe, p))
+
+
+def check_dependencies():
+    try:
+        import psutil
+    except ImportError as e:
+        msg = 'This program requires psutil: %s' % e
+        msg += '\n\tapt install python-psutil'
+        msg += '\n\tpip install --user psutil'
+        raise Exception(msg)
+
+
+def get_resource(filename):
+    script_files = os.path.dirname(os.path.realpath(__file__))
+
+    script_file = join(script_files, filename)
+
+    if not os.path.exists(script_file):
+        msg = 'Could not find script %s' % script_file
+        raise Exception(msg)
+    return script_file
+
+
+def check_valid_hostname(hostname):
     import re
     # https://stackoverflow.com/questions/2532053/validate-a-hostname-string
     if len(hostname) > 253:
-        return False
+        raise ValueError('Hostname too long')
+
     allowed = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$", re.IGNORECASE)
-    return allowed.match(hostname)
+    if not allowed.match(hostname):
+        msg = 'Invalid chars in %r' % hostname
+        raise ValueError(msg)
+
+    if '-' in hostname:
+        msg = 'Cannot use the hostname %r. It cannot contain "-" because of a ROS limitation. ' % hostname
+        raise ValueError(msg)
+
+    if len(hostname) < 3:
+        msg = 'This hostname is too short. Choose something more descriptive.'
+        raise ValueError(msg)
 
 
 Wifi = namedtuple('Wifi', 'ssid password name')
@@ -383,6 +454,7 @@ def write_to_root(rpath, contents):
     with open(x, 'w') as f:
         f.write(contents)
 
+
 def write_to_hypriot(rpath, contents):
     if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
         msg = 'Disk not mounted: %s' % TMP_HYPRIOT_MOUNTPOINT
@@ -393,6 +465,7 @@ def write_to_hypriot(rpath, contents):
         os.makedirs(d)
     with open(x, 'w') as f:
         f.write(contents)
+
 
 def interpret_wifi_string(s):
     results = []
@@ -435,7 +508,9 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
                 for chunk in image.save():
                     f.write(chunk)
             destination1 = destination + '.tmp2'
-            subprocess.check_call(['gzip', '--best', '-o', destination1, destination0])
+
+            os.system('gzip --best -c "%s" > "%s"' % (destination0, destination1))
+            # subprocess.check_call(['gzip', '--best', '-o', destination1, destination0])
             os.unlink(destination0)
             os.rename(destination1, destination)
 
@@ -472,6 +547,11 @@ def get_mentioned_images(stacks2yaml):
 
 
 def validate_user_data(user_data_yaml):
+    if 'VARIABLE' in user_data_yaml:
+        msg = 'Invalid user_data_yaml:\n' + user_data_yaml
+        msg += '\n\nThe above contains VARIABLE'
+        raise Exception(msg)
+
     try:
         import requests
     except ImportError:
@@ -500,10 +580,26 @@ def validate_user_data(user_data_yaml):
             raise Exception(msg)
 
 
+class NotEnoughSpace(Exception):
+    pass
 
-def unmount_disks():
-    # TODO: sync
-    cmd = ['udisksctl', 'unmount', '-b', DISK_HYPRIOTOS]
-    subprocess.check_call(cmd)
-    cmd = ['udisksctl', 'unmount', '-b', DISK_ROOT]
-    subprocess.check_call(cmd)
+
+def check_has_space(where, min_available_gb):
+    try:
+        import psutil
+    except ImportError:
+        msg = 'Skipping disk check because psutil not installed.'
+        dtslogger.info(msg)
+    else:
+        disk = psutil.disk_usage(where)
+        disk_available_gb = disk.free / (1024 * 1024 * 1024.0)
+
+        if disk_available_gb < min_available_gb:
+            msg = 'This procedure requires that you have at least %f GB of memory.' % min_available_gb
+            msg += '\nYou only have %f GB available on %s.' % (disk_available_gb, where)
+            dtslogger.error(msg)
+            raise NotEnoughSpace(msg)
+        else:
+
+            msg = 'You have %f GB available on %s. ' % (disk_available_gb, where)
+            dtslogger.info(msg)

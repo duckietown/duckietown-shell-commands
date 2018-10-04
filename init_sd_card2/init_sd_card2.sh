@@ -111,19 +111,19 @@ flash_hypriot() {
 
 }
 
-
-expand_partition() {
-    echo PARTITION_TABLE=$PARTITION_TABLE
-
-    if [ -f $PARTITION_TABLE ]; then
-        echo "Expanding partition table"
-        #sudo dd of=/dev/mmcblk0 if=$PARTITION_TABLE bs=512 count=1
-        sudo parted -s /dev/mmcblk0 resizepart 2 "100%"
-        sudo resize2fs /dev/mmcblk0p2
-    else
-        echo "Skipping expansion of partition table."
-    fi
-}
+#
+#expand_partition() {
+#    echo PARTITION_TABLE=$PARTITION_TABLE
+#
+#    if [ -f $PARTITION_TABLE ]; then
+#        echo "Expanding partition table"
+#        #sudo dd of=/dev/mmcblk0 if=$PARTITION_TABLE bs=512 count=1
+#        sudo parted -s /dev/mmcblk0 resizepart 2 "100%"
+#        sudo resize2fs /dev/mmcblk0p2
+#    else
+#        echo "Skipping expansion of partition table."
+#    fi
+#}
 
 
 download_docker_image() {
@@ -160,39 +160,39 @@ preload_docker_images() {
     done
 }
 
-write_configurations() {
-    _cfg="$TMP_HYPRIOT_MOUNTPOINT/config.txt"
-    # Add i2c to boot configuration
-    sed $_cfg -i -e "s/^start_x=0/start_x=1/"
-    # do not reserve a lot of memory of the GPU, as the line following demo needs about 750-800M!!!
-    # sed $_cfg -i -e "s/^gpu_mem=16/gpu_mem=256/"
-    echo "dtparam=i2c1=on" >> $_cfg
-    echo "dtparam=i2c_arm=on" >> $_cfg
-}
+#write_configurations() {
+#    _cfg="$TMP_HYPRIOT_MOUNTPOINT/config.txt"
+#    # Add i2c to boot configuration
+#    sed $_cfg -i -e "s/^start_x=0/start_x=1/"
+#    # do not reserve a lot of memory of the GPU, as the line following demo needs about 750-800M!!!
+#    # sed $_cfg -i -e "s/^gpu_mem=16/gpu_mem=256/"
+#    echo "dtparam=i2c1=on" >> $_cfg
+#    echo "dtparam=i2c_arm=on" >> $_cfg
+#}
 
-mount_disks() {
-    # wait 1 second for the /dev/disk/by-label to be refreshed
-    echo "Refreshing disks"
-    sudo udevadm trigger
-    sleep 5
-
-    if [ ! -e "/dev/disk/by-label/root" ] || [ ! -e "/dev/disk/by-label/HypriotOS" ]; then
-        echo "."
-        sleep 1
-        echo "."
-        sleep 1
-        echo "If you are using Ubuntu 16: Please remove and reinsert the SD card."
-        sleep 5
-        echo ""
-        echo "Press any key to continue."
-        read -n 1
-    fi
-
-    TMP_ROOT_MOUNTPOINT="/media/$USER/root"
-    TMP_HYPRIOT_MOUNTPOINT="/media/$USER/HypriotOS"
-    udisksctl mount -b /dev/disk/by-label/HypriotOS
-    udisksctl mount -b /dev/disk/by-label/root
-}
+#mount_disks() {
+#    # wait 1 second for the /dev/disk/by-label to be refreshed
+#    echo "Refreshing disks"
+#    sudo udevadm trigger
+#    sleep 5
+#
+#    if [ ! -e "/dev/disk/by-label/root" ] || [ ! -e "/dev/disk/by-label/HypriotOS" ]; then
+#        echo "."
+#        sleep 1
+#        echo "."
+#        sleep 1
+#        echo "If you are using Ubuntu 16: Please remove and reinsert the SD card."
+#        sleep 5
+#        echo ""
+#        echo "Press any key to continue."
+#        read -n 1
+#    fi
+#
+#    TMP_ROOT_MOUNTPOINT="/media/$USER/root"
+#    TMP_HYPRIOT_MOUNTPOINT="/media/$USER/HypriotOS"
+#    udisksctl mount -b /dev/disk/by-label/HypriotOS
+#    udisksctl mount -b /dev/disk/by-label/root
+#}
 
 unmount_disks() {
     udisksctl unmount -b /dev/disk/by-label/HypriotOS
@@ -220,11 +220,10 @@ flash_hypriot
 
 #write_custom_files
 mount_disks
-    expand_partition
     preload_docker_images
-    write_configurations
+#    write_configurations
 #    write_userdata
-    sync  # flush all buffers
+#    sync  # flush all buffers
 #unmount_disks
 
 
