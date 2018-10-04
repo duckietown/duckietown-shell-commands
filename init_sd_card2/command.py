@@ -273,7 +273,7 @@ def configure_images(parsed, user_data, add_file_local):
     buffer_bytes = 100 * 1024 * 1024
     written = []
     # write images until we have space
-    for image_name, tgz in image2tgz:
+    for image_name, tgz in image2tgz.items():
         size = os.stat(tgz).st_size
         print('%s: %s bytes' % (tgz, size))
 
