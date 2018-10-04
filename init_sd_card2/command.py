@@ -208,7 +208,8 @@ def step_setup(shell, parsed):
     def add_file(path, content, permissions="0755"):
         d = dict(content=content, path=path, permissions=permissions)
 
-        dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
+        dtslogger.info('Adding file %s' % path)
+        # dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
         user_data['write_files'].append(d)
 
     def add_file_local(path, local, permissions="0755"):
@@ -319,7 +320,10 @@ def configure_images(parsed, user_data, add_file_local):
         cmd = ['sudo', 'cp', tgz, destination]
         _run_cmd(cmd)
 
-        user_data['runcmd'].append(['docker', 'load', '--input', os.path.join('/', rpath)])
+        p = os.path.join('/', rpath)
+        user_data['runcmd'].append(['docker', 'load', '--input', p])
+        user_data['runcmd'].append(['rm', p])
+
         written.append(image_name)
 
     def any_missing(cf):
@@ -599,18 +603,18 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
         else:
 
             repo, tag = image_name.split(':')
-            dtslogger.info('pulling %s' % image_name)
+            dtslogger.info('Pulling %s' % image_name)
             image = client.images.pull(repository=repo, tag=tag)
             # image = client.images.get(image_name)
 
-            dtslogger.info('saving to %s' % destination)
             destination0 = destination + '.tmp'
+            dtslogger.info('Saving to %s' % destination0)
             with open(destination0, 'wb') as f:
-                for chunk in image.save():
+                for chunk in image.save().stream():
                     f.write(chunk)
             destination1 = destination + '.tmp2'
 
-            dtslogger.info('compressing')
+            dtslogger.info('Compressing tar of size %s' % friendly_size(os.stat(destination0).st_size))
             cmd = 'gzip -c "%s" > "%s"' % (destination0, destination1)
             ret = os.system(cmd)
             if ret:
