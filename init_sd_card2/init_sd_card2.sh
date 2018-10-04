@@ -145,20 +145,20 @@ flash_hypriot() {
 #        docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
 #        download_docker_image ${image_name} ${docker_tag}
 #    done
+##}
+#
+#preload_docker_images() {
+#    echo "Configuring DuckieOS installation..."
+#    # Preload image(s) to speed up first boot
+#    echo "Writing preloaded Docker images to /var/local/"
+#    for image_name in "${!PRELOADED_DOCKER_IMAGES[@]}"; do
+#        docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
+#        image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
+#        # TODO: find a way to pre-load docker containers without needing SUDO access
+#        sudo cp ${image_filename} $TMP_ROOT_MOUNTPOINT/var/local/
+#        echo "Loaded $image_filename to $TMP_ROOT_MOUNTPOINT/var/local"
+#    done
 #}
-
-preload_docker_images() {
-    echo "Configuring DuckieOS installation..." 
-    # Preload image(s) to speed up first boot
-    echo "Writing preloaded Docker images to /var/local/"
-    for image_name in "${!PRELOADED_DOCKER_IMAGES[@]}"; do
-        docker_tag=${PRELOADED_DOCKER_IMAGES[$image_name]}
-        image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
-        # TODO: find a way to pre-load docker containers without needing SUDO access
-        sudo cp ${image_filename} $TMP_ROOT_MOUNTPOINT/var/local/
-        echo "Loaded $image_filename to $TMP_ROOT_MOUNTPOINT/var/local"
-    done
-}
 
 #write_configurations() {
 #    _cfg="$TMP_HYPRIOT_MOUNTPOINT/config.txt"
@@ -213,14 +213,14 @@ preload_docker_images() {
 # downloads
 download_etcher
 download_hypriot
-download_docker_images
+#download_docker_images
 
 # flash
 flash_hypriot
 
 #write_custom_files
 #mount_disks
-    preload_docker_images
+#    preload_docker_images
 #    write_configurations
 #    write_userdata
 #    sync  # flush all buffers
