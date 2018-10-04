@@ -65,6 +65,36 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args=args)
 
+        msg = """
+        
+## Tips and tricks
+
+### Steps
+
+Without arguments the script performs the steps:
+
+    flash
+    expand
+    mount
+    setup
+    unmount
+
+You can use --steps to run only some of those:
+
+    dts init_sd_card2 --steps expand    
+        
+
+In particular you can only update the containers using:
+
+
+    dts init_sd_card2 --steps mount,setup,unmount    
+        
+        
+        
+        
+    """
+        print(msg)
+
         if 'DOCKER_HOST' in os.environ:
             msg = 'Removing DOCKER_HOST from os.environ.'
             dtslogger.info(msg)
@@ -248,7 +278,7 @@ def step_setup(shell, parsed):
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
     validate_user_data(user_data_yaml)
-    write_to_root('user-data', user_data_yaml)
+    write_to_hypriot('user-data', user_data_yaml)
 
     write_to_hypriot('config_txt', '''
 hdmi_force_hotplug=1
