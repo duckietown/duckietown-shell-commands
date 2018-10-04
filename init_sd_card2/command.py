@@ -90,11 +90,11 @@ def step_mount(shell, parsed):
 
     if not os.path.exists(TMP_HYPRIOT_MOUNTPOINT):
         refresh()
-        cmd = 'udisksctl mount -b /dev/disk/by-label/HypriotOS'
+        cmd = ['udisksctl', 'mount', '-b', '/dev/disk/by-label/HypriotOS']
         _run_cmd(cmd)
     if not os.path.exists(TMP_ROOT_MOUNTPOINT):
         refresh()
-        cmd = 'udisksctl mount -b /dev/disk/by-label/root'
+        cmd = ['udisksctl', 'mount', '-b', '/dev/disk/by-label/root']
         _run_cmd(cmd)
 
 
