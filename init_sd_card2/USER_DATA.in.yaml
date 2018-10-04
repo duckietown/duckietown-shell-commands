@@ -59,9 +59,6 @@ runcmd:
   # Create /data directory for storing Duckiebot-local configuration files
   - 'mkdir /data && chown 1000:1000 /data'
   - 'mkdir /data/stats && chown 1000:1000 /data/stats'
-  # save HW information
-#  - ['/bin/bash', '-c', 'ifconfig wlan0 > /data/stats/ifconfig-wlan0.txt']
-#  - ['/bin/bash', '-c', 'ifconfig eth0 > /data/stats/ifconfig-eth0.txt']
   # Copy all the hardware information (e.g. serial number) to /data/proc
   - 'mkdir /data/proc && cp /proc/*info /data/proc'
   #   - [ modprobe, i2c-bcm2708 ]
@@ -73,7 +70,7 @@ runcmd:
   - [ systemctl, start, --no-block, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker ]
 
-final_message: "The system is finally up, after $UPTIME seconds"
+#final_message: "The system is finally up, after $UPTIME seconds"
 
 
 # where we want the swapfile to be, this is the default
