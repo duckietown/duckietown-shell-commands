@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import getpass
 import json
+import logging
 import os
 import platform
 import shutil
@@ -65,7 +66,7 @@ class DTCommand(DTCommandAbs):
         check_dependencies()
 
         dtslogger.setLevel(logging.DEBUG)
-        
+
         steps = parsed.steps.split(',')
         step2function = {
             'flash': step_flash,
