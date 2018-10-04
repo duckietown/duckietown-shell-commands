@@ -1,5 +1,3 @@
-# Note: only pre-loaded containers here
-
 version: '3'
 services:
 

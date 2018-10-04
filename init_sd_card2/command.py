@@ -43,8 +43,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-username', default='duckie')
         parser.add_argument('--linux-password', default='quackquack')
 
-        parser.add_argument('--stacks', default="DT18_00_basic,DT18_01_health_stats",
-                            help="which stacks to run")
+        parser.add_argument('--stacks-load', dest="stacks_to_load",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore,DT18_04_camera",
+                            help="which stacks to load")
+        parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
+                            help="which stacks to RUN by default")
 
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
@@ -262,9 +265,30 @@ def friendly_size(b):
 def configure_images(parsed, user_data, add_file_local):
     import psutil
     # read and validate duckiebot-compose
-    stacks_to_use = parsed.stacks.split(',')
-    dtslogger.info('Will run the stacks %s' % stacks_to_use)
-    stack2yaml = get_stack2yaml(stacks_to_use, get_resource('stacks'))
+    stacks_to_load = parsed.stacks_to_load.split(',')
+    stacks_to_run = parsed.stacks_to_run.split(',')
+    dtslogger.info('Stacks to load: %s' % stacks_to_load)
+    dtslogger.info('Stacks to run: %s' % stacks_to_run)
+    for _ in stacks_to_run:
+        if _ not in stacks_to_load:
+            msg = 'If you want to run %r you need to load it as well.' % (_)
+            raise Exception(msg)
+
+    for cf in stacks_to_load:
+        # local path
+        lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
+        # path on PI
+        rpath = '/var/local/%s.yaml' % cf
+
+        if which('docker-compose') is None:
+            msg = 'Could not find docker-compose. Cannot validate file.'
+            dtslogger.error(msg)
+        else:
+            _run_cmd(['docker-compose', '-f', lpath, 'config', '--quiet'])
+
+        add_file_local(path=rpath, local=lpath)
+
+    stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
     preload_images = get_mentioned_images(stack2yaml)
 
     image2tgz = download_images(preload_images)
@@ -281,8 +305,8 @@ def configure_images(parsed, user_data, add_file_local):
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
         available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
         if available < size + buffer_bytes:
-            msg = 'You have %s available but need %s for %s' % (
-                friendly_size(available), friendly_size(size), image_name)
+            msg = 'You have %s available on %s but need %s for %s' % (
+                friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size(size), tgz)
             dtslogger.warning(msg)
             break
 
@@ -292,20 +316,7 @@ def configure_images(parsed, user_data, add_file_local):
         user_data['runcmd'].append(['docker', 'load', '--input', os.path.join('/', rpath)])
         written.append(image_name)
 
-    for cf in stacks_to_use:
-        # local path
-        lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
-        # path on PI
-        rpath = '/var/local/%s.yaml' % cf
-
-        if which('docker-compose') is None:
-            msg = 'Could not find docker-compose. Cannot validate file.'
-            dtslogger.error(msg)
-        else:
-            _run_cmd(['docker-compose', '-f', lpath, 'config', '--quiet'])
-
-        add_file_local(path=rpath, local=lpath)
-
+    for cf in stacks_to_run:
         needed = stack2yaml[cf]['services']
         missing = []
         for x in needed:
@@ -323,7 +334,7 @@ def configure_images(parsed, user_data, add_file_local):
         else:
             msg = 'Adding the stack %r as default running' % cf
             dtslogger.info(msg)
-            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
+            cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
 
             user_data['runcmd'].append(cmd)  # first boot
             user_data['bootcmd'].append(cmd)  # every boot
@@ -646,7 +657,8 @@ def validate_user_data(user_data_yaml):
                 dtslogger.error(m)
                 nerrors += 1
             else:
-                ignore = ['bootcmd', 'package_upgrade', 'runcmd', 'ssh_pwauth', 'sudo', 'chpasswd', 'lock_passwd', 'plain_text_passwd']
+                ignore = ['bootcmd', 'package_upgrade', 'runcmd', 'ssh_pwauth', 'sudo', 'chpasswd', 'lock_passwd',
+                          'plain_text_passwd']
                 show = False
                 for i in ignore:
                     if 'unrecognized key "%s"' % i in m:
