@@ -716,7 +716,7 @@ def save_images(stack2yaml, compress):
             image_name2id[image_name] = image_id
 
         stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id)
-        
+
         if os.path.exists(destination):
             msg = 'Using cached file %s' % destination
             dtslogger.info(msg)
@@ -738,7 +738,7 @@ def save_images(stack2yaml, compress):
         dtslogger.info(msg)
 
 
-
+    assert len(stack2info) == len(stack2yaml)
     return stack2info
 
 
