@@ -582,8 +582,8 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
 
             repo, tag = image_name.split(':')
             dtslogger.info('pulling %s' % image_name)
-            client.images.pull(repository=repo, tag=tag)
-            image = client.images.get(image_name)
+            image = client.images.pull(repository=repo, tag=tag)
+            # image = client.images.get(image_name)
 
             dtslogger.info('saving to %s' % destination)
             destination0 = destination + '.tmp'
@@ -592,7 +592,8 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
                     f.write(chunk)
             destination1 = destination + '.tmp2'
 
-            os.system('gzip --best -c "%s" > "%s"' % (destination0, destination1))
+            dtslogger.info('compressing')
+            os.system('gzip -c "%s" > "%s"' % (destination0, destination1))
             # subprocess.check_call(['gzip', '--best', '-o', destination1, destination0])
             os.unlink(destination0)
             os.rename(destination1, destination)
