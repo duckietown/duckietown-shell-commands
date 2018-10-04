@@ -376,9 +376,16 @@ def configure_images(parsed, user_data, add_file_local):
             continue
 
         dtslogger.info('OK, copying, and loading it on first boot.')
-        cmd = ['sudo', 'cp', tgz, destination]
-        _run_cmd(cmd)
-        sync_data()
+        if os.path.exists(destination):
+            msg = 'Skipping copying image that already exist.'
+            dtslogger.info(msg)
+        else:
+            if which('rsync'):
+                cmd = ['sudo', 'rsync', '-avP', tgz, destination]
+            else:
+                cmd = ['sudo', 'cp', tgz, destination]
+            _run_cmd(cmd)
+            sync_data()
 
         service2rtpath[service] = os.path.join('/', rpath)
         # user_data['runcmd'].append(['rm', p])
