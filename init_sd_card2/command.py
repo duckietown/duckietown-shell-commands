@@ -29,7 +29,7 @@ DUCKIETOWN_TMP = '/tmp/duckietown'
 DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 
 PHASE_LOADING = 'loading'
-
+PHASE_DONE = 'done'
 
 class InvalidUserInput(Exception):
     pass
@@ -350,6 +350,7 @@ def configure_images(parsed, user_data, add_file_local):
     buffer_bytes = 100 * 1024 * 1024
     written = []
     # write images until we have space
+    image_name2path = {}
     for image_name, tgz in image2tgz.items():
         size = os.stat(tgz).st_size
         dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size_file(tgz)))
@@ -368,9 +369,7 @@ def configure_images(parsed, user_data, add_file_local):
         _run_cmd(cmd)
         sync_data()
 
-        p = os.path.join('/', rpath)
-        log_current_phase(user_data, PHASE_LOADING, "Loading container %s" % p)
-        user_data['runcmd'].append(['docker', 'load', '--input', p])
+        image_name2path[image_name] = os.path.join('/', rpath)
         # user_data['runcmd'].append(['rm', p])
 
         written.append(image_name)
@@ -399,16 +398,24 @@ def configure_images(parsed, user_data, add_file_local):
     for cf in stacks_to_run:
         missing = any_missing(cf)
 
+        for needed in stack2yaml[cf]['services']:
+            if needed not in missing:
+                log_current_phase(user_data, PHASE_LOADING, "Stack %s: Loading container %s" % (cf, needed))
+                user_data['runcmd'].append(['docker', 'load', '--input', image_name2path[needed]])
+
         if missing:
             msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing)
             dtslogger.error(msg)
         else:
             msg = 'Adding the stack %r as default running' % cf
             dtslogger.info(msg)
+
+            log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
             cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
 
             user_data['runcmd'].append(cmd)  # first boot
             user_data['bootcmd'].append(cmd)  # every boot
+    log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
 def configure_networks(parsed, add_file):
@@ -639,8 +646,7 @@ def interpret_wifi_string(s):
 def download_images(preload_images):
     image2tmpfilename = OrderedDict()
     cache_dir = DOCKER_IMAGES_CACHE_DIR
-    # import docker
-    # client = docker.from_env()
+    
     for name, image_name in preload_images.items():
 
         if not os.path.exists(cache_dir):
