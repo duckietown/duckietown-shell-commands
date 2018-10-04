@@ -593,10 +593,17 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
             destination1 = destination + '.tmp2'
 
             dtslogger.info('compressing')
-            os.system('gzip -c "%s" > "%s"' % (destination0, destination1))
-            # subprocess.check_call(['gzip', '--best', '-o', destination1, destination0])
+            cmd = 'gzip -c "%s" > "%s"' % (destination0, destination1)
+            ret = os.system(cmd)
+            if ret:
+                msg = 'Command %r failed with retcode %s' % (cmd, ret)
+                raise Exception(msg)
+
             os.unlink(destination0)
             os.rename(destination1, destination)
+
+            msg = 'Saved archive %s of size %s' % (destination, friendly_size(os.stat(destination).st_size))
+            dtslogger.info(msg)
 
     return image2tmpfilename
 
