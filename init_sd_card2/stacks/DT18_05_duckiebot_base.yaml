@@ -3,6 +3,17 @@ services:
 
   rpi-duckiebot-base:
     image: duckietown/rpi-duckiebot-base:master18
-    network_mode: "host"
-    volumes:
-    - "/data:/data"
+  rpi-duckiebot-calibration:
+    image: duckietown/rpi-duckiebot-calibration:master18
+  rpi-duckiebot-joystick-demo:
+    image: duckietown/rpi-duckiebot-joystick-demo:master18
+  rpi-duckiebot-keyboard-demo:
+    image: duckietown/rpi-duckiebot-keyboard-demo:master18
+  rpi-duckiebot-lanefollowing-demo:
+    image: duckietown/rpi-duckiebot-lanefollowing-demo:master18
+  rpi-duckiebot-ros-picam:
+    image: duckietown/rpi-duckiebot-ros-picam:master18
+  rpi-duckiebot-camera-node:
+    image: duckietown/rpi-duckiebot-camera-node:master18
+  rpi-duckiebot-web_video_server:
+    image: duckietown/rpi-duckiebot-web_video_server:master18
