@@ -463,39 +463,39 @@ def configure_networks(parsed, add_file):
     DUCKPASS = 'quackquack'
     add_file(path="/var/local/wificfg.json",
              content="""
-    {{
-      "dnsmasq_cfg": {{
-         "address": "/#/192.168.27.1",
-         "dhcp_range": "192.168.27.100,192.168.27.150,1h",
-         "vendor_class": "set:device,IoT"
-      }},
-      "host_apd_cfg": {{
-         "ip": "192.168.27.1",
-         "ssid": "{DUCKSSID}",
-         "wpa_passphrase": "{DUCKPASS}",
-         "channel": "6"
-      }},
-      "wpa_supplicant_cfg": {{
-         "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
-      }}
-    }}
+{{
+  "dnsmasq_cfg": {{
+     "address": "/#/192.168.27.1",
+     "dhcp_range": "192.168.27.100,192.168.27.150,1h",
+     "vendor_class": "set:device,IoT"
+  }},
+  "host_apd_cfg": {{
+     "ip": "192.168.27.1",
+     "ssid": "{DUCKSSID}",
+     "wpa_passphrase": "{DUCKPASS}",
+     "channel": "6"
+  }},
+  "wpa_supplicant_cfg": {{
+     "cfg_file": "/etc/wpa_supplicant/wpa_supplicant.conf"
+  }}
+}}
     """.format(DUCKSSID=DUCKSSID, DUCKPASS=DUCKPASS))
     wpa_supplicant = """
 
-    ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-    update_config=1
-    country={country}
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country={country}
 
     """.format(country=parsed.country)
     networks = interpret_wifi_string(parsed.wifi)
     for connection in networks:
         wpa_supplicant += """
-    network={{
-      id_str="{cname}"
-      ssid="{WIFISSID}"
-      psk="{WIFIPASS}"
-      key_mgmt=WPA-PSK
-    }}
+network={{
+  id_str="{cname}"
+  ssid="{WIFISSID}"
+  psk="{WIFIPASS}"
+  key_mgmt=WPA-PSK
+}}
                 """.format(WIFISSID=connection.ssid,
                            cname=connection.name, WIFIPASS=connection.password)
 
@@ -506,20 +506,20 @@ def configure_networks(parsed, add_file):
 
         wpa_supplicant += """
 
-    network={{
-        id_str="eth_network"
-        ssid="eth"
-        key_mgmt=WPA-EAP
-        group=CCMP TKIP
-        pairwise=CCMP TKIP
-        eap=PEAP
-        proto=RSN
-        identity="{username}"
-        password="{password}"
-        phase1="peaplabel=0"
-        phase2="auth=MSCHAPV2"
-        priority=1
-    }}
+network={{
+    id_str="eth_network"
+    ssid="eth"
+    key_mgmt=WPA-EAP
+    group=CCMP TKIP
+    pairwise=CCMP TKIP
+    eap=PEAP
+    proto=RSN
+    identity="{username}"
+    password="{password}"
+    phase1="peaplabel=0"
+    phase2="auth=MSCHAPV2"
+    priority=1
+}}
 
     """.format(username=parsed.ethz_username, password=parsed.ethz_password)
 
@@ -551,17 +551,17 @@ def configure_ssh(parsed, ssh_key_pri, ssh_key_pub):
 
     bit = """
 
-    # --- init_sd_card generated ---
+# --- init_sd_card generated ---
 
-    # Use the key for all hosts
+# Use the key for all hosts
+IdentityFile {IDENTITY}
+
+Host {HOSTNAME}
+    User {DTS_USERNAME}
+    Hostname {HOSTNAME}.local
     IdentityFile {IDENTITY}
-
-    Host {HOSTNAME}
-        User {DTS_USERNAME}
-        Hostname {HOSTNAME}.local
-        IdentityFile {IDENTITY}
-        StrictHostKeyChecking no
-    # ------------------------------        
+    StrictHostKeyChecking no
+# ------------------------------        
 
     """.format(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
 
