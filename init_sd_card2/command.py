@@ -286,7 +286,7 @@ def step_setup(shell, parsed):
                    local=ssh_key_pub)
 
     cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    dtslogger.debug(cmd)
+
     user_data['runcmd'].append(cmd)
 
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
@@ -366,6 +366,9 @@ def configure_images(parsed, user_data, add_file_local):
         add_file_local(path=rpath, local=lpath)
 
     stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
+    if not stack2yaml:
+        msg = 'Not even one stack specified'
+        raise Exception(msg)
 
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
@@ -754,7 +757,8 @@ def add_run_cmd(user_data, cmd):
 def get_stack2yaml(stacks, base):
     names = os.listdir(base)
     all_stacks = [os.path.splitext(_)[0] for _ in names if _.endswith("yaml")]
-    dtslogger.info('The stacks that are available are: %s' % ",".join(all_stacks))
+    dtslogger.info('The stacks that are available are: %s' % ", ".join(all_stacks))
+    dtslogger.info('You asked to use %s' % stacks)
     use = []
     for s in stacks:
         if s not in all_stacks:
