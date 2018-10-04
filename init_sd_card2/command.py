@@ -253,7 +253,14 @@ dtparam=i2c_arm=on
             ''')
     dtslogger.info('setup step concluded')
 
+
+def friendly_size(b):
+    gbs = b / (1024.0 * 1024.0 * 1024.0)
+    return '%.3f GB' % gbs
+
+
 def configure_images(parsed, user_data, add_file_local):
+    import psutil
     # read and validate duckiebot-compose
     stacks_to_use = parsed.stacks.split(',')
     dtslogger.info('Will run the stacks %s' % stacks_to_use)
@@ -262,6 +269,28 @@ def configure_images(parsed, user_data, add_file_local):
 
     image2tgz = download_images(preload_images)
     dtslogger.info("loading %s" % image2tgz)
+
+    buffer_bytes = 100 * 1024 * 1024
+    written = []
+    # write images until we have space
+    for image_name, tgz in image2tgz:
+        size = os.stat(tgz).st_size
+        print('%s: %s bytes' % (tgz, size))
+
+        rpath = os.path.join('var', 'local', os.path.basename(tgz))
+        destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
+        available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
+        if available < size + buffer_bytes:
+            msg = 'You have %s available but need %s for %s' % (
+                friendly_size(available), friendly_size(size), image_name)
+            dtslogger.warning(msg)
+            break
+
+        cmd = ['sudo', 'cp', tgz, destination]
+        _run_cmd(cmd)
+
+        user_data['runcmd'].append(['docker', 'load', '--input', os.path.join('/', rpath)])
+        written.append(image_name)
 
     for cf in stacks_to_use:
         # local path
@@ -276,10 +305,28 @@ def configure_images(parsed, user_data, add_file_local):
             _run_cmd(['docker-compose', '-f', lpath, 'config', '--quiet'])
 
         add_file_local(path=rpath, local=lpath)
-        cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
 
-        user_data['runcmd'].append(cmd)  # first boot
-        user_data['bootcmd'].append(cmd)  # every boot
+        needed = stack2yaml[cf]['services']
+        missing = []
+        for x in needed:
+            if x in written:
+                msg = 'For stack %r: container %r could be written.' % (cf, x)
+                dtslogger.info(msg)
+            else:
+                msg = 'For stack %r: container %r could NOT be written.' % (cf, x)
+                dtslogger.warning(msg)
+                missing.append(x)
+
+        if missing:
+            msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing)
+            dtslogger.error(msg)
+        else:
+            msg = 'Adding the stack %r as default running' % cf
+            dtslogger.info(msg)
+            cmd = ['docker-compose', '--file', rpath, '-p', cf, 'up', '-d']
+
+            user_data['runcmd'].append(cmd)  # first boot
+            user_data['bootcmd'].append(cmd)  # every boot
 
 
 def configure_networks(parsed, add_file):
@@ -472,8 +519,11 @@ def write_to_root(rpath, contents):
     t = tempfile.mktemp()
     with open(t, 'w') as f:
         f.write(contents)
+
     cmd = ['sudo', 'cp', t, dest]
     _run_cmd(cmd)
+    dtslogger.info('Written to %s' % dest)
+    os.unlink(t)
 
 
 def write_to_hypriot(rpath, contents):
@@ -486,6 +536,7 @@ def write_to_hypriot(rpath, contents):
         os.makedirs(d)
     with open(x, 'w') as f:
         f.write(contents)
+    dtslogger.info('Written to %s' % x)
 
 
 def interpret_wifi_string(s):
