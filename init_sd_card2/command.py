@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import datetime
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -385,7 +386,7 @@ def configure_images(parsed, user_data, add_file_local):
         rpath = os.path.join('var', 'local', os.path.basename(tgz))
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
         available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
-        dtslogger.info('available %s' % friendly_size(available) )
+        dtslogger.info('available %s' % friendly_size(available))
         if available < size + buffer_bytes:
             msg = 'You have %s available on %s but need %s for %s' % (
                 friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size_file(tgz), tgz)
@@ -680,7 +681,7 @@ def interpret_wifi_string(s):
     return results
 
 
-StackInfo = namedtuple('StackInfo', 'archive image_name2id')
+StackInfo = namedtuple('StackInfo', 'archive image_name2id hname')
 
 
 def save_images(stack2yaml, compress):
@@ -697,14 +698,6 @@ def save_images(stack2yaml, compress):
     stack2info = {}
 
     for cf, config in stack2yaml.items():
-
-        if compress:
-            destination = os.path.join(cache_dir, cf + '.tar.gz')
-        else:
-            destination = os.path.join(cache_dir, cf + '.tar')
-
-
-        destination0 = os.path.join(cache_dir, cf + '.tar')
         image_name2id = {}
         for service, service_config in config['services'].items():
             image_name = service_config['image']
@@ -715,7 +708,17 @@ def save_images(stack2yaml, compress):
             image_id = str(image.id)
             image_name2id[image_name] = image_id
 
-        stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id)
+        hname = get_md5("-".join(sorted(list(image_name2id.values()))))[:8]
+
+        if compress:
+            destination = os.path.join(cache_dir, cf + '-' + hname + '.tar.gz')
+        else:
+            destination = os.path.join(cache_dir, cf + '-' + hname + '.tar')
+
+        destination0 = os.path.join(cache_dir, cf + '-' + hname + '.tar')
+
+        stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id,
+                                   hname=hname)
 
         if os.path.exists(destination):
             msg = 'Using cached file %s' % destination
@@ -736,7 +739,6 @@ def save_images(stack2yaml, compress):
 
         msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
         dtslogger.info(msg)
-
 
     assert len(stack2info) == len(stack2yaml)
     return stack2info
@@ -777,16 +779,6 @@ def get_stack2yaml(stacks, base):
 
         stacks2yaml[sn] = yaml.load(open(lpath).read())
     return stacks2yaml
-
-
-#
-#
-# def get_mentioned_images(stacks2yaml):
-#     preload_images = OrderedDict()
-#     for sn, compose in stacks2yaml.items():
-#         for name, service in compose['services'].items():
-#             preload_images[name] = service['image']
-#     return preload_images
 
 
 def validate_user_data(user_data_yaml):
@@ -854,3 +846,10 @@ def check_has_space(where, min_available_gb):
         else:
             msg = 'You have %.2f GB available on %s. ' % (disk_available_gb, where)
             dtslogger.info(msg)
+
+
+def get_md5(contents):
+    m = hashlib.md5()
+    m.update(contents)
+    s = m.hexdigest()
+    return s
