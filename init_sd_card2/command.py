@@ -69,7 +69,7 @@ class DTCommand(DTCommandAbs):
         step2function = {
             'flash': step_flash,
             'expand': step_expand,
-            'mount': step_unmount,
+            'mount': step_mount,
             'setup': step_setup,
             'unmount': step_unmount
         }
@@ -609,9 +609,9 @@ def check_has_space(where, min_available_gb):
 
         if disk_available_gb < min_available_gb:
             msg = 'This procedure requires that you have at least %f GB of memory.' % min_available_gb
-            msg += '\nYou only have %f GB available on %s.' % (disk_available_gb, where)
+            msg += '\nYou only have %.2f GB available on %s.' % (disk_available_gb, where)
             dtslogger.error(msg)
             raise NotEnoughSpace(msg)
         else:
-            msg = 'You have %f GB available on %s. ' % (disk_available_gb, where)
+            msg = 'You have %.2f GB available on %s. ' % (disk_available_gb, where)
             dtslogger.info(msg)
