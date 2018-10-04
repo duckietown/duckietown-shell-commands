@@ -25,6 +25,9 @@ TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
 DISK_HYPRIOTOS = '/dev/disk/by-label/HypriotOS'
 DISK_ROOT = '/dev/disk/by-label/root'
 
+DUCKIETOWN_TMP = '/tmp/duckietown'
+DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
+
 
 class InvalidUserInput(Exception):
     pass
@@ -44,7 +47,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-password', default='quackquack')
 
         parser.add_argument('--stacks-load', dest="stacks_to_load",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore,DT18_04_camera",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore",
                             help="which stacks to load")
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
@@ -183,7 +186,10 @@ def step_expand(shell, parsed):
 
 def step_setup(shell, parsed):
     token = shell.get_dt1_token()
-    check_has_space(where=os.getcwd(), min_available_gb=1.0)
+    if not os.path.exists(DUCKIETOWN_TMP):
+        os.makedirs(DUCKIETOWN_TMP)
+
+    check_has_space(where=DUCKIETOWN_TMP, min_available_gb=5.0)
 
     try:
         check_valid_hostname(parsed.hostname)
@@ -268,6 +274,11 @@ def friendly_size(b):
     return '%.3f GB' % gbs
 
 
+def friendly_size_file(fn):
+    s = os.stat(fn).st_size
+    return friendly_size(s)
+
+
 def configure_images(parsed, user_data, add_file_local):
     import psutil
     # read and validate duckiebot-compose
@@ -305,14 +316,14 @@ def configure_images(parsed, user_data, add_file_local):
     # write images until we have space
     for image_name, tgz in image2tgz.items():
         size = os.stat(tgz).st_size
-        dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size(size)))
+        dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size_file(tgz)))
 
         rpath = os.path.join('var', 'local', os.path.basename(tgz))
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
         available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
         if available < size + buffer_bytes:
             msg = 'You have %s available on %s but need %s for %s' % (
-                friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size(size), tgz)
+                friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size_file(tgz), tgz)
             dtslogger.warning(msg)
             continue
 
@@ -587,10 +598,11 @@ def interpret_wifi_string(s):
     return results
 
 
-def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
+def download_images(preload_images):
     image2tmpfilename = OrderedDict()
-    import docker
-    client = docker.from_env()
+    cache_dir = DOCKER_IMAGES_CACHE_DIR
+    # import docker
+    # client = docker.from_env()
     for name, image_name in preload_images.items():
 
         if not os.path.exists(cache_dir):
@@ -599,15 +611,15 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
         image2tmpfilename[name] = destination
 
         if os.path.exists(destination):
-            dtslogger.info('already know %s' % destination)
+            dtslogger.info('Already know %s of size %s' % (destination, friendly_size_file(destination)))
         else:
 
-            repo, tag = image_name.split(':')
+            # repo, tag = image_name.split(':')
             dtslogger.info('Pulling %s' % image_name)
             cmd = ['docker', 'pull', image_name]
             _run_cmd(cmd)
             # image = client.images.pull(repository=repo, tag=tag)
-            image = client.images.get(image_name)
+            # image = client.imageages.get(image_name)
             #
             destination0 = destination + '.tmp'
             dtslogger.info('Saving to %s' % destination0)
@@ -620,7 +632,7 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
             #         f.write(chunk)
             destination1 = destination + '.tmp2'
 
-            dtslogger.info('Compressing tar of size %s' % friendly_size(os.stat(destination0).st_size))
+            dtslogger.info('Compressing tar of size %s' % friendly_size_file(destination0))
             cmd = 'gzip -c "%s" > "%s"' % (destination0, destination1)
             ret = os.system(cmd)
             if ret:
@@ -630,13 +642,15 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
             os.unlink(destination0)
             os.rename(destination1, destination)
 
-            msg = 'Saved archive %s of size %s' % (destination, friendly_size(os.stat(destination).st_size))
+            msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
             dtslogger.info(msg)
 
     return image2tmpfilename
 
+
 def log_current_phase(user_data, phase, msg):
     cmd = ['echo', j, ]
+
 
 def get_stack2yaml(stacks, base):
     names = os.listdir(base)
