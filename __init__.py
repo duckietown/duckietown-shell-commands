@@ -1,14 +1,5 @@
-# This is a default __init__ file for the Duckietown Shell commands
-#
-# Maintainer: Andrea F. Daniele
-
-# import current command
-try:
-    from .command import *
-except ImportError:
-    pass
-
 import glob
+import traceback
 # import subcommands
 from os.path import dirname, basename, isdir
 
@@ -16,5 +7,10 @@ modules = glob.glob(dirname(__file__) + "/*")
 
 # load submodules
 for mod in [m for m in modules if isdir(m) and basename(m) != 'lib']:
-    try: exec( 'import %s' % basename(mod) )
-    except ImportError: pass
+    # print('trying to load %r' % m)
+    try:
+        exec ('import %s' % basename(mod))
+    except BaseException as e:
+        msg = 'Could not load the command %r' % basename(mod)
+        msg += '\n\n' + traceback.format_exc(e)
+        print(msg)

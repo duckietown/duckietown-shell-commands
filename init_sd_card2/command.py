@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import datetime
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -59,7 +60,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
 
-        parser.add_argument('--reset-cache', dest = 'reset_cache', default=False, action='store_true', help='Deletes the cached images')
+        parser.add_argument('--reset-cache', dest='reset_cache', default=False, action='store_true',
+                            help='Deletes the cached images')
+
+        parser.add_argument('--compress', dest='compress', default=False, action='store_true',
+                            help='Compress the images - use if you have a 16GB SD card')
 
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
@@ -282,7 +287,7 @@ def step_setup(shell, parsed):
                    local=ssh_key_pub)
 
     cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    dtslogger.debug(cmd)
+
     user_data['runcmd'].append(cmd)
 
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
@@ -362,12 +367,16 @@ def configure_images(parsed, user_data, add_file_local):
         add_file_local(path=rpath, local=lpath)
 
     stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
+    if not stack2yaml:
+        msg = 'Not even one stack specified'
+        raise Exception(msg)
 
-    stack2info = save_images(stack2yaml)
+    stack2info = save_images(stack2yaml, compress=parsed.compress)
 
     buffer_bytes = 100 * 1024 * 1024
     stacks_written = []
     stack2archive_rpath = {}
+    dtslogger.debug(stack2info)
 
     for stack, stack_info in stack2info.items():
         tgz = stack_info.archive
@@ -377,10 +386,11 @@ def configure_images(parsed, user_data, add_file_local):
         rpath = os.path.join('var', 'local', os.path.basename(tgz))
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
         available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
+        dtslogger.info('available %s' % friendly_size(available))
         if available < size + buffer_bytes:
             msg = 'You have %s available on %s but need %s for %s' % (
                 friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size_file(tgz), tgz)
-            dtslogger.warning(msg)
+            dtslogger.info(msg)
             continue
 
         dtslogger.info('OK, copying, and loading it on first boot.')
@@ -398,11 +408,11 @@ def configure_images(parsed, user_data, add_file_local):
         stack2archive_rpath[stack] = os.path.join('/', rpath)
 
         stacks_written.append(stack)
-
-    for cf in stacks_to_load:
-        if not cf in stacks_written:
-            msg = 'I could not completely load the stack %r.' % cf
-            dtslogger.error(msg)
+    #
+    # for cf in stacks_to_load:
+    #     if not cf in stacks_written:
+    #         msg = 'I could not completely load the stack %r.' % cf
+    #         dtslogger.error(msg)
 
     import docker
     client = docker.from_env()
@@ -410,7 +420,6 @@ def configure_images(parsed, user_data, add_file_local):
     stacks_not_to_run = [_ for _ in stacks_to_load if _ not in stacks_to_run]
 
     order = stacks_to_run + stacks_not_to_run
-
 
     for cf in order:
 
@@ -432,16 +441,16 @@ def configure_images(parsed, user_data, add_file_local):
                 print(cmd)
                 add_run_cmd(user_data, cmd)
 
-        if cf in stacks_to_run:
-            msg = 'Adding the stack %r as default running' % cf
-            dtslogger.info(msg)
+            if cf in stacks_to_run:
+                msg = 'Adding the stack %r as default running' % cf
+                dtslogger.info(msg)
 
-            log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
-            cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
-            add_run_cmd(user_data, cmd)
-            # XXX
-            cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
-            user_data['bootcmd'].append(cmd)  # every boot
+                log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
+                cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
+                add_run_cmd(user_data, cmd)
+                # XXX
+                cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
+                user_data['bootcmd'].append(cmd)  # every boot
 
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
@@ -672,10 +681,10 @@ def interpret_wifi_string(s):
     return results
 
 
-StackInfo = namedtuple('StackInfo', 'archive image_name2id')
+StackInfo = namedtuple('StackInfo', 'archive image_name2id hname')
 
 
-def save_images(stack2yaml):
+def save_images(stack2yaml, compress):
     """
         returns stack2info
     """
@@ -689,14 +698,6 @@ def save_images(stack2yaml):
     stack2info = {}
 
     for cf, config in stack2yaml.items():
-        destination = os.path.join(cache_dir, cf + '.tar.gz')
-
-        if os.path.exists(destination):
-            msg = 'Using cached file %s' % destination
-            dtslogger.info(msg)
-            continue
-
-        destination0 = os.path.join(cache_dir, cf + '.tar')
         image_name2id = {}
         for service, service_config in config['services'].items():
             image_name = service_config['image']
@@ -707,20 +708,39 @@ def save_images(stack2yaml):
             image_id = str(image.id)
             image_name2id[image_name] = image_id
 
+        hname = get_md5("-".join(sorted(list(image_name2id.values()))))[:8]
+
+        if compress:
+            destination = os.path.join(cache_dir, cf + '-' + hname + '.tar.gz')
+        else:
+            destination = os.path.join(cache_dir, cf + '-' + hname + '.tar')
+
+        destination0 = os.path.join(cache_dir, cf + '-' + hname + '.tar')
+
+        stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id,
+                                   hname=hname)
+
+        if os.path.exists(destination):
+            msg = 'Using cached file %s' % destination
+            dtslogger.info(msg)
+            continue
+
         dtslogger.info('Saving to %s' % destination0)
         cmd = ['docker', 'save', '-o', destination0] + list(image_name2id.values())
         _run_cmd(cmd)
-        cmd = ['gzip', '-f', destination0]
-        _run_cmd(cmd)
+        if compress:
+            cmd = ['gzip', '-f', destination0]
+            _run_cmd(cmd)
 
-        assert not os.path.exists(destination0)
-        assert os.path.exists(destination)
+            assert not os.path.exists(destination0)
+            assert os.path.exists(destination)
+        else:
+            assert destination == destination0
 
         msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
         dtslogger.info(msg)
 
-        stack2info[cf] = StackInfo(archive=destination, image_name2id=image_name2id)
-
+    assert len(stack2info) == len(stack2yaml)
     return stack2info
 
 
@@ -742,7 +762,8 @@ def add_run_cmd(user_data, cmd):
 def get_stack2yaml(stacks, base):
     names = os.listdir(base)
     all_stacks = [os.path.splitext(_)[0] for _ in names if _.endswith("yaml")]
-    dtslogger.info('The stacks that are available are: %s' % ",".join(all_stacks))
+    dtslogger.info('The stacks that are available are: %s' % ", ".join(all_stacks))
+    dtslogger.info('You asked to use %s' % stacks)
     use = []
     for s in stacks:
         if s not in all_stacks:
@@ -758,14 +779,6 @@ def get_stack2yaml(stacks, base):
 
         stacks2yaml[sn] = yaml.load(open(lpath).read())
     return stacks2yaml
-#
-#
-# def get_mentioned_images(stacks2yaml):
-#     preload_images = OrderedDict()
-#     for sn, compose in stacks2yaml.items():
-#         for name, service in compose['services'].items():
-#             preload_images[name] = service['image']
-#     return preload_images
 
 
 def validate_user_data(user_data_yaml):
@@ -833,3 +846,10 @@ def check_has_space(where, min_available_gb):
         else:
             msg = 'You have %.2f GB available on %s. ' % (disk_available_gb, where)
             dtslogger.info(msg)
+
+
+def get_md5(contents):
+    m = hashlib.md5()
+    m.update(contents)
+    s = m.hexdigest()
+    return s
