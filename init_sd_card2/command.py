@@ -30,6 +30,7 @@ DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 
 PHASE_LOADING = 'loading'
 
+
 class InvalidUserInput(Exception):
     pass
 
@@ -141,6 +142,7 @@ def step_mount(shell, parsed):
 
 
 def step_unmount(shell, parsed):
+    dtslogger.info('Now calling sync() - actually writing data to disk.')
     cmd = ['sync']
     _run_cmd(cmd)
 
