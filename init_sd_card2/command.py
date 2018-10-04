@@ -140,11 +140,11 @@ def step_mount(shell, parsed):
         cmd = ['udisksctl', 'mount', '-b', DISK_ROOT]
         _run_cmd(cmd)
 
+
 def sync_data():
-    dtslogger.info('Now calling sync() - actually writing data to disk.')
+    # dtslogger.info('Now calling sync() - actually writing data to disk.')
     cmd = ['sync']
     _run_cmd(cmd)
-
 
 
 def step_unmount(shell, parsed):

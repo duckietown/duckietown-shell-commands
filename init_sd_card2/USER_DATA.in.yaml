@@ -45,8 +45,14 @@ write_files:
       WantedBy=sockets.target
     path: /etc/systemd/system/docker-tcp.socket
 
-#  - path: /etc/dphys-swapfile
-#    content: "CONF_SWAPSIZE=2048"
+  - path: /etc/dphys-swapfile
+    content: "CONF_SWAPSIZE=2048"
+
+
+
+# These commands will be run on every boot (before runcmd)
+bootcmd:
+  - [iwconfig, wlan0, power, off]
 
 # These commands will be run once on first boot only
 runcmd:
@@ -54,8 +60,8 @@ runcmd:
   - 'mkdir /data && chown 1000:1000 /data'
   - 'mkdir /data/stats'
   # save HW information
-  - ['/bin/bash', '-c', 'ifconfig wlan0 > /data/stats/ifconfig-wlan0.txt']
-  - ['/bin/bash', '-c', 'ifconfig eth0 > /data/stats/ifconfig-eth0.txt']
+#  - ['/bin/bash', '-c', 'ifconfig wlan0 > /data/stats/ifconfig-wlan0.txt']
+#  - ['/bin/bash', '-c', 'ifconfig eth0 > /data/stats/ifconfig-eth0.txt']
   - 'cat /sys/class/net/eth0/address > /data/stats/eth0-mac'
   - 'cat /sys/class/net/wlan0/address > /data/stats/wlan0-mac'
   # Copy all the hardware information (e.g. serial number) to /data/proc
@@ -69,11 +75,7 @@ runcmd:
   - [ systemctl, start, --no-block, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker ]
 
-
-# These commands will be run on every boot
-bootcmd:
-  - [iwconfig, wlan0, power, off]
-
+final_message: "The system is finally up, after $UPTIME seconds"
 
 
 # where we want the swapfile to be, this is the default

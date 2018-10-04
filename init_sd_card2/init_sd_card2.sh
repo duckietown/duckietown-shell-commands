@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# This script will flash an SD card with the necessary dependencies to run DuckieOS.
+# This script will flash an SD card with Hypriot
 #
-# Environment variables:
-#
-#  USER_DATA: user data payload
 
 #for debugging, enable command printout
 if [ -n "$DEBUG" ]; then
@@ -49,33 +46,6 @@ WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/downlo
 
 
 
-
-#
-#declare -A PRELOADED_DOCKER_IMAGES=( \
-#    ["portainer"]="portainer/portainer:linux-arm" \
-#    ["watchtower"]="v2tec/watchtower:armhf-latest" \
-#    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
-## unfortunately we don't have space on the 1GB partition
-##    ["rpi-health"]="duckietown/rpi-health:master18" \
-##    ["simple-server"]="duckietown/rpi-simple-server:master18"
-#)
-#
-#
-#
-#check_deps() {
-#    missing_deps=()
-#    for dep in ${DEPS_LIST[@]}; do
-#        if [ ! $(command -v ${dep}) ]; then
-#            missing_deps+=("${dep}")
-#        fi
-#    done
-#    if [ ${#missing_deps[@]} -ne 0 ]; then
-#        echo "The following dependencies are missing. Please install corresponding packages for:"
-#        echo "${missing_deps[@]}"
-#        [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
-#    fi
-#}
-
 download_etcher() {
     if [ -f "$ETCHER_DIR/etcher" ]; then
         echo "Prior etcher-cli install detected at $ETCHER_DIR, skipping..."
@@ -115,11 +85,4 @@ flash_hypriot() {
 
 download_etcher
 download_hypriot
-
-# flash
 flash_hypriot
-
-
-echo "Finished preparing SD card. Please remove it and insert into the robot."
-
-#  - 'LAST4_MAC=\$(sed -rn "s/^.*([0-9A-F:]{5})$/\\1/gi;s/://p" /sys/class/net/eth0/address); SUFFIX=\${LAST4_MAC:-0000}; echo "{ \"dnsmasq_cfg\": { \"address\": \"/#/192.168.27.1\", \"dhcp_range\": \"192.168.27.100,192.168.27.150,1h\", \"vendor_class\": \"set:device,IoT\" }, \"host_apd_cfg\": { \"ip\": \"192.168.27.1\", \"ssid\": \"$DUCKSSID-\$SUFFIX\", \"wpa_passphrase\": \"$DUCKPASS\", \"channel\":\"6\" }, \"wpa_supplicant_cfg\": { \"cfg_file\": \"/etc/wpa_supplicant/wpa_supplicant.conf\" } }" > /var/local/wificfg.json'
