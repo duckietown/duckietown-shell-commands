@@ -75,6 +75,12 @@ class DTCommand(DTCommandAbs):
         
 ## Tips and tricks
 
+### Multiple networks
+
+    dts init_sd_card2 --wifi  network1:password1,network2:password2 --country US
+    
+    
+
 ### Steps
 
 Without arguments the script performs the steps:
