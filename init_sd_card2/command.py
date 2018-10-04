@@ -604,14 +604,20 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
 
             repo, tag = image_name.split(':')
             dtslogger.info('Pulling %s' % image_name)
-            image = client.images.pull(repository=repo, tag=tag)
-            # image = client.images.get(image_name)
-
+            cmd = ['docker', 'pull', image_name]
+            _run_cmd(cmd)
+            # image = client.images.pull(repository=repo, tag=tag)
+            image = client.images.get(image_name)
+            #
             destination0 = destination + '.tmp'
             dtslogger.info('Saving to %s' % destination0)
-            with open(destination0, 'wb') as f:
-                for chunk in image.save().stream():
-                    f.write(chunk)
+            cmd = ['docker', 'save', image_name, '-o', destination0]
+            _run_cmd(cmd)
+            #
+            #
+            # with open(destination0, 'wb') as f:
+            #     for chunk in image.save().stream():
+            #         f.write(chunk)
             destination1 = destination + '.tmp2'
 
             dtslogger.info('Compressing tar of size %s' % friendly_size(os.stat(destination0).st_size))
@@ -629,6 +635,8 @@ def download_images(preload_images, cache_dir='/tmp/duckietown/docker_images'):
 
     return image2tmpfilename
 
+def log_current_phase(user_data, phase, msg):
+    cmd = ['echo', j, ]
 
 def get_stack2yaml(stacks, base):
     names = os.listdir(base)
