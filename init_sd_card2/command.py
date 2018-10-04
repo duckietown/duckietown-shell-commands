@@ -101,14 +101,7 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card2 --steps expand    
-        
-
-In particular you can only update the containers using:
-
-
-    dts init_sd_card2 --steps mount,setup,unmount    
-        
+    dts init_sd_card2 --steps expand,mount    
         
         
         
@@ -416,6 +409,7 @@ def configure_images(parsed, user_data, add_file_local):
     stacks_not_to_run = [_ for _ in stacks_to_load if _ not in stacks_to_run]
 
     order = stacks_to_run + stacks_not_to_run
+
 
     for cf in order:
 
