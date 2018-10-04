@@ -140,12 +140,15 @@ def step_mount(shell, parsed):
         cmd = ['udisksctl', 'mount', '-b', DISK_ROOT]
         _run_cmd(cmd)
 
-
-def step_unmount(shell, parsed):
+def sync_data():
     dtslogger.info('Now calling sync() - actually writing data to disk.')
     cmd = ['sync']
     _run_cmd(cmd)
 
+
+
+def step_unmount(shell, parsed):
+    sync_data()
     cmd = ['udisksctl', 'unmount', '-b', DISK_HYPRIOTOS]
     _run_cmd(cmd)
     cmd = ['udisksctl', 'unmount', '-b', DISK_ROOT]
@@ -363,6 +366,7 @@ def configure_images(parsed, user_data, add_file_local):
         dtslogger.info('OK, copying, and loading it on first boot.')
         cmd = ['sudo', 'cp', tgz, destination]
         _run_cmd(cmd)
+        sync_data()
 
         p = os.path.join('/', rpath)
         log_current_phase(user_data, PHASE_LOADING, "Loading container %s" % p)
