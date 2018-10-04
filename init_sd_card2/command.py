@@ -692,7 +692,13 @@ def save_images(stack2yaml):
     stack2info = {}
 
     for cf, config in stack2yaml.items():
-        destination = os.path.join(cache_dir, cf + '.tar.gz')
+
+        compress = False
+
+        if compress:
+            destination = os.path.join(cache_dir, cf + '.tar.gz')
+        else:
+            destination = os.path.join(cache_dir, cf + '.tar')
 
         if os.path.exists(destination):
             msg = 'Using cached file %s' % destination
@@ -713,11 +719,14 @@ def save_images(stack2yaml):
         dtslogger.info('Saving to %s' % destination0)
         cmd = ['docker', 'save', '-o', destination0] + list(image_name2id.values())
         _run_cmd(cmd)
-        cmd = ['gzip', '-f', destination0]
-        _run_cmd(cmd)
+        if compress:
+            cmd = ['gzip', '-f', destination0]
+            _run_cmd(cmd)
 
-        assert not os.path.exists(destination0)
-        assert os.path.exists(destination)
+            assert not os.path.exists(destination0)
+            assert os.path.exists(destination)
+        else:
+            assert destination == destination0
 
         msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
         dtslogger.info(msg)
