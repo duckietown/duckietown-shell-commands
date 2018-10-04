@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+import datetime
 import getpass
 import json
 import logging
@@ -270,6 +271,11 @@ def step_setup(shell, parsed):
     add_file_local(path=os.path.join(user_home_path, '.ssh/authorized_keys'),
                    local=ssh_key_pub)
 
+    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    dtslogger.debug(cmd)
+    user_data['runcmd'].append(cmd)
+
+
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
     # DT shell config
@@ -281,9 +287,13 @@ def step_setup(shell, parsed):
     configure_networks(parsed, add_file)
     configure_images(parsed, user_data, add_file_local)
 
+    user_data['runcmd'].append('cat /sys/class/net/eth0/address > /data/eth0-mac')
+    user_data['runcmd'].append('cat /sys/class/net/wlan0/address > /data/wlan0-mac')
+
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
     validate_user_data(user_data_yaml)
+
     write_to_hypriot('user-data', user_data_yaml)
 
     write_to_hypriot('config_txt', '''
@@ -646,7 +656,7 @@ def interpret_wifi_string(s):
 def download_images(preload_images):
     image2tmpfilename = OrderedDict()
     cache_dir = DOCKER_IMAGES_CACHE_DIR
-    
+
     for name, image_name in preload_images.items():
 
         if not os.path.exists(cache_dir):

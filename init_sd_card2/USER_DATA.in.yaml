@@ -58,12 +58,10 @@ bootcmd:
 runcmd:
   # Create /data directory for storing Duckiebot-local configuration files
   - 'mkdir /data && chown 1000:1000 /data'
-  - 'mkdir /data/stats'
+  - 'mkdir /data/stats && chown 1000:1000 /data/stats'
   # save HW information
 #  - ['/bin/bash', '-c', 'ifconfig wlan0 > /data/stats/ifconfig-wlan0.txt']
 #  - ['/bin/bash', '-c', 'ifconfig eth0 > /data/stats/ifconfig-eth0.txt']
-  - 'cat /sys/class/net/eth0/address > /data/stats/eth0-mac'
-  - 'cat /sys/class/net/wlan0/address > /data/stats/wlan0-mac'
   # Copy all the hardware information (e.g. serial number) to /data/proc
   - 'mkdir /data/proc && cp /proc/*info /data/proc'
   #   - [ modprobe, i2c-bcm2708 ]
