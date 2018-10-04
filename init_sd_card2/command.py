@@ -377,7 +377,7 @@ def configure_images(parsed, user_data, add_file_local):
 
         dtslogger.info('OK, copying, and loading it on first boot.')
         if os.path.exists(destination):
-            msg = 'Skipping copying image that already exist.'
+            msg = 'Skipping copying image that already exist at %s.' % destination
             dtslogger.info(msg)
         else:
             if which('rsync'):
@@ -416,11 +416,14 @@ def configure_images(parsed, user_data, add_file_local):
     import docker
     client = docker.from_env()
 
-    for cf in stacks_to_run:
-        missing_services = any_missing_service(cf)
+    stacks_not_to_run = [_ for _ in stacks_to_load if _ not in stacks_to_run]
+
+    order = stacks_to_run + stacks_not_to_run
+
+    for cf in order:
 
         for service in stack2yaml[cf]['services']:
-            if service not in missing_services:
+            if service in services_written:
                 log_current_phase(user_data, PHASE_LOADING,
                                   "Stack %s: Loading container for service %s" % (cf, service))
 
@@ -434,6 +437,7 @@ def configure_images(parsed, user_data, add_file_local):
                 # print(cmd)
                 add_run_cmd(user_data, cmd)
 
+        missing_services = any_missing_service(cf)
         if missing_services:
             msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing_services)
             dtslogger.error(msg)
@@ -447,6 +451,7 @@ def configure_images(parsed, user_data, add_file_local):
             # XXX
             cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
             user_data['bootcmd'].append(cmd)  # every boot
+            
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
