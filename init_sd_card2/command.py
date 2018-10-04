@@ -372,6 +372,7 @@ def configure_images(parsed, user_data, add_file_local):
     buffer_bytes = 100 * 1024 * 1024
     stacks_written = []
     stack2archive_rpath = {}
+    dtslogger.debug(stack2info)
 
     for stack, stack_info in stack2info.items():
         tgz = stack_info.archive
@@ -403,11 +404,11 @@ def configure_images(parsed, user_data, add_file_local):
         stack2archive_rpath[stack] = os.path.join('/', rpath)
 
         stacks_written.append(stack)
-
-    for cf in stacks_to_load:
-        if not cf in stacks_written:
-            msg = 'I could not completely load the stack %r.' % cf
-            dtslogger.error(msg)
+    #
+    # for cf in stacks_to_load:
+    #     if not cf in stacks_written:
+    #         msg = 'I could not completely load the stack %r.' % cf
+    #         dtslogger.error(msg)
 
     import docker
     client = docker.from_env()
