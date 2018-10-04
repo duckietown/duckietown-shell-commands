@@ -28,6 +28,7 @@ DISK_ROOT = '/dev/disk/by-label/root'
 DUCKIETOWN_TMP = '/tmp/duckietown'
 DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 
+PHASE_LOADING = 'loading'
 
 class InvalidUserInput(Exception):
     pass
@@ -362,8 +363,9 @@ def configure_images(parsed, user_data, add_file_local):
         _run_cmd(cmd)
 
         p = os.path.join('/', rpath)
+        log_current_phase(user_data, PHASE_LOADING, "Loading container %s" p)
         user_data['runcmd'].append(['docker', 'load', '--input', p])
-        user_data['runcmd'].append(['rm', p])
+        # user_data['runcmd'].append(['rm', p])
 
         written.append(image_name)
 
@@ -679,7 +681,10 @@ def download_images(preload_images):
 
 
 def log_current_phase(user_data, phase, msg):
-    cmd = ['echo', j, ]
+    j = json.dumps(dict(phase=phase, msg=msg))
+    # cmd = ['bash', '-c', "echo '%s' > /data/phase.json" % j]
+    cmd = 'echo %s > /data/phase.json' % j
+    user_data['runcmd'].append(cmd)
 
 
 def get_stack2yaml(stacks, base):

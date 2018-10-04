@@ -48,41 +48,52 @@ write_files:
       [Install]
       WantedBy=sockets.target
     path: /etc/systemd/system/docker-tcp.socket
+  - path: /etc/dphys-swapfile
+    content: |
+      CONF_SWAPSIZE=2048
+
+# where we want the swapfile to be, this is the default
+#CONF_SWAPFILE=/var/swap
+
+# set size to absolute value, leaving empty (default) then uses computed value
+#   you most likely don't want this, unless you have an special disk situation
+#CONF_SWAPSIZE=
+
+# set size to computed value, this times RAM size, dynamically adapts,
+#   guarantees that there is enough swap without wasting disk space on excess
+#CONF_SWAPFACTOR=2
+
+# restrict size (computed and absolute!) to maximally this limit
+#   can be set to empty for no limit, but beware of filled partitions!
+#   this is/was a (outdated?) 32bit kernel limit (in MBytes), do not overrun it
+#   but is also sensible on 64bit to prevent filling /var or even / partition
+#CONF_MAXSWAP=2048
 
 
 # These commands will be run once on first boot only
 runcmd:
-  - 'systemctl restart avahi-daemon'
-# Create /data directory for storing Duckiebot-local configuration files
+  # Create /data directory for storing Duckiebot-local configuration files
   - 'mkdir /data && chown 1000:1000 /data'
-# Change the date to use the date of the flashing machine
-
-  # TODO: fix this
-  # - 'date -s "$(date "+%Y-%m-%d %H:%M:%S")"'
-
-
-# Copy all the hardware information (e.g. serial number) to /data/proc
+  - 'mkdir /data/stats'
+  # save HW information
+  - ['/bin/bash', '-c', 'ifconfig wlan0 > /data/stats/ifconfig-wlan0.txt']
+  - ['/bin/bash', '-c', 'ifconfig eth0 > /data/stats/ifconfig-eth0.txt']
+  - 'cat /sys/class/net/eth0/address > /data/stats/eth0-mac']
+  - 'cat /sys/class/net/wlan0/address > /data/stats/wlan0-mac']
+  # Copy all the hardware information (e.g. serial number) to /data/proc
   - 'mkdir /data/proc && cp /proc/*info /data/proc'
 
 #   - [ modprobe, i2c-bcm2708 ]
 #   - [ modprobe, i2c-dev ]
+  - 'systemctl restart avahi-daemon'
   - [ systemctl, stop, docker ]
   - [ systemctl, daemon-reload ]
   - [ systemctl, enable, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker-tcp.socket ]
   - [ systemctl, start, --no-block, docker ]
 
-# Disabled pre-loading duckietown/software due to insuffient space on /var/local
-# https://github.com/hypriot/image-builder-rpi/issues/244#issuecomment-390512469
-#  - [ docker, load, "--input", "/var/local/software.tar.gz"]
-
-# Portainer Web UI
-  - [ docker, load, --input, "/var/local/portainer.tar.gz" ]
-# Watchtower live updates
-  - [ docker, load, --input, "/var/local/watchtower.tar.gz" ]
-# Lightweight Python image / Simple HTTP Server
-  - [ docker, load, --input, "/var/local/raspberrypi3-alpine-python.tar.gz" ]
 
 # These commands will be run on every boot
 bootcmd:
   - [iwconfig, wlan0, power, off]
+
