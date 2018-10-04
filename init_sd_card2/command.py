@@ -59,7 +59,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
 
-        parser.add_argument('--reset-cache', dest = 'reset_cache', default=False, action='store_true', help='Deletes the cached images')
+        parser.add_argument('--reset-cache', dest='reset_cache', default=False, action='store_true',
+                            help='Deletes the cached images')
+
+        parser.add_argument('--compress', dest='compress', default=False, action='store_true',
+                            help='Compress the images - use if you have a 16GB SD card')
 
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
@@ -411,7 +415,6 @@ def configure_images(parsed, user_data, add_file_local):
 
     order = stacks_to_run + stacks_not_to_run
 
-
     for cf in order:
 
         if cf in stacks_written:
@@ -758,6 +761,8 @@ def get_stack2yaml(stacks, base):
 
         stacks2yaml[sn] = yaml.load(open(lpath).read())
     return stacks2yaml
+
+
 #
 #
 # def get_mentioned_images(stacks2yaml):
