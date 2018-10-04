@@ -381,10 +381,11 @@ def configure_images(parsed, user_data, add_file_local):
         rpath = os.path.join('var', 'local', os.path.basename(tgz))
         destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
         available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
+        dtslogger.info('available %s' % friendly_size(available) )
         if available < size + buffer_bytes:
             msg = 'You have %s available on %s but need %s for %s' % (
                 friendly_size(available), TMP_ROOT_MOUNTPOINT, friendly_size_file(tgz), tgz)
-            dtslogger.warning(msg)
+            dtslogger.info(msg)
             continue
 
         dtslogger.info('OK, copying, and loading it on first boot.')
