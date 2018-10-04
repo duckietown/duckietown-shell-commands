@@ -86,7 +86,7 @@ class DTCommand(DTCommandAbs):
 
 def step_mount(shell, parsed):
     def refresh():
-        cmd = 'sudo udevadm trigger'
+        cmd = ['sudo','udevadm','trigger']
         _run_cmd(cmd)
         time.sleep(4)
 
@@ -160,9 +160,9 @@ def step_expand(shell, parsed):
         msg = 'Found device %s.' % DEV
         dtslogger.info(msg)
 
-    cmd = 'sudo parted -s /dev/mmcblk0 resizepart 2 "100%"'
+    cmd = ['sudo', 'parted', '-s', DEV, 'resizepart', '2', '100%']
     _run_cmd(cmd)
-    cmd = 'sudo resize2fs /dev/mmcblk0p2'
+    cmd = ['sudo','resize2fs','/dev/mmcblk0p2']
     _run_cmd(cmd)
 
 
