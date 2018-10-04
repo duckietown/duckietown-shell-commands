@@ -59,6 +59,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
 
+        parser.add_argument('--reset-cache', dest = 'reset_cache', default=False, action='store_true', help='Deletes the cached images')
+
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
@@ -71,6 +73,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--ethz-password', default=None)
 
         parsed = parser.parse_args(args=args)
+
+        if parsed.reset_cache:
+            dtslogger.info('Removing cache')
+            if os.path.exists(DUCKIETOWN_TMP):
+                shutil.rmtree(DUCKIETOWN_TMP)
 
         msg = """
         
@@ -236,7 +243,7 @@ def step_setup(shell, parsed):
     if not os.path.exists(DUCKIETOWN_TMP):
         os.makedirs(DUCKIETOWN_TMP)
 
-    check_has_space(where=DUCKIETOWN_TMP, min_available_gb=5.0)
+    # check_has_space(where=DUCKIETOWN_TMP, min_available_gb=20.0)
 
     try:
         check_valid_hostname(parsed.hostname)
@@ -689,6 +696,12 @@ def save_images(stack2yaml):
     for cf, config in stack2yaml.items():
         destination = os.path.join(cache_dir, cf + '.tar.gz')
 
+        if os.path.exists(destination):
+            msg = 'Using cached file %s' % destination
+            dtslogger.info(msg)
+            continue
+
+        destination0 = os.path.join(cache_dir, cf + '.tar')
         image_name2id = {}
         for service, service_config in config['services'].items():
             image_name = service_config['image']
@@ -699,20 +712,14 @@ def save_images(stack2yaml):
             image_id = str(image.id)
             image_name2id[image_name] = image_id
 
-        destination0 = destination + '.tmp'
         dtslogger.info('Saving to %s' % destination0)
         cmd = ['docker', 'save', '-o', destination0] + list(image_name2id.values())
         _run_cmd(cmd)
-        destination1 = destination + '.tmp2'
-        dtslogger.info('Compressing tar of size %s' % friendly_size_file(destination0))
-        cmd = 'gzip -c "%s" > "%s"' % (destination0, destination1)
-        ret = os.system(cmd)
-        if ret:
-            msg = 'Command %r failed with retcode %s' % (cmd, ret)
-            raise Exception(msg)
+        cmd = ['gzip', '-f', destination0]
+        _run_cmd(cmd)
 
-        os.unlink(destination0)
-        os.rename(destination1, destination)
+        assert not os.path.exists(destination0)
+        assert os.path.exists(destination)
 
         msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
         dtslogger.info(msg)
