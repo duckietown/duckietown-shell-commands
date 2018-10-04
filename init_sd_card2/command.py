@@ -233,7 +233,7 @@ def step_setup(shell, parsed):
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
     validate_user_data(user_data_yaml)
-    write_to_root('/user-data', user_data_yaml)
+    write_to_root('user-data', user_data_yaml)
 
     write_to_hypriot('config_txt', '''
 hdmi_force_hotplug=1
@@ -251,7 +251,7 @@ dtparam=i2c1=on
 dtparam=i2c_arm=on
 
             ''')
-
+    dtslogger.info('setup step concluded')
 
 def configure_images(parsed, user_data, add_file_local):
     # read and validate duckiebot-compose
@@ -463,16 +463,16 @@ def write_to_root(rpath, contents):
         raise Exception(msg)
     # for some reason it is mounted as root
 
-    x = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
-    d = os.path.dirname(x)
+    dest = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
+    d = os.path.dirname(dest)
     if not os.path.exists(d):
-        os.makedirs(d)
+        # os.makedirs(d)
         cmd = ['sudo', 'mkdirs', d]
         _run_cmd(cmd)
     t = tempfile.mktemp()
     with open(t, 'w') as f:
         f.write(contents)
-    cmd = ['sudo', 'cp', t, x]
+    cmd = ['sudo', 'cp', t, dest]
     _run_cmd(cmd)
 
 
