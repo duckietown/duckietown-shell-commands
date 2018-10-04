@@ -1,0 +1,8 @@
+version: '3'
+services:
+
+  rpi-duckiebot-base:
+    image: duckietown/rpi-duckiebot-base:master18
+    network_mode: "host"
+    volumes:
+    - "/data:/data"
