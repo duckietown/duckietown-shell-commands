@@ -32,6 +32,7 @@ DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
+
 class InvalidUserInput(Exception):
     pass
 
@@ -275,7 +276,6 @@ def step_setup(shell, parsed):
     dtslogger.debug(cmd)
     user_data['runcmd'].append(cmd)
 
-
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
     # DT shell config
@@ -414,15 +414,17 @@ def configure_images(parsed, user_data, add_file_local):
 
         for service in stack2yaml[cf]['services']:
             if service not in missing_services:
-                log_current_phase(user_data, PHASE_LOADING, "Stack %s: Loading container for service %s" % (cf, service))
+                log_current_phase(user_data, PHASE_LOADING,
+                                  "Stack %s: Loading container for service %s" % (cf, service))
 
                 cmd = ['docker', 'load', '--input', service2rtpath[service]]
                 add_run_cmd(user_data, cmd)
 
                 image = client.images.get(service2image[service])
-                dtslogger.info('id for %s: %s' % (service2image[service], image.id))
-                cmd = ['docker', 'tag', image.id, service2image[service]]
-                print(cmd)
+                image_id = str(image.id)
+                dtslogger.info('id for %s: %s' % (service2image[service], image_id))
+                cmd = ['docker', 'tag', image_id, service2image[service]]
+                # print(cmd)
                 add_run_cmd(user_data, cmd)
 
         if missing_services:
@@ -436,7 +438,7 @@ def configure_images(parsed, user_data, add_file_local):
             cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
             add_run_cmd(user_data, cmd)
             # XXX
-            cmd = ['docker-compose','-p', cf,  '--file', '/var/local/%s.yaml' % cf,  'up', '-d']
+            cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
             user_data['bootcmd'].append(cmd)  # every boot
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
@@ -613,29 +615,30 @@ def check_valid_hostname(hostname):
 
 Wifi = namedtuple('Wifi', 'ssid password name')
 
-import tempfile
 
-
-def write_to_root(rpath, contents):
-    if not os.path.exists(TMP_ROOT_MOUNTPOINT):
-        msg = 'Disk not mounted: %s' % TMP_ROOT_MOUNTPOINT
-        raise Exception(msg)
-    # for some reason it is mounted as root
-
-    dest = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
-    d = os.path.dirname(dest)
-    if not os.path.exists(d):
-        # os.makedirs(d)
-        cmd = ['sudo', 'mkdirs', d]
-        _run_cmd(cmd)
-    t = tempfile.mktemp()
-    with open(t, 'w') as f:
-        f.write(contents)
-
-    cmd = ['sudo', 'cp', t, dest]
-    _run_cmd(cmd)
-    dtslogger.info('Written to %s' % dest)
-    os.unlink(t)
+# import tempfile
+#
+#
+# def write_to_root(rpath, contents):
+#     if not os.path.exists(TMP_ROOT_MOUNTPOINT):
+#         msg = 'Disk not mounted: %s' % TMP_ROOT_MOUNTPOINT
+#         raise Exception(msg)
+#     # for some reason it is mounted as root
+#
+#     dest = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
+#     d = os.path.dirname(dest)
+#     if not os.path.exists(d):
+#         # os.makedirs(d)
+#         cmd = ['sudo', 'mkdirs', d]
+#         _run_cmd(cmd)
+#     t = tempfile.mktemp()
+#     with open(t, 'w') as f:
+#         f.write(contents)
+#
+#     cmd = ['sudo', 'cp', t, dest]
+#     _run_cmd(cmd)
+#     dtslogger.info('Written to %s' % dest)
+#     os.unlink(t)
 
 
 def write_to_hypriot(rpath, contents):
