@@ -352,16 +352,17 @@ def configure_images(parsed, user_data, add_file_local):
         add_file_local(path=rpath, local=lpath)
 
     stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
-    preload_images = get_mentioned_images(stack2yaml)
+    # service name 2 tag
+    service2image = get_mentioned_images(stack2yaml)
 
-    image2tgz = download_images(preload_images)
-    # dtslogger.info("loading %s" % image2tgz)
+    service2tgz = download_images(service2image)
+    dtslogger.info("loading %s" % service2tgz)
 
     buffer_bytes = 100 * 1024 * 1024
-    written = []
+    services_written = []
     # write images until we have space
-    image_name2path = {}
-    for image_name, tgz in image2tgz.items():
+    service2rtpath = {}
+    for service, tgz in service2tgz.items():
         size = os.stat(tgz).st_size
         dtslogger.info('Considering copying %s of size %s' % (tgz, friendly_size_file(tgz)))
 
@@ -379,16 +380,16 @@ def configure_images(parsed, user_data, add_file_local):
         _run_cmd(cmd)
         sync_data()
 
-        image_name2path[image_name] = os.path.join('/', rpath)
+        service2rtpath[service] = os.path.join('/', rpath)
         # user_data['runcmd'].append(['rm', p])
 
-        written.append(image_name)
+        services_written.append(service)
 
-    def any_missing(cf):
+    def any_missing_service(cf):
         needed = stack2yaml[cf]['services']
         missing = []
         for x in needed:
-            if x in written:
+            if x in services_written:
                 # msg = 'For stack %r: container %r could be written.' % (cf, x)
                 # dtslogger.info(msg)
                 pass
@@ -400,21 +401,32 @@ def configure_images(parsed, user_data, add_file_local):
         return missing
 
     for cf in stacks_to_load:
-        missing = any_missing(cf)
-        if missing:
-            msg = 'I could not completely load the stack %r because these did not fit: %s' % (cf, missing)
+        missing_services = any_missing_service(cf)
+        if missing_services:
+            msg = 'I could not completely load the stack %r because these did not fit: %s' % (cf, missing_services)
             dtslogger.error(msg)
 
+    import docker
+    client = docker.from_env()
+
     for cf in stacks_to_run:
-        missing = any_missing(cf)
+        missing_services = any_missing_service(cf)
 
-        for needed in stack2yaml[cf]['services']:
-            if needed not in missing:
-                log_current_phase(user_data, PHASE_LOADING, "Stack %s: Loading container %s" % (cf, needed))
-                user_data['runcmd'].append(['docker', 'load', '--input', image_name2path[needed]])
+        for service in stack2yaml[cf]['services']:
+            if service not in missing_services:
+                log_current_phase(user_data, PHASE_LOADING, "Stack %s: Loading container for service %s" % (cf, service))
 
-        if missing:
-            msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing)
+                cmd = ['docker', 'load', '--input', service2rtpath[service]]
+                add_run_cmd(user_data, cmd)
+
+                image = client.images.get(service2image[service])
+                dtslogger.info('id for %s: %s' % (service2image[service], image.id))
+                cmd = ['docker', 'tag', image.id, service2image[service]]
+                print(cmd)
+                add_run_cmd(user_data, cmd)
+
+        if missing_services:
+            msg = 'I am skipping activating the stack %r because I could not copy %r' % (cf, missing_services)
             dtslogger.error(msg)
         else:
             msg = 'Adding the stack %r as default running' % cf
@@ -422,8 +434,9 @@ def configure_images(parsed, user_data, add_file_local):
 
             log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
             cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
-
-            user_data['runcmd'].append(cmd)  # first boot
+            add_run_cmd(user_data, cmd)
+            # XXX
+            cmd = ['docker-compose','-p', cf,  '--file', '/var/local/%s.yaml' % cf,  'up', '-d']
             user_data['bootcmd'].append(cmd)  # every boot
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
@@ -654,7 +667,7 @@ def interpret_wifi_string(s):
 
 
 def download_images(preload_images):
-    image2tmpfilename = OrderedDict()
+    service2tmpfilename = OrderedDict()
     cache_dir = DOCKER_IMAGES_CACHE_DIR
 
     for name, image_name in preload_images.items():
@@ -662,7 +675,7 @@ def download_images(preload_images):
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
         destination = os.path.join(cache_dir, name + '.tar.gz')
-        image2tmpfilename[name] = destination
+        service2tmpfilename[name] = destination
 
         if os.path.exists(destination):
             dtslogger.info('Already know %s of size %s' % (destination, friendly_size_file(destination)))
@@ -673,7 +686,7 @@ def download_images(preload_images):
             cmd = ['docker', 'pull', image_name]
             _run_cmd(cmd)
             # image = client.images.pull(repository=repo, tag=tag)
-            # image = client.imageages.get(image_name)
+
             #
             destination0 = destination + '.tmp'
             dtslogger.info('Saving to %s' % destination0)
@@ -699,7 +712,7 @@ def download_images(preload_images):
             msg = 'Saved archive %s of size %s' % (destination, friendly_size_file(destination))
             dtslogger.info(msg)
 
-    return image2tmpfilename
+    return service2tmpfilename
 
 
 def log_current_phase(user_data, phase, msg):
@@ -707,6 +720,14 @@ def log_current_phase(user_data, phase, msg):
     # cmd = ['bash', '-c', "echo '%s' > /data/phase.json" % j]
     cmd = 'echo %s > /data/phase.json' % j
     user_data['runcmd'].append(cmd)
+
+
+def add_run_cmd(user_data, cmd):
+    cmd_pre = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
+    cmd_post = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
+    user_data['runcmd'].append(cmd_pre)
+    user_data['runcmd'].append(cmd)
+    user_data['runcmd'].append(cmd_post)
 
 
 def get_stack2yaml(stacks, base):
