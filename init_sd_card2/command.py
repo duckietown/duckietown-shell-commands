@@ -47,7 +47,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-password', default='quackquack')
 
         parser.add_argument('--stacks-load', dest="stacks_to_load",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_05_duckiebot_base",
                             help="which stacks to load")
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")

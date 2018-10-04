@@ -50,15 +50,15 @@ WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/downlo
 
 
 
-
-declare -A PRELOADED_DOCKER_IMAGES=( \
-    ["portainer"]="portainer/portainer:linux-arm" \
-    ["watchtower"]="v2tec/watchtower:armhf-latest" \
-    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
-# unfortunately we don't have space on the 1GB partition
-#    ["rpi-health"]="duckietown/rpi-health:master18" \
-#    ["simple-server"]="duckietown/rpi-simple-server:master18"
-)
+#
+#declare -A PRELOADED_DOCKER_IMAGES=( \
+#    ["portainer"]="portainer/portainer:linux-arm" \
+#    ["watchtower"]="v2tec/watchtower:armhf-latest" \
+#    ["raspberrypi3-alpine-python"]="resin/raspberrypi3-alpine-python:slim"
+## unfortunately we don't have space on the 1GB partition
+##    ["rpi-health"]="duckietown/rpi-health:master18" \
+##    ["simple-server"]="duckietown/rpi-simple-server:master18"
+#)
 #
 #
 #
