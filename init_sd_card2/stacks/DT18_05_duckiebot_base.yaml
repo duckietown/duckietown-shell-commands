@@ -1,6 +1,12 @@
 version: '3'
 services:
 
+  kinetic-ros-base-xenial:
+    image: arm32v7/ros:kinetic-ros-base-xenial
+  rpi-ros-kinetic-base:
+    image: duckietown/rpi-ros-kinetic-base:master18
+  rpi-ros-kinetic-roscore:
+    image: duckietown/rpi-ros-kinetic-roscore:master18
   rpi-duckiebot-base:
     image: duckietown/rpi-duckiebot-base:master18
   rpi-duckiebot-joystick-demo:
@@ -20,10 +26,13 @@ services:
 # 1) you might want to prune all images
 
 #2) Run
-# alias dockviz="docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock fabianlee/dockviz
-# dockviz images -d -s | dot -Tpdf -o images.pdf
+# alias dockviz="docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock fabianlee/dockviz"
 
-# dockviz images -d -s duckietown/rpi-duckiebot-base:master18  duckietown/rpi-duckiebot-calibration:master18  duckietown/rpi-duckiebot-joystick-demo:master18 duckietown/rpi-duckiebot-keyboard-demo:master18 duckietown/rpi-duckiebot-lanefollowing-demo:master18 duckietown/rpi-duckiebot-ros-picam:master18 duckietown/rpi-duckiebot-camera-node:master18 duckietown/rpi-duckiebot-web_video_server:master18 | dot -Tpdf -o images.pdf
+# dockviz images -t -l
+
+# dockviz images -d -s | dot -Tpdf -o images.pdf
+# images=duckietown/rpi-duckiebot-base:master18  duckietown/rpi-duckiebot-joystick-demo:master18 duckietown/rpi-duckiebot-lanefollowing-demo:master18 duckietown/rpi-duckiebot-ros-picam:master18 duckietown/rpi-duckiebot-camera-node:master18 duckietown/rpi-duckiebot-web_video_server:master18 duckietown/rpi-ros-kinetic-roscore:master18 duckietown/rpi-ros-kinetic-base:master18 arm32v7/ros:kinetic-ros-base-xenial
+# dockviz images -d duckietown/rpi-duckiebot-base:master18  duckietown/rpi-duckiebot-joystick-demo:master18 duckietown/rpi-duckiebot-lanefollowing-demo:master18 duckietown/rpi-duckiebot-ros-picam:master18 duckietown/rpi-duckiebot-camera-node:master18 duckietown/rpi-duckiebot-web_video_server:master18 duckietown/rpi-ros-kinetic-roscore:master18 duckietown/rpi-ros-kinetic-base:master18 arm32v7/ros:kinetic-ros-base-xenial | dot -Tpdf -o images.pdf
 
 
 #  rpi-duckiebot-calibration:

@@ -66,6 +66,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--compress', dest='compress', default=False, action='store_true',
                             help='Compress the images - use if you have a 16GB SD card')
 
+        parser.add_argument('--swap', default=False, action='store_true',
+                            help='Create swap space')
         parser.add_argument('--country', default="US",
                             help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument('--wifi', dest="wifi", default='duckietown:quackquack',
@@ -292,7 +294,25 @@ def step_setup(shell, parsed):
 
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
+    if parsed.swap:
+        add_run_cmd(user_data, 'dd if=/dev/zero of=/swap0 bs=1M count=1024')
+        add_run_cmd(user_data, 'mkswap /swap0')
+        add_run_cmd(user_data, 'echo "/swap0 swap swap" >> /etc/fstab')
+        add_run_cmd(user_data, 'chmod 0600 /swap0')
+        add_run_cmd(user_data, 'swapon -a')
+
+    add_run_cmd(user_data, 'raspi-config nonint do_camera 1')
+    add_run_cmd(user_data, 'raspi-config nonint do_i2c 1')
+# raspi-config nonint do_wifi_country %s"
+
+    # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
+# sudo
+    # sudo mkswap /swap0
+    # sudo echo "/swap0 swap swap" >> /etc/fstab
+    # sudo chmod 0600 /swap0
+    # sudo swapon -a
     # DT shell config
+
     dtshell_config = dict(token_dt1=token)
     add_file(path=os.path.join(user_home_path, '.dt-shell/config'),
              content=json.dumps(dtshell_config))

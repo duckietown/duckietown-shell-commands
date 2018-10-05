@@ -2,10 +2,8 @@ import argparse
 import os
 
 import yaml
-
 from dt_shell import DTCommandAbs
 from dt_shell.remote import dtserver_challenge_define
-
 
 
 class DTCommand(DTCommandAbs):
@@ -23,6 +21,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('--config', required=True,
                             help="YAML configuration file")
+        parser.add_argument('--make-sha', dest='make_sha', default=False, action='store_true')
         parsed = parser.parse_args(args)
 
         fn = os.path.join(parsed.config)
@@ -36,8 +35,9 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
-        for step in challenge.steps.values():
-            step.update_container()
+        if parsed.make_sha:
+            for step in challenge.steps.values():
+                step.update_container()
 
         data2 = yaml.dump(challenge.as_dict())
 
