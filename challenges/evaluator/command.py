@@ -65,6 +65,7 @@ class DTCommand(DTCommandAbs):
 
 import sys
 
+
 def ensure_watchtower_active(client):
     containers = client.containers.list(filters=dict(status='running'))
     watchtower_tag = 'v2tec/watchtower'

@@ -36,6 +36,9 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
+        for step in challenge.steps.values():
+            step.update_container()
+
         data2 = yaml.dump(challenge.as_dict())
 
         challenge_id = dtserver_challenge_define(token, data2)
