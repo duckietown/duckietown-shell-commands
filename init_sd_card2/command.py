@@ -300,6 +300,9 @@ def step_setup(shell, parsed):
         add_run_cmd(user_data, 'chmod 0600 /swap0')
         add_run_cmd(user_data, 'swapon -a')
 
+    add_run_cmd(user_data, 'raspi-config nonint do_camera 1')
+    add_run_cmd(user_data, 'raspi-config nonint do_i2c 1')
+    
 # sudo
     # sudo mkswap /swap0
     # sudo echo "/swap0 swap swap" >> /etc/fstab
