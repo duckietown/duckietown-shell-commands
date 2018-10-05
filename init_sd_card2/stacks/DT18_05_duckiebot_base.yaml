@@ -1,6 +1,8 @@
 version: '3'
 services:
 
+  rpi-ros-kinetic-roscore:
+    image: duckietown/rpi-ros-kinetic-roscore:master18
   rpi-duckiebot-base:
     image: duckietown/rpi-duckiebot-base:master18
   rpi-duckiebot-joystick-demo:
