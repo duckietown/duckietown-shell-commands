@@ -16,9 +16,10 @@ from collections import namedtuple, OrderedDict
 from os.path import join
 
 import yaml
+from whichcraft import which
+
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
-from whichcraft import which
 
 USER = getpass.getuser()
 TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
@@ -294,7 +295,6 @@ def step_setup(shell, parsed):
 
     user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
 
-
     add_run_cmd(user_data, 'dd if=/dev/zero of=/swap0 bs=1M count=1024')
     add_run_cmd(user_data, 'mkswap /swap0')
     add_run_cmd(user_data, 'echo "/swap0 swap swap" >> /etc/fstab')
@@ -303,10 +303,10 @@ def step_setup(shell, parsed):
 
     add_run_cmd(user_data, 'raspi-config nonint do_camera 1')
     add_run_cmd(user_data, 'raspi-config nonint do_i2c 1')
-# raspi-config nonint do_wifi_country %s"
+    # raspi-config nonint do_wifi_country %s"
 
     # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
-# sudo
+    # sudo
     # sudo mkswap /swap0
     # sudo echo "/swap0 swap swap" >> /etc/fstab
     # sudo chmod 0600 /swap0
@@ -446,12 +446,14 @@ def configure_images(parsed, user_data, add_file_local):
         if cf in stacks_written:
 
             log_current_phase(user_data, PHASE_LOADING,
-                              "Stack %s: Loading containers" % (cf))
+                              "Stack %s: Loading containers" % cf)
 
-            cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
+            cmd = 'docker load --input %s && rm %s' % (stack2archive_rpath[cf], stack2archive_rpath[cf])
             add_run_cmd(user_data, cmd)
-            cmd = ['rm', stack2archive_rpath[cf]]
-            add_run_cmd(user_data, cmd)
+            # cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
+            # add_run_cmd(user_data, cmd)
+            # cmd = ['rm', stack2archive_rpath[cf]]
+            # add_run_cmd(user_data, cmd)
 
             for image_name, image_id in stack2info[cf].image_name2id.items():
                 image = client.images.get(image_name)
