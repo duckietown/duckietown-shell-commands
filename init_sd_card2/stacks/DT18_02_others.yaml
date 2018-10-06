@@ -1,0 +1,7 @@
+version: '3'
+services:
+
+    rpi-docker-python-picamera:
+        image: duckietown/rpi-docker-python-picamera:master18
+        network_mode: host
+
