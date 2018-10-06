@@ -3,7 +3,7 @@ services:
 
   http-server:
     image: duckietown/rpi-simple-server:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     volumes:
     - "/data:/data"
@@ -11,7 +11,7 @@ services:
 
   rpi-health:
     image: duckietown/rpi-health:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     devices:
     - "/dev/vchiq:/dev/vchiq"
