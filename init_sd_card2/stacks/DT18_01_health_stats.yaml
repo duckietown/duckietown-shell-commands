@@ -3,7 +3,7 @@ services:
 
   rpi-simple-server:
     image: duckietown/rpi-simple-server:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     volumes:
     - "/data:/data"
@@ -11,14 +11,14 @@ services:
 
   rpi-health:
     image: duckietown/rpi-health:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     devices:
     - "/dev/vchiq:/dev/vchiq"
 
   rpi-duckiebot-online:
     image: duckietown/rpi-duckiebot-online:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     volumes:
     - "/data:/data"
@@ -27,7 +27,7 @@ services:
 
   rpi-duckiebot-loader:
     image: duckietown/rpi-duckiebot-loader:master18
-    restart: unless-stopped
+    restart: always
     network_mode: "host"
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
