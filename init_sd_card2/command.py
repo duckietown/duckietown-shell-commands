@@ -56,7 +56,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-password', default='quackquack')
 
         parser.add_argument('--stacks-load', dest="stacks_to_load",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_05_duckiebot_base",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_05_duckiebot_base",
                             help="which stacks to load")
         parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
                             help="which stacks to RUN by default")
@@ -316,6 +316,8 @@ def step_setup(shell, parsed):
     dtshell_config = dict(token_dt1=token)
     add_file(path=os.path.join(user_home_path, '.dt-shell/config'),
              content=json.dumps(dtshell_config))
+    add_file(path=os.path.join('/secrets/tokens/dt1'),
+             content=token)
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
@@ -323,7 +325,7 @@ def step_setup(shell, parsed):
     user_data['runcmd'].append('cat /sys/class/net/eth0/address > /data/eth0-mac')
     user_data['runcmd'].append('cat /sys/class/net/wlan0/address > /data/wlan0-mac')
 
-    configure_images(parsed, user_data, add_file_local)
+    configure_images(parsed, user_data, add_file_local, add_file)
 
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
@@ -360,7 +362,7 @@ def friendly_size_file(fn):
     return friendly_size(s)
 
 
-def configure_images(parsed, user_data, add_file_local):
+def configure_images(parsed, user_data, add_file_local, add_file):
     import psutil
     # read and validate duckiebot-compose
     stacks_to_load = parsed.stacks_to_load.split(',')
@@ -428,11 +430,6 @@ def configure_images(parsed, user_data, add_file_local):
         stack2archive_rpath[stack] = os.path.join('/', rpath)
 
         stacks_written.append(stack)
-    #
-    # for cf in stacks_to_load:
-    #     if not cf in stacks_written:
-    #         msg = 'I could not completely load the stack %r.' % cf
-    #         dtslogger.error(msg)
 
     import docker
     client = docker.from_env()
@@ -450,6 +447,9 @@ def configure_images(parsed, user_data, add_file_local):
 
             cmd = 'docker load --input %s && rm %s' % (stack2archive_rpath[cf], stack2archive_rpath[cf])
             add_run_cmd(user_data, cmd)
+
+            add_file(stack2archive_rpath[cf]+'.labels.json',
+                     json.dumps(stack2info[cf].image_name2id, indent=4))
             # cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
             # add_run_cmd(user_data, cmd)
             # cmd = ['rm', stack2archive_rpath[cf]]
@@ -769,7 +769,7 @@ def save_images(stack2yaml, compress):
 def log_current_phase(user_data, phase, msg):
     j = json.dumps(dict(phase=phase, msg=msg))
     # cmd = ['bash', '-c', "echo '%s' > /data/phase.json" % j]
-    cmd = 'echo %s > /data/phase.json' % j
+    cmd = 'echo %s >> /data/boot-log.txt' % j
     user_data['runcmd'].append(cmd)
 
 
