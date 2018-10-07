@@ -155,14 +155,14 @@ class DTCommand(DTCommandAbs):
                 logs = ''
                 for c in container.logs(stdout=True, stderr=True, stream=True):
                     logs += c
-                msg += '\n\n%s' % indent(logs, '  >  ')
+                # msg += '\n\n%s' % indent(logs, '  >  ')
                 dtslogger.error(msg)
                 # print client.api.exec_inspect(container.id)
                 # print container.exit_code
 
                 tf = 'evaluator.log'
                 with open(tf, 'w') as f:
-                    f.write(msg)
+                    f.write(logs)
 
                 msg = 'Logs saved at %s' % (tf)
                 dtslogger.info(msg)
