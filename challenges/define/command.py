@@ -3,10 +3,10 @@ import datetime
 import os
 
 import yaml
-from dt_shell import DTCommandAbs
+
+from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import dtserver_challenge_define
-from duckietown_data_server import dslogger
 
 
 class DTCommand(DTCommandAbs):
@@ -48,10 +48,10 @@ class DTCommand(DTCommandAbs):
             builds = parsed.build.split(',')
             for build in builds:
                 service_to_build, dirname = build.split(':')
-                dslogger.info('building for service %s in dir %s' % (service_to_build, dirname))
+                dtslogger.info('building for service %s in dir %s' % (service_to_build, dirname))
 
                 image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
-                dslogger.info('Pushing %s' % tag)
+                dtslogger.info('Pushing %s' % tag)
                 for line in client.images.push(repo_only, tag_only, stream=True):
                     print(line)
 
@@ -60,7 +60,7 @@ class DTCommand(DTCommandAbs):
                     services = step.evaluation_parameters.services
                     for service_name, service in services.items():
                         if service_name == service_to_build:
-                            dslogger.info('Using %s = %s' % (service_name, tag))
+                            dtslogger.info('Using %s = %s' % (service_name, tag))
                             service.image = tag
                             nchanged += 1
                 if nchanged == 0:
@@ -72,8 +72,8 @@ class DTCommand(DTCommandAbs):
         challenge_id = dtserver_challenge_define(token, data2)
         print('created challenge %s' % challenge_id)
 
-def build_image(client, path, challenge_name,  no_cache=False):
 
+def build_image(client, path, challenge_name, no_cache=False):
     d = datetime.datetime.now()
     username = get_dockerhub_username()
     tag_only = tag_from_date(d)
