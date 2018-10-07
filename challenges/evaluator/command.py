@@ -144,7 +144,7 @@ class DTCommand(DTCommandAbs):
                 msg = 'Cannot get container %s' % container_name
                 dtslogger.error(msg)
                 dtslogger.info('Will wait.')
-                time.sleep(1)
+                time.sleep(5)
                 continue
 
             dtslogger.info('status: %s' % container.status)
@@ -159,13 +159,13 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(msg)
                 # print client.api.exec_inspect(container.id)
                 # print container.exit_code
-                if container.exit_code:
-                    tf = 'evaluator.log'
-                    with open(tf, 'w') as f:
-                        f.write(msg)
 
-                    msg = 'Logs saved at %s' % (tf)
-                    dtslogger.info(msg)
+                tf = 'evaluator.log'
+                with open(tf, 'w') as f:
+                    f.write(msg)
+
+                msg = 'Logs saved at %s' % (tf)
+                dtslogger.info(msg)
 
                 break
 
@@ -173,10 +173,11 @@ class DTCommand(DTCommandAbs):
                 for c in container.logs(stdout=True, stderr=True, stream=True, follow=True):
                     sys.stdout.write(c)
                     # print(line)
+                time.sleep(3)
             except Exception as e:
                 dtslogger.error(e)
                 dtslogger.info('Will try to re-attach to container.')
-                time.sleep(1)
+                time.sleep(3)
             except KeyboardInterrupt:
                 dtslogger.info('Received CTRL-C. Stopping container...')
                 container.stop()
