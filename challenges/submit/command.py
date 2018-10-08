@@ -63,16 +63,56 @@ class DTCommand(DTCommandAbs):
 
         token = shell.get_dt1_token()
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-m', dest='message', action="store", nargs='+', default=None, type=str,
+        prog = 'dts challenges submit'
+        usage = """
+        
+
+Submission:
+
+    %(prog)s --challenge NAME
+
+
+
+## Building options
+
+Rebuilds ignoring Docker cache
+
+    %(prog)s --no-cache
+
+
+
+## Attaching user data
+    
+Submission with an identifying label:
+
+    %(prog)s --user-label  "My submission"    
+    
+Submission with an arbitrary JSON payload:
+
+    %(prog)s --user-meta  '{"param1": 123}'   
+        
+
+        
+        
+"""
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+        parser.add_argument('--challenge',
+                           help="Specify challenge name.")
+
+        group = parser.add_argument_group("Submission identification")
+        group.add_argument('--user-label', dest='message', action="store", nargs='+', default=None, type=str,
                             help="Submission message")
-        parser.add_argument('--no-push', dest='no_push', action='store_true', default=False,
+        group.add_argument('--user-meta', dest='metadata', action='store', nargs='+', default=None,
+                            help="Custom JSON structure to attach to the submission")
+
+        group = parser.add_argument_group("Building settings.")
+        group.add_argument('--no-push', dest='no_push', action='store_true', default=False,
                             help="Disable pushing of container")
-        parser.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
+        group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
                             help="Disable submission (only build and push)")
-        parser.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
-        parser.add_argument('--meta', dest='metadata', action='store', nargs='+', default=None,
-                            help="Custom JSON string to attach to the submission")
+        group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
+
         parsed = parser.parse_args(args)
 
         do_push = not parsed.no_push
@@ -82,19 +122,32 @@ class DTCommand(DTCommandAbs):
 
         username = get_dockerhub_username(shell)
 
-        ci = read_challenge_info('.')
-        challenge = ci.challenge_name
+        if parsed.challenge:
+            challenge_name = parsed.challenge
 
-        hashname = build(username, challenge, do_push, no_cache=parsed.no_cache)
+        else:
+            try:
+                ci = read_challenge_info('.')
+                challenge_name = ci.challenge_name
+            except NotFound:
+                msg = 'Could not find challenge.yaml. You must use --challenge to specify a challenge name.'
+                raise Exception(msg)
+
+        hashname = build(username, challenge_name, do_push, no_cache=parsed.no_cache)
 
         data = {'hash': hashname, 'user_label': submission_label, 'user_payload': submission_metadata}
 
         if not parsed.no_submit:
-            submission_id = dtserver_submit(token, challenge, data)
+            submission_id = dtserver_submit(token, challenge_name, data)
             print('Successfully created submission %s' % submission_id)
             print('')
             url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
             print('You can track the progress at: %s' % url)
+
+            print('')
+            print('You can also use the command:')
+            print('')
+            print('   dts challenges follow --submission %s' % submission_id)
 
 
 # FIXME: repeated code - because no robust way to have imports in duckietown-shell-commands
@@ -109,10 +162,11 @@ def find_conf_file(d, fn0):
         d0 = os.path.dirname(d)
         if not d0 or d0 == '/':
             msg = 'Could not find file %r' % fn0
-            raise Exception(msg)
+            raise NotFound(msg)
         return find_conf_file(d0, fn0)
 
-
+class NotFound(Exception):
+    pass
 class ChallengeInfoLocal:
     def __init__(self, challenge_name):
         self.challenge_name = challenge_name
@@ -129,7 +183,7 @@ def read_challenge_info(dirname):
         return ChallengeInfoLocal(challenge_name)
     except Exception as e:
         msg = 'Could not read file %r: %s' % (fn, e)
-        raise Exception(msg)
+        raise NotFound(msg)
 
 
 import os

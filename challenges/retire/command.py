@@ -20,7 +20,7 @@ class DTCommand(DTCommandAbs):
         prog = 'dts challenges retire'
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument('--submission', required=True, type='int')
+        parser.add_argument('--submission', required=True, type=int)
         parsed = parser.parse_args(args)
 
         token = shell.get_dt1_token()

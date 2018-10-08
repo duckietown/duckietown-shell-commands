@@ -41,6 +41,15 @@ class DTCommand(DTCommandAbs):
         contents = open(fn).read()
         data = yaml.load(contents)
 
+        if 'description' in data:
+            if data['description'] is None:
+                fnd = os.path.join(os.path.dirname(fn), 'challenge.description.md')
+                if os.path.exists(fnd):
+                    desc = open(fnd).read()
+                    data['description'] = desc
+                    msg = 'Read description from %s' % fnd
+                    dtslogger.info(msg)
+
         challenge = ChallengeDescription.from_yaml(data)
 
         if parsed.build:
@@ -49,7 +58,8 @@ class DTCommand(DTCommandAbs):
             builds = parsed.build.split(',')
             for build in builds:
                 service_to_build, dirname = build.split(':')
-                dtslogger.info('building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache))
+                dtslogger.info(
+                    'building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache))
 
                 image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
                 dtslogger.info('Pushing %s' % tag)
