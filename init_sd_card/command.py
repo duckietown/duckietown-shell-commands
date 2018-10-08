@@ -34,6 +34,7 @@ DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
+SD_CARD_DEVICE = ""
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
@@ -67,6 +68,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--compress', dest='compress', default=False, action='store_true',
                             help='Compress the images - use if you have a 16GB SD card')
 
+        parser.add_argument('--device', dest='device', default='',
+                            help='The device with the SD card')
+
         # parser.add_argument('--swap', default=False, action='store_true',
         #                     help='Create swap space')
         parser.add_argument('--country', default="US",
@@ -82,20 +86,23 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args=args)
 
+        global SD_CARD_DEVICE
+        SD_CARD_DEVICE = parsed.device
+
         if parsed.reset_cache:
             dtslogger.info('Removing cache')
             if os.path.exists(DUCKIETOWN_TMP):
                 shutil.rmtree(DUCKIETOWN_TMP)
 
         msg = """
-        
+
 ## Tips and tricks
 
 ### Multiple networks
 
     dts init_sd_card2 --wifi  network1:password1,network2:password2 --country US
-    
-    
+
+
 
 ### Steps
 
@@ -109,10 +116,10 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card2 --steps expand,mount    
-        
-        
-        
+    dts init_sd_card2 --steps expand,mount
+
+
+
     """
         print(msg)
 
@@ -183,12 +190,35 @@ def check_good_platform():
 
 
 def step_flash(shell, parsed):
-    deps = ['wget', 'tar', 'udisksctl', 'docker', 'base64', 'gzip', 'udevadm']
+    deps = ['wget', 'tar', 'udisksctl', 'docker', 'base64', 'gzip', 'udevadm', 'lsblk']
     for dep in deps:
         check_program_dependency(dep)
+
+    # Ask for a device  if not set already:
+    global SD_CARD_DEVICE
+    if SD_CARD_DEVICE == '':
+        msg = 'Please type the device with your SD card. Please be careful to pick the right device and \
+to include \'/dev/\'. Here\'s a list of the devices on your system:'
+        dtslogger.info(msg)
+
+        script_file = get_resource('list_disks.sh')
+        script_cmd = '/bin/bash %s' % script_file
+        env = get_environment_clean()
+        ret = subprocess.call(script_cmd, shell=True, env=env,
+                              stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
+
+        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):")
+
+
+    # Check if the device exists
+    if not os.path.exists(SD_CARD_DEVICE):
+        msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
+        raise Exception(msg)
+
     script_file = get_resource('init_sd_card2.sh')
     script_cmd = '/bin/bash %s' % script_file
     env = get_environment_clean()
+    env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
     ret = subprocess.call(script_cmd, shell=True, env=env,
                           stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
     if ret == 0:
@@ -216,26 +246,36 @@ def get_environment_clean():
 def step_expand(shell, parsed):
     check_program_dependency('parted')
     check_program_dependency('resize2fs')
-    DEV = '/dev/mmcblk0'
-    DEVp2 = DEV + 'p2'
-    if not os.path.exists(DEV):
-        msg = 'This only works assuming device == %s' % DEV
+
+    global SD_CARD_DEVICE
+
+    if not os.path.exists(SD_CARD_DEVICE):
+        msg = 'This only works assuming device == %s' % SD_CARD_DEVICE
         raise Exception(msg)
     else:
-        msg = 'Found device %s.' % DEV
+        msg = 'Found device %s.' % SD_CARD_DEVICE
         dtslogger.info(msg)
 
+    # Some devices get only a number added to the disk name, other get p + a number
+    if os.path.exists(SD_CARD_DEVICE+'2'):
+        DEVp2 = SD_CARD_DEVICE + '2'
+    elif os.path.exists(SD_CARD_DEVICE+'p2'):
+        DEVp2 = SD_CARD_DEVICE + 'p2'
+    else:
+        msg = 'The second partition of device %s could not be found.' % SD_CARD_DEVICE
+        raise Exception(msg)
+
     dtslogger.info('Current status:')
-    cmd = ['sudo', 'lsblk', DEV]
+    cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
-    cmd = ['sudo', 'parted', '-s', DEV, 'resizepart', '2', '100%']
+    cmd = ['sudo', 'parted', '-s', SD_CARD_DEVICE, 'resizepart', '2', '100%']
     _run_cmd(cmd)
     cmd = ['sudo', 'e2fsck', '-f', DEVp2]
     _run_cmd(cmd)
     cmd = ['sudo', 'resize2fs', DEVp2]
     _run_cmd(cmd)
     dtslogger.info('Updated status:')
-    cmd = ['sudo', 'lsblk', DEV]
+    cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
 
 
@@ -581,7 +621,7 @@ Host {HOSTNAME}
     Hostname {HOSTNAME}.local
     IdentityFile {IDENTITY}
     StrictHostKeyChecking no
-# ------------------------------        
+# ------------------------------
 
     """.format(HOSTNAME=parsed.hostname, IDENTITY=ssh_key_pri_copied, DTS_USERNAME=parsed.linux_username)
 

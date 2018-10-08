@@ -53,12 +53,12 @@ download_etcher() {
         # Download tool to burn image
         echo "Downloading etcher-cli..."
         wget -cO "${TMP_ETCHER_LOCAL}" "${ETCHER_URL}"
-        
+
         # Unpack archive
         echo "Installing etcher-cli to $ETCHER_DIR..."
         mkdir -p $ETCHER_DIR && tar fvx ${TMP_ETCHER_LOCAL} -C ${ETCHER_DIR} --strip-components=1
     fi
-   
+
     rm -rf ${TMP_ETCHER_LOCAL}
 }
 
@@ -74,9 +74,9 @@ download_hypriot() {
 
 flash_hypriot() {
 
-    echo "Flashing Hypriot image $HYPRIOT_LOCAL to disk..."
+    echo "Flashing Hypriot image $HYPRIOT_LOCAL to disk ${INIT_SD_CARD_DEV}"
     sudo -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
-        ${ETCHER_DIR}/etcher -u false ${HYPRIOT_LOCAL}
+        ${ETCHER_DIR}/etcher -d ${INIT_SD_CARD_DEV} -u false ${HYPRIOT_LOCAL}
     echo "Flashing Hypriot image succeeded."
 
 }
