@@ -1,6 +1,7 @@
 import argparse
 import os
 import socket
+import sys
 import time
 
 from dt_shell import dtslogger, DTCommandAbs
@@ -16,7 +17,6 @@ usage = """
         $ dts challenges evaluator
     
     This will evaluate your submissions preferentially, or others if yours are not available.
-    
     
     
     Run the evaluator on a specific submission:
@@ -55,7 +55,8 @@ class DTCommand(DTCommandAbs):
         check_docker_environment()
 
         home = os.path.expanduser('~')
-        parser = argparse.ArgumentParser(prog='dts challenges evaluator', usage=usage)
+        prog = 'dts challenges evaluator'
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         group = parser.add_argument_group('Basic')
 
@@ -67,9 +68,9 @@ class DTCommand(DTCommandAbs):
         group = parser.add_argument_group('Advanced')
 
         group.add_argument('--no-watchtower', dest='no_watchtower', action='store_true', default=False,
-                            help="Disable starting of watchtower")
+                           help="Disable starting of watchtower")
         group.add_argument('--no-pull', dest='no_pull', action='store_true', default=False,
-                            help="Disable pulling of container")
+                           help="Disable pulling of container")
         group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
 
         group.add_argument('--name', default=None, help='Name for this evaluator')
@@ -123,7 +124,7 @@ class DTCommand(DTCommandAbs):
 
         try:
             container = client.containers.get(container_name)
-        except Exception as e:
+        except:
             pass
         else:
             dtslogger.error('stopping previous %s' % container_name)
@@ -133,15 +134,19 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
-        container0 = client.containers.run(image, command=command, volumes=volumes, environment=env,
-                                           network_mode='host', detach=True,
-                                           name=container_name,
-                                           tty=True)
+        client.containers.run(image,
+                              command=command,
+                              volumes=volumes,
+                              environment=env,
+                              network_mode='host',
+                              detach=True,
+                              name=container_name,
+                              tty=True)
         while True:
             try:
                 container = client.containers.get(container_name)
             except Exception as e:
-                msg = 'Cannot get container %s' % container_name
+                msg = 'Cannot get container %s: %s' % (container_name, e)
                 dtslogger.error(msg)
                 dtslogger.info('Will wait.')
                 time.sleep(5)
@@ -155,10 +160,7 @@ class DTCommand(DTCommandAbs):
                 logs = ''
                 for c in container.logs(stdout=True, stderr=True, stream=True):
                     logs += c
-                # msg += '\n\n%s' % indent(logs, '  >  ')
                 dtslogger.error(msg)
-                # print client.api.exec_inspect(container.id)
-                # print container.exit_code
 
                 tf = 'evaluator.log'
                 with open(tf, 'w') as f:
@@ -172,7 +174,7 @@ class DTCommand(DTCommandAbs):
             try:
                 for c in container.logs(stdout=True, stderr=True, stream=True, follow=True):
                     sys.stdout.write(c)
-                    # print(line)
+
                 time.sleep(3)
             except Exception as e:
                 dtslogger.error(e)
@@ -185,9 +187,6 @@ class DTCommand(DTCommandAbs):
                 container.remove()
                 dtslogger.info('Container removed.')
                 break
-
-
-import sys
 
 
 def ensure_watchtower_active(client):

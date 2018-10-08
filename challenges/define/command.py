@@ -26,10 +26,11 @@ class DTCommand(DTCommandAbs):
                             help="YAML configuration file")
 
         parser.add_argument('--build', default=None, help="try `evaluator:.`")
+        parser.add_argument('--no-cache', default=False, action='store_true')
 
         parsed = parser.parse_args(args)
 
-        no_cache = False
+        no_cache = parsed.no_cache
 
         fn = os.path.join(parsed.config)
         if not os.path.exists(fn):
@@ -48,7 +49,7 @@ class DTCommand(DTCommandAbs):
             builds = parsed.build.split(',')
             for build in builds:
                 service_to_build, dirname = build.split(':')
-                dtslogger.info('building for service %s in dir %s' % (service_to_build, dirname))
+                dtslogger.info('building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache))
 
                 image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
                 dtslogger.info('Pushing %s' % tag)
