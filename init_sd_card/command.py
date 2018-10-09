@@ -246,6 +246,8 @@ def get_environment_clean():
 def step_expand(shell, parsed):
     check_program_dependency('parted')
     check_program_dependency('resize2fs')
+    check_program_dependency('df')
+    check_program_dependency('umount')
 
     global SD_CARD_DEVICE
 
@@ -257,14 +259,33 @@ def step_expand(shell, parsed):
         dtslogger.info(msg)
 
     # Some devices get only a number added to the disk name, other get p + a number
-    if os.path.exists(SD_CARD_DEVICE+'2'):
+    if os.path.exists(SD_CARD_DEVICE+'1'):
+        DEVp1 = SD_CARD_DEVICE + '1'
         DEVp2 = SD_CARD_DEVICE + '2'
-    elif os.path.exists(SD_CARD_DEVICE+'p2'):
+    elif os.path.exists(SD_CARD_DEVICE+'p1'):
+        DEVp1 = SD_CARD_DEVICE + 'p1'
         DEVp2 = SD_CARD_DEVICE + 'p2'
     else:
         msg = 'The second partition of device %s could not be found.' % SD_CARD_DEVICE
         raise Exception(msg)
 
+    # Unmount the devices and check if this worked, otherwise parted will fail
+    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ret, err = p.communicate()
+    if DEVp1 in ret:
+        cmd = ['sudo', 'umount', DEVp1]
+        _run_cmd(cmd)
+    if DEVp2 in ret:
+        cmd = ['sudo', 'umount', DEVp2]
+        _run_cmd(cmd)
+
+    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ret, err = p.communicate()
+    if DEVp1 in ret or DEVp2 in ret:
+        msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (DEVp1, DEVp2)
+        raise Exception(msg)
+
+    # Do the expansion
     dtslogger.info('Current status:')
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
