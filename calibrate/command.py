@@ -6,8 +6,6 @@ import sys
 from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
-import docker
-
 from dt_shell import DTCommandAbs, dtslogger
 from utils.networking import get_duckiebot_ip
 
@@ -42,6 +40,7 @@ class DTCommand(DTCommandAbs):
             raise Exception(msg)
 
     def calibrate(self, duckiebot_name, duckiebot_ip):
+        import docker
         local_client = docker.from_env()
         duckiebot_client = docker.DockerClient()
         operating_system = platform.system()
