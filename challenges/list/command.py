@@ -1,7 +1,7 @@
 import termcolor
 from dt_shell import DTCommandAbs
 
-from dt_shell.remote import dtserver_get_user_submissions
+from dt_shell.remote import dtserver_get_user_submissions, get_duckietown_server_url
 
 
 class DTCommand(DTCommandAbs):
@@ -21,7 +21,9 @@ class DTCommand(DTCommandAbs):
             def d(dt):
                 return dt.isoformat()
 
-            url = 'https://challenges.duckietown.org/v3/humans/submissions/%s' % submission_id
+            server = get_duckietown_server_url()
+
+            url = server + '/humans/submissions/%s' % submission_id
 
             s = ('%4s  %20s %10s   %20s   %s' % (submission_id,
                                                  d(submission['date_submitted']),

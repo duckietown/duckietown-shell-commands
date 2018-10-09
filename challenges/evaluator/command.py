@@ -76,6 +76,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--name', default=None, help='Name for this evaluator')
         group.add_argument("--features", default=None, help="Pretend to be what you are not.")
 
+        dtslogger.debug('args: %s' % args)
         parsed = parser.parse_args(args)
 
         machine_id = socket.gethostname()
@@ -137,7 +138,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
         dtslogger.info('Container command: %s' % " ".join(command))
-        
+
         client.containers.run(image,
                               command=command,
                               volumes=volumes,
