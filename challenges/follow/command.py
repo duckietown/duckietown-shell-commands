@@ -59,7 +59,7 @@ def follow_submission(token, submission_id):
             if k not in step2job_seen or step2job_seen[k] != v:
                 step2job_seen[k] = v
 
-                print('\nJob "%s" created for step %s' % (k, v))
+                print('\nJob "%s" created for step %s' % (v, k))
 
         for k, v in step2status.items():
             if k not in step2status_seen or step2status_seen[k] != v:
