@@ -74,7 +74,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
 
         group.add_argument('--name', default=None, help='Name for this evaluator')
-        group.add_argument("--features", default='{}', help="Pretend to be what you are not.")
+        group.add_argument("--features", default=None, help="Pretend to be what you are not.")
 
         parsed = parser.parse_args(args)
 
@@ -100,7 +100,9 @@ class DTCommand(DTCommandAbs):
 
         command += ['--name', container_name]
         command += ['--machine-id', machine_id]
-        command += ['--features', parsed.features]
+        if parsed.features:
+            dtslogger.debug('Passing features %r' % parsed.features)
+            command += ['--features', parsed.features]
 
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
@@ -134,6 +136,8 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
+        dtslogger.info('Container command: %s' % " ".join(command))
+        
         client.containers.run(image,
                               command=command,
                               volumes=volumes,
