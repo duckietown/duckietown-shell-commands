@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-INIT_SD_CARD_VERSION = '2.0.2'  # incremental number, semantic version
+INIT_SD_CARD_VERSION = '2.0.3'  # incremental number, semantic version
 
 CHANGELOG = """ 
 Current version: %s
@@ -13,6 +13,10 @@ minor changes increment z.
 
 Newest changes applied to this SD CARD:
 
+2.0.3 - 2018-10-10
+   
+    on is 0 
+    
 2.0.2 - 2018-10-10
 
     More documentation.
