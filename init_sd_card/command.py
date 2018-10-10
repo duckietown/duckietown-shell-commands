@@ -380,6 +380,9 @@ def step_setup(shell, parsed):
     add_file(path=os.path.join('/secrets/tokens/dt1'),
              content=token)
 
+    add_file(path='/data/stats/init_sd_card_version', content='2018-10-10 (fixed config.txt)')
+    add_file(path='/data/stats/init_sd_card_flash_time', content=datetime.datetime.now().isoformat())
+
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
 
@@ -391,6 +394,8 @@ def step_setup(shell, parsed):
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
     validate_user_data(user_data_yaml)
+
+
 
     write_to_hypriot('user-data', user_data_yaml)
 
