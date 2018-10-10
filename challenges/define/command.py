@@ -7,9 +7,8 @@ import yaml
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
-from dt_shell.remote import dtserver_challenge_define
+from dt_shell.remote import make_server_request
 from dt_shell.utils import indent
-
 
 
 class DTCommand(DTCommandAbs):
@@ -32,8 +31,8 @@ class DTCommand(DTCommandAbs):
         # parser.add_argument('--build', default=None, help="try `evaluator:.`")
         parser.add_argument('--no-cache', default=False, action='store_true')
         parser.add_argument('--no-push', default=False, action='store_true')
-        # parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
-
+        parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
+        parser.add_argument('--force-invalidate-subs', default=False, action='store_true')
         parser.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
         parsed = parser.parse_args(args)
@@ -70,28 +69,16 @@ class DTCommand(DTCommandAbs):
         import docker
         client = docker.from_env()
 
-        # if parsed.build:
-        #     builds = parsed.build.split(',')
-        #     for build in builds:
-        #         service_to_build, dirname = build.split(':')
-        #         msg = 'building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache)
-        #         dtslogger.info(msg)
-        #
-        #         image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
-        #
-        #         image_digest = image.id  # sha256:...
-        #         dtslogger.info('image digest: %s' % image_digest)
-        #
-        #         if not no_push:
-        #             cmd = ['docker', 'push', tag]
-        #             subprocess.check_call(cmd)
-        #             # dtslogger.info('Pushing %s' % tag)
-        #             # for line in client.images.push(repo_only, tag_only, stream=True):
-        #             #     print(line)
-        #         else:
-        #             dtslogger.info('skipping push')
+        if parsed.steps:
+            use_steps = parsed.steps.split(",")
+        else:
+            use_steps = list(challenge.steps)
+        for step_name in use_steps:
+            if step_name not in challenge.steps:
+                msg = 'Could not find step "%s" in %s.' % (step_name, list(challenge.steps))
+                raise Exception(msg)
+            step = challenge.steps[step_name]
 
-        for step in challenge.steps.values():
             services = step.evaluation_parameters.services
             for service_name, service in services.items():
                 if service.build:
@@ -138,7 +125,7 @@ class DTCommand(DTCommandAbs):
 
         data2 = yaml.dump(challenge.as_dict())
 
-        res = dtserver_challenge_define(token, data2)
+        res = dtserver_challenge_define(token, data2, parsed.force_invalidate_subs)
         challenge_id = res['challenge_id']
         steps_updated = res['steps_updated']
 
@@ -150,6 +137,13 @@ class DTCommand(DTCommandAbs):
         else:
             msg = 'No update needed - the container digests did not change.'
             print(msg)
+
+
+def dtserver_challenge_define(token, yaml, force_invalidate):
+    endpoint = '/challenge-define'
+    method = 'POST'
+    data = {'yaml': yaml, 'force-invalidate': force_invalidate}
+    return make_server_request(token, endpoint, data=data, method=method)
 
 
 def build_image(client, path, challenge_name, filename, no_cache=False):
