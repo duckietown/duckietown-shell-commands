@@ -21,15 +21,16 @@ def tag_from_date(d):
 def build(username, challenge, do_push=True, no_cache=False):
     tag = tag_from_date(datetime.datetime.now())
     df = 'Dockerfile'
-    image = '%s/%s:%s' % (username, challenge, tag)
+    image = '%s/%s:%s' % (username, challenge.lower() + '-submission', tag)
 
     if not os.path.exists(df):
         msg = 'I expected to find the file "%s".' % df
         raise Exception(msg)
 
-    cmd = ['docker', 'build', '.',
+    cmd = ['docker', 'build',
            '-t', image,
            '-f', df,
+           '.',
            ]
 
     if no_cache:

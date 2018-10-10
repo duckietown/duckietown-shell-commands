@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import os
 import socket
 import sys
@@ -112,6 +113,11 @@ class DTCommand(DTCommandAbs):
         }
         env = {}
 
+        UID = os.getuid()
+        USERNAME = getpass.getuser()
+        extra_environment = dict(username=USERNAME, uid=UID)
+
+        env.update(extra_environment)
         if not parsed.no_watchtower:
             ensure_watchtower_active(client)
 

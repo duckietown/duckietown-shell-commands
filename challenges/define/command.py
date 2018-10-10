@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import subprocess
 
 import yaml
 
@@ -8,6 +9,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import dtserver_challenge_define
 from dt_shell.utils import indent
+from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
 
 
 class DTCommand(DTCommandAbs):
@@ -20,15 +22,13 @@ class DTCommand(DTCommandAbs):
             msg = 'You need to install or update duckietown-challenges:\n%s' % e
             raise Exception(msg)
 
-        from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
-
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--config', required=True,
+        parser.add_argument('--config', default='challenge.yaml',
                             help="YAML configuration file")
 
-        parser.add_argument('--build', default=None, help="try `evaluator:.`")
+        # parser.add_argument('--build', default=None, help="try `evaluator:.`")
         parser.add_argument('--no-cache', default=False, action='store_true')
         parser.add_argument('--no-push', default=False, action='store_true')
         # parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
@@ -62,54 +62,78 @@ class DTCommand(DTCommandAbs):
                     msg = 'Read description from %s' % fnd
                     dtslogger.info(msg)
 
+        base = os.path.dirname(fn)
+
         challenge = ChallengeDescription.from_yaml(data)
 
         import docker
         client = docker.from_env()
 
-        if parsed.build:
-            builds = parsed.build.split(',')
-            for build in builds:
-                service_to_build, dirname = build.split(':')
-                msg = 'building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache)
-                dtslogger.info(msg)
-
-                image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
-
-                image_digest = image.id  # sha256:...
-                dtslogger.info('image digest: %s' % image_digest)
-
-                if not no_push:
-                    dtslogger.info('Pushing %s' % tag)
-                    for line in client.images.push(repo_only, tag_only, stream=True):
-                        print(line)
-                else:
-                    dtslogger.info('skipping push')
-
-                nchanged = 0
-                for step in challenge.steps.values():
-                    services = step.evaluation_parameters.services
-                    for service_name, service in services.items():
-                        if service_name == service_to_build:
-                            dtslogger.info('Using %s = %s' % (service_name, tag))
-                            service.image = tag
-                            service.image_digest = image_digest
-                            nchanged += 1
-                if nchanged == 0:
-                    msg = 'Could not find service %s' % service_to_build
-                    raise Exception(msg)
+        # if parsed.build:
+        #     builds = parsed.build.split(',')
+        #     for build in builds:
+        #         service_to_build, dirname = build.split(':')
+        #         msg = 'building for service %s in dir %s (no-cache: %s)' % (service_to_build, dirname, no_cache)
+        #         dtslogger.info(msg)
+        #
+        #         image, tag, repo_only, tag_only = build_image(client, dirname, challenge.name, no_cache)
+        #
+        #         image_digest = image.id  # sha256:...
+        #         dtslogger.info('image digest: %s' % image_digest)
+        #
+        #         if not no_push:
+        #             cmd = ['docker', 'push', tag]
+        #             subprocess.check_call(cmd)
+        #             # dtslogger.info('Pushing %s' % tag)
+        #             # for line in client.images.push(repo_only, tag_only, stream=True):
+        #             #     print(line)
+        #         else:
+        #             dtslogger.info('skipping push')
 
         for step in challenge.steps.values():
-            for service_name, service in step.evaluation_parameters.services.items():
-                if service.image == SUBMISSION_CONTAINER_TAG:
-                    continue
-                if service.image_digest is None:
-                    msg = 'Finding digest for image %s' % service.image
-                    dtslogger.info(msg)
+            services = step.evaluation_parameters.services
+            for service_name, service in services.items():
+                if service.build:
+                    dockerfile = service.build.dockerfile
+                    context = os.path.join(base, service.build.context)
+                    if not os.path.exists(context):
+                        msg = 'Context does not exist %s' % context
+                        raise Exception(msg)
+
+                    dockerfile_abs = os.path.join(context, dockerfile)
+                    if not os.path.exists(dockerfile_abs):
+                        msg = 'Cannot find Dockerfile %s' % dockerfile_abs
+                        raise Exception(msg)
+
+                    dtslogger.info('context: %s' % context)
+                    args = service.build.args
+                    if args:
+                        dtslogger.warning('arguments not supported yet: %s' % args)
+
+                    image, tag, repo_only, tag_only = build_image(client, context, challenge.name, dockerfile_abs,
+                                                                  no_cache)
+
+                    service.image = tag
+
+                    if not no_push:
+                        cmd = ['docker', 'push', tag]
+                        subprocess.check_call(cmd)
+
                     image = client.images.get(service.image)
-                    digest = image.id
-                    service.image_digest = digest
-                    dtslogger.info('Found: %s' % digest)
+                    service.image_digest = image.id
+
+                    # very important: get rid of it!
+                    service.build = None
+                else:
+                    if service.image_digest is None:
+                        if service.image == SUBMISSION_CONTAINER_TAG:
+                            pass
+                        else:
+                            msg = 'Finding digest for image %s' % service.image
+                            dtslogger.info(msg)
+                            image = client.images.get(service.image)
+                            service.image_digest = image.id
+                            dtslogger.info('Found: %s' % image.id)
 
         data2 = yaml.dump(challenge.as_dict())
 
@@ -127,13 +151,19 @@ class DTCommand(DTCommandAbs):
             print(msg)
 
 
-def build_image(client, path, challenge_name, no_cache=False):
+def build_image(client, path, challenge_name, filename, no_cache=False):
     d = datetime.datetime.now()
     username = get_dockerhub_username()
     tag_only = tag_from_date(d)
-    repo_only = '%s/%s-evaluator' % (username, challenge_name)
+    repo_only = '%s/%s-evaluator' % (username, challenge_name.lower())
     tag = '%s:%s' % (repo_only, tag_only)
-    _ = client.images.build(path=path, nocache=no_cache, tag=tag)
+    cmd = ['docker', 'build', '-t', tag, '-f', filename]
+    if no_cache:
+        cmd.append('--no-cache')
+
+    cmd.append(path)
+    subprocess.check_call(cmd)
+    # _ = client.images.build(path=path, nocache=no_cache, tag=tag)
     image = client.images.get(tag)
     return image, tag, repo_only, tag_only
 
