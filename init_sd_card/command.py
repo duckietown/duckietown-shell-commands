@@ -396,8 +396,8 @@ def step_setup(shell, parsed):
     add_run_cmd(user_data, 'chmod 0600 /swap0')
     add_run_cmd(user_data, 'swapon -a')
 
-    add_run_cmd(user_data, 'raspi-config nonint do_camera 1')
-    add_run_cmd(user_data, 'raspi-config nonint do_i2c 1')
+    add_run_cmd(user_data, 'raspi-config nonint do_camera 0')
+    add_run_cmd(user_data, 'raspi-config nonint do_i2c 0')
     # raspi-config nonint do_wifi_country %s"
 
     # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
