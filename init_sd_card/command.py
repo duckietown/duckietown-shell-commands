@@ -241,7 +241,7 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         ret = subprocess.call(script_cmd, shell=True, env=env,
                               stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
 
-        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):")
+        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
 
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):

@@ -115,8 +115,20 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_watchtower:
             ensure_watchtower_active(client)
 
-        h = socket.gethostname()
-        env['DTSERVER'] = get_duckietown_server_url().replace("localhost", h + '.local')
+        url = get_duckietown_server_url()
+        dtslogger.info('The server URL is: %s' % url)
+        if 'localhost' in url:
+            h = socket.gethostname()
+            replacement = h + '.local'
+
+            dtslogger.warning('There is "localhost" inside, so I will try to change it to %r' % replacement)
+            dtslogger.warning('This is because Docker cannot see the host as "localhost".')
+
+            url = url.replace("localhost", replacement)
+            dtslogger.warning('The new url is: %s' % url)
+            dtslogger.warning('This will be passed to the evaluator in the Docker container.')
+
+        env['DTSERVER'] = url
 
         image = parsed.image
         name, tag = image.split(':')
