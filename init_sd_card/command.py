@@ -1,5 +1,38 @@
 from __future__ import print_function
 
+INIT_SD_CARD_VERSION = '2.0.2'  # incremental number, semantic version
+
+CHANGELOG = """ 
+Current version: %s
+
+Semantic versioning: x.y.z
+
+Breaking changes augment x,
+feature additions augment y,
+minor changes increment z.
+
+Newest changes applied to this SD CARD:
+
+2.0.2 - 2018-10-10
+
+    More documentation.
+
+2.0.1 - 2018-10-10
+
+    Added card version files in /data/stats/init_sd_card
+
+    Set LED config to red
+
+    Fixed config.txt
+
+
+You can quickly check if something else was done at the URL:
+
+    https://github.com/duckietown/duckietown-shell-commands/blob/master/init_sd_card/command.py
+
+
+""" % INIT_SD_CARD_VERSION
+
 import argparse
 import datetime
 import getpass
@@ -9,6 +42,7 @@ import logging
 import os
 import platform
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -36,8 +70,8 @@ PHASE_DONE = 'done'
 
 SD_CARD_DEVICE = ""
 
-# TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
+# TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
 class InvalidUserInput(Exception):
     pass
@@ -207,8 +241,7 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         ret = subprocess.call(script_cmd, shell=True, env=env,
                               stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
 
-        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):")
-
+        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
 
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):
@@ -259,10 +292,10 @@ def step_expand(shell, parsed):
         dtslogger.info(msg)
 
     # Some devices get only a number added to the disk name, other get p + a number
-    if os.path.exists(SD_CARD_DEVICE+'1'):
+    if os.path.exists(SD_CARD_DEVICE + '1'):
         DEVp1 = SD_CARD_DEVICE + '1'
         DEVp2 = SD_CARD_DEVICE + '2'
-    elif os.path.exists(SD_CARD_DEVICE+'p1'):
+    elif os.path.exists(SD_CARD_DEVICE + 'p1'):
         DEVp1 = SD_CARD_DEVICE + 'p1'
         DEVp2 = SD_CARD_DEVICE + 'p2'
     else:
@@ -282,7 +315,8 @@ def step_expand(shell, parsed):
     p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
     if DEVp1 in ret or DEVp2 in ret:
-        msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (DEVp1, DEVp2)
+        msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (
+            DEVp1, DEVp2)
         raise Exception(msg)
 
     # Do the expansion
@@ -352,9 +386,9 @@ def step_setup(shell, parsed):
 
     cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    user_data['runcmd'].append(cmd)
+    add_run_cmd(user_data, cmd)
 
-    user_data['runcmd'].append("chown -R 1000:1000 {home}".format(home=user_home_path))
+    add_run_cmd(user_data, "chown -R 1000:1000 {home}".format(home=user_home_path))
 
     add_run_cmd(user_data, 'dd if=/dev/zero of=/swap0 bs=1M count=1024')
     add_run_cmd(user_data, 'mkswap /swap0')
@@ -380,22 +414,57 @@ def step_setup(shell, parsed):
     add_file(path=os.path.join('/secrets/tokens/dt1'),
              content=token)
 
-    add_file(path='/data/stats/init_sd_card_version', content='2018-10-10 (fixed config.txt)')
-    add_file(path='/data/stats/init_sd_card_flash_time', content=datetime.datetime.now().isoformat())
+    add_file(path='/data/stats/init_sd_card/README.txt', content="""
+    
+The files in this directory:
+
+    version        incremental number
+    CHANGELOG      description of latest changes
+    
+    flash_time     ISO-formatted date of when this card was flashed
+    flash_user     user who flashed
+    flash_machine  machine that flashed
+    
+    parameters
+        
+        hostname       Hostname used for flashing. (Helps checking if it changed.)
+     
+    """.strip())
+    add_file(path='/data/stats/init_sd_card/CHANGELOG', content=CHANGELOG)
+    add_file(path='/data/stats/init_sd_card/version', content=str(INIT_SD_CARD_VERSION))
+    add_file(path='/data/stats/init_sd_card/flash_time', content=datetime.datetime.now().isoformat())
+    add_file(path='/data/stats/init_sd_card/flash_user', content=getpass.getuser())
+    add_file(path='/data/stats/init_sd_card/flash_machine', content=socket.gethostname())
+    add_file(path='/data/stats/init_sd_card/parameters/hostname', content=parsed.hostname)
+    add_file(path='/data/stats/init_sd_card/parameters/linux_username', content=parsed.linux_username)
+    add_file(path='/data/stats/init_sd_card/parameters/stacks_to_run', content=parsed.stacks_to_run)
+    add_file(path='/data/stats/init_sd_card/parameters/stacks_to_load', content=parsed.stacks_to_load)
+    add_file(path='/data/stats/init_sd_card/parameters/compress', content=str(int(parsed.compress)))
+    add_file(path='/data/stats/init_sd_card/parameters/device', content=str(parsed.device))
+    add_file(path='/data/stats/init_sd_card/parameters/country', content=str(parsed.country))
+    add_file(path='/data/stats/init_sd_card/parameters/wifi', content=str(parsed.wifi))
+    add_file(path='/data/stats/init_sd_card/parameters/ethz_username', content=str(parsed.ethz_username))
+
+    add_file(path='/data/stats/MAC/README.txt', content="""
+
+Two files will be created in this directory, called "eth0" and "wlan0",
+and they will contain the MAC addresses of the two interfaces.
+
+If they are not there, it means that the boot process was interrupted.     
+
+    """.strip())
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
 
-    user_data['runcmd'].append('cat /sys/class/net/eth0/address > /data/eth0-mac')
-    user_data['runcmd'].append('cat /sys/class/net/wlan0/address > /data/wlan0-mac')
+    add_run_cmd(user_data, 'cat /sys/class/net/eth0/address > /data/stats/MAC/eth0')
+    add_run_cmd(user_data, 'cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0')
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
     user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
 
     validate_user_data(user_data_yaml)
-
-
 
     write_to_hypriot('user-data', user_data_yaml)
 
@@ -404,8 +473,12 @@ hdmi_force_hotplug=1
 enable_uart=0
 
 # camera settings, see http://elinux.org/RPiconfig#Camera
+
+# enable
 start_x=1
-disable_camera_led=1
+
+disable_camera_led=0
+
 gpu_mem=16
 
 # Enable audio (added by raspberrypi-sys-mods)
@@ -514,7 +587,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             cmd = 'docker load --input %s && rm %s' % (stack2archive_rpath[cf], stack2archive_rpath[cf])
             add_run_cmd(user_data, cmd)
 
-            add_file(stack2archive_rpath[cf]+'.labels.json',
+            add_file(stack2archive_rpath[cf] + '.labels.json',
                      json.dumps(stack2info[cf].image_name2id, indent=4))
             # cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
             # add_run_cmd(user_data, cmd)

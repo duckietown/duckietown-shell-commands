@@ -2,7 +2,7 @@ import argparse
 import datetime
 import subprocess
 
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
 
@@ -98,24 +98,30 @@ Submission with an arbitrary JSON payload:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument('--challenge',
-                           help="Specify challenge name.")
+                            help="Specify challenge name.")
 
         group = parser.add_argument_group("Submission identification")
         group.add_argument('--user-label', dest='message', action="store", nargs='+', default=None, type=str,
-                            help="Submission message")
+                           help="Submission message")
         group.add_argument('--user-meta', dest='metadata', action='store', nargs='+', default=None,
-                            help="Custom JSON structure to attach to the submission")
+                           help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
         group.add_argument('--no-push', dest='no_push', action='store_true', default=False,
-                            help="Disable pushing of container")
+                           help="Disable pushing of container")
         group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
-                            help="Disable submission (only build and push)")
+                           help="Disable submission (only build and push)")
         group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
+
+        group.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
         parsed = parser.parse_args(args)
 
         do_push = not parsed.no_push
+
+        if parsed.cwd is not None:
+            dtslogger.info('Changing to directory %s' % parsed.cwd)
+            os.chdir(parsed.cwd)
 
         submission_label = ' '.join(parsed.message) if parsed.message is not None else None
         submission_metadata = ' '.join(parsed.metadata) if parsed.metadata is not None else None
@@ -165,8 +171,11 @@ def find_conf_file(d, fn0):
             raise NotFound(msg)
         return find_conf_file(d0, fn0)
 
+
 class NotFound(Exception):
     pass
+
+
 class ChallengeInfoLocal:
     def __init__(self, challenge_name):
         self.challenge_name = challenge_name
