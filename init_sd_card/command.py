@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -36,8 +37,23 @@ PHASE_DONE = 'done'
 
 SD_CARD_DEVICE = ""
 
+
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
+# please update the changelog
+
+INIT_SD_CARD_VERSION = 2 # incremental number
+
+CHANGELOG = """ 
+Current version: %s
+
+Newest changes:
+
+2018-10-10: Added card version files in /data/stats/init_sd_card
+2018-10-10: Set LED config to red
+2018-10-10: Fixed config.txt
+
+""" % INIT_SD_CARD_VERSION
 
 class InvalidUserInput(Exception):
     pass
@@ -209,7 +225,6 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
 
         SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):")
 
-
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):
         msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
@@ -259,10 +274,10 @@ def step_expand(shell, parsed):
         dtslogger.info(msg)
 
     # Some devices get only a number added to the disk name, other get p + a number
-    if os.path.exists(SD_CARD_DEVICE+'1'):
+    if os.path.exists(SD_CARD_DEVICE + '1'):
         DEVp1 = SD_CARD_DEVICE + '1'
         DEVp2 = SD_CARD_DEVICE + '2'
-    elif os.path.exists(SD_CARD_DEVICE+'p1'):
+    elif os.path.exists(SD_CARD_DEVICE + 'p1'):
         DEVp1 = SD_CARD_DEVICE + 'p1'
         DEVp2 = SD_CARD_DEVICE + 'p2'
     else:
@@ -282,7 +297,8 @@ def step_expand(shell, parsed):
     p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
     if DEVp1 in ret or DEVp2 in ret:
-        msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (DEVp1, DEVp2)
+        msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (
+        DEVp1, DEVp2)
         raise Exception(msg)
 
     # Do the expansion
@@ -380,8 +396,11 @@ def step_setup(shell, parsed):
     add_file(path=os.path.join('/secrets/tokens/dt1'),
              content=token)
 
-    add_file(path='/data/stats/init_sd_card_version', content='2018-10-10 (fixed config.txt)')
-    add_file(path='/data/stats/init_sd_card_flash_time', content=datetime.datetime.now().isoformat())
+    add_file(path='/data/stats/init_sd_card/changelong', content=CHANGELOG)
+    add_file(path='/data/stats/init_sd_card/version', content=str(INIT_SD_CARD_VERSION))
+    add_file(path='/data/stats/init_sd_card/flash_time', content=datetime.datetime.now().isoformat())
+    add_file(path='/data/stats/init_sd_card/flash_user', content=getpass.getuser())
+    add_file(path='/data/stats/init_sd_card/flash_machine', content=socket.gethostname())
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
@@ -395,8 +414,6 @@ def step_setup(shell, parsed):
 
     validate_user_data(user_data_yaml)
 
-
-
     write_to_hypriot('user-data', user_data_yaml)
 
     write_to_hypriot('config.txt', '''
@@ -404,8 +421,12 @@ hdmi_force_hotplug=1
 enable_uart=0
 
 # camera settings, see http://elinux.org/RPiconfig#Camera
+
+# enable
 start_x=1
-disable_camera_led=1
+
+disable_camera_led=0
+
 gpu_mem=16
 
 # Enable audio (added by raspberrypi-sys-mods)
@@ -514,7 +535,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             cmd = 'docker load --input %s && rm %s' % (stack2archive_rpath[cf], stack2archive_rpath[cf])
             add_run_cmd(user_data, cmd)
 
-            add_file(stack2archive_rpath[cf]+'.labels.json',
+            add_file(stack2archive_rpath[cf] + '.labels.json',
                      json.dumps(stack2info[cf].image_name2id, indent=4))
             # cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
             # add_run_cmd(user_data, cmd)

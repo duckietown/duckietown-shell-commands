@@ -3,6 +3,7 @@ import datetime
 import os
 
 import yaml
+
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import dtserver_challenge_define
@@ -30,8 +31,15 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--build', default=None, help="try `evaluator:.`")
         parser.add_argument('--no-cache', default=False, action='store_true')
         parser.add_argument('--no-push', default=False, action='store_true')
+        # parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
+
+        parser.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
         parsed = parser.parse_args(args)
+
+        if parsed.cwd is not None:
+            dtslogger.info('Changing to directory %s' % parsed.cwd)
+            os.chdir(parsed.cwd)
 
         no_cache = parsed.no_cache
         no_push = parsed.no_push
