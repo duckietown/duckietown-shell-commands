@@ -9,7 +9,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import dtserver_challenge_define
 from dt_shell.utils import indent
-from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
+
 
 
 class DTCommand(DTCommandAbs):
@@ -18,6 +18,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         try:
             from duckietown_challenges.challenge import ChallengeDescription
+            from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
         except ImportError as e:
             msg = 'You need to install or update duckietown-challenges:\n%s' % e
             raise Exception(msg)
