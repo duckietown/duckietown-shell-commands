@@ -394,7 +394,7 @@ def step_setup(shell, parsed):
 
     write_to_hypriot('user-data', user_data_yaml)
 
-    write_to_hypriot('config_txt', '''
+    write_to_hypriot('config.txt', '''
 hdmi_force_hotplug=1
 enable_uart=0
 
