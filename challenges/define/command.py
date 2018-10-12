@@ -53,14 +53,13 @@ class DTCommand(DTCommandAbs):
         contents = open(fn).read()
         data = yaml.load(contents)
 
-        if 'description' in data:
-            if data['description'] is None:
-                fnd = os.path.join(os.path.dirname(fn), 'challenge.description.md')
-                if os.path.exists(fnd):
-                    desc = open(fnd).read()
-                    data['description'] = desc
-                    msg = 'Read description from %s' % fnd
-                    dtslogger.info(msg)
+        if 'description' not in data or data['description'] is None:
+            fnd = os.path.join(os.path.dirname(fn), 'challenge.description.md')
+            if os.path.exists(fnd):
+                desc = open(fnd).read()
+                data['description'] = desc
+                msg = 'Read description from %s' % fnd
+                dtslogger.info(msg)
 
         base = os.path.dirname(fn)
 

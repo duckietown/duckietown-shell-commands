@@ -1,6 +1,8 @@
 import argparse
 import datetime
+import json
 import subprocess
+import traceback
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
@@ -98,10 +100,9 @@ Submission with an arbitrary JSON payload:
 """
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument('--challenge',
-                            help="Specify challenge name.")
-
         group = parser.add_argument_group("Submission identification")
+        parser.add_argument('--challenge',
+                            help="Specify challenge name.", default=None)
         group.add_argument('--user-label', dest='message', action="store", nargs='+', default=None, type=str,
                            help="Submission message")
         group.add_argument('--user-meta', dest='metadata', action='store', nargs='+', default=None,
@@ -124,28 +125,30 @@ Submission with an arbitrary JSON payload:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
             os.chdir(parsed.cwd)
 
-        submission_label = ' '.join(parsed.message) if parsed.message is not None else None
-        submission_metadata = ' '.join(parsed.metadata) if parsed.metadata is not None else None
+        if not os.path.exists('submission.yaml'):
+            msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
+            raise Exception(msg)
+
+        sub_info = read_submission_info('.')
+
+        if parsed.message:
+            sub_info.user_label = parsed.message
+        if parsed.metadata:
+            sub_info.user_payload = json.loads(parsed.metadata)
+        if parsed.challenge:
+            sub_info.challenge_name = parsed.challenge
 
         username = get_dockerhub_username(shell)
 
-        if parsed.challenge:
-            challenge_name = parsed.challenge
+        hashname = build(username, sub_info.challenge_name, do_push, no_cache=parsed.no_cache)
 
-        else:
-            try:
-                ci = read_challenge_info('.')
-                challenge_name = ci.challenge_name
-            except NotFound:
-                msg = 'Could not find challenge.yaml. You must use --challenge to specify a challenge name.'
-                raise Exception(msg)
-
-        hashname = build(username, challenge_name, do_push, no_cache=parsed.no_cache)
-
-        data = {'hash': hashname, 'user_label': submission_label, 'user_payload': submission_metadata}
+        data = {'hash': hashname,
+                'user_label': sub_info.user_label,
+                'user_payload': sub_info.user_payload,
+                'protocols': sub_info.protocols}
 
         if not parsed.no_submit:
-            submission_id = dtserver_submit(token, challenge_name, data)
+            submission_id = dtserver_submit(token, sub_info.challenge_name, data)
             print('Successfully created submission %s' % submission_id)
             print('')
             url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
@@ -157,43 +160,42 @@ Submission with an arbitrary JSON payload:
             print('   dts challenges follow --submission %s' % submission_id)
 
 
-# FIXME: repeated code - because no robust way to have imports in duckietown-shell-commands
-
-
-def find_conf_file(d, fn0):
-    print d, fn0
-    fn = os.path.join(d, fn0)
-    if os.path.exists(fn):
-        return fn
-    else:
-        d0 = os.path.dirname(d)
-        if not d0 or d0 == '/':
-            msg = 'Could not find file %r' % fn0
-            raise NotFound(msg)
-        return find_conf_file(d0, fn0)
-
-
-class NotFound(Exception):
+class CouldNotReadInfo(Exception):
     pass
 
 
-class ChallengeInfoLocal:
-    def __init__(self, challenge_name):
+class SubmissionInfo(object):
+    def __init__(self, challenge_name, user_label, user_payload, protocols):
         self.challenge_name = challenge_name
+        self.user_label = user_label
+        self.user_payload = user_payload
+        self.protocols = protocols
 
 
-def read_challenge_info(dirname):
-    bn = 'challenge.yaml'
-    dirname = os.path.realpath(dirname)
-    fn = find_conf_file(dirname, bn)
+def read_submission_info(dirname):
+    bn = 'submission.yaml'
+    fn = os.path.join(dirname, bn)
 
-    data = read_yaml_file(fn)
     try:
-        challenge_name = data['challenge']
-        return ChallengeInfoLocal(challenge_name)
+        data = read_yaml_file(fn)
+    except Exception as e:
+        raise CouldNotReadInfo(traceback.format_exc(e))
+    try:
+        known = ['challenge', 'protocol', 'user-label', 'user-payload']
+        challenge_name = data.pop('challenge')
+        protocols = data.pop('protocol')
+        if isinstance(protocols, (str, unicode)):
+            protocols = [protocols]
+        user_label = data.pop('user-label', None)
+        user_payload = data.pop('user-payload', None)
+        if data:
+            msg = 'Unknown keys: %s' % list(data)
+            msg += '\n\nI expect only the keys %s' % known
+            raise Exception(msg)
+        return SubmissionInfo(challenge_name, user_label, user_payload, protocols)
     except Exception as e:
         msg = 'Could not read file %r: %s' % (fn, e)
-        raise NotFound(msg)
+        raise CouldNotReadInfo(msg)
 
 
 import os
