@@ -52,7 +52,14 @@ def build(username, challenge, do_push=True, no_cache=False):
 
         if p.returncode != 0:
             msg = 'Could not run docker push.'
-            msg += '\nTry to login using "docker login".'
+
+            msg += '\n\nI tried to push the tag\n\n   %s' % image
+
+            msg += '\n\nYou told me your DockerHub username is "%s"' % username
+
+            msg += '\n\nEither the username is wrong or you need to login using "docker login".'
+
+            msg += '\n\nTo change the username use\n\n    dts challenges config config --docker-username USERNAME'
             raise Exception(msg)
 
     return image
