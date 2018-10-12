@@ -188,7 +188,7 @@ def read_submission_info(dirname):
     except Exception as e:
         raise CouldNotReadInfo(traceback.format_exc(e))
     try:
-        known = ['challenge', 'protocol', 'user-label', 'user-payload']
+        known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
         challenge_name = data.pop('challenge')
         protocols = data.pop('protocol')
         if isinstance(protocols, (str, unicode)):
