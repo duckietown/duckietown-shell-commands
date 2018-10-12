@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-INIT_SD_CARD_VERSION = '2.0.2'  # incremental number, semantic version
+INIT_SD_CARD_VERSION = '2.0.3'  # incremental number, semantic version
 
 CHANGELOG = """ 
 Current version: %s
@@ -13,6 +13,10 @@ minor changes increment z.
 
 Newest changes applied to this SD CARD:
 
+2.0.3 - 2018-10-10
+   
+    on is 0 
+    
 2.0.2 - 2018-10-10
 
     More documentation.
@@ -396,8 +400,8 @@ def step_setup(shell, parsed):
     add_run_cmd(user_data, 'chmod 0600 /swap0')
     add_run_cmd(user_data, 'swapon -a')
 
-    add_run_cmd(user_data, 'raspi-config nonint do_camera 1')
-    add_run_cmd(user_data, 'raspi-config nonint do_i2c 1')
+    add_run_cmd(user_data, 'raspi-config nonint do_camera 0')
+    add_run_cmd(user_data, 'raspi-config nonint do_i2c 0')
     # raspi-config nonint do_wifi_country %s"
 
     # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
