@@ -195,6 +195,7 @@ def read_submission_info(dirname):
             protocols = [protocols]
         user_label = data.pop('user-label', None)
         user_payload = data.pop('user-payload', None)
+        description = data.pop('description')
         if data:
             msg = 'Unknown keys: %s' % list(data)
             msg += '\n\nI expect only the keys %s' % known
