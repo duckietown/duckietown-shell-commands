@@ -184,7 +184,7 @@ class DTCommand(DTCommandAbs):
                     pass
                 except APIError as e:
                     # if e.errno == 409:
-                    #     
+                    #
                     pass
                 break
         # for line in client.containers.run(image,
