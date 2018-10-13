@@ -7,3 +7,4 @@ from .submit import *
 from .define import *
 from .reset import *
 from .follow import *
+from .evaluate import *

@@ -90,7 +90,7 @@ class DTCommand(DTCommandAbs):
         import docker
         client = docker.from_env()
 
-        command = []
+        command = ['dt-challenges-evaluator']
 
         if parsed.submission:
             command += ['--submission', str(parsed.submission)]

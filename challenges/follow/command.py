@@ -4,6 +4,7 @@ import sys
 import time
 from collections import defaultdict
 
+import termcolor
 from dt_shell import DTCommandAbs
 from dt_shell.remote import make_server_request
 
@@ -73,20 +74,46 @@ def follow_submission(token, submission_id):
         #     msg = 'The submission is complete with result "%s".' % result
         #     print(msg)
         #     break
+        cs = []
 
-        s = 'Complete: %s  ' % complete
-        s += 'Status: %s' % data['status']
+        if complete:
+            cs.append('complete')
+        else:
+            cs.append('please wait')
+
+        cs.append('status: %s' % color_status(data['status']))
 
         if step2status:
-            s += '  Steps: %s' % step2status
+
+            for step_name, step_state in step2status.items():
+                cs.append('%s: %s' % (step_name, color_status(step_state)))
 
         if next_steps:
-            s += "  In queue: %s" % " ".join(map(str, next_steps))
+            cs.append("  In queue: %s" % " ".join(map(str, next_steps)))
+
+        s = '  '.join(cs)
+
         now = datetime.datetime.now()
         sys.stdout.write('\r' + ' ' * 80 + '\r')
-        sys.stdout.write(now.isoformat() + ' ' + s)
+        sys.stdout.write(now.isoformat()[-15:-7] + ' ' + s)
         sys.stdout.flush()
         time.sleep(5)
+
+
+def color_status(x):
+    status2color = {
+        'failed': dict(color='red', on_color=None, attrs=None),
+        'error': dict(color='red', on_color=None, attrs=None),
+        'success': dict(color='green', on_color=None, attrs=None),
+        'evaluating': dict(color='blue', on_color=None, attrs=None),
+        'aborted': dict(color='cyan', on_color=None, attrs=['dark']),
+        'timeout': dict(color='cyan', on_color=None, attrs=['dark']),
+    }
+
+    if x in status2color:
+        return termcolor.colored(x, **status2color[x])
+    else:
+        return x
 
 
 def get_info(token, submission_id):
