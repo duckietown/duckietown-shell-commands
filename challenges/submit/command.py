@@ -209,9 +209,8 @@ def read_submission_info(dirname):
 import os
 
 # noinspection PyUnresolvedReferences
-import ruamel.ordereddict as s
-from ruamel import yaml
 
+import yaml
 
 def read_yaml_file(fn):
     if not os.path.exists(fn):

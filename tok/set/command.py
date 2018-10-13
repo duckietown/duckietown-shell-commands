@@ -25,6 +25,8 @@ To find your token, first login to duckietown.org, and open the page:
 
 
 Enter token: """
+
+        print('args: %s' % args.__repr__())
         if args:
             val_in = args[0]
         else:

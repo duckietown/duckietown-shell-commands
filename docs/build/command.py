@@ -1,20 +1,31 @@
+import argparse
 import getpass
 import os
 import subprocess
 import sys
-
 from dt_shell import DTCommandAbs
 from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
+
 # image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ecc502de748fa936f4420980b2fa9f255250400bce32c9b20ad4d6d7bfc49ccf'
-image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
-
+# ok
+# image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+
+        parser = argparse.ArgumentParser()
+
+        parser.add_argument('--image',
+                            default='andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933',
+                            help="Which image to use")
+
+        parsed = parser.parse_args(args=args)
+        image  = parsed.image
+
         check_docker_environment()
         # check_git_supports_superproject()
 
@@ -123,62 +134,4 @@ class DTCommand(DTCommandAbs):
             raise
 
         p.communicate()
-
-        # mkdir - p / tmp / fake -$(USER) - home
-        # 	docker run \
-        # 		-v $(gitdir):$(gitdir) \
-        # 		-v $(gitdir_super):$(gitdir_super) \
-        # 		-v $(pwd1):$(pwd1) \
-        # 		-v /tmp/fake-$(USER)-home:/home/$(USER) \
-        # 		-e USER=$(USER) -e USERID=$(uid1) --user $(uid1) \
-        # 		-e COLUMNS=$(cols)\
-        # 		-ti \
-        # 		"$(IMAGE)" \
-        # 		/project/run-book-native.sh \
-        # 		"$(BOOKNAME)" "$(SRC)" "$(RESOURCES)" \
-        # 		"$(pwd1)"
-        #
-
         print('\n\nCompleted.')
-#
-#
-#
-# IMAGE?=andreacensi/mcdp_books:duckuments
-#
-# clean:
-# 	rm -rf out duckuments-dist
-#
-# update-resources:
-# 	echo
-# 	# git submodule sync --recursive
-# 	# git submodule update --init --recursive
-#
-# THIS_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-#
-# compile-native: update-resources
-# 	$(THIS_DIR)/../scripts/run-book-native.sh "$(BOOKNAME)" "$(SRC)" "$(RESOURCES)" "$(PWD)"
-#
-# gitdir_super:=$(shell git rev-parse --show-superproject-working-tree)
-# gitdir:=$(shell git rev-parse --show-toplevel)
-# pwd1:=$(shell realpath $(PWD))
-# uid1:=$(shell id -u)
-# cols:=$(shell tput cols)
-#
-# compile-docker: update-resources
-# 	# docker pull $(IMAGE)
-# 	echo gitdir = $(gitdir)
-# 	echo gitdir_super = $(gitdir_super)
-# 	mkdir -p /tmp/fake-$(USER)-home
-# 	docker run \
-# 		-v $(gitdir):$(gitdir) \
-# 		-v $(gitdir_super):$(gitdir_super) \
-# 		-v $(pwd1):$(pwd1) \
-# 		-v /tmp/fake-$(USER)-home:/home/$(USER) \
-# 		-e USER=$(USER) -e USERID=$(uid1) --user $(uid1) \
-# 		-e COLUMNS=$(cols)\
-# 		-ti \
-# 		"$(IMAGE)" \
-# 		/project/run-book-native.sh \
-# 		"$(BOOKNAME)" "$(SRC)" "$(RESOURCES)" \
-# 		"$(pwd1)"
-#
