@@ -4,6 +4,7 @@ import json
 import subprocess
 import traceback
 
+import termcolor
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
@@ -156,15 +157,39 @@ Submission with an arbitrary JSON payload:
 
         if not parsed.no_submit:
             submission_id = dtserver_submit(token, sub_info.challenge_name, data)
-            print('Successfully created submission %s' % submission_id)
-            print('')
             url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
-            print('You can track the progress at: %s' % url)
+            url = href(url)
 
-            print('')
-            print('You can also use the command:')
-            print('')
-            print('   dts challenges follow --submission %s' % submission_id)
+            manual = href('http://docs.duckietown.org/DT18/AIDO/out/')
+            ID = termcolor.colored(submission_id, 'cyan')
+            msg = '''
+
+Successfully created submission {ID}.
+
+You can track the progress at:
+
+    {url}
+         
+You can also use the command `follow` to follow its fate:
+
+    {P} dts challenges follow --submission {ID}
+    
+You can speed up the evaluation using your own evaluator:
+
+    {P} dts challenges evaluator --submission {ID}
+
+For more information, see the manual at {manual}
+    
+'''.format(ID=ID, P=dark('$'), url=url, manual=manual)
+            print(msg)
+
+
+def dark(x):
+    return termcolor.colored(x, attrs=['dark'])
+
+
+def href(x):
+    return termcolor.colored(x, 'blue', attrs=['underline'])
 
 
 class CouldNotReadInfo(Exception):
@@ -211,6 +236,7 @@ import os
 # noinspection PyUnresolvedReferences
 
 import yaml
+
 
 def read_yaml_file(fn):
     if not os.path.exists(fn):
