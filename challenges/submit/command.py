@@ -60,7 +60,7 @@ def build(username, challenge, do_push=True, no_cache=False):
 
             msg += '\n\nEither the username is wrong or you need to login using "docker login".'
 
-            msg += '\n\nTo change the username use\n\n    dts challenges config config --docker-username USERNAME'
+            msg += '\n\nTo change the username use\n\n    dts challenges config --docker-username USERNAME'
             raise Exception(msg)
 
     return image
