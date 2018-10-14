@@ -69,19 +69,26 @@ class DTCommand(DTCommandAbs):
         #     dtslogger.debug('Passing features %r' % parsed.features)
         #     command += ['--features', parsed.features]
         # fake_dir = '/submission'
+        tmpdir = '/tmp'
+
+        UID = os.getuid()
+        USERNAME = getpass.getuser()
+        fake_home = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
+        if not os.path.exists(fake_home):
+            os.makedirs(fake_home)
+
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'},
+            os.path.join(home, '.dt-shell'): {'bind': '/home/%s/.dt-shell' % USERNAME, 'mode': 'ro'},
             output_rp: {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'},
             '/tmp': {'bind': '/tmp', 'mode': 'rw'},
+            fake_home: {'bind': '/home/%s' % USERNAME, 'mode': 'rw'},
             os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}
         }
         # command.extend(['-C', fake_dir])
         env = {}
 
-        UID = os.getuid()
-        USERNAME = getpass.getuser()
-        extra_environment = dict(username=USERNAME, uid=UID)
+        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME='/home/%s' % USERNAME)
 
         env.update(extra_environment)
 
@@ -124,8 +131,14 @@ class DTCommand(DTCommandAbs):
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
         dtslogger.info('Container command: %s' % " ".join(command))
+
+
+        # env['USER'] = user
+        # env['UID'] = str(uid)
+
         client.containers.run(image,
                               working_dir=os.getcwd(),
+                              user=str(UID),
                               command=command,
                               volumes=volumes,
                               environment=env,
