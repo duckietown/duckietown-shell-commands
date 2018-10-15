@@ -7,8 +7,6 @@ from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.networking import get_duckiebot_ip
-
 
 class DTCommand(DTCommandAbs):
 
@@ -16,12 +14,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'start_hatchery.sh')
 
-        if len(args) < 1:
-            raise Exception('No Duckiebot name received, aborting!')
-
-        duckiebot_ip = get_duckiebot_ip(duckiebot_name=args[0])
-
-        script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
+        script_cmd = '/bin/bash %s' % script_file
         print('Running %s' % script_cmd)
 
         env = {}
