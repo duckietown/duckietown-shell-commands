@@ -15,7 +15,8 @@ Newest changes applied to this SD CARD:
 
 2.0.3 - 2018-10-10
    
-    on is 0 
+    Correct initialization for camea (on is 0 , not 1)
+    
     
 2.0.2 - 2018-10-10
 
