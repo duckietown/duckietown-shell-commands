@@ -14,7 +14,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'start_hatchery.sh')
 
-        script_cmd = '/bin/bash %s' % script_file
+        script_cmd = '/bin/sh %s' % script_file
         print('Running %s' % script_cmd)
 
         env = {}
