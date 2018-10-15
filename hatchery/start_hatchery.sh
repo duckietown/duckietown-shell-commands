@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 DUCKIEBOT_NAME="$1"
 DUCKIEBOT_IP="$2"
