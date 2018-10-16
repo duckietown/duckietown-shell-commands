@@ -1,6 +1,4 @@
-# This is a default __init__ file for the Duckietown Shell commands
-#
-# Maintainer: Utils for commands
+duckietown_shell_commands_version = '1.0.0'
+import sys
 
-
-
+sys.stderr.write('Duckietown Shell commands version %s\n' % duckietown_shell_commands_version)

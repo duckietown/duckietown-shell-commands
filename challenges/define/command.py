@@ -9,7 +9,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.remote import make_server_request
 from dt_shell.utils import indent
-
+from dt_shell.exceptions import UserError
 
 class DTCommand(DTCommandAbs):
 
@@ -37,9 +37,17 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
+        from dt_shell.env_checks import check_docker_environment
+        client = check_docker_environment()
+        if client is None: # To remove when done
+            import docker
+            client = docker.from_env()
+
+
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
             os.chdir(parsed.cwd)
+
 
         no_cache = parsed.no_cache
         no_push = parsed.no_push
@@ -47,7 +55,7 @@ class DTCommand(DTCommandAbs):
         fn = os.path.join(parsed.config)
         if not os.path.exists(fn):
             msg = 'File %s does not exist.' % fn
-            raise Exception(msg)
+            raise UserError(msg)
 
         # basename = os.path.basename(os.path.splitext(fn)[0])
         contents = open(fn).read()
@@ -65,8 +73,8 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
-        import docker
-        client = docker.from_env()
+
+
 
         if parsed.steps:
             use_steps = parsed.steps.split(",")

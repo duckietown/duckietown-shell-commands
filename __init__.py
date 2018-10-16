@@ -1,3 +1,5 @@
+print('loading commands version 1.0')
+
 import glob
 import traceback
 # import subcommands
