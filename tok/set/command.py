@@ -1,37 +1,42 @@
 from __future__ import print_function
 
+import webbrowser
+
+import termcolor
+
 from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
-import webbrowser
-
 token_dt1_config_key = 'token_dt1'
+
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        webbrowser.open('https://www.duckietown.org/site/your-token', new=2)
-        msg = """
+        link = 'https://www.duckietown.org/site/your-token'
+        example = 'dt1-7vEuJsaxeXXXXX-43dzqWFnWd8KBa1yev1g3UKnzVxZkkTbfSJnxzuJjWaANeMf4y6XSXBWTpJ7vWXXXX'
+        msg = u"""
 Please enter your Duckietown token.
 
 It looks something like this:
 
-    dt1-7vEuJsaxeXXXXX-43dzqWFnWd8KBa1yev1g3UKnzVxZkkTbfSJnxzuJjWaANeMf4y6XSXBWTpJ7vWXXXX
+    {example}
     
 To find your token, first login to duckietown.org, and open the page:
 
-    https://www.duckietown.org/site/your-token
+    {link}
 
 
-Enter token: """
+Enter token: """.format(link=href(link), example=dark(example))
 
-        print('args: %s' % args.__repr__())
+        shell.sprint('args: %s' % args.__repr__())
 
         from six.moves import input as compatible_input
         if args:
             val_in = args[0]
         else:
+            webbrowser.open(link, new=2)
             val_in = compatible_input(msg)
 
         s = val_in.strip()
@@ -40,11 +45,19 @@ Enter token: """
             if uid == -1:
                 msg = 'This is the sample token. Please use your own token.'
                 raise ValueError(msg)
-            print('Correctly identified as uid = %s' % uid)
+            shell.sprint('Correctly identified as uid = %s' % uid)
         except InvalidToken as e:
-            msg = 'The string %r does not look like a valid token:\n%s' % (s, e)
-            print(msg)
+            msg = 'The string "%s" does not look like a valid token:\n%s' % (s, e)
+            shell.sprint(msg)
             return
 
         shell.config[token_dt1_config_key] = s
         shell.save_config()
+
+
+def dark(x):
+    return termcolor.colored(x, attrs=['dark'])
+
+
+def href(x):
+    return termcolor.colored(x, 'blue', attrs=['underline'])
