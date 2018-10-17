@@ -16,7 +16,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        prog = 'dts keyboard_control DUCKIEBOT_NAME'
+        prog = 'dts start_gui_tools DUCKIEBOT_NAME'
         usage = """
 Keyboard control: 
 
