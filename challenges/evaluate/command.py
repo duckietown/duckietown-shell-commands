@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import getpass
 import os
 import socket
@@ -6,6 +7,7 @@ import sys
 import time
 
 from docker.errors import NotFound, APIError
+
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
@@ -27,7 +29,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        check_docker_environment()
 
         home = os.path.expanduser('~')
         prog = 'dts challenges evaluate'
@@ -53,6 +54,12 @@ class DTCommand(DTCommandAbs):
 
         if parsed.change:
             os.chdir(parsed.change)
+
+        client = check_docker_environment()
+
+        if client is None:  # To remove when done
+            import docker
+            client = docker.from_env()
 
         command = [
             'dt-challenges-evaluate-local'
@@ -107,9 +114,6 @@ class DTCommand(DTCommandAbs):
 
         env['DTSERVER'] = url
 
-        import docker
-        client = docker.from_env()
-
         container_name = 'local-evaluator'
         image = parsed.image
         name, tag = image.split(':')
@@ -132,10 +136,6 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Container command: %s' % " ".join(command))
 
-
-        # env['USER'] = user
-        # env['UID'] = str(uid)
-
         client.containers.run(image,
                               working_dir=os.getcwd(),
                               user=str(UID),
@@ -147,70 +147,65 @@ class DTCommand(DTCommandAbs):
                               detach=True,
                               name=container_name,
                               tty=True)
-        while True:
+        continuously_monitor(client, container_name)
+
+def continuously_monitor(client, container_name):
+    last_log_timestamp = None
+    while True:
+        try:
+            container = client.containers.get(container_name)
+        except Exception as e:
+            break
+            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            # dtslogger.error(msg)
+            # dtslogger.info('Will wait.')
+            # time.sleep(5)
+            # continue
+
+        dtslogger.info('status: %s' % container.status)
+        if container.status == 'exited':
+
+            msg = 'The container exited.'
+
+            logs = ''
+            for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
+                last_log_timestamp = datetime.datetime.now()
+                logs += c
+            dtslogger.error(msg)
+
+            tf = 'evaluator.log'
+            with open(tf, 'w') as f:
+                f.write(logs)
+
+            msg = 'Logs saved at %s' % (tf)
+            dtslogger.info(msg)
+
+            break
+
+        try:
+            for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
+                sys.stdout.write(c)
+                last_log_timestamp = datetime.datetime.now()
+
+            time.sleep(3)
+        except Exception as e:
+            dtslogger.error(e)
+            dtslogger.info('Will try to re-attach to container.')
+            time.sleep(3)
+        except KeyboardInterrupt:
+            dtslogger.info('Received CTRL-C. Stopping container...')
             try:
-                container = client.containers.get(container_name)
-            except Exception as e:
-                break
-                # msg = 'Cannot get container %s: %s' % (container_name, e)
-                # dtslogger.error(msg)
-                # dtslogger.info('Will wait.')
-                # time.sleep(5)
-                # continue
-
-            dtslogger.info('status: %s' % container.status)
-            if container.status == 'exited':
-
-                msg = 'The container exited.'
-
-                logs = ''
-                for c in container.logs(stdout=True, stderr=True, stream=True):
-                    logs += c
-                dtslogger.error(msg)
-
-                tf = 'evaluator.log'
-                with open(tf, 'w') as f:
-                    f.write(logs)
-
-                msg = 'Logs saved at %s' % (tf)
-                dtslogger.info(msg)
-
-                break
-
-            try:
-                for c in container.logs(stdout=True, stderr=True, stream=True, follow=True):
-                    sys.stdout.write(c)
-
-                time.sleep(3)
-            except Exception as e:
-                dtslogger.error(e)
-                dtslogger.info('Will try to re-attach to container.')
-                time.sleep(3)
-            except KeyboardInterrupt:
-                dtslogger.info('Received CTRL-C. Stopping container...')
-                try:
-                    container.stop()
-                    dtslogger.info('Removing container')
-                    container.remove()
-                    dtslogger.info('Container removed.')
-                except NotFound:
-                    pass
-                except APIError as e:
-                    # if e.errno == 409:
-                    #
-                    pass
-                break
-        # for line in client.containers.run(image,
-        #                                   remove=True,
-        #                                   command=command,
-        #                                   volumes=volumes,
-        #                                   environment=env,
-        #                                   network_mode='host',
-        #                                   detach=False,
-        #                                   # name=container_name,
-        #                                   stream=True,
-        #                                   tty=True):
-        #     sys.stdout.write(line)
+                container.stop()
+                dtslogger.info('Removing container')
+                container.remove()
+                dtslogger.info('Container removed.')
+            except NotFound:
+                pass
+            except APIError as e:
+                # if e.errno == 409:
+                #
+                pass
+            break
 
 
 def logs_for_container(client, container_id):
