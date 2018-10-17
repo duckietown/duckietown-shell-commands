@@ -59,10 +59,6 @@ class DTCommand(DTCommandAbs):
 
         client = check_docker_environment()
 
-        if client is None:  # To remove when done
-            import docker
-            client = docker.from_env()
-
         command = [
             'dt-challenges-evaluate-local'
         ]
@@ -171,12 +167,14 @@ class DTCommand(DTCommandAbs):
                               command=command,
                               volumes=volumes,
                               environment=env,
-                              remove=True,
+                              remove=False,
                               network_mode='host',
                               detach=detach,
                               name=container_name,
                               tty=True)
-        continuously_monitor(client, container_name)
+        ret_code = continuously_monitor(client, container_name)
+        dtslogger.debug('evaluate exited with code %s' % ret_code)
+        sys.exit(ret_code)
 
 
 def continuously_monitor(client, container_name):
@@ -211,8 +209,8 @@ def continuously_monitor(client, container_name):
             msg = 'Logs saved at %s' % (tf)
             dtslogger.info(msg)
 
-            break
-
+            # return container.exit_code
+            return # XXX
         try:
             for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
                 if six.PY2:
