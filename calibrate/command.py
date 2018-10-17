@@ -28,11 +28,11 @@ Calibrate:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
-        args = parser.parse_args()
+        parsed_args = parser.parse_args(args)
 
         duckiebot_ip = get_duckiebot_ip(args[0])
         # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
-        script_cmd = '/bin/bash %s %s %s' % (script_file, args.hostname, duckiebot_ip)
+        script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
         env = {}
         env.update(os.environ)
