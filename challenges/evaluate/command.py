@@ -7,9 +7,11 @@ import sys
 import time
 
 import six
+import yaml
 from docker.errors import NotFound, APIError
 
 from dt_shell import dtslogger, DTCommandAbs
+from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
 
@@ -31,7 +33,6 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
 
-        home = os.path.expanduser('~')
         prog = 'dts challenges evaluate'
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
@@ -81,24 +82,46 @@ class DTCommand(DTCommandAbs):
 
         UID = os.getuid()
         USERNAME = getpass.getuser()
-        fake_home = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
-        if not os.path.exists(fake_home):
-            os.makedirs(fake_home)
+        dir_home_guest = os.path.expanduser('~')
+        dir_fake_home_host = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
+        if not os.path.exists(dir_fake_home_host):
+            os.makedirs(dir_fake_home_host)
+
+        dir_fake_home_guest = dir_home_guest
+        dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
+        dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
+        dir_tmpdir_host = '/tmp'
+        dir_tmpdir_guest = '/tmp'
 
         volumes = {
-            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            os.path.join(home, '.dt-shell'): {'bind': '/home/%s/.dt-shell' % USERNAME, 'mode': 'ro'},
-            output_rp: {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'},
-            '/tmp': {'bind': '/tmp', 'mode': 'rw'},
-            fake_home: {'bind': '/home/%s' % USERNAME, 'mode': 'rw'},
-            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}
+            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'}
         }
+        volumes[output_rp] = {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'}
+        volumes[os.getcwd()] = {'bind': os.getcwd(), 'mode': 'ro'}
+        volumes[dir_tmpdir_host] = {'bind': dir_tmpdir_guest, 'mode': 'rw'}
+        volumes[dir_dtshell_host] = {'bind': dir_dtshell_guest, 'mode': 'ro'}
+        volumes[dir_fake_home_host] = {'bind': dir_fake_home_guest, 'mode': 'rw'}
+
+        binds = [_['bind'] for _ in volumes.values()]
+        for b1 in binds:
+            for b2 in binds:
+                if b1 == b2:
+                    continue
+                if b1.startswith(b2):
+                    msg = 'Warning, it might be a problem to have binds with overlap'
+                    msg += '\n  b1: %s' % b1
+                    msg += '\n  b2: %s' % b2
+                    dtslogger.warn(msg)
         # command.extend(['-C', fake_dir])
         env = {}
 
-        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME='/home/%s' % USERNAME)
+        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME=dir_fake_home_guest)
 
         env.update(extra_environment)
+
+        dtslogger.debug('Volumes:\n\n%s' % yaml.safe_dump(volumes, default_flow_style=False))
+
+        dtslogger.debug('Environment:\n\n%s' % yaml.safe_dump(env, default_flow_style=False))
 
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
@@ -135,6 +158,11 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
+        detach = True
+        # detach = False
+        # command = ['echo', '/bin/bash']
+
+        env[DTShellConstants.DT1_TOKEN_CONFIG_KEY] = shell.get_dt1_token()
         dtslogger.info('Container command: %s' % " ".join(command))
 
         client.containers.run(image,
@@ -145,20 +173,22 @@ class DTCommand(DTCommandAbs):
                               environment=env,
                               remove=True,
                               network_mode='host',
-                              detach=True,
+                              detach=detach,
                               name=container_name,
                               tty=True)
         continuously_monitor(client, container_name)
 
+
 def continuously_monitor(client, container_name):
+    dtslogger.debug('Monitoring container %s' % container_name)
     last_log_timestamp = None
     while True:
         try:
             container = client.containers.get(container_name)
         except Exception as e:
-            break
-            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            msg = 'Cannot get container %s: %s' % (container_name, e)
             # dtslogger.error(msg)
+            break
             # dtslogger.info('Will wait.')
             # time.sleep(5)
             # continue
@@ -188,7 +218,7 @@ def continuously_monitor(client, container_name):
                 if six.PY2:
                     sys.stdout.write(c)
                 else:
-                    sys.stdout.write(str(c))
+                    sys.stdout.write(c.decode('utf-8'))
 
                 last_log_timestamp = datetime.datetime.now()
 
@@ -211,6 +241,7 @@ def continuously_monitor(client, container_name):
             dtslogger.error(e)
             dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
+    dtslogger.debug('monitoring graceful exit')
 
 
 def logs_for_container(client, container_id):
