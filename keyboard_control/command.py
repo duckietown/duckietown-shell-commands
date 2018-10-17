@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import argparse
 import os
 import subprocess
 import sys
@@ -16,11 +17,18 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'start_keyboard_control.sh')
+        prog = 'dts keyboard_control DUCKIEBOT_NAME'
+        usage = """
+Keyboard control: 
 
-        if len(args) < 1:
-            raise Exception('No Duckiebot name received, aborting!')
+    %(prog)s
+"""
 
-        duckiebot_ip = get_duckiebot_ip(duckiebot_name=args[0])
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
+        parsed_args = parser.parse_args(args)
+
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
 
         env = {}
         env.update(os.environ)
@@ -30,7 +38,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(msg)
             env.pop(V)
 
-        script_cmd = '/bin/bash %s %s %s' % (script_file, args[0], duckiebot_ip)
+        script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
         print('Running %s' % script_cmd)
         ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
