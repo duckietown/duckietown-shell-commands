@@ -6,6 +6,7 @@ import socket
 import sys
 import time
 
+import six
 from docker.errors import NotFound, APIError
 
 from dt_shell import dtslogger, DTCommandAbs
@@ -184,13 +185,13 @@ def continuously_monitor(client, container_name):
 
         try:
             for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
-                sys.stdout.write(c)
+                if six.PY2:
+                    sys.stdout.write(c)
+                else:
+                    sys.stdout.write(str(c))
+
                 last_log_timestamp = datetime.datetime.now()
 
-            time.sleep(3)
-        except Exception as e:
-            dtslogger.error(e)
-            dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
         except KeyboardInterrupt:
             dtslogger.info('Received CTRL-C. Stopping container...')
@@ -206,6 +207,10 @@ def continuously_monitor(client, container_name):
                 #
                 pass
             break
+        except BaseException as e:
+            dtslogger.error(e)
+            dtslogger.info('Will try to re-attach to container.')
+            time.sleep(3)
 
 
 def logs_for_container(client, container_id):
