@@ -27,10 +27,12 @@ To find your token, first login to duckietown.org, and open the page:
 Enter token: """
 
         print('args: %s' % args.__repr__())
+
+        from six.moves import input as compatible_input
         if args:
             val_in = args[0]
         else:
-            val_in = raw_input(msg)
+            val_in = compatible_input(msg)
 
         s = val_in.strip()
         try:
