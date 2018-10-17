@@ -220,7 +220,7 @@ def read_submission_info(dirname):
         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
         challenge_name = data.pop('challenge')
         protocols = data.pop('protocol')
-        if isinstance(protocols, (str, unicode)):
+        if not isinstance(protocols, list):
             protocols = [protocols]
         user_label = data.pop('user-label', None)
         user_payload = data.pop('user-payload', None)
