@@ -3,12 +3,10 @@ from __future__ import print_function
 import argparse
 import os
 import platform
-import subprocess
-import sys
-from os.path import join, realpath, dirname, expanduser
 from subprocess import call, check_output
 
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.networking import get_duckiebot_ip
 
 
@@ -36,37 +34,38 @@ Keyboard control:
             dtslogger.info(msg)
             env.pop(V)
 
-        shell.start_gui_tools(parsed_args.hostname)
+        start_gui_tools(parsed_args.hostname)
 
-    def start_gui_tools(self, duckiebot_name):
-        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-        import docker
-        local_client = docker.from_env()
-        operating_system = platform.system()
 
-        IMAGE_RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
+def start_gui_tools(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    import docker
+    local_client = docker.from_env()
+    operating_system = platform.system()
 
-        local_client.images.pull(IMAGE_RPI_GUI_TOOLS)
+    IMAGE_RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
 
-        env_vars = {
-            'ROS_MASTER': duckiebot_name,
-            'DUCKIEBOT_NAME': duckiebot_name,
-            'DUCKIEBOT_IP': duckiebot_ip,
-            'QT_X11_NO_MITSHM': True,
-            'DISPLAY': True
-        }
+    local_client.images.pull(IMAGE_RPI_GUI_TOOLS)
 
-        if operating_system == 'Linux':
-            call(["xhost", "+"])
-            local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
-                                        network_mode='host',
-                                        privileged=True,
-                                        env_vars=env_vars)
-        if operating_system == 'Darwin':
-            IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-            env_vars['IP'] = IP
-            call(["xhost", "+IP"])
-            local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
-                                        network_mode='host',
-                                        privileged=True,
-                                        env_vars=env_vars)
+    env_vars = {
+        'ROS_MASTER': duckiebot_name,
+        'DUCKIEBOT_NAME': duckiebot_name,
+        'DUCKIEBOT_IP': duckiebot_ip,
+        'QT_X11_NO_MITSHM': True,
+        'DISPLAY': True
+    }
+
+    if operating_system == 'Linux':
+        call(["xhost", "+"])
+        local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
+                                    network_mode='host',
+                                    privileged=True,
+                                    env_vars=env_vars)
+    if operating_system == 'Darwin':
+        IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+        env_vars['IP'] = IP
+        call(["xhost", "+IP"])
+        local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
+                                    network_mode='host',
+                                    privileged=True,
+                                    env_vars=env_vars)
