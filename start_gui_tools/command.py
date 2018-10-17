@@ -23,7 +23,6 @@ Keyboard control:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
-        parser.add_argument('--debug', dest='debug', action='store_true', default=False)
         parsed_args = parser.parse_args(args)
 
         env = {}
