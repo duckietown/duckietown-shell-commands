@@ -1,4 +1,4 @@
-print('loading commands version 1.0')
+# XXX none of this is executed
 
 import glob
 import traceback

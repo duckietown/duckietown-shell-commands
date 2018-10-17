@@ -181,7 +181,11 @@ You can speed up the evaluation using your own evaluator:
 For more information, see the manual at {manual}
     
 '''.format(ID=ID, P=dark('$'), url=url, manual=manual)
-            print(msg)
+
+            if hasattr(shell, 'sprint'):
+                shell.sprint(msg)
+            else:
+                print(msg)
 
 
 def dark(x):

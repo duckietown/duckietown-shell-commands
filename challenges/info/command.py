@@ -1,7 +1,9 @@
 # import termcolor
-import termcolor
-from dt_shell import DTCommandAbs
+from __future__ import print_function
 
+import termcolor
+
+from dt_shell import DTCommandAbs
 from dt_shell.remote import get_dtserver_user_info, get_duckietown_server_url
 
 
@@ -13,30 +15,53 @@ class DTCommand(DTCommandAbs):
 
         info = get_dtserver_user_info(token)
 
-        # NOT_PROVIDED = termcolor.colored('missing', 'red')
+        NOT_PROVIDED = termcolor.colored('missing', 'red')
 
-        print('')
-        print('You are succesfully authenticated:')
-        print('')
-        print('   name: %s' % info['name'])
-        print('')
-        print('  login: %s' % info['user_login'])
-        print('')
-        print('    uid: %s' % info['uid'])
+        if 'profile' in info:
+            profile = href(info.get('profile'))
+        else:
+            profile = NOT_PROVIDED
+
+        user_login = info.get('user_login', NOT_PROVIDED)
+        display_name = info.get('name', NOT_PROVIDED)
+        uid = info.get('uid', NOT_PROVIDED)
+
+        s = '''
+        
+You are succesfully authenticated:
+
+         ID: {uid}
+       name: {display_name}    
+      login: {user_login}
+    profile: {profile}
+        
+'''.format(uid=bold(uid),
+           user_login=bold(user_login),
+           display_name=bold(display_name), profile=profile).strip()
 
         server = get_duckietown_server_url()
 
         url = server + '/humans/users/%s' % info['uid']
-        msg = '''
+
+        s += '''
+
 You can find the list of your submissions at the page:
 
     {url}        
-        
-'''.format(url=href(url))
 
-        print(msg)
+        '''.format(url=href(url))
+
+        if hasattr(shell, 'sprint'):
+            shell.sprint(s)
+        else:
+            print(s)
+
         # print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
 
 
 def href(x):
     return termcolor.colored(x, 'blue', attrs=['underline'])
+
+
+def bold(x):
+    return termcolor.colored(x, attrs=['bold'])
