@@ -2,5 +2,4 @@
 #
 # Maintainer: Utils for commands
 
-
-
+from .command import *
