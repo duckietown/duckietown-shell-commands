@@ -2,12 +2,13 @@ import argparse
 import datetime
 import json
 import subprocess
-import traceback
 
 import termcolor
+
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
+from dt_shell.utils import format_exception
 
 
 def tag_from_date(d):
@@ -215,7 +216,7 @@ def read_submission_info(dirname):
     try:
         data = read_yaml_file(fn)
     except Exception as e:
-        raise CouldNotReadInfo(traceback.format_exc(e))
+        raise CouldNotReadInfo(format_exception(e))
     try:
         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
         challenge_name = data.pop('challenge')
