@@ -59,7 +59,7 @@ def start_gui_tools(duckiebot_name):
         local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
-                                    env_vars=env_vars)
+                                    environment=env_vars)
     if operating_system == 'Darwin':
         IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
@@ -67,4 +67,4 @@ def start_gui_tools(duckiebot_name):
         local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
-                                    env_vars=env_vars)
+                                    environment=env_vars)
