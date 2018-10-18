@@ -133,4 +133,7 @@ def get_info(token, submission_id):
     endpoint = '/submission/%s' % submission_id
     method = 'GET'
     data = {}
-    return make_server_request(token, endpoint, data=data, method=method, suppress_user_msg=True)
+    try:
+        return make_server_request(token, endpoint, data=data, method=method, suppress_user_msg=True)
+    except:
+        return make_server_request(token, endpoint, data=data, method=method)

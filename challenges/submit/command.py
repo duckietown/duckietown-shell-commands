@@ -71,7 +71,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         check_docker_environment()
-        
+
         token = shell.get_dt1_token()
 
         prog = 'dts challenges submit'
