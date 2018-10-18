@@ -61,21 +61,22 @@ class DTCommand(DTCommandAbs):
         git_version = res.stdout
         print('git version: %s' % git_version)
 
-        res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-superproject-working-tree'],
+        cmd = ['git', 'rev-parse', '--show-superproject-working-tree']
+        res = system_cmd_result(pwd, cmd,
                                 raise_on_error=True)
-        if '--show' in res.stdout:
+        gitdir_super = res.stdout.strip()
+
+        if '--show' in gitdir_super or not gitdir_super:
             msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
 
-        gitdir_super = res.stdout
-
         print('gitdir_super: %r' % gitdir_super)
         res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel'],
                                 raise_on_error=True)
-        gitdir = res.stdout
+        gitdir = res.stdout.strip()
 
-        if '--show' in res.stdout:
+        if '--show' in gitdir or not gitdir:
             msg = "Your git version is too low, as it does not support --show-toplevel"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)

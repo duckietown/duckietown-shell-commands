@@ -111,9 +111,9 @@ Submission with an arbitrary JSON payload:
         group = parser.add_argument_group("Submission identification")
         parser.add_argument('--challenge',
                             help="Specify challenge name.", default=None)
-        group.add_argument('--user-label', dest='message', action="store", nargs='+', default=None, type=str,
+        group.add_argument('--user-label', dest='message', default=None, type=str,
                            help="Submission message")
-        group.add_argument('--user-meta', dest='metadata', action='store', nargs='+', default=None,
+        group.add_argument('--user-meta', dest='metadata', default=None, type=str,
                            help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
