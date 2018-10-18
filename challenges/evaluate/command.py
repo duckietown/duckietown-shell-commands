@@ -172,9 +172,9 @@ class DTCommand(DTCommandAbs):
                               detach=detach,
                               name=container_name,
                               tty=True)
-        ret_code = continuously_monitor(client, container_name)
-        dtslogger.debug('evaluate exited with code %s' % ret_code)
-        sys.exit(ret_code)
+        continuously_monitor(client, container_name)
+        # dtslogger.debug('evaluate exited with code %s' % ret_code)
+        # sys.exit(ret_code)
 
 
 def continuously_monitor(client, container_name):

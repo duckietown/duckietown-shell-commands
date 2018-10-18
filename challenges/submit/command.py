@@ -6,7 +6,7 @@ import traceback
 
 import termcolor
 from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
+from dt_shell.env_checks import get_dockerhub_username, check_docker_environment, check_user_in_group
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
 
 
@@ -71,7 +71,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         check_docker_environment()
-
+        
         token = shell.get_dt1_token()
 
         prog = 'dts challenges submit'
