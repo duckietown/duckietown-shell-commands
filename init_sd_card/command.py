@@ -246,7 +246,10 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         ret = subprocess.call(script_cmd, shell=True, env=env,
                               stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
 
-        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
+        try:
+            SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
+        except:
+            SD_CARD_DEVICE = input("Type the name of your device (include the \'/dev\' part):   ")
 
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):
@@ -308,18 +311,23 @@ def step_expand(shell, parsed):
         raise Exception(msg)
 
     # Unmount the devices and check if this worked, otherwise parted will fail
-    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(['lsblk'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
-    if DEVp1 in ret:
+
+    dtslogger.info(ret.decode('utf-8'))
+    dtslogger.info(err)
+
+    if DEVp1 in ret.decode('utf-8'):
         cmd = ['sudo', 'umount', DEVp1]
         _run_cmd(cmd)
-    if DEVp2 in ret:
+    if DEVp2 in ret.decode('utf-8'):
         cmd = ['sudo', 'umount', DEVp2]
         _run_cmd(cmd)
 
-    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(['lsblk'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
-    if DEVp1 in ret or DEVp2 in ret:
+
+    if DEVp1 in ret.decode('utf-8') or DEVp2 in ret.decode('utf-8'):
         msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (
             DEVp1, DEVp2)
         raise Exception(msg)
@@ -961,7 +969,7 @@ def validate_user_data(user_data_yaml):
     else:
         url = 'https://validate.core-os.net/validate'
         r = requests.put(url, data=user_data_yaml)
-        info = json.loads(r.content)
+        info = json.loads(r.content.decode('utf-8'))
         result = info['result']
         nerrors = 0
         for x in result:
@@ -1016,6 +1024,6 @@ def check_has_space(where, min_available_gb):
 
 def get_md5(contents):
     m = hashlib.md5()
-    m.update(contents)
+    m.update(contents.encode('utf-8'))
     s = m.hexdigest()
     return s
