@@ -139,7 +139,7 @@ class DTCommand(DTCommandAbs):
 
 ### Multiple networks
 
-    dts init_sd_card2 --wifi  network1:password1,network2:password2 --country US
+    dts init_sd_card --wifi  network1:password1,network2:password2 --country US
 
 
 
@@ -155,7 +155,7 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card2 --steps expand,mount
+    dts init_sd_card --steps expand,mount
 
 
 
@@ -304,7 +304,7 @@ def step_expand(shell, parsed):
         DEVp1 = SD_CARD_DEVICE + 'p1'
         DEVp2 = SD_CARD_DEVICE + 'p2'
     else:
-        msg = 'The second partition of device %s could not be found.' % SD_CARD_DEVICE
+        msg = 'The two partitions of device %s could not be found.' % SD_CARD_DEVICE
         raise Exception(msg)
 
     # Unmount the devices and check if this worked, otherwise parted will fail
