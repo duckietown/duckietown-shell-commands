@@ -314,9 +314,6 @@ def step_expand(shell, parsed):
     p = subprocess.Popen(['lsblk'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
 
-    dtslogger.info(ret.decode('utf-8'))
-    dtslogger.info(err)
-
     if DEVp1 in ret.decode('utf-8'):
         cmd = ['sudo', 'umount', DEVp1]
         _run_cmd(cmd)
