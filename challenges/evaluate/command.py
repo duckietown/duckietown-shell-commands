@@ -165,21 +165,26 @@ class DTCommand(DTCommandAbs):
         # add all the groups
         group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
 
+        params = dict(working_dir=os.getcwd(),
+                      user=UID,
+                      group_add=group_add,
+                      command=command,
+                      volumes=volumes,
+                      environment=env,
+                      remove=False,
+                      network_mode='host',
+                      detach=detach,
+                      name=container_name,
+                      tty=True)
+        dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
         client.containers.run(image,
-                              working_dir=os.getcwd(),
-                              user=str(UID),
-                              group_add=group_add,
-                              command=command,
-                              volumes=volumes,
-                              environment=env,
-                              remove=False,
-                              network_mode='host',
-                              detach=detach,
-                              name=container_name,
-                              tty=True)
+                              **params)
         continuously_monitor(client, container_name)
         # dtslogger.debug('evaluate exited with code %s' % ret_code)
         # sys.exit(ret_code)
+
+
+import json
 
 
 def continuously_monitor(client, container_name):
@@ -215,7 +220,7 @@ def continuously_monitor(client, container_name):
             dtslogger.info(msg)
 
             # return container.exit_code
-            return # XXX
+            return  # XXX
         try:
             for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
                 if six.PY2:
@@ -253,5 +258,6 @@ def logs_for_container(client, container_id):
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
         logs += c
     return logs
+
 
 import grp
