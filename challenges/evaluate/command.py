@@ -140,6 +140,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_pull:
             dtslogger.info('Updating container %s' % image)
 
+            dtslogger.info('This might take some time.')
             client.images.pull(name, tag)
         #
         try:
@@ -161,9 +162,13 @@ class DTCommand(DTCommandAbs):
         env[DTShellConstants.DT1_TOKEN_CONFIG_KEY] = shell.get_dt1_token()
         dtslogger.info('Container command: %s' % " ".join(command))
 
+        # add all the groups
+        group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+
         client.containers.run(image,
                               working_dir=os.getcwd(),
                               user=str(UID),
+                              group_add=group_add,
                               command=command,
                               volumes=volumes,
                               environment=env,
@@ -248,3 +253,5 @@ def logs_for_container(client, container_id):
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
         logs += c
     return logs
+
+import grp
