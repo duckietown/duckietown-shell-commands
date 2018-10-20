@@ -15,7 +15,7 @@ Newest changes applied to this SD CARD:
 
 2.0.3 - 2018-10-10
    
-    Correct initialization for camea (on is 0 , not 1)
+    Correct initialization for camera (on is 0 , not 1)
     
     
 2.0.2 - 2018-10-10
@@ -53,7 +53,7 @@ import sys
 import time
 from collections import namedtuple, OrderedDict
 from os.path import join
-
+from future import builtins
 import yaml
 from whichcraft import which
 
@@ -245,12 +245,9 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         env = get_environment_clean()
         ret = subprocess.call(script_cmd, shell=True, env=env,
                               stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
-      
-        try:
-            SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
-        except:
-            SD_CARD_DEVICE = input("Type the name of your device (include the \'/dev\' part):   ")
 
+        msg = "Type the name of your device (include the \'/dev\' part):   "
+        SD_CARD_DEVICE = builtins.input(msg)
 
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):

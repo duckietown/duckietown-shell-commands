@@ -30,7 +30,7 @@ Keyboard control:
                             help='A flag, if set will run with CLI instead of with GUI')
         parsed_args = parser.parse_args(args)
 
-        if parsed_args.cli == False:
+        if not parsed_args.cli:
             duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
 
             env = {}

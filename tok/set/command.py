@@ -9,6 +9,7 @@ from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
 token_dt1_config_key = 'token_dt1'
 
+from future import builtins
 
 class DTCommand(DTCommandAbs):
 
@@ -32,12 +33,12 @@ Enter token: """.format(link=href(link), example=dark(example))
 
         shell.sprint('args: %s' % args.__repr__())
 
-        from six.moves import input as compatible_input
+
         if args:
             val_in = args[0]
         else:
             webbrowser.open(link, new=2)
-            val_in = compatible_input(msg)
+            val_in = builtins.input(msg)
 
         s = val_in.strip()
         try:

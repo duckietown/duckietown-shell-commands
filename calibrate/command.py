@@ -11,7 +11,7 @@ from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.networking import get_duckiebot_ip
-
+from future import builtins
 
 class DTCommand(DTCommandAbs):
 
@@ -96,7 +96,7 @@ Calibrate:
         vname = 'out-pipeline-%s-%s' % (duckiebot_name, timestamp)
 
         print("********************")
-        raw_input("Place the Duckiebot on the calibration patterns and press ENTER.")
+        builtins.input("Place the Duckiebot on the calibration patterns and press ENTER.")
 
         duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                         privileged=True,
@@ -107,7 +107,7 @@ Calibrate:
                                         )
 
         print("********************")
-        raw_input("Place the Duckiebot in a lane and press ENTER.")
+        builtins.input("Place the Duckiebot in a lane and press ENTER.")
 
         duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                         privileged=True,
@@ -120,7 +120,7 @@ Calibrate:
         print("********************")
         print("To perform the wheel calibration, follow the steps described in the Duckiebook.")
         print("http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html")
-        raw_input("You will now be given a container running on the Duckiebot for wheel calibration.")
+        builtins.input("You will now be given a container running on the Duckiebot for wheel calibration.")
 
 
         duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
