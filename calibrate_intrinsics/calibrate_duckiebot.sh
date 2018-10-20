@@ -26,6 +26,9 @@ elif [[ $platform == 'macos' ]]; then
   docker run -it --net host -v $HOME/data:/data --privileged --env ROS_MASTER=$DUCKIEBOT_NAME --env DUCKIEBOT_NAME=$DUCKIEBOT_NAME --env DUCKIEBOT_IP=$DUCKIEBOT_IP --env QT_X11_NO_MITSHM=1 -e DISPLAY=$IP:0 -v /tmp/.X11-unix:/tmp/.X11-unix $IMAGE_CALIBRATION
 fi
 
-docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
-
-
+if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' $ros-picam) = "true" ]; then 
+   echo "ros-picam container is running, and will now be stopped"
+   docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
+else 
+   echo "ros-picam container was not already running"
+fi
