@@ -92,7 +92,10 @@ class DTCommand(DTCommandAbs):
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'}
         }
-        volumes[output_rp] = {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'}
+        d = os.path.join(os.getcwd(), parsed.output)
+        if not os.path.exists(d):
+            os.makedirs(d)
+        volumes[output_rp] = {'bind': d, 'mode': 'rw'}
         volumes[os.getcwd()] = {'bind': os.getcwd(), 'mode': 'ro'}
         volumes[dir_tmpdir_host] = {'bind': dir_tmpdir_guest, 'mode': 'rw'}
         volumes[dir_dtshell_host] = {'bind': dir_dtshell_guest, 'mode': 'ro'}
