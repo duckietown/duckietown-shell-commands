@@ -92,7 +92,10 @@ class DTCommand(DTCommandAbs):
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'}
         }
-        volumes[output_rp] = {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'}
+        d = os.path.join(os.getcwd(), parsed.output)
+        if not os.path.exists(d):
+            os.makedirs(d)
+        volumes[output_rp] = {'bind': d, 'mode': 'rw'}
         volumes[os.getcwd()] = {'bind': os.getcwd(), 'mode': 'ro'}
         volumes[dir_tmpdir_host] = {'bind': dir_tmpdir_guest, 'mode': 'rw'}
         volumes[dir_dtshell_host] = {'bind': dir_dtshell_guest, 'mode': 'ro'}
@@ -140,6 +143,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_pull:
             dtslogger.info('Updating container %s' % image)
 
+            dtslogger.info('This might take some time.')
             client.images.pull(name, tag)
         #
         try:
@@ -161,20 +165,29 @@ class DTCommand(DTCommandAbs):
         env[DTShellConstants.DT1_TOKEN_CONFIG_KEY] = shell.get_dt1_token()
         dtslogger.info('Container command: %s' % " ".join(command))
 
+        # add all the groups
+        group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+
+        params = dict(working_dir=os.getcwd(),
+                      user=UID,
+                      group_add=group_add,
+                      command=command,
+                      volumes=volumes,
+                      environment=env,
+                      remove=False,
+                      network_mode='host',
+                      detach=detach,
+                      name=container_name,
+                      tty=True)
+        dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
         client.containers.run(image,
-                              working_dir=os.getcwd(),
-                              user=str(UID),
-                              command=command,
-                              volumes=volumes,
-                              environment=env,
-                              remove=False,
-                              network_mode='host',
-                              detach=detach,
-                              name=container_name,
-                              tty=True)
+                              **params)
         continuously_monitor(client, container_name)
         # dtslogger.debug('evaluate exited with code %s' % ret_code)
         # sys.exit(ret_code)
+
+
+import json
 
 
 def continuously_monitor(client, container_name):
@@ -210,7 +223,7 @@ def continuously_monitor(client, container_name):
             dtslogger.info(msg)
 
             # return container.exit_code
-            return # XXX
+            return  # XXX
         try:
             for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
                 if six.PY2:
@@ -248,3 +261,6 @@ def logs_for_container(client, container_id):
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
         logs += c
     return logs
+
+
+import grp
