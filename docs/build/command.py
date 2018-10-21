@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import argparse
 import getpass
 import os
@@ -133,4 +134,5 @@ class DTCommand(DTCommandAbs):
 
 
 def system_cmd_result(pwd, cmd):
-    return subprocess.check_output(cmd, cwd=pwd)
+    s = subprocess.check_output(cmd, cwd=pwd)
+    return s.decode('utf-8')
