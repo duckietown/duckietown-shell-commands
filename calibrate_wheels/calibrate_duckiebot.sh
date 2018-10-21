@@ -31,7 +31,7 @@ echo "********************"
 echo "********************"
 echo "To perform the wheel calibration, follow the steps described in the Duckiebook."
 echo "http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html"
-echo "You will now be given a container running on the Duckiebot for wheel calibration."
+echo "You will now be given a container running on the Duckiebot for wheel calibration (press enter):"
 read
 
 docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged  $IMAGE_BASE /bin/bash
