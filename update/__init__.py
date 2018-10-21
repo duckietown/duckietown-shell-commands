@@ -1,7 +1,7 @@
 from .command import *
 
 min_duckietown_shell = '3.0.24'
-duckietown_shell_commands_version = '1.0.10'
+duckietown_shell_commands_version = '1.0.11'
 
 
 def parse_version(x):
