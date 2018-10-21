@@ -20,7 +20,7 @@ docker -H "$DUCKIEBOT_NAME.local" pull $IMAGE_BASE
 if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' $ros-picam) = "true" ]; then 
    echo "ros-picam container is running, and will now be stopped"
    docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
-else 
+else; then
    echo "ros-picam container was not already running"
 fi
 
