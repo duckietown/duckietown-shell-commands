@@ -2,10 +2,11 @@ import argparse
 import datetime
 import json
 import subprocess
+import traceback
 
 import termcolor
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
 from dt_shell.utils import format_exception
@@ -136,7 +137,7 @@ Submission with an arbitrary JSON payload:
 
         if not os.path.exists('submission.yaml'):
             msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
-            raise Exception(msg)
+            raise UserError(msg)
 
         sub_info = read_submission_info('.')
 
@@ -215,8 +216,8 @@ def read_submission_info(dirname):
 
     try:
         data = read_yaml_file(fn)
-    except Exception as e:
-        raise CouldNotReadInfo(format_exception(e))
+    except BaseException as e:
+        raise CouldNotReadInfo(traceback.format_exc())
     try:
         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
         challenge_name = data.pop('challenge')
@@ -231,8 +232,8 @@ def read_submission_info(dirname):
             msg += '\n\nI expect only the keys %s' % known
             raise Exception(msg)
         return SubmissionInfo(challenge_name, user_label, user_payload, protocols)
-    except Exception as e:
-        msg = 'Could not read file %r: %s' % (fn, e)
+    except BaseException as e:
+        msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
         raise CouldNotReadInfo(msg)
 
 
