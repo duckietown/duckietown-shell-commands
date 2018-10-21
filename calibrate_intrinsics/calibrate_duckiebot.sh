@@ -24,8 +24,8 @@ else
    echo "********************"
    echo "ros-picam container is not running"
    echo "Start the container now and press enter:"
+   read
 fi
-read
 echo "********************"
 
 
