@@ -17,7 +17,12 @@ IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 docker pull $IMAGE_CALIBRATION
 docker -H "$DUCKIEBOT_NAME.local" pull $IMAGE_BASE
 
-docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
+if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' $ros-picam) = "true" ]; then 
+   echo "ros-picam container is running, and will now be stopped"
+   docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
+else 
+   echo "ros-picam container was not already running"
+fi
 
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 NAME="out-calibrate-extrinsics-$DUCKIEBOT_NAME-$TIMESTAMP"
