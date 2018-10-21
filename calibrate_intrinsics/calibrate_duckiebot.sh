@@ -17,6 +17,18 @@ IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 docker pull $IMAGE_CALIBRATION
 docker -H "$DUCKIEBOT_NAME.local" pull $IMAGE_BASE
 
+if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-picam') == "true" ]; then 
+   echo "********************"
+   echo "ros-picam container is running"
+else 
+   echo "********************"
+   echo "ros-picam container is not running"
+   echo "Start the container now and press enter:"
+fi
+read
+echo "********************"
+
+
 if [[ $platform == 'linux' ]]; then
   xhost +
   docker run -it --net host -v /data:/data --privileged --env ROS_MASTER=$DUCKIEBOT_NAME --env DUCKIEBOT_NAME=$DUCKIEBOT_NAME --env DUCKIEBOT_IP=$DUCKIEBOT_IP --env="DISPLAY" --env QT_X11_NO_MITSHM=1 $IMAGE_CALIBRATION
@@ -31,6 +43,7 @@ if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-pi
    echo "ros-picam container is running, and will now be stopped"
    docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
 else 
+   echo "********************"
    echo "ros-picam container was not already running"
 fi
 echo "********************"
