@@ -157,7 +157,12 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Container command: %s' % " ".join(command))
 
+        # add all the groups
+        import grp
+        group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+
         client.containers.run(image,
+                              group_add=group_add,
                               command=command,
                               volumes=volumes,
                               environment=env,

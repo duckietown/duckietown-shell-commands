@@ -12,6 +12,8 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 # ok
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
+IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
+
 class DTCommand(DTCommandAbs):
 
     @staticmethod
@@ -20,7 +22,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
 
         parser.add_argument('--image',
-                            default='andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933',
+                            default=IMAGE,
                             help="Which image to use")
 
         parsed = parser.parse_args(args=args)
@@ -59,29 +61,28 @@ class DTCommand(DTCommandAbs):
         res = system_cmd_result(pwd, ['git', '--version'],
                                 raise_on_error=True)
         git_version = res.stdout
-        print('git version: %s' % git_version)
+        shell.debug('git version: %s' % git_version)
 
         cmd = ['git', 'rev-parse', '--show-superproject-working-tree']
         res = system_cmd_result(pwd, cmd,
                                 raise_on_error=True)
         gitdir_super = res.stdout.strip()
+        shell.debug('gitdir_super: %r' % gitdir_super)
+        res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel'],
+                                raise_on_error=True)
+        gitdir = res.stdout.strip()
+        shell.debug('gitdir: %r' % gitdir)
 
         if '--show' in gitdir_super or not gitdir_super:
             msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
 
-        print('gitdir_super: %r' % gitdir_super)
-        res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel'],
-                                raise_on_error=True)
-        gitdir = res.stdout.strip()
-
         if '--show' in gitdir or not gitdir:
             msg = "Your git version is too low, as it does not support --show-toplevel"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
 
-        print('gitdir: %r' % gitdir)
 
         pwd1 = os.path.realpath(pwd)
         user = getpass.getuser()
@@ -122,7 +123,7 @@ class DTCommand(DTCommandAbs):
             pwd1
         ]
 
-        print('executing:\nls ' + " ".join(cmd))
+        shell.info('executing:\nls ' + " ".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
 
         try:
@@ -135,4 +136,4 @@ class DTCommand(DTCommandAbs):
             raise
 
         p.communicate()
-        print('\n\nCompleted.')
+        shell.info('\n\nCompleted.')
