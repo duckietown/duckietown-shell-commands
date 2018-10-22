@@ -68,7 +68,7 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.debug('gitdir: %r' % gitdir)
 
-        if '--show' in gitdir_super or not gitdir_super:
+        if '--show' in gitdir_super:# or not gitdir_super:
             msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
@@ -95,7 +95,6 @@ class DTCommand(DTCommandAbs):
 
         cmd = ['docker', 'run',
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
-               '-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag),
                '-v', '%s:%s%s' % (pwd1, pwd1, flag),
                '-v', '%s:%s%s' % (fake_home, '/home/%s' % user, flag),
                '-e', 'USER=%s' % user,
@@ -103,6 +102,9 @@ class DTCommand(DTCommandAbs):
                '-m', '4GB',
                '--user', '%s' % uid1]
 
+        if gitdir_super:
+            cmd += ['-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag)]
+            
         interactive = True
 
         if interactive:
