@@ -104,7 +104,7 @@ class DTCommand(DTCommandAbs):
 
         if gitdir_super:
             cmd += ['-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag)]
-            
+
         interactive = True
 
         if interactive:

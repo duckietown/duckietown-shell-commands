@@ -2,6 +2,7 @@ import argparse
 import datetime
 import getpass
 import os
+import platform
 import socket
 import sys
 import time
@@ -47,7 +48,8 @@ class DTCommand(DTCommandAbs):
                            help="")
         group.add_argument('--image', help="Evaluator image to run",
                            default='duckietown/dt-challenges-evaluator:v3')
-
+        group.add_argument('--shell', action='store_true', default=False,
+                           help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
 
         group.add_argument('-C', dest='change', default=None)
@@ -100,6 +102,7 @@ class DTCommand(DTCommandAbs):
         volumes[dir_tmpdir_host] = {'bind': dir_tmpdir_guest, 'mode': 'rw'}
         volumes[dir_dtshell_host] = {'bind': dir_dtshell_guest, 'mode': 'ro'}
         volumes[dir_fake_home_host] = {'bind': dir_fake_home_guest, 'mode': 'rw'}
+        volumes['/etc/group'] = {'bind': '/etc/group', 'mode': 'ro'}
 
         binds = [_['bind'] for _ in volumes.values()]
         for b1 in binds:
@@ -159,26 +162,35 @@ class DTCommand(DTCommandAbs):
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
         detach = True
-        # detach = False
-        # command = ['echo', '/bin/bash']
 
         env[DTShellConstants.DT1_TOKEN_CONFIG_KEY] = shell.get_dt1_token()
         dtslogger.info('Container command: %s' % " ".join(command))
 
         # add all the groups
-        group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+        on_mac = 'Darwin' in platform.system()
+        if on_mac:
+            group_add = []
+        else:
+            group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+
+        # group_add = [g.gr_name for g in grp.getgrall() if USERNAME in g.gr_mem]
+        interactive = False
+        if parsed.shell:
+            interactive = True
+            detach=False
+            command = ['/bin/bash','-l']
 
         params = dict(working_dir=os.getcwd(),
                       user=UID,
                       group_add=group_add,
                       command=command,
+                      tty=interactive,
                       volumes=volumes,
                       environment=env,
-                      remove=False,
+                      remove=True,
                       network_mode='host',
                       detach=detach,
-                      name=container_name,
-                      tty=True)
+                      name=container_name)
         dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
         client.containers.run(image,
                               **params)
