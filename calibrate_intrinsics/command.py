@@ -11,7 +11,7 @@ from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.networking import get_duckiebot_ip
-from future import builtins
+
 
 class DTCommand(DTCommandAbs):
 
@@ -19,7 +19,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        prog = 'dts calibrate DUCKIEBOT_NAME'
+        prog = 'dts calibrate_intrinsics DUCKIEBOT_NAME'
         usage = """
 Calibrate: 
 
@@ -89,42 +89,3 @@ Calibrate:
                                         env_vars=env_vars)
 
         duckiebot_client.containers.get('ros-picam').stop()
-
-        timestamp = datetime.date.today().strftime('%Y%m%d%H%M%S')
-        name = 'out-calibrate-extrinsics-%s-%s' % (duckiebot_name, timestamp)
-        sname = 'out-simulation-%s-%s' % (duckiebot_name, timestamp)
-        vname = 'out-pipeline-%s-%s' % (duckiebot_name, timestamp)
-
-        print("********************")
-        builtins.input("Place the Duckiebot on the calibration patterns and press ENTER.")
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
-                                        network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash',
-                                        kwargs=['-c', 'source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/%s > /data/%s.log' % (name, name)]
-                                        )
-
-        print("********************")
-        builtins.input("Place the Duckiebot in a lane and press ENTER.")
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
-                                        network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash',
-                                        kwargs=['-c','source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/%s> /data/%s.log'%(vname, vname)]
-                                        )
-
-        print("********************")
-        print("To perform the wheel calibration, follow the steps described in the Duckiebook.")
-        print("http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html")
-        builtins.input("You will now be given a container running on the Duckiebot for wheel calibration.")
-
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
-                                        network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash')

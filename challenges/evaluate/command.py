@@ -2,13 +2,17 @@ import argparse
 import datetime
 import getpass
 import os
+import platform
 import socket
 import sys
 import time
 
+import six
+import yaml
 from docker.errors import NotFound, APIError
 
 from dt_shell import dtslogger, DTCommandAbs
+from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
 
@@ -30,7 +34,6 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
 
-        home = os.path.expanduser('~')
         prog = 'dts challenges evaluate'
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
@@ -45,7 +48,8 @@ class DTCommand(DTCommandAbs):
                            help="")
         group.add_argument('--image', help="Evaluator image to run",
                            default='duckietown/dt-challenges-evaluator:v3')
-
+        group.add_argument('--shell', action='store_true', default=False,
+                           help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
 
         group.add_argument('-C', dest='change', default=None)
@@ -56,10 +60,6 @@ class DTCommand(DTCommandAbs):
             os.chdir(parsed.change)
 
         client = check_docker_environment()
-
-        if client is None:  # To remove when done
-            import docker
-            client = docker.from_env()
 
         command = [
             'dt-challenges-evaluate-local'
@@ -80,24 +80,50 @@ class DTCommand(DTCommandAbs):
 
         UID = os.getuid()
         USERNAME = getpass.getuser()
-        fake_home = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
-        if not os.path.exists(fake_home):
-            os.makedirs(fake_home)
+        dir_home_guest = os.path.expanduser('~')
+        dir_fake_home_host = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
+        if not os.path.exists(dir_fake_home_host):
+            os.makedirs(dir_fake_home_host)
+
+        dir_fake_home_guest = dir_home_guest
+        dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
+        dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
+        dir_tmpdir_host = '/tmp'
+        dir_tmpdir_guest = '/tmp'
 
         volumes = {
-            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            os.path.join(home, '.dt-shell'): {'bind': '/home/%s/.dt-shell' % USERNAME, 'mode': 'ro'},
-            output_rp: {'bind': os.path.join(os.getcwd(), parsed.output), 'mode': 'rw'},
-            '/tmp': {'bind': '/tmp', 'mode': 'rw'},
-            fake_home: {'bind': '/home/%s' % USERNAME, 'mode': 'rw'},
-            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}
+            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'}
         }
+        d = os.path.join(os.getcwd(), parsed.output)
+        if not os.path.exists(d):
+            os.makedirs(d)
+        volumes[output_rp] = {'bind': d, 'mode': 'rw'}
+        volumes[os.getcwd()] = {'bind': os.getcwd(), 'mode': 'ro'}
+        volumes[dir_tmpdir_host] = {'bind': dir_tmpdir_guest, 'mode': 'rw'}
+        volumes[dir_dtshell_host] = {'bind': dir_dtshell_guest, 'mode': 'ro'}
+        volumes[dir_fake_home_host] = {'bind': dir_fake_home_guest, 'mode': 'rw'}
+        volumes['/etc/group'] = {'bind': '/etc/group', 'mode': 'ro'}
+
+        binds = [_['bind'] for _ in volumes.values()]
+        for b1 in binds:
+            for b2 in binds:
+                if b1 == b2:
+                    continue
+                if b1.startswith(b2):
+                    msg = 'Warning, it might be a problem to have binds with overlap'
+                    msg += '\n  b1: %s' % b1
+                    msg += '\n  b2: %s' % b2
+                    dtslogger.warn(msg)
         # command.extend(['-C', fake_dir])
         env = {}
 
-        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME='/home/%s' % USERNAME)
+        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME=dir_fake_home_guest)
 
         env.update(extra_environment)
+
+        dtslogger.debug('Volumes:\n\n%s' % yaml.safe_dump(volumes, default_flow_style=False))
+
+        dtslogger.debug('Environment:\n\n%s' % yaml.safe_dump(env, default_flow_style=False))
 
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
@@ -120,6 +146,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_pull:
             dtslogger.info('Updating container %s' % image)
 
+            dtslogger.info('This might take some time.')
             client.images.pull(name, tag)
         #
         try:
@@ -134,30 +161,57 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info('Starting container %s with %s' % (container_name, image))
 
+        detach = True
+
+        env[DTShellConstants.DT1_TOKEN_CONFIG_KEY] = shell.get_dt1_token()
         dtslogger.info('Container command: %s' % " ".join(command))
 
+        # add all the groups
+        on_mac = 'Darwin' in platform.system()
+        if on_mac:
+            group_add = []
+        else:
+            group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
+
+        # group_add = [g.gr_name for g in grp.getgrall() if USERNAME in g.gr_mem]
+        interactive = False
+        if parsed.shell:
+            interactive = True
+            detach=False
+            command = ['/bin/bash','-l']
+
+        params = dict(working_dir=os.getcwd(),
+                      user=UID,
+                      group_add=group_add,
+                      command=command,
+                      tty=interactive,
+                      volumes=volumes,
+                      environment=env,
+                      remove=True,
+                      network_mode='host',
+                      detach=detach,
+                      name=container_name)
+        dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
         client.containers.run(image,
-                              working_dir=os.getcwd(),
-                              user=str(UID),
-                              command=command,
-                              volumes=volumes,
-                              environment=env,
-                              remove=True,
-                              network_mode='host',
-                              detach=True,
-                              name=container_name,
-                              tty=True)
+                              **params)
         continuously_monitor(client, container_name)
+        # dtslogger.debug('evaluate exited with code %s' % ret_code)
+        # sys.exit(ret_code)
+
+
+import json
+
 
 def continuously_monitor(client, container_name):
+    dtslogger.debug('Monitoring container %s' % container_name)
     last_log_timestamp = None
     while True:
         try:
             container = client.containers.get(container_name)
         except Exception as e:
-            break
-            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            msg = 'Cannot get container %s: %s' % (container_name, e)
             # dtslogger.error(msg)
+            break
             # dtslogger.info('Will wait.')
             # time.sleep(5)
             # continue
@@ -170,27 +224,27 @@ def continuously_monitor(client, container_name):
             logs = ''
             for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
                 last_log_timestamp = datetime.datetime.now()
-                logs += c
+                logs += c.decode()
             dtslogger.error(msg)
 
             tf = 'evaluator.log'
             with open(tf, 'w') as f:
                 f.write(logs)
 
-            msg = 'Logs saved at %s' % (tf)
+            msg = 'Logs saved at %s' % tf
             dtslogger.info(msg)
 
-            break
-
+            # return container.exit_code
+            return  # XXX
         try:
             for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
-                sys.stdout.write(c)
+                if six.PY2:
+                    sys.stdout.write(c)
+                else:
+                    sys.stdout.write(c.decode('utf-8'))
+
                 last_log_timestamp = datetime.datetime.now()
 
-            time.sleep(3)
-        except Exception as e:
-            dtslogger.error(e)
-            dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
         except KeyboardInterrupt:
             dtslogger.info('Received CTRL-C. Stopping container...')
@@ -206,6 +260,11 @@ def continuously_monitor(client, container_name):
                 #
                 pass
             break
+        except BaseException as e:
+            dtslogger.error(e)
+            dtslogger.info('Will try to re-attach to container.')
+            time.sleep(3)
+    dtslogger.debug('monitoring graceful exit')
 
 
 def logs_for_container(client, container_id):
@@ -214,3 +273,6 @@ def logs_for_container(client, container_id):
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
         logs += c
     return logs
+
+
+import grp

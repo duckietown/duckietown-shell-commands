@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 
 import termcolor
+
 from dt_shell import DTCommandAbs
 from dt_shell.remote import make_server_request
 
@@ -38,13 +39,12 @@ class DTCommand(DTCommandAbs):
 def follow_submission(token, submission_id):
     step2job_seen = {}
     step2status_seen = defaultdict(lambda: "")
-    previous_s = None
 
-    print()
+    print('')
     while True:
         try:
             data = get_info(token, submission_id)
-        except Exception as e:
+        except BaseException as e:
             print(e)
             time.sleep(5)
             continue
@@ -60,13 +60,13 @@ def follow_submission(token, submission_id):
             if k not in step2job_seen or step2job_seen[k] != v:
                 step2job_seen[k] = v
 
-                print('\nJob "%s" created for step %s' % (v, k))
+                write_status_line('Job "%s" created for step %s' % (v, k))
 
         for k, v in step2status.items():
             if k not in step2status_seen or step2status_seen[k] != v:
                 step2status_seen[k] = v
 
-                print('\nStep "%s" is in state %s' % (k, v))
+                write_status_line('Step "%s" is in state %s' % (k, v))
 
         next_steps = status_details['next_steps']
 
@@ -92,12 +92,25 @@ def follow_submission(token, submission_id):
             cs.append("  In queue: %s" % " ".join(map(str, next_steps)))
 
         s = '  '.join(cs)
+        write_status_line(s)
 
-        now = datetime.datetime.now()
+        time.sleep(10)
+
+
+class Storage:
+    previous = None
+
+
+def write_status_line(x):
+    if x == Storage.previous:
         sys.stdout.write('\r' + ' ' * 80 + '\r')
-        sys.stdout.write(now.isoformat()[-15:-7] + ' ' + s)
-        sys.stdout.flush()
-        time.sleep(5)
+    else:
+        sys.stdout.write('\n')
+    now = datetime.datetime.now()
+    n = termcolor.colored(now.isoformat()[-15:-7], 'blue', attrs=['dark'])
+    sys.stdout.write(' - ' + n + '   ' + x)
+    sys.stdout.flush()
+    Storage.previous = x
 
 
 def color_status(x):
@@ -120,4 +133,7 @@ def get_info(token, submission_id):
     endpoint = '/submission/%s' % submission_id
     method = 'GET'
     data = {}
-    return make_server_request(token, endpoint, data=data, method=method)
+    try:
+        return make_server_request(token, endpoint, data=data, method=method, suppress_user_msg=True)
+    except:
+        return make_server_request(token, endpoint, data=data, method=method)

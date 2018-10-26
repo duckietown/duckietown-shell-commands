@@ -5,9 +5,11 @@ import subprocess
 import traceback
 
 import termcolor
-from dt_shell import DTCommandAbs, dtslogger
+
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
+from dt_shell.utils import format_exception
 
 
 def tag_from_date(d):
@@ -111,9 +113,9 @@ Submission with an arbitrary JSON payload:
         group = parser.add_argument_group("Submission identification")
         parser.add_argument('--challenge',
                             help="Specify challenge name.", default=None)
-        group.add_argument('--user-label', dest='message', action="store", nargs='+', default=None, type=str,
+        group.add_argument('--user-label', dest='message', default=None, type=str,
                            help="Submission message")
-        group.add_argument('--user-meta', dest='metadata', action='store', nargs='+', default=None,
+        group.add_argument('--user-meta', dest='metadata', default=None, type=str,
                            help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
@@ -135,7 +137,7 @@ Submission with an arbitrary JSON payload:
 
         if not os.path.exists('submission.yaml'):
             msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
-            raise Exception(msg)
+            raise UserError(msg)
 
         sub_info = read_submission_info('.')
 
@@ -181,7 +183,11 @@ You can speed up the evaluation using your own evaluator:
 For more information, see the manual at {manual}
     
 '''.format(ID=ID, P=dark('$'), url=url, manual=manual)
-            print(msg)
+
+            if hasattr(shell, 'sprint'):
+                shell.sprint(msg)
+            else:
+                print(msg)
 
 
 def dark(x):
@@ -210,13 +216,13 @@ def read_submission_info(dirname):
 
     try:
         data = read_yaml_file(fn)
-    except Exception as e:
-        raise CouldNotReadInfo(traceback.format_exc(e))
+    except BaseException as e:
+        raise CouldNotReadInfo(traceback.format_exc())
     try:
         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
         challenge_name = data.pop('challenge')
         protocols = data.pop('protocol')
-        if isinstance(protocols, (str, unicode)):
+        if not isinstance(protocols, list):
             protocols = [protocols]
         user_label = data.pop('user-label', None)
         user_payload = data.pop('user-payload', None)
@@ -226,8 +232,8 @@ def read_submission_info(dirname):
             msg += '\n\nI expect only the keys %s' % known
             raise Exception(msg)
         return SubmissionInfo(challenge_name, user_label, user_payload, protocols)
-    except Exception as e:
-        msg = 'Could not read file %r: %s' % (fn, e)
+    except BaseException as e:
+        msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
         raise CouldNotReadInfo(msg)
 
 

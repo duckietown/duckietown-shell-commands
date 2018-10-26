@@ -15,7 +15,7 @@ Newest changes applied to this SD CARD:
 
 2.0.3 - 2018-10-10
    
-    Correct initialization for camea (on is 0 , not 1)
+    Correct initialization for camera (on is 0 , not 1)
     
     
 2.0.2 - 2018-10-10
@@ -53,7 +53,7 @@ import sys
 import time
 from collections import namedtuple, OrderedDict
 from os.path import join
-
+from future import builtins
 import yaml
 from whichcraft import which
 
@@ -139,7 +139,7 @@ class DTCommand(DTCommandAbs):
 
 ### Multiple networks
 
-    dts init_sd_card2 --wifi  network1:password1,network2:password2 --country US
+    dts init_sd_card --wifi  network1:password1,network2:password2 --country US
 
 
 
@@ -155,7 +155,7 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card2 --steps expand,mount
+    dts init_sd_card --steps expand,mount
 
 
 
@@ -246,7 +246,9 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         ret = subprocess.call(script_cmd, shell=True, env=env,
                               stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
 
-        SD_CARD_DEVICE = raw_input("Type the name of your device (include the \'/dev\' part):   ")
+        msg = "Type the name of your device (include the \'/dev\' part):   "
+        SD_CARD_DEVICE = builtins.input(msg)
+
 
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):
@@ -304,22 +306,24 @@ def step_expand(shell, parsed):
         DEVp1 = SD_CARD_DEVICE + 'p1'
         DEVp2 = SD_CARD_DEVICE + 'p2'
     else:
-        msg = 'The second partition of device %s could not be found.' % SD_CARD_DEVICE
+        msg = 'The two partitions of device %s could not be found.' % SD_CARD_DEVICE
         raise Exception(msg)
 
     # Unmount the devices and check if this worked, otherwise parted will fail
-    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(['lsblk'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
-    if DEVp1 in ret:
+
+    if DEVp1 in ret.decode('utf-8'):
         cmd = ['sudo', 'umount', DEVp1]
         _run_cmd(cmd)
-    if DEVp2 in ret:
+    if DEVp2 in ret.decode('utf-8'):
         cmd = ['sudo', 'umount', DEVp2]
         _run_cmd(cmd)
 
-    p = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(['lsblk'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     ret, err = p.communicate()
-    if DEVp1 in ret or DEVp2 in ret:
+
+    if DEVp1 in ret.decode('utf-8') or DEVp2 in ret.decode('utf-8'):
         msg = 'Automatic unmounting of %s and %s was unsuccessful. Please do it manually and run again.' % (
             DEVp1, DEVp2)
         raise Exception(msg)
@@ -961,7 +965,7 @@ def validate_user_data(user_data_yaml):
     else:
         url = 'https://validate.core-os.net/validate'
         r = requests.put(url, data=user_data_yaml)
-        info = json.loads(r.content)
+        info = json.loads(r.content.decode('utf-8'))
         result = info['result']
         nerrors = 0
         for x in result:
@@ -1016,6 +1020,6 @@ def check_has_space(where, min_available_gb):
 
 def get_md5(contents):
     m = hashlib.md5()
-    m.update(contents)
+    m.update(contents.encode('utf-8'))
     s = m.hexdigest()
     return s

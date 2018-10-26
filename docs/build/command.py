@@ -1,16 +1,20 @@
+from __future__ import unicode_literals
 import argparse
 import getpass
 import os
 import subprocess
 import sys
-from dt_shell import DTCommandAbs
-from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
+from dt_shell import DTCommandAbs, UserError, dtslogger
+from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ecc502de748fa936f4420980b2fa9f255250400bce32c9b20ad4d6d7bfc49ccf'
 # ok
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
+
+IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
+
 
 class DTCommand(DTCommandAbs):
 
@@ -20,23 +24,20 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
 
         parser.add_argument('--image',
-                            default='andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933',
+                            default=IMAGE,
                             help="Which image to use")
 
         parsed = parser.parse_args(args=args)
-        image  = parsed.image
+        image = parsed.image
 
         check_docker_environment()
-        # check_git_supports_superproject()
-
-        from system_cmd import system_cmd_result
-
+    
         pwd = os.getcwd()
         bookdir = os.path.join(pwd, 'book')
 
         if not os.path.exists(bookdir):
             msg = 'Could not find "book" directory %r.' % bookdir
-            DTCommandAbs.fail(msg)
+            raise UserError(msg)
 
         # check that the resources directory is present
 
@@ -56,31 +57,26 @@ class DTCommand(DTCommandAbs):
         bookname = entries[0]
         src = os.path.join(bookdir, bookname)
 
-        res = system_cmd_result(pwd, ['git', '--version'],
-                                raise_on_error=True)
-        git_version = res.stdout
-        print('git version: %s' % git_version)
+        git_version = system_cmd_result(pwd, ['git', '--version']).strip()
+        dtslogger.debug('git version: %s' % git_version)
 
-        res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-superproject-working-tree'],
-                                raise_on_error=True)
-        if '--show' in res.stdout:
+        cmd = ['git', 'rev-parse', '--show-superproject-working-tree']
+        gitdir_super = system_cmd_result(pwd, cmd).strip()
+
+        dtslogger.debug('gitdir_super: %r' % gitdir_super)
+        gitdir = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel']).strip()
+
+        dtslogger.debug('gitdir: %r' % gitdir)
+
+        if '--show' in gitdir_super:# or not gitdir_super:
             msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
 
-        gitdir_super = res.stdout
-
-        print('gitdir_super: %r' % gitdir_super)
-        res = system_cmd_result(pwd, ['git', 'rev-parse', '--show-toplevel'],
-                                raise_on_error=True)
-        gitdir = res.stdout
-
-        if '--show' in res.stdout:
+        if '--show' in gitdir or not gitdir:
             msg = "Your git version is too low, as it does not support --show-toplevel"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)
-
-        print('gitdir: %r' % gitdir)
 
         pwd1 = os.path.realpath(pwd)
         user = getpass.getuser()
@@ -99,13 +95,15 @@ class DTCommand(DTCommandAbs):
 
         cmd = ['docker', 'run',
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
-               '-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag),
                '-v', '%s:%s%s' % (pwd1, pwd1, flag),
                '-v', '%s:%s%s' % (fake_home, '/home/%s' % user, flag),
                '-e', 'USER=%s' % user,
                '-e', 'USERID=%s' % uid1,
                '-m', '4GB',
                '--user', '%s' % uid1]
+
+        if gitdir_super:
+            cmd += ['-v', '%s:%s%s' % (gitdir_super, gitdir_super, flag)]
 
         interactive = True
 
@@ -121,7 +119,7 @@ class DTCommand(DTCommandAbs):
             pwd1
         ]
 
-        print('executing:\nls ' + " ".join(cmd))
+        dtslogger.info('executing:\nls ' + " ".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
 
         try:
@@ -134,4 +132,9 @@ class DTCommand(DTCommandAbs):
             raise
 
         p.communicate()
-        print('\n\nCompleted.')
+        dtslogger.info('\n\nCompleted.')
+
+
+def system_cmd_result(pwd, cmd):
+    s = subprocess.check_output(cmd, cwd=pwd)
+    return s.decode('utf-8')
