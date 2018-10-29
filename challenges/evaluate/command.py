@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import argparse
 import datetime
 import getpass
@@ -6,6 +7,7 @@ import platform
 import socket
 import sys
 import time
+import traceback
 
 import six
 import yaml
@@ -260,8 +262,8 @@ def continuously_monitor(client, container_name):
                 #
                 pass
             break
-        except BaseException as e:
-            dtslogger.error(e)
+        except BaseException:
+            dtslogger.error(traceback.format_exc())
             dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
     dtslogger.debug('monitoring graceful exit')
@@ -271,7 +273,7 @@ def logs_for_container(client, container_id):
     logs = ''
     container = client.containers.get(container_id)
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
-        logs += c
+        logs += c.decode('utf-8')
     return logs
 
 
