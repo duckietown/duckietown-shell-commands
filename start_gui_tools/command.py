@@ -1,8 +1,11 @@
 from __future__ import print_function
 
+import sys
+from os.path import join, realpath, dirname
 import argparse
 import os
 import platform
+import subprocess
 from subprocess import call, check_output
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -25,6 +28,11 @@ Keyboard control:
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
         parsed_args = parser.parse_args(args)
 
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
+        script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
+        script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
+        print('Running %s' % script_cmd)
+
         env = {}
         env.update(os.environ)
         V = 'DOCKER_HOST'
@@ -33,7 +41,13 @@ Keyboard control:
             dtslogger.info(msg)
             env.pop(V)
 
-        start_gui_tools(parsed_args.hostname)
+        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+
+        if ret == 0:
+            print('Done!')
+        else:
+            msg = ('An error occurred while starting the GUI tools container, please check and try again (%s).' % ret)
+            raise Exception(msg)
 
 
 def start_gui_tools(duckiebot_name):
