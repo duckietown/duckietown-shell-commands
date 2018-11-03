@@ -6,9 +6,9 @@ import subprocess
 import sys
 from os.path import join, realpath, dirname
 
+from dt_shell import DTCommandAbs
 from dt_shell import dtslogger
 
-from dt_shell import DTCommandAbs
 from utils.networking import get_duckiebot_ip
 
 

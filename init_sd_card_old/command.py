@@ -155,6 +155,7 @@ Host $HOSTNAME
             msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
             raise Exception(msg)
 
+
 def is_valid_hostname(hostname):
     import re
     # https://stackoverflow.com/questions/2532053/validate-a-hostname-string

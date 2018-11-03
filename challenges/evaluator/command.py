@@ -194,7 +194,7 @@ class DTCommand(DTCommandAbs):
                 with open(tf, 'w') as f:
                     f.write(logs)
 
-                msg = 'Logs saved at %s' % (tf)
+                msg = 'Logs saved at %s' % tf
                 dtslogger.info(msg)
 
                 break

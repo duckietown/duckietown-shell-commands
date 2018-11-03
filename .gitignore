@@ -1,3 +1,4 @@
 *.pyc
 *installed.user.flag
 .updates-check
+.idea

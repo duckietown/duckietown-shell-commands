@@ -1,11 +1,11 @@
 from __future__ import print_function
 
-import sys
-from os.path import join, realpath, dirname
 import argparse
 import os
 import platform
 import subprocess
+import sys
+from os.path import join, realpath, dirname
 from subprocess import call, check_output
 
 from dt_shell import DTCommandAbs, dtslogger

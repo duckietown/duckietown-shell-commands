@@ -1,5 +1,6 @@
-import termcolor
+import re
 
+import termcolor
 from dt_shell import DTCommandAbs
 from dt_shell.remote import dtserver_get_user_submissions, get_duckietown_server_url
 
@@ -83,9 +84,6 @@ def color_status(s):
         return colors[s]
     else:
         return 'white'
-
-
-import re
 
 
 def href(x):

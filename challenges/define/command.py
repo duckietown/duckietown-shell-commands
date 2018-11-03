@@ -4,12 +4,12 @@ import os
 import subprocess
 
 import yaml
-
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
+from dt_shell.exceptions import UserError
 from dt_shell.remote import make_server_request
 from dt_shell.utils import indent
-from dt_shell.exceptions import UserError
+
 
 class DTCommand(DTCommandAbs):
 

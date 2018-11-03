@@ -249,7 +249,6 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         msg = "Type the name of your device (include the \'/dev\' part):   "
         SD_CARD_DEVICE = builtins.input(msg)
 
-
     # Check if the device exists
     if not os.path.exists(SD_CARD_DEVICE):
         msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
@@ -519,7 +518,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     dtslogger.info('Stacks to run: %s' % stacks_to_run)
     for _ in stacks_to_run:
         if _ not in stacks_to_load:
-            msg = 'If you want to run %r you need to load it as well.' % (_)
+            msg = 'If you want to run %r you need to load it as well.' % _
             raise Exception(msg)
 
     for cf in stacks_to_load:
@@ -615,7 +614,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 msg = 'Adding the stack %r as default running' % cf
                 dtslogger.info(msg)
 
-                log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % (cf))
+                log_current_phase(user_data, PHASE_LOADING, "Stack %s: docker-compose up" % cf)
                 cmd = ['docker-compose', '--file', '/var/local/%s.yaml' % cf, '-p', cf, 'up', '-d']
                 add_run_cmd(user_data, cmd)
                 # XXX

@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import datetime
 import os
 import platform
 import subprocess
@@ -10,8 +9,11 @@ from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.networking import get_duckiebot_ip
 
+
+# TODO: Migrate this command to dts duckiebot calibrate intrinsics...
 
 class DTCommand(DTCommandAbs):
 

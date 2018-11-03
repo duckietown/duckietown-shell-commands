@@ -4,14 +4,16 @@ import argparse
 import datetime
 import os
 import platform
-import subprocess
 import sys
 from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.networking import get_duckiebot_ip
 
+
+# TODO: Migrate this command to dts duckiebot calibrate intrinsics...
 
 class DTCommand(DTCommandAbs):
 
@@ -50,7 +52,8 @@ Calibrate:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
 
-    def calibrate(self, duckiebot_name, duckiebot_ip):
+    @staticmethod
+    def calibrate(duckiebot_name, duckiebot_ip):
         import docker
         local_client = docker.from_env()
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
@@ -70,7 +73,6 @@ Calibrate:
             'DUCKIEBOT_IP': duckiebot_ip,
             'QT_X11_NO_MITSHM': True
         }
-
 
         duckiebot_client.containers.get('ros-picam').stop()
 

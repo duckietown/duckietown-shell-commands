@@ -10,8 +10,12 @@ from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
-from utils.networking import get_duckiebot_ip
 from future import builtins
+
+from utils.networking import get_duckiebot_ip
+
+
+# TODO: Migrate this command to dts duckiebot calibrate intrinsics...
 
 class DTCommand(DTCommandAbs):
 
@@ -50,7 +54,8 @@ Calibrate:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
 
-    def calibrate(self, duckiebot_name, duckiebot_ip):
+    @staticmethod
+    def calibrate(duckiebot_name, duckiebot_ip):
         import docker
         local_client = docker.from_env()
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
@@ -121,7 +126,6 @@ Calibrate:
         print("To perform the wheel calibration, follow the steps described in the Duckiebook.")
         print("http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html")
         builtins.input("You will now be given a container running on the Duckiebot for wheel calibration.")
-
 
         duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                         privileged=True,

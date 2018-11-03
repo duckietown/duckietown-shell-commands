@@ -1,17 +1,18 @@
 from __future__ import print_function
 
 import argparse
-import datetime
 import os
 import platform
-import subprocess
 import sys
 from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.networking import get_duckiebot_ip
 
+
+# TODO: Migrate this command to dts duckiebot calibrate wheels...
 
 class DTCommand(DTCommandAbs):
 
@@ -75,7 +76,6 @@ Calibrate:
         print("To perform the wheel calibration, follow the steps described in the Duckiebook.")
         print("http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html")
         raw_input("You will now be given a container running on the Duckiebot for wheel calibration.")
-
 
         duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                         privileged=True,
