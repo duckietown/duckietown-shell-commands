@@ -10,13 +10,10 @@ from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 
-import extrinsics
-import wheels
+from duckiebot import calibrate_wheels, calibrate_extrinsics
 from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
 from utils.networking import get_duckiebot_ip
 
-
-# TODO: Migrate this command to dts duckiebot calibrate intrinsics...
 
 class DTCommand(DTCommandAbs):
 
@@ -24,7 +21,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        prog = 'dts calibrate DUCKIEBOT_NAME'
+        prog = 'dts duckiebot calibrate_all DUCKIEBOT_NAME'
         usage = """
 Calibrate: 
 
@@ -89,5 +86,5 @@ def calibrate(duckiebot_name, duckiebot_ip):
                                     privileged=True,
                                     env_vars=env_vars)
 
-    extrinsics.calibrate(duckiebot_name, duckiebot_ip)
-    wheels.calibrate(duckiebot_ip)
+    calibrate_extrinsics.calibrate(duckiebot_name, duckiebot_ip)
+    calibrate_wheels.calibrate(duckiebot_ip)

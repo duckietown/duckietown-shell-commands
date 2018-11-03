@@ -18,7 +18,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        prog = 'dts calibrate wheels DUCKIEBOT_NAME'
+        prog = 'dts duckiebot calibrate_wheels DUCKIEBOT_NAME'
         usage = """
 Calibrate: 
 
