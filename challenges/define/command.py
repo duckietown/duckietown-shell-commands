@@ -39,15 +39,13 @@ class DTCommand(DTCommandAbs):
 
         from dt_shell.env_checks import check_docker_environment
         client = check_docker_environment()
-        if client is None: # To remove when done
+        if client is None:  # To remove when done
             import docker
             client = docker.from_env()
-
 
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
             os.chdir(parsed.cwd)
-
 
         no_cache = parsed.no_cache
         no_push = parsed.no_push
@@ -72,9 +70,6 @@ class DTCommand(DTCommandAbs):
         base = os.path.dirname(fn)
 
         challenge = ChallengeDescription.from_yaml(data)
-
-
-
 
         if parsed.steps:
             use_steps = parsed.steps.split(",")
@@ -105,7 +100,8 @@ class DTCommand(DTCommandAbs):
                     if args:
                         dtslogger.warning('arguments not supported yet: %s' % args)
 
-                    image, tag, repo_only, tag_only = build_image(client, context, challenge.name, service_name, dockerfile_abs,
+                    image, tag, repo_only, tag_only = build_image(client, context, challenge.name, service_name,
+                                                                  dockerfile_abs,
                                                                   no_cache)
 
                     service.image = tag

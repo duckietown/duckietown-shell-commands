@@ -1,11 +1,11 @@
 from __future__ import print_function
-from future import builtins
 
 import webbrowser
 
 import termcolor
 from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
+from future import builtins
 
 token_dt1_config_key = 'token_dt1'
 

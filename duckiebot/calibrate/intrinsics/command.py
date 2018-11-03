@@ -1,9 +1,9 @@
 from __future__ import print_function
 
 import argparse
-import datetime
 import os
 import platform
+import subprocess
 import sys
 from os.path import join, realpath, dirname, expanduser
 from subprocess import call
@@ -13,15 +13,13 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.networking import get_duckiebot_ip
 
 
-# TODO: Migrate this command to dts duckiebot calibrate intrinsics...
-
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        prog = 'dts calibrate_extrinsics DUCKIEBOT_NAME'
+        prog = 'dts duckiebot calibrate intrinsics DUCKIEBOT_NAME'
         usage = """
 Calibrate: 
 
@@ -52,8 +50,7 @@ Calibrate:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
 
-    @staticmethod
-    def calibrate(duckiebot_name, duckiebot_ip):
+    def calibrate(self, duckiebot_name, duckiebot_ip):
         import docker
         local_client = docker.from_env()
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
@@ -74,31 +71,21 @@ Calibrate:
             'QT_X11_NO_MITSHM': True
         }
 
+        if operating_system == 'Linux':
+            call(["xhost", "+"])
+            local_client.containers.run(image=IMAGE_CALIBRATION,
+                                        network_mode='host',
+                                        volumes=datavol,
+                                        privileged=True,
+                                        env_vars=env_vars)
+        if operating_system == 'Darwin':
+            IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+            env_vars['IP'] = IP
+            call(["xhost", "+IP"])
+            local_client.containers.run(image=IMAGE_CALIBRATION,
+                                        network_mode='host',
+                                        volumes=datavol,
+                                        privileged=True,
+                                        env_vars=env_vars)
+
         duckiebot_client.containers.get('ros-picam').stop()
-
-        timestamp = datetime.date.today().strftime('%Y%m%d%H%M%S')
-        name = 'out-calibrate-extrinsics-%s-%s' % (duckiebot_name, timestamp)
-        sname = 'out-simulation-%s-%s' % (duckiebot_name, timestamp)
-        vname = 'out-pipeline-%s-%s' % (duckiebot_name, timestamp)
-
-        print("********************")
-        raw_input("Place the Duckiebot on the calibration patterns and press ENTER.")
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
-                                        network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash',
-                                        kwargs=['-c', 'source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/%s > /data/%s.log' % (name, name)]
-                                        )
-
-        print("********************")
-        raw_input("Place the Duckiebot in a lane and press ENTER.")
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
-                                        network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash',
-                                        kwargs=['-c','source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/%s> /data/%s.log'%(vname, vname)]
-                                        )
