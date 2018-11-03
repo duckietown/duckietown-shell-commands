@@ -1,4 +1,6 @@
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
+
+from update import duckietown_shell_commands_version
 
 
 class DTCommand(DTCommandAbs):
@@ -6,7 +8,9 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         if shell.commands_path_leave_alone:
-            msg = 'Will not update the commands because the path was set explicitly.'
-            shell.sprint(msg)
+            dtslogger.warn('Will not update the commands because the path was set explicitly.')
         else:
-            shell.update_commands()
+            if shell.update_commands():
+                dtslogger.info('Duckietown Shell commands updated to v{}'.format(duckietown_shell_commands_version))
+            else:
+                dtslogger.error('Update was not successful!')
