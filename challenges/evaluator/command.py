@@ -1,4 +1,6 @@
+from __future__ import unicode_literals
 import argparse
+import datetime
 import getpass
 import os
 import socket
@@ -170,6 +172,8 @@ class DTCommand(DTCommandAbs):
                               detach=True,
                               name=container_name,
                               tty=True)
+        last_log_timestamp = None
+
         while True:
             try:
                 container = client.containers.get(container_name)
@@ -186,8 +190,9 @@ class DTCommand(DTCommandAbs):
                 msg = 'The container exited.'
 
                 logs = ''
-                for c in container.logs(stdout=True, stderr=True, stream=True):
-                    logs += c
+                for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
+                    logs += c.decode('utf-8')
+                    last_log_timestamp = datetime.datetime.now()
                 dtslogger.error(msg)
 
                 tf = 'evaluator.log'
@@ -200,8 +205,10 @@ class DTCommand(DTCommandAbs):
                 break
 
             try:
-                for c in container.logs(stdout=True, stderr=True, stream=True, follow=True):
-                    sys.stdout.write(c)
+                for c in container.logs(stdout=True, stderr=True, stream=True, follow=True,
+                                        since=last_log_timestamp):
+                    sys.stdout.write(c.decode('utf-8'))
+                    last_log_timestamp = datetime.datetime.now()
 
                 time.sleep(3)
             except Exception as e:
