@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+
 import argparse
 import getpass
 import os
@@ -31,7 +32,7 @@ class DTCommand(DTCommandAbs):
         image = parsed.image
 
         check_docker_environment()
-    
+
         pwd = os.getcwd()
         bookdir = os.path.join(pwd, 'book')
 
@@ -68,7 +69,7 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.debug('gitdir: %r' % gitdir)
 
-        if '--show' in gitdir_super:# or not gitdir_super:
+        if '--show' in gitdir_super:  # or not gitdir_super:
             msg = "Your git version is too low, as it does not support --show-superproject-working-tree"
             msg += '\n\nDetected: %s' % git_version
             raise InvalidEnvironment(msg)

@@ -2,7 +2,6 @@
 from __future__ import print_function
 
 import termcolor
-
 from dt_shell import DTCommandAbs
 from dt_shell.remote import get_dtserver_user_info, get_duckietown_server_url
 

@@ -3,13 +3,12 @@ from __future__ import print_function
 import webbrowser
 
 import termcolor
-
 from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
+from future import builtins
 
 token_dt1_config_key = 'token_dt1'
 
-from future import builtins
 
 class DTCommand(DTCommandAbs):
 
@@ -32,7 +31,6 @@ To find your token, first login to duckietown.org, and open the page:
 Enter token: """.format(link=href(link), example=dark(example))
 
         shell.sprint('args: %s' % args.__repr__())
-
 
         if args:
             val_in = args[0]

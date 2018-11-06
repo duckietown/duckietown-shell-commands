@@ -5,7 +5,6 @@ import time
 from collections import defaultdict
 
 import termcolor
-
 from dt_shell import DTCommandAbs
 from dt_shell.remote import make_server_request
 

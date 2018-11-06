@@ -1,15 +1,15 @@
 import argparse
 import datetime
 import json
+import os
 import subprocess
 import traceback
 
 import termcolor
-
+import yaml
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from dt_shell.remote import dtserver_submit, get_duckietown_server_url
-from dt_shell.utils import format_exception
 
 
 def tag_from_date(d):
@@ -240,13 +240,6 @@ def read_submission_info(dirname):
     except BaseException as e:
         msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
         raise CouldNotReadInfo(msg)
-
-
-import os
-
-# noinspection PyUnresolvedReferences
-
-import yaml
 
 
 def read_yaml_file(fn):

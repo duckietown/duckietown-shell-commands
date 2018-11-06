@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import datetime
 import os
 import platform
 import subprocess
@@ -10,6 +9,7 @@ from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.networking import get_duckiebot_ip
 
 
@@ -19,7 +19,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        prog = 'dts calibrate_wheels DUCKIEBOT_NAME'
+        prog = 'dts duckiebot calibrate_intrinsics DUCKIEBOT_NAME'
         usage = """
 Calibrate: 
 
@@ -71,14 +71,21 @@ Calibrate:
             'QT_X11_NO_MITSHM': True
         }
 
-        print("********************")
-        print("To perform the wheel calibration, follow the steps described in the Duckiebook.")
-        print("http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html")
-        raw_input("You will now be given a container running on the Duckiebot for wheel calibration.")
-
-
-        duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                        privileged=True,
+        if operating_system == 'Linux':
+            call(["xhost", "+"])
+            local_client.containers.run(image=IMAGE_CALIBRATION,
                                         network_mode='host',
-                                        datavol={'/data': {'bind': '/data'}},
-                                        command='/bin/bash')
+                                        volumes=datavol,
+                                        privileged=True,
+                                        env_vars=env_vars)
+        if operating_system == 'Darwin':
+            IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+            env_vars['IP'] = IP
+            call(["xhost", "+IP"])
+            local_client.containers.run(image=IMAGE_CALIBRATION,
+                                        network_mode='host',
+                                        volumes=datavol,
+                                        privileged=True,
+                                        env_vars=env_vars)
+
+        duckiebot_client.containers.get('ros-picam').stop()

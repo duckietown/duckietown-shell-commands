@@ -1,22 +1,20 @@
 from __future__ import unicode_literals
+
 import argparse
-import datetime
 import getpass
+import grp
+import json
 import os
 import platform
 import socket
-import sys
-import time
-import traceback
 
-import six
 import yaml
-from docker.errors import NotFound, APIError
-
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
+
+from utils.docker_utils import continuously_monitor
 
 usage = """
 
@@ -26,8 +24,6 @@ usage = """
 
         $ dts challenges evaluate
  
-
-
 """
 
 
@@ -179,8 +175,8 @@ class DTCommand(DTCommandAbs):
         interactive = False
         if parsed.shell:
             interactive = True
-            detach=False
-            command = ['/bin/bash','-l']
+            detach = False
+            command = ['/bin/bash', '-l']
 
         params = dict(working_dir=os.getcwd(),
                       user=UID,
@@ -194,87 +190,7 @@ class DTCommand(DTCommandAbs):
                       detach=detach,
                       name=container_name)
         dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
-        client.containers.run(image,
-                              **params)
+        client.containers.run(image, **params)
         continuously_monitor(client, container_name)
         # dtslogger.debug('evaluate exited with code %s' % ret_code)
         # sys.exit(ret_code)
-
-
-import json
-
-
-def continuously_monitor(client, container_name):
-    dtslogger.debug('Monitoring container %s' % container_name)
-    last_log_timestamp = None
-    while True:
-        try:
-            container = client.containers.get(container_name)
-        except Exception as e:
-            msg = 'Cannot get container %s: %s' % (container_name, e)
-            # dtslogger.error(msg)
-            break
-            # dtslogger.info('Will wait.')
-            # time.sleep(5)
-            # continue
-
-        dtslogger.info('status: %s' % container.status)
-        if container.status == 'exited':
-
-            msg = 'The container exited.'
-
-            logs = ''
-            for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
-                last_log_timestamp = datetime.datetime.now()
-                logs += c.decode()
-            dtslogger.error(msg)
-
-            tf = 'evaluator.log'
-            with open(tf, 'w') as f:
-                f.write(logs)
-
-            msg = 'Logs saved at %s' % tf
-            dtslogger.info(msg)
-
-            # return container.exit_code
-            return  # XXX
-        try:
-            for c in container.logs(stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp):
-                if six.PY2:
-                    sys.stdout.write(c)
-                else:
-                    sys.stdout.write(c.decode('utf-8'))
-
-                last_log_timestamp = datetime.datetime.now()
-
-            time.sleep(3)
-        except KeyboardInterrupt:
-            dtslogger.info('Received CTRL-C. Stopping container...')
-            try:
-                container.stop()
-                dtslogger.info('Removing container')
-                container.remove()
-                dtslogger.info('Container removed.')
-            except NotFound:
-                pass
-            except APIError as e:
-                # if e.errno == 409:
-                #
-                pass
-            break
-        except BaseException:
-            dtslogger.error(traceback.format_exc())
-            dtslogger.info('Will try to re-attach to container.')
-            time.sleep(3)
-    dtslogger.debug('monitoring graceful exit')
-
-
-def logs_for_container(client, container_id):
-    logs = ''
-    container = client.containers.get(container_id)
-    for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
-        logs += c.decode('utf-8')
-    return logs
-
-
-import grp

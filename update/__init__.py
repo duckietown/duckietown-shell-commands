@@ -1,7 +1,10 @@
+import dt_shell
+
 from .command import *
+from dt_shell import dtslogger
 
 min_duckietown_shell = '3.0.24'
-duckietown_shell_commands_version = '1.0.15'
+duckietown_shell_commands_version = '1.1.0'
 
 
 def parse_version(x):
@@ -13,9 +16,7 @@ def render_version(t):
 
 
 def check_compatible():
-    import sys
-    import dt_shell
-    sys.stderr.write('Duckietown Shell commands version %s\n' % duckietown_shell_commands_version)
+    dtslogger.error('Duckietown Shell commands version %s\n' % duckietown_shell_commands_version)
     OtherVersions = getattr(dt_shell, 'OtherVersions', {})
     OtherVersions.name2versions['duckietown-shell-commands'] = duckietown_shell_commands_version
 
@@ -23,7 +24,7 @@ def check_compatible():
     vneed = parse_version(min_duckietown_shell)
 
     if vneed > vnow:
-        msg = '''\
+        msg = '''
 
 Detected Duckietown Shell %s but these commands (%s) need Duckietown Shell >= %s.
 ''' % (render_version(vnow), duckietown_shell_commands_version, render_version(vneed))
