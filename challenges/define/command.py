@@ -4,12 +4,12 @@ import os
 import subprocess
 
 import yaml
-
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
+from dt_shell.exceptions import UserError
 from dt_shell.remote import make_server_request
 from dt_shell.utils import indent
-from dt_shell.exceptions import UserError
+
 
 class DTCommand(DTCommandAbs):
 
@@ -39,15 +39,13 @@ class DTCommand(DTCommandAbs):
 
         from dt_shell.env_checks import check_docker_environment
         client = check_docker_environment()
-        if client is None: # To remove when done
+        if client is None:  # To remove when done
             import docker
             client = docker.from_env()
-
 
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
             os.chdir(parsed.cwd)
-
 
         no_cache = parsed.no_cache
         no_push = parsed.no_push
@@ -72,9 +70,6 @@ class DTCommand(DTCommandAbs):
         base = os.path.dirname(fn)
 
         challenge = ChallengeDescription.from_yaml(data)
-
-
-
 
         if parsed.steps:
             use_steps = parsed.steps.split(",")
@@ -105,8 +100,10 @@ class DTCommand(DTCommandAbs):
                     if args:
                         dtslogger.warning('arguments not supported yet: %s' % args)
 
-                    image, tag, repo_only, tag_only = build_image(client, context, challenge.name, service_name, dockerfile_abs,
-                                                                  no_cache)
+                    image, tag, repo_only, tag_only = \
+                        build_image(client, context, challenge.name, step_name,
+                                    service_name, dockerfile_abs,
+                                    no_cache)
 
                     service.image = tag
 
@@ -153,11 +150,11 @@ def dtserver_challenge_define(token, yaml, force_invalidate):
     return make_server_request(token, endpoint, data=data, method=method)
 
 
-def build_image(client, path, challenge_name, service_name, filename, no_cache=False):
+def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache=False):
     d = datetime.datetime.now()
     username = get_dockerhub_username()
     tag_only = tag_from_date(d)
-    repo_only = '%s/%s-%s' % (username, challenge_name.lower(), service_name.lower())
+    repo_only = '%s/%s-%s-%s' % (username, challenge_name.lower(), step_name.lower(), service_name.lower())
     tag = '%s:%s' % (repo_only, tag_only)
     cmd = ['docker', 'build', '-t', tag, '-f', filename]
     if no_cache:

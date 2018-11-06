@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+
 import argparse
 import datetime
 import getpass
@@ -6,6 +7,7 @@ import os
 import socket
 import sys
 import time
+import traceback
 
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
@@ -73,7 +75,12 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--no-watchtower', dest='no_watchtower', action='store_true', default=False,
                            help="Disable starting of watchtower")
         group.add_argument('--no-pull', dest='no_pull', action='store_true', default=False,
-                           help="Disable pulling of container")
+                           help="Disable pulling of containers")
+        group.add_argument('--no-upload', dest='no_upload', action='store_true', default=False,
+                           help="Disable upload of artifacts")
+        group.add_argument('--no-delete', dest='no_delete', action='store_true', default=False,
+                           help="Does not erase temporary files in /tmp/duckietown")
+
         group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
 
         group.add_argument('--name', default=None, help='Name for this evaluator')
@@ -89,8 +96,7 @@ class DTCommand(DTCommandAbs):
         else:
             container_name = parsed.name
 
-        import docker
-        client = docker.from_env()
+        client = check_docker_environment()
 
         command = ['dt-challenges-evaluator']
 
@@ -104,6 +110,13 @@ class DTCommand(DTCommandAbs):
 
         command += ['--name', container_name]
         command += ['--machine-id', machine_id]
+
+        if parsed.no_upload:
+            command += ['--no-upload']
+        if parsed.no_pull:
+            command += ['--no-pull']
+        if parsed.no_delete:
+            command += ['--no-delete']
         if parsed.features:
             dtslogger.debug('Passing features %r' % parsed.features)
             command += ['--features', parsed.features]
@@ -187,33 +200,29 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('status: %s' % container.status)
             if container.status == 'exited':
 
-                msg = 'The container exited.'
-
                 logs = ''
                 for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
                     logs += c.decode('utf-8')
                     last_log_timestamp = datetime.datetime.now()
-                dtslogger.error(msg)
 
                 tf = 'evaluator.log'
                 with open(tf, 'w') as f:
                     f.write(logs)
 
-                msg = 'Logs saved at %s' % tf
+                msg = 'The container exited.'
+                msg += '\nLogs saved at %s' % tf
                 dtslogger.info(msg)
 
                 break
 
             try:
-                for c in container.logs(stdout=True, stderr=True, stream=True, follow=True,
-                                        since=last_log_timestamp):
+                if last_log_timestamp is not None:
+                    print('since: %s' % last_log_timestamp.isoformat())
+                for c in container.logs(stdout=True, stderr=True, stream=True,  # follow=True,
+                                        since=last_log_timestamp, tail=0):
                     sys.stdout.write(c.decode('utf-8'))
                     last_log_timestamp = datetime.datetime.now()
 
-                time.sleep(3)
-            except Exception as e:
-                dtslogger.error(e)
-                dtslogger.info('Will try to re-attach to container.')
                 time.sleep(3)
             except KeyboardInterrupt:
                 dtslogger.info('Received CTRL-C. Stopping container...')
@@ -222,6 +231,14 @@ class DTCommand(DTCommandAbs):
                 container.remove()
                 dtslogger.info('Container removed.')
                 break
+            except BaseException:
+                s = traceback.format_exc()
+                if 'Read timed out' in s:
+                    dtslogger.debug('(reattaching)')
+                else:
+                    dtslogger.error(s)
+                    dtslogger.info('Will try to re-attach to container.')
+                    time.sleep(3)
 
 
 def ensure_watchtower_active(client):
