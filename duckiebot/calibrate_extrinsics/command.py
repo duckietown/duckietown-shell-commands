@@ -8,9 +8,7 @@ from os.path import join, realpath, dirname
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
-
-from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
-from utils.networking import get_duckiebot_ip
+from past.builtins import raw_input
 
 
 class DTCommand(DTCommandAbs):
@@ -29,6 +27,8 @@ Calibrate:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
         parsed_args = parser.parse_args(args)
+
+        from utils.networking import get_duckiebot_ip
 
         duckiebot_ip = get_duckiebot_ip(parsed_args.hostname)
         # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
@@ -52,6 +52,8 @@ Calibrate:
 
 
 def calibrate(duckiebot_name, duckiebot_ip):
+    from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
+
     local_client = get_local_client()
     duckiebot_client = get_duckiebot_client(duckiebot_ip)
 
@@ -62,7 +64,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     timestamp = datetime.date.today().strftime('%Y%m%d%H%M%S')
 
-    raw_input("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*'*20))
+    raw_input("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*' * 20))
 
     log_file = 'out-calibrate-extrinsics-%s-%s' % (duckiebot_name, timestamp)
     source_env = 'source /home/software/docker/env.sh'
@@ -77,7 +79,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
                                     command='/bin/bash',
                                     kwargs=['-c', start_command])
 
-    raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*'*20))
+    raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*' * 20))
 
     log_file = 'out-pipeline-%s-%s' % (duckiebot_name, timestamp)
     rosrun_params = '-o /data/{0} > /data/{0}.log'.format(log_file)

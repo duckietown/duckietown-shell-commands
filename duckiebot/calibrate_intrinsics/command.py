@@ -9,8 +9,7 @@ from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
-
-from utils.networking import get_duckiebot_ip
+from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
@@ -25,6 +24,7 @@ Calibrate:
 
     %(prog)s
 """
+        from utils.networking import get_duckiebot_ip
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
@@ -52,7 +52,7 @@ Calibrate:
 
     def calibrate(self, duckiebot_name, duckiebot_ip):
         import docker
-        local_client = docker.from_env()
+        local_client = check_docker_environment()
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
         operating_system = platform.system()
 
