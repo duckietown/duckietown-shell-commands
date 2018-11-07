@@ -100,9 +100,10 @@ class DTCommand(DTCommandAbs):
                     if args:
                         dtslogger.warning('arguments not supported yet: %s' % args)
 
-                    image, tag, repo_only, tag_only = build_image(client, context, challenge.name, service_name,
-                                                                  dockerfile_abs,
-                                                                  no_cache)
+                    image, tag, repo_only, tag_only = \
+                        build_image(client, context, challenge.name, step_name,
+                                    service_name, dockerfile_abs,
+                                    no_cache)
 
                     service.image = tag
 
@@ -149,11 +150,11 @@ def dtserver_challenge_define(token, yaml, force_invalidate):
     return make_server_request(token, endpoint, data=data, method=method)
 
 
-def build_image(client, path, challenge_name, service_name, filename, no_cache=False):
+def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache=False):
     d = datetime.datetime.now()
     username = get_dockerhub_username()
     tag_only = tag_from_date(d)
-    repo_only = '%s/%s-%s' % (username, challenge_name.lower(), service_name.lower())
+    repo_only = '%s/%s-%s-%s' % (username, challenge_name.lower(), step_name.lower(), service_name.lower())
     tag = '%s:%s' % (repo_only, tag_only)
     cmd = ['docker', 'build', '-t', tag, '-f', filename]
     if no_cache:

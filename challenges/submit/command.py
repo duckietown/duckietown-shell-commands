@@ -119,6 +119,8 @@ Submission with an arbitrary JSON payload:
                            help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
+        group.add_argument('--image', default=None, type=str,
+                           help="Specify image directly instead of building it.")
         group.add_argument('--no-push', dest='no_push', action='store_true', default=False,
                            help="Disable pushing of container")
         group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
@@ -150,7 +152,10 @@ Submission with an arbitrary JSON payload:
 
         username = get_dockerhub_username(shell)
 
-        hashname = build(username, sub_info.challenge_name, do_push, no_cache=parsed.no_cache)
+        if parsed.image is not None:
+            hashname = parsed.image
+        else:
+            hashname = build(username, sub_info.challenge_name, do_push, no_cache=parsed.no_cache)
 
         data = {'hash': hashname,
                 'user_label': sub_info.user_label,
