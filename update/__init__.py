@@ -4,7 +4,7 @@ from .command import *
 from dt_shell import dtslogger
 
 min_duckietown_shell = '3.0.24'
-duckietown_shell_commands_version = '1.1.0'
+duckietown_shell_commands_version = '1.1.1'
 
 
 def parse_version(x):
