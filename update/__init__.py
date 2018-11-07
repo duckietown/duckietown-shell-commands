@@ -1,7 +1,7 @@
 import dt_shell
 
 from .command import *
-from dt_shell import dtslogger
+import sys
 
 min_duckietown_shell = '3.0.24'
 duckietown_shell_commands_version = '1.1.1'
@@ -16,7 +16,7 @@ def render_version(t):
 
 
 def check_compatible():
-    dtslogger.error('Duckietown Shell commands version %s\n' % duckietown_shell_commands_version)
+    sys.stderr.write('Duckietown Shell commands version %s\n' % duckietown_shell_commands_version)
     OtherVersions = getattr(dt_shell, 'OtherVersions', {})
     OtherVersions.name2versions['duckietown-shell-commands'] = duckietown_shell_commands_version
 

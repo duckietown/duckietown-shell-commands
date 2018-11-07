@@ -10,16 +10,14 @@ from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from duckiebot import calibrate_wheels, calibrate_extrinsics
-from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
-from utils.networking import get_duckiebot_ip
-
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
+
+        from utils.networking import get_duckiebot_ip
 
         prog = 'dts duckiebot calibrate_all DUCKIEBOT_NAME'
         usage = """
@@ -53,6 +51,8 @@ Calibrate:
 
 
 def calibrate(duckiebot_name, duckiebot_ip):
+    from duckiebot import calibrate_wheels, calibrate_extrinsics
+    from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
     local_client = get_local_client()
     duckiebot_client = get_duckiebot_client(duckiebot_ip)
     operating_system = platform.system()
