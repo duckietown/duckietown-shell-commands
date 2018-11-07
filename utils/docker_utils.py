@@ -3,9 +3,9 @@ import sys
 import time
 import traceback
 
-import docker
+
 import six
-from docker.errors import NotFound, APIError
+
 from dt_shell import dtslogger
 
 IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
@@ -13,14 +13,17 @@ IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 
 
 def get_duckiebot_client(duckiebot_ip):
+    import docker
     return docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
 
 
 def get_local_client():
+    import docker
     return docker.from_env()
 
 
 def continuously_monitor(client, container_name):
+    from docker.errors import NotFound, APIError
     dtslogger.debug('Monitoring container %s' % container_name)
     last_log_timestamp = None
     while True:
