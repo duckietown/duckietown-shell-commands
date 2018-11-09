@@ -70,6 +70,8 @@ DISK_ROOT = '/dev/disk/by-label/root'
 DUCKIETOWN_TMP = '/tmp/duckietown'
 DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 
+LOG_DIR = '/media/logs'
+
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
@@ -347,6 +349,8 @@ def step_setup(shell, parsed):
     if not os.path.exists(DUCKIETOWN_TMP):
         os.makedirs(DUCKIETOWN_TMP)
 
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
     # check_has_space(where=DUCKIETOWN_TMP, min_available_gb=20.0)
 
     try:
