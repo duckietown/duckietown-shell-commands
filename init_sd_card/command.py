@@ -70,7 +70,7 @@ DISK_ROOT = '/dev/disk/by-label/root'
 DUCKIETOWN_TMP = '/tmp/duckietown'
 DOCKER_IMAGES_CACHE_DIR = os.path.join(DUCKIETOWN_TMP, 'docker_images')
 
-LOG_DIR = '~/logs'
+LOG_DIR = 'data/logs'
 
 PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
