@@ -17,7 +17,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'start_keyboard_control.sh')
-        prog = 'dts keyboard_control DUCKIEBOT_NAME'
+        prog = 'dts duckiebot keyboard_control DUCKIEBOT_NAME'
         usage = """
 Keyboard control: 
 
@@ -41,28 +41,24 @@ Keyboard control:
                 dtslogger.info(msg)
                 env.pop(V)
 
-            script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
+            run_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-            print('Running %s' % script_cmd)
-            ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout,
-                                  env=env)
+            print('Running %s' % run_cmd)
+            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
 
             if ret == 0:
                 print('Done!')
             else:
-                msg = (
-                        'An error occurred while starting the GUI tools container, please check and try again (%s).' % ret)
+                msg = ('Error occurred while starting the GUI tools container, please check and retry (%s).' % ret)
                 raise Exception(msg)
         else:
             env = {}
             env.update(os.environ)
-            script_cmd = 'docker -H %s.local run -it --rm --privileged --network=host -v /data:/data duckietown/rpi-duckiebot-joy-cli:master18' % parsed_args.hostname
-            print('Running %s' % script_cmd)
-            ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout,
-                                  env=env)
+            run_cmd = 'docker -H %s.local run -it --rm --privileged --network=host -v /data:/data duckietown/rpi-duckiebot-joy-cli:master18' % parsed_args.hostname
+            print('Running %s' % run_cmd)
+            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
             if ret == 0:
                 print('Done!')
             else:
-                msg = (
-                        'An error occurred while starting the joystick CLI container, please check and try again (%s).' % ret)
+                msg = ('Error occurred while starting the joystick CLI container, please check and retry (%s).' % ret)
                 raise Exception(msg)

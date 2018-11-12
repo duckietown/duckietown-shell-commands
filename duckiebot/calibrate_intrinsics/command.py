@@ -50,42 +50,43 @@ Calibrate:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
 
-    def calibrate(self, duckiebot_name, duckiebot_ip):
-        import docker
-        local_client = check_docker_environment()
-        duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
-        operating_system = platform.system()
 
-        IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
-        IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
+def calibrate(duckiebot_name, duckiebot_ip):
+    import docker
+    local_client = check_docker_environment()
+    duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
+    operating_system = platform.system()
 
-        duckiebot_client.images.pull(IMAGE_BASE)
-        local_client.images.pull(IMAGE_CALIBRATION)
-        user_home = expanduser("~")
-        datavol = {'%s/data' % user_home: {'bind': '/data'}}
+    IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
+    IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
 
-        env_vars = {
-            'ROS_MASTER': duckiebot_name,
-            'DUCKIEBOT_NAME': duckiebot_name,
-            'DUCKIEBOT_IP': duckiebot_ip,
-            'QT_X11_NO_MITSHM': True
-        }
+    duckiebot_client.images.pull(IMAGE_BASE)
+    local_client.images.pull(IMAGE_CALIBRATION)
+    user_home = expanduser("~")
+    datavol = {'%s/data' % user_home: {'bind': '/data'}}
 
-        if operating_system == 'Linux':
-            call(["xhost", "+"])
-            local_client.containers.run(image=IMAGE_CALIBRATION,
-                                        network_mode='host',
-                                        volumes=datavol,
-                                        privileged=True,
-                                        env_vars=env_vars)
-        if operating_system == 'Darwin':
-            IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-            env_vars['IP'] = IP
-            call(["xhost", "+IP"])
-            local_client.containers.run(image=IMAGE_CALIBRATION,
-                                        network_mode='host',
-                                        volumes=datavol,
-                                        privileged=True,
-                                        env_vars=env_vars)
+    env_vars = {
+        'ROS_MASTER': duckiebot_name,
+        'DUCKIEBOT_NAME': duckiebot_name,
+        'DUCKIEBOT_IP': duckiebot_ip,
+        'QT_X11_NO_MITSHM': True
+    }
 
-        duckiebot_client.containers.get('ros-picam').stop()
+    if operating_system == 'Linux':
+        call(["xhost", "+"])
+        local_client.containers.run(image=IMAGE_CALIBRATION,
+                                    network_mode='host',
+                                    volumes=datavol,
+                                    privileged=True,
+                                    environment=env_vars)
+    if operating_system == 'Darwin':
+        IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+        env_vars['IP'] = IP
+        call(["xhost", "+IP"])
+        local_client.containers.run(image=IMAGE_CALIBRATION,
+                                    network_mode='host',
+                                    volumes=datavol,
+                                    privileged=True,
+                                    environment=env_vars)
+
+    duckiebot_client.containers.get('ros-picam').stop()

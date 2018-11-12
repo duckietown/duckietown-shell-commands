@@ -10,6 +10,8 @@ from dt_shell import dtslogger
 
 IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
 IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
+RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
+RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 
 
 def get_duckiebot_client(duckiebot_ip):

@@ -75,7 +75,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
                                     network_mode='host',
                                     volumes=datavol,
                                     privileged=True,
-                                    env_vars=env_vars)
+                                    environment=env_vars)
     if operating_system == 'Darwin':
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
@@ -84,7 +84,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
                                     network_mode='host',
                                     volumes=datavol,
                                     privileged=True,
-                                    env_vars=env_vars)
+                                    environment=env_vars)
 
     calibrate_extrinsics.calibrate(duckiebot_name, duckiebot_ip)
     calibrate_wheels.calibrate(duckiebot_ip)

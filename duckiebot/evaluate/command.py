@@ -38,3 +38,5 @@ class DTCommand(DTCommandAbs):
         group.add_argument('-C', dest='change', default=None)
 
         parsed = parser.parse_args(args)
+
+#Starts a local GUI tools container
