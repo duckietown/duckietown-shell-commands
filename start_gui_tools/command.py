@@ -55,12 +55,11 @@ Keyboard control:
 def start_gui_tools(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     import docker
+    from utils.docker_utils import RPI_GUI_TOOLS
     local_client = docker.from_env()
     operating_system = platform.system()
 
-    IMAGE_RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
-
-    local_client.images.pull(IMAGE_RPI_GUI_TOOLS)
+    local_client.images.pull(RPI_GUI_TOOLS)
 
     env_vars = {
         'ROS_MASTER': duckiebot_name,
@@ -72,7 +71,7 @@ def start_gui_tools(duckiebot_name):
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
-        local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
+        local_client.containers.run(image=RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
                                     environment=env_vars)
@@ -80,7 +79,7 @@ def start_gui_tools(duckiebot_name):
         IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
         call(["xhost", "+IP"])
-        local_client.containers.run(image=IMAGE_RPI_GUI_TOOLS,
+        local_client.containers.run(image=RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
                                     environment=env_vars)

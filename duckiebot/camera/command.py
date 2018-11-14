@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import os
 import platform
 import subprocess
 import time
@@ -86,4 +85,4 @@ def view_camera(duckiebot_name, duckiebot_ip):
                                     privileged=True,
                                     network_mode='host',
                                     environment=env_vars,
-                                    command='rqt_image_view')
+                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')

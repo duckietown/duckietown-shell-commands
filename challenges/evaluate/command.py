@@ -37,19 +37,13 @@ class DTCommand(DTCommandAbs):
 
         group = parser.add_argument_group('Basic')
 
-        group.add_argument('--no-cache', action='store_true', default=False,
-                           help="")
-
-        group.add_argument('--no-build', action='store_true', default=False,
-                           help="")
-        group.add_argument('--no-pull', action='store_true', default=False,
-                           help="")
-        group.add_argument('--image', help="Evaluator image to run",
-                           default='duckietown/dt-challenges-evaluator:v3')
-        group.add_argument('--shell', action='store_true', default=False,
-                           help="Runs a shell in the container")
+        group.add_argument('--no-cache', action='store_true', default=False, help="")
+        group.add_argument('--no-build', action='store_true', default=False, help="")
+        group.add_argument('--no-pull', action='store_true', default=False, help="")
+        group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
+        group.add_argument('--shell', action='store_true', default=False, help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
-
+        group.add_argument('--visualize', help="Visualize the evaluation", action='store_true', default=False)
         group.add_argument('-C', dest='change', default=None)
 
         parsed = parser.parse_args(args)
@@ -171,7 +165,6 @@ class DTCommand(DTCommandAbs):
         else:
             group_add = [g.gr_gid for g in grp.getgrall() if USERNAME in g.gr_mem]
 
-        # group_add = [g.gr_name for g in grp.getgrall() if USERNAME in g.gr_mem]
         interactive = False
         if parsed.shell:
             interactive = True
@@ -191,6 +184,43 @@ class DTCommand(DTCommandAbs):
                       name=container_name)
         dtslogger.info('Parameters:\n%s' % json.dumps(params, indent=4))
         client.containers.run(image, **params)
+
+        if parsed.visualize:
+            visualize()
+
         continuously_monitor(client, container_name)
         # dtslogger.debug('evaluate exited with code %s' % ret_code)
         # sys.exit(ret_code)
+
+
+def visualize():
+    from time import sleep
+    from subprocess import call, check_output
+    from utils.docker_utils import RPI_GUI_TOOLS
+
+    local_client = check_docker_environment()
+    operating_system = platform.system()
+    local_client.images.pull(RPI_GUI_TOOLS)
+
+    env_vars = {
+        'QT_X11_NO_MITSHM': 1
+    }
+
+    if operating_system == 'Linux':
+        call(["xhost", "+"])
+        env_vars['DISPLAY'] = ':0'
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    privileged=True,
+                                    network_mode='host',
+                                    environment=env_vars,
+                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
+
+    elif operating_system == 'Darwin':
+        IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+        env_vars['IP'] = IP
+        call(["xhost", "+IP"])
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    privileged=True,
+                                    network_mode='host',
+                                    environment=env_vars,
+                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')

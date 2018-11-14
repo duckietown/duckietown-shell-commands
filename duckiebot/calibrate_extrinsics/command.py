@@ -71,13 +71,13 @@ def calibrate(duckiebot_name, duckiebot_ip):
     rosrun_params = '-o /data/{0} > /data/{0}.log'.format(log_file)
     ros_pkg = 'complete_image_pipeline calibrate_extrinsics'
     start_command = '{0} && rosrun {1} {2}'.format(source_env, ros_pkg, rosrun_params)
+    dtslogger.info('Running command: {}'.format(start_command))
 
     duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
                                     datavol={'/data': {'bind': '/data'}},
-                                    command='/bin/bash',
-                                    kwargs=['-c', start_command])
+                                    command="/bin/bash -c '%s'" % start_command)
 
     raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*' * 20))
 
@@ -85,11 +85,10 @@ def calibrate(duckiebot_name, duckiebot_ip):
     rosrun_params = '-o /data/{0} > /data/{0}.log'.format(log_file)
     ros_pkg = 'complete_image_pipeline single_image_pipeline'
     start_command = '{0} && rosrun {1} {2}'.format(source_env, ros_pkg, rosrun_params)
-    dtslogger.info('Running command:'.format(start_command))
+    dtslogger.info('Running command: {}'.format(start_command))
 
     duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
                                     datavol={'/data': {'bind': '/data'}},
-                                    command='/bin/bash',
-                                    kwargs=['-c', start_command])
+                                    command="/bin/bash -c '%s'" % start_command)
