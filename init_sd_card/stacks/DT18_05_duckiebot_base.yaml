@@ -19,7 +19,8 @@ services:
     image: duckietown/rpi-duckiebot-camera-node:master18
   rpi-duckiebot-web_video_server:
     image: duckietown/rpi-duckiebot-web_video_server:master18
-
+  rpi-duckiebot-logger:
+    image: duckietown/rpi-duckiebot-logger:master18
 
 # To visualize dependencies:
 
