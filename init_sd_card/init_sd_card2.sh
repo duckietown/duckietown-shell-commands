@@ -23,10 +23,10 @@ DEPS_LIST=(wget tar udisksctl docker base64  gzip udevadm)
 
 if [[ $(uname -a) = *"x86_64"* ]]; then
     echo "64-bit OS detected..."
-    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.6-linux-x64.tar.gz"
+    ETCHER_URL="https://github.com/balena-io/etcher/releases/download/v1.4.6/etcher-cli-1.4.6-linux-x64.tar.gz"
 else
     echo "Non 64-bit OS detected..."
-    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.6-linux-x86.tar.gz"
+    ETCHER_URL="https://github.com/balena-io/etcher/releases/download/v1.4.6/etcher-cli-1.4.6-linux-x86.tar.gz"
 fi
 
 ETCHER_DIR="${TMP_DIR}/etcher-cli"
@@ -40,7 +40,7 @@ mkdir -p ${IMAGE_DOWNLOADER_CACHEDIR}
 
 #MOD_FILE="${TMP_DIR}/mod"
 #DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
-#WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.2-linux-rpi.tar.gz"
+#WIFI_CONNECT_URL="https://github.com/balena-io/resin-wifi-connect/releases/download/v4.2.2/wifi-connect-v4.2.2-linux-rpi.tar.gz"
 
 download_etcher() {
     if [[ -f "$ETCHER_DIR/etcher" ]]; then
