@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # This script will flash an SD card with Hypriot
-#
 
 #for debugging, enable command printout
-if [ -n "$DEBUG" ]; then
+if [[ -n "$DEBUG" ]]; then
     set -xu
 fi
 
@@ -13,7 +12,7 @@ set -e
 VERSION=1 # Increment version to bust the cache
 TMP_DIR="/tmp/duckietown"
 
-if [ ! -f $TMP_DIR/version ] || [ "$(cat $TMP_DIR/version)" != "$VERSION" ]; then
+if [[ ! -f $TMP_DIR/version ]] || [[ "$(cat $TMP_DIR/version)" != "$VERSION" ]]; then
    rm -rf $TMP_DIR
 fi
 
@@ -24,10 +23,10 @@ DEPS_LIST=(wget tar udisksctl docker base64  gzip udevadm)
 
 if [[ $(uname -a) = *"x86_64"* ]]; then
     echo "64-bit OS detected..."
-    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.4-linux-x64.tar.gz"
+    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.6-linux-x64.tar.gz"
 else
     echo "Non 64-bit OS detected..."
-    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.4-linux-x86.tar.gz"
+    ETCHER_URL="https://github.com/resin-io/etcher/releases/download/v1.4.4/etcher-cli-1.4.6-linux-x86.tar.gz"
 fi
 
 ETCHER_DIR="${TMP_DIR}/etcher-cli"
@@ -41,13 +40,10 @@ mkdir -p ${IMAGE_DOWNLOADER_CACHEDIR}
 
 #MOD_FILE="${TMP_DIR}/mod"
 #DUCKIE_ART_URL="https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art"
-
-#WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.1-linux-rpi.tar.gz"
-
-
+#WIFI_CONNECT_URL="https://github.com/resin-io/resin-wifi-connect/releases/download/v4.2.1/wifi-connect-v4.2.2-linux-rpi.tar.gz"
 
 download_etcher() {
-    if [ -f "$ETCHER_DIR/etcher" ]; then
+    if [[ -f "$ETCHER_DIR/etcher" ]]; then
         echo "Prior etcher-cli install detected at $ETCHER_DIR, skipping..."
     else
         # Download tool to burn image
@@ -63,7 +59,7 @@ download_etcher() {
 }
 
 download_hypriot() {
-    if [ -f $HYPRIOT_LOCAL ]; then
+    if [[ -f $HYPRIOT_LOCAL ]]; then
         echo "HypriotOS image was previously downloaded to $HYPRIOT_LOCAL, skipping..."
     else
         # Download the Hypriot Image echo "Downloading Hypriot image to ${HYPRIOT_LOCAL}"
@@ -73,15 +69,12 @@ download_hypriot() {
 }
 
 flash_hypriot() {
-
     echo "Flashing Hypriot image $HYPRIOT_LOCAL to disk ${INIT_SD_CARD_DEV}"
     sudo -p "[sudo] Enter password for '%p' which is required to run Etcher: " \
         ${ETCHER_DIR}/etcher -d ${INIT_SD_CARD_DEV} -u false ${HYPRIOT_LOCAL}
     echo "Flashing Hypriot image succeeded."
 
 }
-
-# main()
 
 download_etcher
 download_hypriot
