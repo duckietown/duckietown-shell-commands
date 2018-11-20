@@ -398,7 +398,7 @@ def step_setup(shell, parsed):
 
     add_run_cmd(user_data, "chown -R 1000:1000 {home}".format(home=user_home_path))
 
-    add_run_cmd(user_data, 'dd if=/dev/zero of=/swap0 bs=1M count=1024')
+    add_run_cmd(user_data, 'dd if=/dev/zero of=/swap0 bs=1M count=2048')
     add_run_cmd(user_data, 'mkswap /swap0')
     add_run_cmd(user_data, 'echo "/swap0 swap swap" >> /etc/fstab')
     add_run_cmd(user_data, 'chmod 0600 /swap0')
