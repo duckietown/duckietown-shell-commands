@@ -1,12 +1,16 @@
 import datetime
+import platform
+import subprocess
 import sys
 import time
 import traceback
 
-
 import six
 
 from dt_shell import dtslogger
+from dt_shell.env_checks import check_docker_environment
+
+from utils.networking import get_duckiebot_ip
 
 IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
 IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
@@ -90,9 +94,125 @@ def continuously_monitor(client, container_name):
     dtslogger.debug('monitoring graceful exit')
 
 
+def push_image_to_duckiebot(image_name, hostname):
+    # If password required, we need to configure with sshass
+    command = 'docker save %s | ssh - C duckie@%s.local | docker load' % (image_name, hostname)
+    subprocess.check_output(['/bin/sh', '-c', command])
+
+
 def logs_for_container(client, container_id):
     logs = ''
     container = client.containers.get(container_id)
     for c in container.logs(stdout=True, stderr=True, stream=True, timestamps=True):
         logs += c.decode('utf-8')
     return logs
+
+
+def start_picamera(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    import docker
+
+    local_client = check_docker_environment()
+    duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
+
+    local_client.images.pull(RPI_GUI_TOOLS)
+    duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
+
+    env_vars = {
+        'ROS_MASTER': duckiebot_name,
+        'DUCKIEBOT_NAME': duckiebot_name,
+        'DUCKIEBOT_IP': duckiebot_ip,
+        'QT_X11_NO_MITSHM': 1,
+    }
+
+    print("Running with" + str(env_vars))
+
+    duckiebot_client.containers.run(image=RPI_DUCKIEBOT_ROS_PICAM,
+                                    network_mode='host',
+                                    devices=['/dev/vchiq'],
+                                    detach=True,
+                                    environment=env_vars)
+
+
+def view_camera(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    import docker
+
+    raw_input("""{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
+    local_client = check_docker_environment()
+    duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
+    operating_system = platform.system()
+
+    local_client.images.pull(RPI_GUI_TOOLS)
+    duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
+
+    env_vars = {
+        'ROS_MASTER': duckiebot_name,
+        'DUCKIEBOT_NAME': duckiebot_name,
+        'DUCKIEBOT_IP': duckiebot_ip,
+        'QT_X11_NO_MITSHM': 1,
+    }
+
+    print("Running with" + str(env_vars))
+
+    duckiebot_client.containers.run(image=RPI_DUCKIEBOT_ROS_PICAM,
+                                    network_mode='host',
+                                    devices=['/dev/vchiq'],
+                                    detach=True,
+                                    environment=env_vars)
+
+    print("Waiting a few seconds for Duckiebot camera container to warm up...")
+    time.sleep(3)
+
+    if operating_system == 'Linux':
+        subprocess.call(["xhost", "+"])
+        env_vars['DISPLAY'] = ':0'
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    privileged=True,
+                                    network_mode='host',
+                                    environment=env_vars,
+                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
+
+    elif operating_system == 'Darwin':
+        IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+        env_vars['IP'] = IP
+        subprocess.call(["xhost", "+IP"])
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    privileged=True,
+                                    network_mode='host',
+                                    environment=env_vars,
+                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
+
+
+def start_gui_tools(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    import docker
+    local_client = docker.from_env()
+    operating_system = platform.system()
+
+    local_client.images.pull(RPI_GUI_TOOLS)
+
+    env_vars = {
+        'ROS_MASTER': duckiebot_name,
+        'DUCKIEBOT_NAME': duckiebot_name,
+        'DUCKIEBOT_IP': duckiebot_ip,
+        'QT_X11_NO_MITSHM': True,
+        'DISPLAY': True
+    }
+
+    if operating_system == 'Linux':
+        subprocess.call(["xhost", "+"])
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    network_mode='host',
+                                    privileged=True,
+                                    environment=env_vars)
+    if operating_system == 'Darwin':
+        IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
+        env_vars['IP'] = IP
+        subprocess.call(["xhost", "+IP"])
+        local_client.containers.run(image=RPI_GUI_TOOLS,
+                                    network_mode='host',
+                                    privileged=True,
+                                    environment=env_vars)
+
+    # TODO: attach an interactive TTY

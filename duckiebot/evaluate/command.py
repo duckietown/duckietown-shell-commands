@@ -2,6 +2,8 @@ import argparse
 
 from dt_shell import DTCommandAbs
 
+from utils.docker_utils import push_image_to_duckiebot
+
 usage = """
 
 ## Basic usage
@@ -22,21 +24,31 @@ class DTCommand(DTCommandAbs):
 
         group = parser.add_argument_group('Basic')
 
-        group.add_argument('--no-cache', action='store_true', default=False,
-                           help="")
+        parser.add_argument('hostname', default=None,
+                            help="Name of the Duckiebot on which to perform evaluation")
 
-        group.add_argument('--no-build', action='store_true', default=False,
-                           help="")
-        group.add_argument('--no-pull', action='store_true', default=False,
-                           help="")
-        group.add_argument('--image', help="Evaluator image to run",
-                           default='duckietown/dt-challenges-evaluator:v3')
-        group.add_argument('--shell', action='store_true', default=False,
-                           help="Runs a shell in the container")
-        group.add_argument('--output', help="", default='output')
+        group.add_argument('--image', help="Image to evaluate",
+                           default="duckietown/dt-challenges-evaluator:v3")
 
-        group.add_argument('-C', dest='change', default=None)
+        group.add_argument('--remotely', action='store_true', default=False,
+                           help="Run the image on the laptop without pushing to Duckiebot")
 
         parsed = parser.parse_args(args)
 
-#Starts a local GUI tools container
+        if (parsed.remotely):
+            evaluate_remotely(parsed.hostname, parsed.image)
+        else:
+            evaluate_locally(parsed.hostname, parsed.image)
+
+
+# Runs everything on the Duckiebot
+
+def evaluate_locally(hostname, image_name):
+    push_image_to_duckiebot('duckietown/%s' % image_name, hostname)
+    # TODO: finish
+
+
+# Sends actions over the local network
+
+def evaluate_remotely(hostname, image_name):
+    pass # TODO: finish

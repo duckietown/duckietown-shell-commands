@@ -17,7 +17,7 @@ IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 docker pull $IMAGE_CALIBRATION
 docker -H "$DUCKIEBOT_NAME.local" pull $IMAGE_BASE
 
-if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-picam') == "true" ]; then 
+if [[ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-picam') == "true" ]]; then
    echo "********************"
    echo "ros-picam container is running, and will now be stopped"
    docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
@@ -35,4 +35,3 @@ echo "You will now be given a container running on the Duckiebot for wheel calib
 read
 
 docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged  $IMAGE_BASE /bin/bash
-

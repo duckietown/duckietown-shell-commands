@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: Complete migration to command.py, just need to verify it works on the Duckiebot
+
 DUCKIEBOT_NAME="$1"
 DUCKIEBOT_IP="$2"
 

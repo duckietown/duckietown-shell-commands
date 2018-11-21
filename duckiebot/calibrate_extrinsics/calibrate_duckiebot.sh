@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: Complete migration to command.py, just need to verify it works on the Duckiebot
+
 DUCKIEBOT_NAME="$1"
 DUCKIEBOT_IP="$2"
 
@@ -17,7 +19,7 @@ IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 docker pull $IMAGE_CALIBRATION
 docker -H "$DUCKIEBOT_NAME.local" pull $IMAGE_BASE
 
-if [ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-picam') == "true" ]; then 
+if [[ $(docker -H "$DUCKIEBOT_NAME.local" inspect -f '{{.State.Running}}' 'ros-picam') == "true" ]]; then
    echo "********************"
    echo "ros-picam container is running, and will now be stopped"
    docker -H "$DUCKIEBOT_NAME.local" stop ros-picam
