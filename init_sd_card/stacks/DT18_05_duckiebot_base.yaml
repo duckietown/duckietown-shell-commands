@@ -15,8 +15,6 @@ services:
     image: duckietown/rpi-duckiebot-lanefollowing-demo:master18
   rpi-duckiebot-ros-picam:
     image: duckietown/rpi-duckiebot-ros-picam:master18
-  rpi-duckiebot-camera-node:
-    image: duckietown/rpi-duckiebot-camera-node:master18
   rpi-duckiebot-web_video_server:
     image: duckietown/rpi-duckiebot-web_video_server:master18
   rpi-duckiebot-logger:
