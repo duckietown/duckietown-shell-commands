@@ -1,10 +1,12 @@
 import datetime
+import os
+
+import docker
 import platform
 import subprocess
 import sys
 import time
 import traceback
-
 import six
 
 from dt_shell import dtslogger
@@ -19,12 +21,10 @@ RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 
 
 def get_duckiebot_client(duckiebot_ip):
-    import docker
     return docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
 
 
 def get_local_client():
-    import docker
     return docker.from_env()
 
 
@@ -216,3 +216,8 @@ def start_gui_tools(duckiebot_name):
                                     environment=env_vars)
 
     # TODO: attach an interactive TTY
+
+
+def attach_terminal(container_name):
+    return subprocess.call('docker attach %s' % container_name, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=os.environ)
+
