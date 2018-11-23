@@ -52,11 +52,9 @@ Keyboard control:
                 msg = ('Error occurred while starting the GUI tools container, please check and retry (%s).' % ret)
                 raise Exception(msg)
         else:
-            env = {}
-            env.update(os.environ)
             run_cmd = 'docker -H %s.local run -it --rm --privileged --network=host -v /data:/data duckietown/rpi-duckiebot-joy-cli:master18' % parsed_args.hostname
             print('Running %s' % run_cmd)
-            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=os.environ)
             if ret == 0:
                 print('Done!')
             else:

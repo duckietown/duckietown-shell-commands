@@ -17,16 +17,7 @@ class DTCommand(DTCommandAbs):
         script_cmd = '/bin/sh %s' % script_file
         print('Running %s' % script_cmd)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s in the environment because we want to run things on the laptop.' % V
-            dtslogger.info(msg)
-            env.pop(V)
-
-        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
-        # process.communicate()
+        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=os.environ)
         if ret == 0:
             print('Done!')
         else:
