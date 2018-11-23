@@ -95,8 +95,8 @@ def continuously_monitor(client, container_name):
 
 
 def push_image_to_duckiebot(image_name, hostname):
-    # If password required, we need to configure with sshass
-    command = 'docker save %s | ssh - C duckie@%s.local | docker load' % (image_name, hostname)
+    # If password required, we need to configure with sshpass
+    command = 'docker save %s | gzip | ssh -C duckie@%s.local docker load' % (image_name, hostname)
     subprocess.check_output(['/bin/sh', '-c', command])
 
 
