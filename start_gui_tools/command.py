@@ -1,18 +1,16 @@
 from __future__ import print_function
 
 import argparse
-import os
-import subprocess
-import sys
 from os.path import join, realpath, dirname
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs
 
-from utils.networking import get_duckiebot_ip
+from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import start_gui_tools
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell, args):
         prog = 'dts start_gui_tools DUCKIEBOT_NAME'
@@ -31,20 +29,7 @@ Keyboard control:
         script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
         script_cmd = '/bin/bash %s %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip, parsed_args.network)
 
-        print('Running script: %s' % script_cmd)
+        start_command_in_subprocess(script_cmd)
+        # TODO: call
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s in the environment because we want to run things on the laptop.' % V
-            dtslogger.info(msg)
-            env.pop(V)
-
-        ret = subprocess.call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
-
-        if ret == 0:
-            print('Done!')
-        else:
-            msg = ('An error occurred while starting the GUI tools container, please check and try again (%s).' % ret)
-            raise Exception(msg)
+        start_gui_tools(script_cmd)

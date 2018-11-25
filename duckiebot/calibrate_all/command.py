@@ -17,7 +17,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
 
-        from utils.networking import get_duckiebot_ip
+        from utils.networking_utils import get_duckiebot_ip
 
         prog = 'dts duckiebot calibrate_all DUCKIEBOT_NAME'
         usage = """

@@ -1,14 +1,13 @@
 from __future__ import print_function
 
 import argparse
-import os
-import sys
 from os.path import join, realpath, dirname
-from subprocess import call
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
+
+from utils.cli_utils import start_command_in_subprocess
 
 
 class DTCommand(DTCommandAbs):
@@ -24,7 +23,7 @@ Calibrate:
     %(prog)s
 """
 
-        from utils.networking import get_duckiebot_ip
+        from utils.networking_utils import get_duckiebot_ip
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
@@ -34,21 +33,7 @@ Calibrate:
         # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
         script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
-            dtslogger.info(msg)
-            env.pop(V)
-
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
-
-        if ret == 0:
-            print('Done!')
-        else:
-            msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
-            raise Exception(msg)
+        start_command_in_subprocess(script_cmd)
 
 
 def calibrate(duckiebot_ip):

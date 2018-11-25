@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from utils.cli_utils import get_clean_env, start_command_in_subprocess
+
 INIT_SD_CARD_VERSION = '2.0.3'  # incremental number, semantic version
 
 CHANGELOG = """ 
@@ -49,7 +51,6 @@ import platform
 import shutil
 import socket
 import subprocess
-import sys
 import time
 from collections import namedtuple, OrderedDict
 from os.path import join
@@ -242,9 +243,7 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
 
         script_file = get_resource('list_disks.sh')
         script_cmd = '/bin/bash %s' % script_file
-        env = get_environment_clean()
-        ret = subprocess.call(script_cmd, shell=True, env=env,
-                              stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
+        start_command_in_subprocess(script_cmd)
 
         msg = "Type the name of your device (include the \'/dev\' part):   "
         SD_CARD_DEVICE = builtins.input(msg)
@@ -256,30 +255,14 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
 
     script_file = get_resource('init_sd_card2.sh')
     script_cmd = '/bin/bash %s' % script_file
-    env = get_environment_clean()
+    env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
-    ret = subprocess.call(script_cmd, shell=True, env=env,
-                          stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout)
+    start_command_in_subprocess(script_cmd, env)
     if ret == 0:
         dtslogger.info('Done!')
     else:
         msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
         raise Exception(msg)
-
-
-def get_environment_clean():
-    env = {}
-
-    # add other environment
-    env.update(os.environ)
-
-    # remove DOCKER_HOST if present
-    if 'DOCKER_HOST' in env:
-        r = env['DOCKER_HOST']
-        msg = 'I will IGNORE the DOCKER_HOST variable that is currently set to %r' % r
-        dtslogger.warning(msg)
-        env.pop('DOCKER_HOST')
-    return env
 
 
 def step_expand(shell, parsed):

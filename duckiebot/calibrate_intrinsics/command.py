@@ -24,7 +24,7 @@ Calibrate:
 
     %(prog)s
 """
-        from utils.networking import get_duckiebot_ip
+        from utils.networking_utils import get_duckiebot_ip
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')

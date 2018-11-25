@@ -51,4 +51,4 @@ def evaluate_locally(hostname, image_name):
 # Sends actions over the local network
 
 def evaluate_remotely(hostname, image_name):
-    pass # TODO: finish
+    pass  # TODO: finish

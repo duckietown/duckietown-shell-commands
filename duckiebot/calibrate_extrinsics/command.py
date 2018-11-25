@@ -2,13 +2,13 @@ from __future__ import print_function
 
 import argparse
 import datetime
-import os
-import sys
 from os.path import join, realpath, dirname
-from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from past.builtins import raw_input
+
+from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
 
 
 class DTCommand(DTCommandAbs):
@@ -28,32 +28,16 @@ Calibrate:
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
         parsed_args = parser.parse_args(args)
 
-        from utils.networking import get_duckiebot_ip
+        from utils.networking_utils import get_duckiebot_ip
 
         duckiebot_ip = get_duckiebot_ip(parsed_args.hostname)
         # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
         script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
-            dtslogger.info(msg)
-            env.pop(V)
-
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
-
-        if ret == 0:
-            print('Done!')
-        else:
-            msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
-            raise Exception(msg)
+        start_command_in_subprocess(script_cmd)
 
 
 def calibrate(duckiebot_name, duckiebot_ip):
-    from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
-
     local_client = get_local_client()
     duckiebot_client = get_duckiebot_client(duckiebot_ip)
 
@@ -64,7 +48,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     timestamp = datetime.date.today().strftime('%Y%m%d%H%M%S')
 
-    raw_input("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*' * 20))
+    print("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*' * 20))
 
     log_file = 'out-calibrate-extrinsics-%s-%s' % (duckiebot_name, timestamp)
     source_env = 'source /home/software/docker/env.sh'

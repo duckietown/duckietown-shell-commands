@@ -1,18 +1,17 @@
 import datetime
 import os
-
-import docker
 import platform
 import subprocess
 import sys
 import time
 import traceback
-import six
 
+import docker
+import six
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 
-from utils.networking import get_duckiebot_ip
+from utils.networking_utils import get_duckiebot_ip
 
 IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
 IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
@@ -138,7 +137,7 @@ def view_camera(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     import docker
 
-    raw_input("""{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
+    print("""{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
     local_client = check_docker_environment()
     duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
     operating_system = platform.system()
@@ -200,11 +199,15 @@ def start_gui_tools(duckiebot_name):
         'DISPLAY': True
     }
 
+    container_name = 'gui-tools-interactive'
+
     if operating_system == 'Linux':
         subprocess.call(["xhost", "+"])
         local_client.containers.run(image=RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
+                                    tty=True,
+                                    name=container_name,
                                     environment=env_vars)
     if operating_system == 'Darwin':
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
@@ -213,11 +216,12 @@ def start_gui_tools(duckiebot_name):
         local_client.containers.run(image=RPI_GUI_TOOLS,
                                     network_mode='host',
                                     privileged=True,
+                                    tty=True,
+                                    name=container_name,
                                     environment=env_vars)
 
-    # TODO: attach an interactive TTY
+    attach_terminal(container_name)
 
 
 def attach_terminal(container_name):
     return subprocess.call('docker attach %s' % container_name, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=os.environ)
-

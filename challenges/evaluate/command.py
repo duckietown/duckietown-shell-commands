@@ -194,7 +194,6 @@ class DTCommand(DTCommandAbs):
 
 
 def visualize():
-    from time import sleep
     from subprocess import call, check_output
     from utils.docker_utils import RPI_GUI_TOOLS
 

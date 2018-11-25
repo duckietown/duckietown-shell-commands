@@ -1,7 +1,8 @@
+import sys
+
 import dt_shell
 
 from .command import *
-import sys
 
 min_duckietown_shell = '3.0.24'
 duckietown_shell_commands_version = '1.1.1'

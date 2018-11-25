@@ -1,22 +1,18 @@
 from __future__ import print_function
 
 import argparse
-import os
-import subprocess
-import sys
 from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs
-from dt_shell import dtslogger
 
-from utils.networking import get_duckiebot_ip
+from utils.cli_utils import start_command_in_subprocess
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        script_file = join(dirname(realpath(__file__)), 'start_keyboard_control.sh')
         prog = 'dts duckiebot keyboard_control DUCKIEBOT_NAME'
         usage = """
 Keyboard control: 
@@ -31,32 +27,21 @@ Keyboard control:
         parsed_args = parser.parse_args(args)
 
         if not parsed_args.cli:
-            duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
-
-            env = {}
-            env.update(os.environ)
-            V = 'DOCKER_HOST'
-            if V in env:
-                msg = 'I will ignore %s in the environment because we want to run things on the laptop.' % V
-                dtslogger.info(msg)
-                env.pop(V)
-
-            run_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
-
-            print('Running %s' % run_cmd)
-            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
-
-            if ret == 0:
-                print('Done!')
-            else:
-                msg = ('Error occurred while starting the GUI tools container, please check and retry (%s).' % ret)
-                raise Exception(msg)
+            run_gui_controller(parsed_args.hostname)
         else:
-            run_cmd = 'docker -H %s.local run -it --rm --privileged --network=host -v /data:/data duckietown/rpi-duckiebot-joy-cli:master18' % parsed_args.hostname
-            print('Running %s' % run_cmd)
-            ret = subprocess.call(run_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=os.environ)
-            if ret == 0:
-                print('Done!')
-            else:
-                msg = ('Error occurred while starting the joystick CLI container, please check and retry (%s).' % ret)
-                raise Exception(msg)
+            run_cli_controller(parsed_args.hostname)
+
+
+def run_gui_controller(hostname):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name=hostname)
+    script_file = join(dirname(realpath(__file__)), 'start_keyboard_control.sh')
+
+    run_cmd = '/bin/bash %s %s %s' % (script_file, hostname, duckiebot_ip)
+    print('Running %s' % run_cmd)
+    start_command_in_subprocess(run_cmd)
+
+
+def run_cli_controller(hostname):
+    run_cmd = 'docker -H %s.local run -it --rm --privileged --network=host -v /data:/data duckietown/rpi-duckiebot-joy-cli:master18' % hostname
+    print('Running %s' % run_cmd)
+    start_command_in_subprocess(run_cmd)
