@@ -13,7 +13,7 @@ from dt_shell.env_checks import check_docker_environment
 
 from utils.networking_utils import get_duckiebot_ip
 
-IMAGE_BASE = 'duckietown/rpi-duckiebot-base:master18'
+DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
 IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
@@ -113,10 +113,9 @@ def default_env(duckiebot_name, duckiebot_ip):
 def run_image_on_duckiebot(image_name, duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
-
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
-    dtslogger.info("Running %s with environment: %s" % (image_name, str(env_vars)))
+    dtslogger.info("Running %s with environment: %s" % (image_name, env_vars))
 
     # Make sure we are not already running the same image
     if all(elem.image != image_name for elem in duckiebot_client.containers.list()):
@@ -128,6 +127,29 @@ def run_image_on_duckiebot(image_name, duckiebot_name):
                                                environment=env_vars)
     else:
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
+
+
+def record_bag(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    local_client = check_docker_environment()
+    env_vars = default_env(duckiebot_name, duckiebot_ip)
+    dtslogger.info("Starting bag recording...")
+    command_to_run = 'bash -c "rosbag record -a"'
+    parameters = {
+        'image': DUCKIEBOT_BASE,
+        'remove': True,
+        'network_mode': 'host',
+        'privileged': True,
+        'detach': True,
+        'environment': env_vars,
+        'command': command_to_run
+    }
+
+    # Mac Docker has ARM support directly in the Docker environment, so we don't need to run qemu...
+    if platform.system() != 'Darwin':
+        parameters['entrypoint'] = 'qemu3-arm-static'
+
+    return local_client.containers.run(**parameters)
 
 
 def run_image_on_localhost(image_name, duckiebot_name):
@@ -144,11 +166,11 @@ def run_image_on_localhost(image_name, duckiebot_name):
     # Make sure we are not already running this image
     if all(elem.image != image_name for elem in local_client.containers.list()):
         return local_client.containers.run(image=image_name,
-                                    remove=True,
-                                    network_mode='host',
-                                    privileged=True,
-                                    detach=True,
-                                    environment=env_vars)
+                                           remove=True,
+                                           network_mode='host',
+                                           privileged=True,
+                                           detach=True,
+                                           environment=env_vars)
     else:
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
@@ -165,11 +187,12 @@ def start_picamera(duckiebot_name):
     dtslogger.info("Running %s on %s with environment vars: %s" % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars))
 
     return duckiebot_client.containers.run(image=RPI_DUCKIEBOT_ROS_PICAM,
-                                    remove=True,
-                                    network_mode='host',
-                                    devices=['/dev/vchiq'],
-                                    detach=True,
-                                    environment=env_vars)
+                                           remove=True,
+                                           network_mode='host',
+                                           devices=['/dev/vchiq'],
+                                           detach=True,
+                                           environment=env_vars,
+                                           command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
 
 
 def view_camera(duckiebot_name):
@@ -198,11 +221,11 @@ def view_camera(duckiebot_name):
     dtslogger.info("Running %s on localhost with environment vars: %s" % (RPI_GUI_TOOLS, env_vars))
 
     return local_client.containers.run(image=RPI_GUI_TOOLS,
-                                remove=True,
-                                privileged=True,
-                                network_mode='host',
-                                environment=env_vars,
-                                command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
+                                       remove=True,
+                                       privileged=True,
+                                       network_mode='host',
+                                       environment=env_vars,
+                                       command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
 
 
 def start_gui_tools(duckiebot_name):

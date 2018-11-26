@@ -53,12 +53,12 @@ Calibrate:
 
 def calibrate(duckiebot_name, duckiebot_ip):
     from duckiebot import calibrate_wheels, calibrate_extrinsics
-    from utils.docker_utils import get_remote_client, IMAGE_BASE, IMAGE_CALIBRATION
+    from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION
     local_client = check_docker_environment()
     duckiebot_client = get_remote_client(duckiebot_ip)
     operating_system = platform.system()
 
-    duckiebot_client.images.pull(IMAGE_BASE)
+    duckiebot_client.images.pull(DUCKIEBOT_BASE)
     local_client.images.pull(IMAGE_CALIBRATION)
     user_home = expanduser("~")
     datavol = {'%s/data' % user_home: {'bind': '/data'}}

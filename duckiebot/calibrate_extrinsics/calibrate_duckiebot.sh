@@ -5,14 +5,6 @@
 DUCKIEBOT_NAME="$1"
 DUCKIEBOT_IP="$2"
 
-platform='unknown'
-unamestr=$(uname)
-if [[ "$unamestr" == 'Linux' ]]; then
-   platform='linux'
-elif [[ "$unamestr" == 'Darwin' ]]; then
-   platform='macos'
-fi
- 
 IMAGE_CALIBRATION=duckietown/rpi-duckiebot-calibration:master18
 IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 
@@ -40,17 +32,12 @@ read
  
 docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline calibrate_extrinsics -o /data/$NAME > /data/$NAME.log"
  
-
-
 #echo "Running Simulated Verification"
 
-
 #docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline validate_calibration -o /data/$SNAME > /data/$SNAME.log"
-
 
 echo "********************"
 echo "Place the Duckiebot in a lane and press ENTER."
 read
 
 docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
-

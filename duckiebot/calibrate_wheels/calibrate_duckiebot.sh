@@ -3,14 +3,6 @@
 DUCKIEBOT_NAME="$1"
 DUCKIEBOT_IP="$2"
 
-platform='unknown'
-unamestr=$(uname)
-if [[ "$unamestr" == 'Linux' ]]; then
-   platform='linux'
-elif [[ "$unamestr" == 'Darwin' ]]; then
-   platform='macos'
-fi
- 
 IMAGE_CALIBRATION=duckietown/rpi-duckiebot-calibration:master18
 IMAGE_BASE=duckietown/rpi-duckiebot-base:master18
 

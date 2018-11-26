@@ -9,7 +9,7 @@ from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, IMAGE_BASE, IMAGE_CALIBRATION
+from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION
 
 
 class DTCommand(DTCommandAbs):
@@ -42,7 +42,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
     local_client = check_docker_environment()
     duckiebot_client = get_remote_client(duckiebot_ip)
 
-    duckiebot_client.images.pull(IMAGE_BASE)
+    duckiebot_client.images.pull(DUCKIEBOT_BASE)
     local_client.images.pull(IMAGE_CALIBRATION)
 
     duckiebot_client.containers.get('ros-picam').stop()
