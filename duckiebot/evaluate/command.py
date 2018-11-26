@@ -1,8 +1,9 @@
 import argparse
+import time
 
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import push_image_to_duckiebot
+from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost
 
 usage = """
 
@@ -35,7 +36,12 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
-        if (parsed.remotely):
+        # TODO: start recording a bag
+        # TODO: start slimremote client on duckiebot
+        # TODO: start start slimremote listener/converter
+        # TODO: copy calibration files into container appropriately
+
+        if parsed.remotely:
             evaluate_remotely(parsed.hostname, parsed.image)
         else:
             evaluate_locally(parsed.hostname, parsed.image)
@@ -43,12 +49,19 @@ class DTCommand(DTCommandAbs):
 
 # Runs everything on the Duckiebot
 
-def evaluate_locally(hostname, image_name):
-    push_image_to_duckiebot('duckietown/%s' % image_name, hostname)
-    # TODO: finish
+def evaluate_locally(duckiebot_name, image_name):
+    dtslogger.info("Running %s on %s" %(image_name, duckiebot_name))
+    push_image_to_duckiebot(image_name, duckiebot_name)
+    container = run_image_on_duckiebot(image_name, duckiebot_name)
+    dtslogger.info("Letting %s run for 30s..." % image_name)
+    time.sleep(30)
+    container.stop()
 
 
 # Sends actions over the local network
 
-def evaluate_remotely(hostname, image_name):
-    pass  # TODO: finish
+def evaluate_remotely(duckiebot_name, image_name):
+    dtslogger.info("Running %s on localhost" % image_name)
+    container = run_image_on_localhost(image_name, duckiebot_name)
+    time.sleep(30)
+    container.stop()

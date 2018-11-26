@@ -9,6 +9,7 @@ from os.path import join, realpath, dirname, expanduser
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
@@ -52,9 +53,9 @@ Calibrate:
 
 def calibrate(duckiebot_name, duckiebot_ip):
     from duckiebot import calibrate_wheels, calibrate_extrinsics
-    from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
-    local_client = get_local_client()
-    duckiebot_client = get_duckiebot_client(duckiebot_ip)
+    from utils.docker_utils import get_remote_client, IMAGE_BASE, IMAGE_CALIBRATION
+    local_client = check_docker_environment()
+    duckiebot_client = get_remote_client(duckiebot_ip)
     operating_system = platform.system()
 
     duckiebot_client.images.pull(IMAGE_BASE)

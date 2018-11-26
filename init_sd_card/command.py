@@ -556,8 +556,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
         stacks_written.append(stack)
 
-    import docker
-    client = docker.from_env()
+    client = check_docker_environment()
 
     stacks_not_to_run = [_ for _ in stacks_to_load if _ not in stacks_to_run]
 
@@ -839,8 +838,7 @@ def save_images(stack2yaml, compress):
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
 
-    import docker
-    client = docker.from_env()
+    client = check_docker_environment()
 
     stack2info = {}
 

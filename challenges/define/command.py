@@ -40,8 +40,7 @@ class DTCommand(DTCommandAbs):
         from dt_shell.env_checks import check_docker_environment
         client = check_docker_environment()
         if client is None:  # To remove when done
-            import docker
-            client = docker.from_env()
+            client = check_docker_environment()
 
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)

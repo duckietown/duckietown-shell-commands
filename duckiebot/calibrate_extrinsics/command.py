@@ -5,10 +5,11 @@ import datetime
 from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_local_client, get_duckiebot_client, IMAGE_BASE, IMAGE_CALIBRATION
+from utils.docker_utils import get_remote_client, IMAGE_BASE, IMAGE_CALIBRATION
 
 
 class DTCommand(DTCommandAbs):
@@ -38,8 +39,8 @@ Calibrate:
 
 
 def calibrate(duckiebot_name, duckiebot_ip):
-    local_client = get_local_client()
-    duckiebot_client = get_duckiebot_client(duckiebot_ip)
+    local_client = check_docker_environment()
+    duckiebot_client = get_remote_client(duckiebot_ip)
 
     duckiebot_client.images.pull(IMAGE_BASE)
     local_client.images.pull(IMAGE_CALIBRATION)
