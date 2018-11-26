@@ -18,6 +18,7 @@ IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 RPI_ROS_KINETIC_ROSCORE = 'duckietown/rpi-ros-kinetic-roscore:master18'
+SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote'
 
 
 def get_remote_client(duckiebot_ip):
@@ -149,7 +150,22 @@ def record_bag(duckiebot_name):
     if platform.system() != 'Darwin':
         parameters['entrypoint'] = 'qemu3-arm-static'
 
-    return local_client.containers.run(**parameters)
+
+def start_slimremote_duckiebot_container(duckiebot_name):
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    duckiebot_client = get_remote_client(duckiebot_ip)
+    env_vars = default_env(duckiebot_name, duckiebot_ip)
+    parameters = {
+        'image': DUCKIEBOT_BASE,
+        'remove': True,
+        'network_mode': 'host',
+        'privileged': True,
+        'detach': True,
+        'ports': {'5558': '5558', '8902': '8902'},
+        'environment': env_vars,
+    }
+
+    return duckiebot_client.containers.run(**parameters)
 
 
 def run_image_on_localhost(image_name, duckiebot_name):
@@ -191,11 +207,10 @@ def start_picamera(duckiebot_name):
                                            network_mode='host',
                                            devices=['/dev/vchiq'],
                                            detach=True,
-                                           environment=env_vars,
-                                           command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
+                                           environment=env_vars)
 
 
-def view_camera(duckiebot_name):
+def start_rqt_image_view(duckiebot_name):
     dtslogger.info(
         """{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)

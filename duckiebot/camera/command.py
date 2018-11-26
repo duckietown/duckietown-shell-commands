@@ -6,15 +6,13 @@ from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import view_camera, start_picamera
+from utils.docker_utils import start_rqt_image_view, start_picamera
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
-
         prog = 'dts duckiebot camera DUCKIEBOT_NAME'
         usage = """
 Stream camera images: 
@@ -29,4 +27,4 @@ Stream camera images:
         start_picamera(duckiebot_name=parsed_args.hostname)
         dtslogger.info("Waiting a few seconds for Duckiebot camera container to warm up...")
         time.sleep(3)
-        view_camera(duckiebot_name=parsed_args.hostname)
+        start_rqt_image_view(duckiebot_name=parsed_args.hostname)
