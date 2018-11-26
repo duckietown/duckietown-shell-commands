@@ -258,11 +258,6 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
     env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
     start_command_in_subprocess(script_cmd, env)
-    if ret == 0:
-        dtslogger.info('Done!')
-    else:
-        msg = ('An error occurred while initializing the SD card, please check and try again (%s).' % ret)
-        raise Exception(msg)
 
 
 def step_expand(shell, parsed):
