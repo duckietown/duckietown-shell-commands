@@ -1,10 +1,13 @@
 import argparse
+import threading
 import time
 
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, record_bag, \
-    start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE, stop_container
+    start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE, stop_container, \
+    continuously_monitor, get_remote_client
+from utils.networking_utils import get_duckiebot_ip
 
 usage = """
 
@@ -45,6 +48,10 @@ class DTCommand(DTCommandAbs):
         time.sleep(5)
 
         slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
+
+        dtslogger.info('Waiting a few moments for slimremote to start up...')
+        time.sleep(5)
+
         start_rqt_image_view(parsed.hostname)
 
         bag_container = record_bag(parsed.hostname, parsed.duration)
@@ -64,8 +71,13 @@ def evaluate_locally(duckiebot_name, image_name):
     dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
     push_image_to_duckiebot(image_name, duckiebot_name)
     evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name)
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    duckiebot_client = get_remote_client(duckiebot_ip)
+    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
+    monitor_thread.start()
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
+    continuously_monitor(duckiebot_client, evaluation_container.name)
     stop_container(evaluation_container)
 
 
@@ -76,4 +88,12 @@ def evaluate_remotely(duckiebot_name, image_name):
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name)
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
+    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+    local_client = get_remote_client(duckiebot_ip)
+    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
+    monitor_thread.start()
+    dtslogger.info("Letting %s run for 30s..." % image_name)
+    time.sleep(30)
+    continuously_monitor(local_client, evaluation_container.name)
     stop_container(evaluation_container)
+
