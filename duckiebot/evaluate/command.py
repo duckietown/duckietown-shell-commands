@@ -3,6 +3,7 @@ import threading
 import time
 
 from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.env_checks import check_docker_environment
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, record_bag, \
     start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE, stop_container, \
@@ -55,11 +56,15 @@ class DTCommand(DTCommandAbs):
         start_rqt_image_view(parsed.hostname)
 
         bag_container = record_bag(parsed.hostname, parsed.duration)
+        env = {'username': 'root',
+               'challenge_step_name': 'step1-simulation',
+               'uid': 0,
+               'challenge_name': 'aido1_LF1_r3-v3'}
 
         if parsed.remotely:
-            evaluate_remotely(parsed.hostname, parsed.image)
+            evaluate_remotely(parsed.hostname, parsed.image, env)
         else:
-            evaluate_locally(parsed.hostname, parsed.image)
+            evaluate_locally(parsed.hostname, parsed.image, env)
 
         stop_container(bag_container)
         stop_container(slimremote_conatiner)
@@ -67,33 +72,27 @@ class DTCommand(DTCommandAbs):
 
 # Runs everything on the Duckiebot
 
-def evaluate_locally(duckiebot_name, image_name):
+def evaluate_locally(duckiebot_name, image_name, env):
     dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
     push_image_to_duckiebot(image_name, duckiebot_name)
-    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name)
+    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env)
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
     monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
     monitor_thread.start()
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
-    continuously_monitor(duckiebot_client, evaluation_container.name)
     stop_container(evaluation_container)
 
 
 # Sends actions over the local network
 
-def evaluate_remotely(duckiebot_name, image_name):
+def evaluate_remotely(duckiebot_name, image_name, env):
     dtslogger.info("Running %s on localhost" % image_name)
-    evaluation_container = run_image_on_localhost(image_name, duckiebot_name)
-    dtslogger.info("Letting %s run for 30s..." % image_name)
-    time.sleep(30)
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    local_client = get_remote_client(duckiebot_ip)
+    evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env)
+    local_client = check_docker_environment()
     monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
     monitor_thread.start()
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
-    continuously_monitor(local_client, evaluation_container.name)
     stop_container(evaluation_container)
-

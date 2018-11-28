@@ -113,10 +113,13 @@ def default_env(duckiebot_name, duckiebot_ip):
             'DUCKIEBOT_IP': duckiebot_ip}
 
 
-def run_image_on_duckiebot(image_name, duckiebot_name):
+def run_image_on_duckiebot(image_name, duckiebot_name, env=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
+
+    if env is not None:
+        env_vars.update(env)
 
     dtslogger.info("Running %s with environment: %s" % (image_name, env_vars))
 
@@ -171,7 +174,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(image_name, duckiebot_name):
+def run_image_on_localhost(image_name, duckiebot_name, env=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
 
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
@@ -179,6 +182,9 @@ def run_image_on_localhost(image_name, duckiebot_name):
     local_client = check_docker_environment()
 
     env_vars = default_env(duckiebot_name, duckiebot_ip)
+
+    if env is not None:
+        env_vars.update(env)
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
