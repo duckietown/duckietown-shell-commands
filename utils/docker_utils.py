@@ -113,7 +113,7 @@ def default_env(duckiebot_name, duckiebot_ip):
             'DUCKIEBOT_IP': duckiebot_ip}
 
 
-def run_image_on_duckiebot(image_name, duckiebot_name, env=None):
+def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
@@ -123,14 +123,19 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None):
 
     dtslogger.info("Running %s with environment: %s" % (image_name, env_vars))
 
+    params = {'image': image_name,
+              'remove': True,
+              'network_mode': 'host',
+              'privileged': True,
+              'detach': True,
+              'environment': env_vars}
+
+    if volumes is not None:
+        params['volumes'] = volumes
+
     # Make sure we are not already running the same image
     if all(elem.image != image_name for elem in duckiebot_client.containers.list()):
-        return duckiebot_client.containers.run(image=image_name,
-                                               remove=True,
-                                               network_mode='host',
-                                               privileged=True,
-                                               detach=True,
-                                               environment=env_vars)
+        return duckiebot_client.containers.run(**params)
     else:
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
@@ -175,7 +180,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(image_name, duckiebot_name, env=None):
+def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
 
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
@@ -189,14 +194,19 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None):
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
+    params = {'image': image_name,
+              'remove': True,
+              'network_mode': 'host',
+              'privileged': True,
+              'detach': True,
+              'environment': env_vars}
+
+    if volumes is not None:
+        params['volumes'] = volumes
+
     # Make sure we are not already running this image
     if all(elem.image != image_name for elem in local_client.containers.list()):
-        return local_client.containers.run(image=image_name,
-                                           remove=True,
-                                           network_mode='host',
-                                           privileged=True,
-                                           detach=True,
-                                           environment=env_vars)
+        return local_client.containers.run(**params)
     else:
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
