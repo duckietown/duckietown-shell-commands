@@ -260,8 +260,7 @@ def ensure_watchtower_active(client):
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
             # os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'}
         }
-        container = client.containers.run(watchtower_tag, volumes=volumes, environment=env, network_mode='host',
-                                          detach=True)
+        container = client.containers.run(watchtower_tag, volumes=volumes, environment=env, network_mode='host', detach=True)
         print('Detached: %s' % container)
 
 

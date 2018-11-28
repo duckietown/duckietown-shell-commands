@@ -5,17 +5,19 @@ import subprocess
 import sys
 import time
 import traceback
+from os.path import expanduser
 
 import docker
 import six
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
-DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
-IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
+RPI_DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
+RPI_DUCKIEBOT_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 RPI_ROS_KINETIC_ROSCORE = 'duckietown/rpi-ros-kinetic-roscore:master18'
 SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote'
@@ -93,7 +95,7 @@ def continuously_monitor(client, container_name):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = 'docker save %s | gzip | ssh -C duckie@%s.local docker load' % (image_name, hostname)
+    command = 'docker save %s | gzip | pv | ssh -C duckie@%s.local docker load' % (image_name, hostname)
     subprocess.check_output(['/bin/sh', '-c', command])
 
 
@@ -111,10 +113,13 @@ def default_env(duckiebot_name, duckiebot_ip):
             'DUCKIEBOT_IP': duckiebot_ip}
 
 
-def run_image_on_duckiebot(image_name, duckiebot_name):
+def run_image_on_duckiebot(image_name, duckiebot_name, env=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
+
+    if env is not None:
+        env_vars.update(env)
 
     dtslogger.info("Running %s with environment: %s" % (image_name, env_vars))
 
@@ -131,20 +136,19 @@ def run_image_on_duckiebot(image_name, duckiebot_name):
 
 
 # LP - I don't see how this is going to work - need to mount a volume at least. Also, is ros always running ?
-def record_bag(duckiebot_name):
+def record_bag(duckiebot_name, duration):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
-    env_vars = default_env(duckiebot_name, duckiebot_ip)
     dtslogger.info("Starting bag recording...")
-    command_to_run = 'bash -c "rosbag record -a"'
     parameters = {
-        'image': DUCKIEBOT_BASE,
+        'image': RPI_DUCKIEBOT_BASE,
         'remove': True,
         'network_mode': 'host',
         'privileged': True,
         'detach': True,
-        'environment': env_vars,
-        'command': command_to_run
+        'environment': default_env(duckiebot_name, duckiebot_ip),
+        'command': 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
+        'volumes': setup_local_data_volume()
     }
 
     # Mac Docker has ARM support directly in the Docker environment, so we don't need to run qemu...
@@ -164,6 +168,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
         'network_mode': 'host',
         'privileged': True,
         'detach': True,
+        'name': 'evaluator',
         'ports': {'5558': '5558', '8902': '8902'},
         'environment': env_vars,
     }
@@ -171,7 +176,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(image_name, duckiebot_name):
+def run_image_on_localhost(image_name, duckiebot_name, env=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
 
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
@@ -179,6 +184,9 @@ def run_image_on_localhost(image_name, duckiebot_name):
     local_client = check_docker_environment()
 
     env_vars = default_env(duckiebot_name, duckiebot_ip)
+
+    if env is not None:
+        env_vars.update(env)
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
@@ -213,19 +221,16 @@ def start_picamera(duckiebot_name):
                                            environment=env_vars)
 
 
-def start_rqt_image_view(duckiebot_name):
-    dtslogger.info(
-        """{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+def start_rqt_image_view(duckiebot_name=None):
+    dtslogger.info("""{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format('*' * 20))
     local_client = check_docker_environment()
 
     local_client.images.pull(RPI_GUI_TOOLS)
-    env_vars = {
-        'ROS_MASTER': duckiebot_name,
-        'DUCKIEBOT_NAME': duckiebot_name,
-        'DUCKIEBOT_IP': duckiebot_ip,
-        'QT_X11_NO_MITSHM': 1,
-    }
+    env_vars = {'QT_X11_NO_MITSHM': 1}
+
+    if duckiebot_name is not None:
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+        env_vars.update({'DUCKIEBOT_NAME': duckiebot_name, 'ROS_MASTER': duckiebot_name, 'DUCKIEBOT_IP': duckiebot_ip})
 
     operating_system = platform.system()
     if operating_system == 'Linux':
@@ -243,6 +248,7 @@ def start_rqt_image_view(duckiebot_name):
                                        privileged=True,
                                        detach=True,
                                        network_mode='host',
+                                       detach=True,
                                        environment=env_vars,
                                        command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
 
@@ -286,6 +292,25 @@ def start_gui_tools(duckiebot_name):
     attach_terminal(container_name)
 
 
-def attach_terminal(container_name):
-    return subprocess.call('docker attach %s' % container_name, shell=True, stdin=sys.stdin, stderr=sys.stderr,
-                           stdout=sys.stdout, env=os.environ)
+def attach_terminal(container_name, hostname=None):
+    duckiebot_ip = get_duckiebot_ip(hostname)
+    if hostname is not None:
+        docker_attach_command = 'docker -H %s:2375 attach %s' % (duckiebot_ip, container_name)
+    else:
+        docker_attach_command = 'docker attach %s' % container_name
+    return start_command_in_subprocess(docker_attach_command, os.environ)
+
+
+def setup_local_data_volume():
+    return {'%s/data' % expanduser("~"): {'bind': '/data'}}
+
+
+def setup_duckiebot_data_volume():
+    return {'/data': {'bind': '/data'}}
+
+
+def stop_container(container):
+    try:
+        container.stop()
+    except Exception as e:
+        dtslogger.warn("Container %s not found! %s" % (container, e))

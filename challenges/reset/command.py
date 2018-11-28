@@ -1,6 +1,6 @@
 import argparse
 
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.remote import make_server_request
 
 
@@ -23,10 +23,10 @@ class DTCommand(DTCommandAbs):
             submission_id = dtserver_reset_submission(token,
                                                       submission_id=parsed.submission,
                                                       step_name=parsed.step)
-            print('Successfully reset %s' % submission_id)
+            dtslogger.info('Successfully reset %s' % submission_id)
         elif parsed.job is not None:
             job_id = dtserver_reset_job(token, job_id=parsed.job)
-            print('Successfully reset %s' % job_id)
+            dtslogger.info('Successfully reset %s' % job_id)
         else:
             assert False
 

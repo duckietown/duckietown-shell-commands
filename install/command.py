@@ -1,6 +1,5 @@
-from __future__ import print_function
 
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
@@ -22,23 +21,23 @@ class DTCommand(DTCommandAbs):
         need_reload = False
         # already installed
         for cmd in already_installed:
-            print('The command `%s` is already installed.' % cmd)
+            dtslogger.info('The command `%s` is already installed.' % cmd)
         # not installable
         for cmd in not_installable:
-            print('The command `%s` cannot be found.' % cmd)
+            dtslogger.info('The command `%s` cannot be found.' % cmd)
         # install
         for cmd in to_install:
-            print('Installing command `%s`...' % cmd, end='')
+            dtslogger.info('Installing command `%s`...' % cmd, end='')
             shell.enable_command(cmd)
             need_reload = True
-            print('Done!')
+            dtslogger.info('Done!')
         # update list of commands
         if need_reload:
-            print('Updating index...', end='')
+            dtslogger.info('Updating index...', end='')
             shell.reload_commands()
-            print('Done!')
+            dtslogger.info('Done!')
         else:
-            print('Nothing to do.')
+            dtslogger.info('Nothing to do.')
         return True
 
     @staticmethod

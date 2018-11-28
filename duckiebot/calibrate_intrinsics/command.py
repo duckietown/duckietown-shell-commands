@@ -5,11 +5,14 @@ import os
 import platform
 import subprocess
 import sys
-from os.path import join, realpath, dirname, expanduser
+from os.path import join, realpath, dirname
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
+from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.docker_utils import setup_local_data_volume
 
 
 class DTCommand(DTCommandAbs):
@@ -34,15 +37,8 @@ Calibrate:
         # shell.calibrate(duckiebot_name=args[0], duckiebot_ip=duckiebot_ip)
         script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
-            dtslogger.info(msg)
-            env.pop(V)
-
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+        env = get_clean_env()
+        ret = start_command_in_subprocess(script_cmd, env)
 
         if ret == 0:
             print('Done!')
@@ -62,8 +58,6 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     duckiebot_client.images.pull(IMAGE_BASE)
     local_client.images.pull(IMAGE_CALIBRATION)
-    user_home = expanduser("~")
-    datavol = {'%s/data' % user_home: {'bind': '/data'}}
 
     env_vars = {
         'ROS_MASTER': duckiebot_name,
@@ -74,19 +68,14 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
-                                    network_mode='host',
-                                    volumes=datavol,
-                                    privileged=True,
-                                    environment=env_vars)
     if operating_system == 'Darwin':
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
         call(["xhost", "+IP"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
-                                    network_mode='host',
-                                    volumes=datavol,
-                                    privileged=True,
-                                    environment=env_vars)
 
+    local_client.containers.run(image=IMAGE_CALIBRATION,
+                                network_mode='host',
+                                volumes=setup_local_data_volume(),
+                                privileged=True,
+                                environment=env_vars)
     duckiebot_client.containers.get('ros-picam').stop()

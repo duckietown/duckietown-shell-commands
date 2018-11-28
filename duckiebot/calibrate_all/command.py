@@ -5,11 +5,14 @@ import os
 import platform
 import subprocess
 import sys
-from os.path import join, realpath, dirname, expanduser
+from os.path import join, realpath, dirname
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
+from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.docker_utils import setup_local_data_volume
 
 
 class DTCommand(DTCommandAbs):
@@ -34,18 +37,12 @@ Calibrate:
         duckiebot_ip = get_duckiebot_ip(parsed_args.hostname)
         script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
-            dtslogger.info(msg)
-            env.pop(V)
+        env = get_clean_env()
 
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+        ret = start_command_in_subprocess(script_cmd, env)
 
         if ret == 0:
-            print('Done!')
+            dtslogger.info('Successfully completed calibration!')
         else:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
@@ -53,15 +50,13 @@ Calibrate:
 
 def calibrate(duckiebot_name, duckiebot_ip):
     from duckiebot import calibrate_wheels, calibrate_extrinsics
-    from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION
+    from utils.docker_utils import get_remote_client, RPI_DUCKIEBOT_BASE, RPI_DUCKIEBOT_CALIBRATION
     local_client = check_docker_environment()
     duckiebot_client = get_remote_client(duckiebot_ip)
     operating_system = platform.system()
 
-    duckiebot_client.images.pull(DUCKIEBOT_BASE)
-    local_client.images.pull(IMAGE_CALIBRATION)
-    user_home = expanduser("~")
-    datavol = {'%s/data' % user_home: {'bind': '/data'}}
+    duckiebot_client.images.pull(RPI_DUCKIEBOT_BASE)
+    local_client.images.pull(RPI_DUCKIEBOT_CALIBRATION)
 
     env_vars = {
         'ROS_MASTER': duckiebot_name,
@@ -72,18 +67,18 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
+        local_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     network_mode='host',
-                                    volumes=datavol,
+                                    volumes=setup_local_data_volume(),
                                     privileged=True,
                                     environment=env_vars)
     if operating_system == 'Darwin':
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
         call(["xhost", "+IP"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
+        local_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     network_mode='host',
-                                    volumes=datavol,
+                                    volumes=setup_local_data_volume(),
                                     privileged=True,
                                     environment=env_vars)
 
