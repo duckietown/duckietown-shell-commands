@@ -39,9 +39,10 @@ class DTCommand(DTCommandAbs):
 
         # TODO: copy calibration files into container appropriately
 
-        slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
-        image_view_container = start_rqt_image_view(parsed.hostname)
+        slimremote_container = start_slimremote_duckiebot_container(parsed.hostname)
+        dtslogger.info("slimremote container is %s" % slimremote_container.status)
 
+        
         bag_container = record_bag(parsed.hostname)
 
         if parsed.remotely:
@@ -49,8 +50,13 @@ class DTCommand(DTCommandAbs):
         else:
             evaluate_locally(parsed.hostname, parsed.image)
 
+        # this complains if there's not roscore so moving later
+        image_view_container = start_rqt_image_view(parsed.hostname)
+        dtslogger.info("image_view_container is %s" % image_view_container.status)
+
+            
         bag_container.stop()
-        slimremote_conatiner.stop()
+        slimremote_container.stop()
 
 
 # Runs everything on the Duckiebot
@@ -69,5 +75,6 @@ def evaluate_locally(duckiebot_name, image_name):
 def evaluate_remotely(duckiebot_name, image_name):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name)
+    dtslogger.info("evaluation_container is %s" % evaluation_container.status)
     time.sleep(30)
     evaluation_container.stop()

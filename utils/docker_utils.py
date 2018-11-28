@@ -22,7 +22,7 @@ SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote'
 
 
 def get_remote_client(duckiebot_ip):
-    return docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
+    return docker.DockerClient(base_url='tcp://' + duckiebot_ip + ':2375')
 
 
 def continuously_monitor(client, container_name):
@@ -130,6 +130,7 @@ def run_image_on_duckiebot(image_name, duckiebot_name):
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
 
+# LP - I don't see how this is going to work - need to mount a volume at least. Also, is ros always running ?
 def record_bag(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
@@ -150,13 +151,15 @@ def record_bag(duckiebot_name):
     if platform.system() != 'Darwin':
         parameters['entrypoint'] = 'qemu3-arm-static'
 
+    return local_client.containers.run(**parameters)
 
 def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
+    dtslogger.info("starting slim remote with environment: %s" % env_vars)
     parameters = {
-        'image': DUCKIEBOT_BASE,
+        'image': SLIMREMOTE_IMAGE,
         'remove': True,
         'network_mode': 'host',
         'privileged': True,
@@ -238,6 +241,7 @@ def start_rqt_image_view(duckiebot_name):
     return local_client.containers.run(image=RPI_GUI_TOOLS,
                                        remove=True,
                                        privileged=True,
+                                       detach=True,
                                        network_mode='host',
                                        environment=env_vars,
                                        command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
