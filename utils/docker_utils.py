@@ -144,7 +144,7 @@ def record_bag(duckiebot_name, duration):
         'detach': True,
         'environment': default_env(duckiebot_name, duckiebot_ip),
         'command': 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
-        'datavol': setup_local_data_volume()
+        'volumes': setup_local_data_volume()
     }
 
     # Mac Docker has ARM support directly in the Docker environment, so we don't need to run qemu...
