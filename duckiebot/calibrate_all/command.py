@@ -11,6 +11,7 @@ from subprocess import call
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
+from utils.cli_utils import get_clean_env, start_command_in_subprocess
 from utils.docker_utils import setup_local_data_volume
 
 
@@ -36,15 +37,9 @@ Calibrate:
         duckiebot_ip = get_duckiebot_ip(parsed_args.hostname)
         script_cmd = '/bin/bash %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip)
 
-        env = {}
-        env.update(os.environ)
-        V = 'DOCKER_HOST'
-        if V in env:
-            msg = 'I will ignore %s because the calibrate command knows what it\'s doing.' % V
-            dtslogger.info(msg)
-            env.pop(V)
+        env = get_clean_env()
 
-        ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
+        ret = start_command_in_subprocess(script_cmd, env)
 
         if ret == 0:
             dtslogger.info('Successfully completed calibration!')

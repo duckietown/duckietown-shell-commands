@@ -212,18 +212,16 @@ def start_picamera(duckiebot_name):
                                            environment=env_vars)
 
 
-def start_rqt_image_view(duckiebot_name):
+def start_rqt_image_view(duckiebot_name=None):
     dtslogger.info("""{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format('*' * 20))
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
     local_client.images.pull(RPI_GUI_TOOLS)
-    env_vars = {
-        'ROS_MASTER': duckiebot_name,
-        'DUCKIEBOT_NAME': duckiebot_name,
-        'DUCKIEBOT_IP': duckiebot_ip,
-        'QT_X11_NO_MITSHM': 1,
-    }
+    env_vars = {'QT_X11_NO_MITSHM': 1}
+
+    if duckiebot_name is not None:
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+        env_vars.update({'DUCKIEBOT_NAME': duckiebot_name, 'ROS_MASTER': duckiebot_name, 'DUCKIEBOT_IP': duckiebot_ip})
 
     operating_system = platform.system()
     if operating_system == 'Linux':

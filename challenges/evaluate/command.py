@@ -14,7 +14,7 @@ from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
 
-from utils.docker_utils import continuously_monitor
+from utils.docker_utils import continuously_monitor, start_gui_tools, start_rqt_image_view
 
 usage = """
 
@@ -184,40 +184,8 @@ class DTCommand(DTCommandAbs):
         client.containers.run(image, **params)
 
         if parsed.visualize:
-            visualize()
+            start_rqt_image_view()
 
         continuously_monitor(client, container_name)
         # dtslogger.debug('evaluate exited with code %s' % ret_code)
         # sys.exit(ret_code)
-
-
-def visualize():
-    from subprocess import call, check_output
-    from utils.docker_utils import RPI_GUI_TOOLS
-
-    local_client = check_docker_environment()
-    operating_system = platform.system()
-    local_client.images.pull(RPI_GUI_TOOLS)
-
-    env_vars = {
-        'QT_X11_NO_MITSHM': 1
-    }
-
-    if operating_system == 'Linux':
-        call(["xhost", "+"])
-        env_vars['DISPLAY'] = ':0'
-        local_client.containers.run(image=RPI_GUI_TOOLS,
-                                    privileged=True,
-                                    network_mode='host',
-                                    environment=env_vars,
-                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
-
-    elif operating_system == 'Darwin':
-        IP = check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-        env_vars['IP'] = IP
-        call(["xhost", "+IP"])
-        local_client.containers.run(image=RPI_GUI_TOOLS,
-                                    privileged=True,
-                                    network_mode='host',
-                                    environment=env_vars,
-                                    command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')

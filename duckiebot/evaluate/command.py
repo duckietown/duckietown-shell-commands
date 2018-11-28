@@ -40,7 +40,7 @@ class DTCommand(DTCommandAbs):
         # TODO: copy calibration files into container appropriately
 
         slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
-        image_view_container = start_rqt_image_view(parsed.hostname)
+        start_rqt_image_view(parsed.hostname)
 
         bag_container = record_bag(parsed.hostname)
 
