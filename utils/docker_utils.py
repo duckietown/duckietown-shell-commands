@@ -95,7 +95,7 @@ def continuously_monitor(client, container_name):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = 'docker save %s | gzip | ssh -C duckie@%s.local docker load' % (image_name, hostname)
+    command = 'docker save %s | gzip | pv | ssh -C duckie@%s.local docker load' % (image_name, hostname)
     subprocess.check_output(['/bin/sh', '-c', command])
 
 
@@ -239,6 +239,7 @@ def start_rqt_image_view(duckiebot_name=None):
                                        remove=True,
                                        privileged=True,
                                        network_mode='host',
+                                       detach=True,
                                        environment=env_vars,
                                        command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
 
@@ -297,3 +298,10 @@ def setup_local_data_volume():
 
 def setup_duckiebot_data_volume():
     return {'/data': {'bind': '/data'}}
+
+
+def stop_container(container):
+    try:
+        container.stop()
+    except Exception as e:
+        dtslogger.warn("Container %s not found! %s" % (container, e))

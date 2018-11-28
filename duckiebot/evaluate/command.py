@@ -4,7 +4,7 @@ import time
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, record_bag, \
-    start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE
+    start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE, stop_container
 
 usage = """
 
@@ -54,8 +54,8 @@ class DTCommand(DTCommandAbs):
         else:
             evaluate_locally(parsed.hostname, parsed.image)
 
-        bag_container.stop()
-        slimremote_conatiner.stop()
+        stop_container(bag_container)
+        stop_container(slimremote_conatiner)
 
 
 # Runs everything on the Duckiebot
@@ -66,7 +66,7 @@ def evaluate_locally(duckiebot_name, image_name):
     evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name)
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
-    evaluation_container.stop()
+    stop_container(evaluation_container)
 
 
 # Sends actions over the local network
@@ -76,4 +76,4 @@ def evaluate_remotely(duckiebot_name, image_name):
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name)
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
-    evaluation_container.stop()
+    stop_container(evaluation_container)
