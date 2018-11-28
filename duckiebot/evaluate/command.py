@@ -4,7 +4,7 @@ import time
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, record_bag, \
-    start_slimremote_duckiebot_container, start_rqt_image_view
+    start_slimremote_duckiebot_container, start_rqt_image_view, RPI_ROS_KINETIC_ROSCORE
 
 usage = """
 
@@ -30,7 +30,7 @@ class DTCommand(DTCommandAbs):
                             help="Name of the Duckiebot on which to perform evaluation")
 
         group.add_argument('--image', help="Image to evaluate",
-                           default="duckietown/dt-challenges-evaluator:v3")
+                           default="duckietown/challenge-aido1_lf1-template-ros:v3")
 
         group.add_argument('--duration', help="Duration of time to run evaluation", default=30)
 
@@ -39,6 +39,10 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
+        run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, parsed.hostname)
+
+        dtslogger.info('Waiting a few moments for roscore to start up...')
+        time.sleep(5)
 
         slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
         start_rqt_image_view(parsed.hostname)

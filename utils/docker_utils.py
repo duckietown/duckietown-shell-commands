@@ -159,7 +159,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
     parameters = {
-        'image': RPI_DUCKIEBOT_BASE,
+        'image': SLIMREMOTE_IMAGE,
         'remove': True,
         'network_mode': 'host',
         'privileged': True,
