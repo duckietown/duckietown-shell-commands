@@ -9,7 +9,7 @@ from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION
+from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION, setup_duckiebot_data_volume
 
 
 class DTCommand(DTCommandAbs):
@@ -49,7 +49,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     timestamp = datetime.date.today().strftime('%Y%m%d%H%M%S')
 
-    print("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*' * 20))
+    raw_input("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format('*' * 20))
 
     log_file = 'out-calibrate-extrinsics-%s-%s' % (duckiebot_name, timestamp)
     source_env = 'source /home/software/docker/env.sh'
@@ -61,7 +61,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
     duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
-                                    datavol={'/data': {'bind': '/data'}},
+                                    datavol=setup_duckiebot_data_volume(),
                                     command="/bin/bash -c '%s'" % start_command)
 
     raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*' * 20))
@@ -75,5 +75,5 @@ def calibrate(duckiebot_name, duckiebot_ip):
     duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
-                                    datavol={'/data': {'bind': '/data'}},
+                                    datavol=setup_duckiebot_data_volume(),
                                     command="/bin/bash -c '%s'" % start_command)

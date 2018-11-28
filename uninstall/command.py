@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
@@ -17,12 +17,13 @@ class DTCommand(DTCommandAbs):
         need_reload = False
         # not uninstallable
         for cmd in not_uninstallable:
-            print('The command `%s` cannot be found.' % cmd)
+            dtslogger.warn('The command `%s` cannot be found.' % cmd)
         # uninstall
         for cmd in to_uninstall:
-            print('Removing command `%s`...' % cmd, end='')
+            dtslogger.info('Removing command `%s`...' % cmd, end='')
             shell.disable_command(cmd)
             need_reload = True
+            dtslogger.info('Successfully completed calibration!')
             print('Done!')
         # update list of commands
         if need_reload:

@@ -5,11 +5,13 @@ import os
 import platform
 import subprocess
 import sys
-from os.path import join, realpath, dirname, expanduser
+from os.path import join, realpath, dirname
 from subprocess import call
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
+from utils.docker_utils import setup_local_data_volume
 
 
 class DTCommand(DTCommandAbs):
@@ -45,7 +47,7 @@ Calibrate:
         ret = call(script_cmd, shell=True, stdin=sys.stdin, stderr=sys.stderr, stdout=sys.stdout, env=env)
 
         if ret == 0:
-            print('Done!')
+            dtslogger.info('Successfully completed calibration!')
         else:
             msg = ('An error occurred while running the calibration procedure, please check and try again (%s).' % ret)
             raise Exception(msg)
@@ -60,8 +62,6 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     duckiebot_client.images.pull(DUCKIEBOT_BASE)
     local_client.images.pull(IMAGE_CALIBRATION)
-    user_home = expanduser("~")
-    datavol = {'%s/data' % user_home: {'bind': '/data'}}
 
     env_vars = {
         'ROS_MASTER': duckiebot_name,
@@ -74,7 +74,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
         call(["xhost", "+"])
         local_client.containers.run(image=IMAGE_CALIBRATION,
                                     network_mode='host',
-                                    volumes=datavol,
+                                    volumes=setup_local_data_volume(),
                                     privileged=True,
                                     environment=env_vars)
     if operating_system == 'Darwin':
@@ -83,7 +83,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
         call(["xhost", "+IP"])
         local_client.containers.run(image=IMAGE_CALIBRATION,
                                     network_mode='host',
-                                    volumes=datavol,
+                                    volumes=setup_local_data_volume(),
                                     privileged=True,
                                     environment=env_vars)
 

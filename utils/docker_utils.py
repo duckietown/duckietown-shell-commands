@@ -5,12 +5,14 @@ import subprocess
 import sys
 import time
 import traceback
+from os.path import expanduser
 
 import docker
 import six
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
 DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
@@ -211,8 +213,7 @@ def start_picamera(duckiebot_name):
 
 
 def start_rqt_image_view(duckiebot_name):
-    dtslogger.info(
-        """{}\nWe will now open a camera feed by running xhost+ and opening rqt_image_view...""".format('*' * 20))
+    dtslogger.info("""{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format('*' * 20))
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
@@ -282,6 +283,18 @@ def start_gui_tools(duckiebot_name):
     attach_terminal(container_name)
 
 
-def attach_terminal(container_name):
-    return subprocess.call('docker attach %s' % container_name, shell=True, stdin=sys.stdin, stderr=sys.stderr,
-                           stdout=sys.stdout, env=os.environ)
+def attach_terminal(container_name, hostname=None):
+    duckiebot_ip = get_duckiebot_ip(hostname)
+    if hostname is not None:
+        docker_attach_command = 'docker -H %s:2375 attach %s' % (duckiebot_ip, container_name)
+    else:
+        docker_attach_command = 'docker attach %s' % container_name
+    return start_command_in_subprocess(docker_attach_command, os.environ)
+
+
+def setup_local_data_volume():
+    return {'%s/data' % expanduser("~"): {'bind': '/data'}}
+
+
+def setup_duckiebot_data_volume():
+    return {'/data': {'bind': '/data'}}

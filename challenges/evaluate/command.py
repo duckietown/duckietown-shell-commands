@@ -53,9 +53,7 @@ class DTCommand(DTCommandAbs):
 
         client = check_docker_environment()
 
-        command = [
-            'dt-challenges-evaluate-local'
-        ]
+        command = ['dt-challenges-evaluate-local']
         if parsed.no_cache:
             command.append('--no-cache')
         if parsed.no_build:

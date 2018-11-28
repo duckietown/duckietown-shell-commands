@@ -69,5 +69,6 @@ def evaluate_locally(duckiebot_name, image_name):
 def evaluate_remotely(duckiebot_name, image_name):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name)
+    dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
     evaluation_container.stop()
