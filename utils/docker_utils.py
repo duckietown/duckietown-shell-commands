@@ -167,6 +167,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
         'network_mode': 'host',
         'privileged': True,
         'detach': True,
+        'name': 'evaluator',
         'ports': {'5558': '5558', '8902': '8902'},
         'environment': env_vars,
     }
