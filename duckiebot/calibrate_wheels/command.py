@@ -43,19 +43,19 @@ def calibrate(hostname):
     import docker
     local_client = check_docker_environment()
 
-    from utils.docker_utils import IMAGE_CALIBRATION
+    from utils.docker_utils import RPI_DUCKIEBOT_CALIBRATION
     duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
 
-    local_client.images.pull(IMAGE_CALIBRATION)
+    local_client.images.pull(RPI_DUCKIEBOT_CALIBRATION)
     raw_input("""{}\nTo perform the wheel calibration, follow the steps described in the Duckiebook.
     http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.html
     You will now be given a container running on the Duckiebot for wheel calibration.""".format('*' * 20))
 
-    wheel_calibration_container = duckiebot_client.containers.run(image=IMAGE_CALIBRATION,
-                                    privileged=True,
-                                    network_mode='host',
-                                    tty=True,
-                                    datavol=setup_duckiebot_data_volume(),
-                                    command='/bin/bash')
+    wheel_calibration_container = duckiebot_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
+                                                                  privileged=True,
+                                                                  network_mode='host',
+                                                                  tty=True,
+                                                                  datavol=setup_duckiebot_data_volume(),
+                                                                  command='/bin/bash')
 
     attach_terminal(wheel_calibration_container.name, hostname)

@@ -68,19 +68,14 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
-                                    network_mode='host',
-                                    volumes=setup_local_data_volume(),
-                                    privileged=True,
-                                    environment=env_vars)
     if operating_system == 'Darwin':
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
         call(["xhost", "+IP"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
-                                    network_mode='host',
-                                    volumes=setup_local_data_volume(),
-                                    privileged=True,
-                                    environment=env_vars)
 
+    local_client.containers.run(image=IMAGE_CALIBRATION,
+                                network_mode='host',
+                                volumes=setup_local_data_volume(),
+                                privileged=True,
+                                environment=env_vars)
     duckiebot_client.containers.get('ros-picam').stop()

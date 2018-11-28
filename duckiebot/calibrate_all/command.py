@@ -50,13 +50,13 @@ Calibrate:
 
 def calibrate(duckiebot_name, duckiebot_ip):
     from duckiebot import calibrate_wheels, calibrate_extrinsics
-    from utils.docker_utils import get_remote_client, DUCKIEBOT_BASE, IMAGE_CALIBRATION
+    from utils.docker_utils import get_remote_client, RPI_DUCKIEBOT_BASE, RPI_DUCKIEBOT_CALIBRATION
     local_client = check_docker_environment()
     duckiebot_client = get_remote_client(duckiebot_ip)
     operating_system = platform.system()
 
-    duckiebot_client.images.pull(DUCKIEBOT_BASE)
-    local_client.images.pull(IMAGE_CALIBRATION)
+    duckiebot_client.images.pull(RPI_DUCKIEBOT_BASE)
+    local_client.images.pull(RPI_DUCKIEBOT_CALIBRATION)
 
     env_vars = {
         'ROS_MASTER': duckiebot_name,
@@ -67,7 +67,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
+        local_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     network_mode='host',
                                     volumes=setup_local_data_volume(),
                                     privileged=True,
@@ -76,7 +76,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
         IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
         env_vars['IP'] = IP
         call(["xhost", "+IP"])
-        local_client.containers.run(image=IMAGE_CALIBRATION,
+        local_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     network_mode='host',
                                     volumes=setup_local_data_volume(),
                                     privileged=True,

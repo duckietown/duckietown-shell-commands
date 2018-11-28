@@ -32,17 +32,18 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--image', help="Image to evaluate",
                            default="duckietown/dt-challenges-evaluator:v3")
 
+        group.add_argument('--duration', help="Duration of time to run evaluation", default=30)
+
         group.add_argument('--remotely', action='store_true', default=False,
                            help="Run the image on the laptop without pushing to Duckiebot")
 
         parsed = parser.parse_args(args)
 
-        # TODO: copy calibration files into container appropriately
 
         slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
         start_rqt_image_view(parsed.hostname)
 
-        bag_container = record_bag(parsed.hostname)
+        bag_container = record_bag(parsed.hostname, parsed.duration)
 
         if parsed.remotely:
             evaluate_remotely(parsed.hostname, parsed.image)

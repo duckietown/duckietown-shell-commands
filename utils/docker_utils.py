@@ -15,9 +15,9 @@ from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
-DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
-IMAGE_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_GUI_TOOLS = 'duckietown/rpi-gui-tools:master18'
+RPI_DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
+RPI_DUCKIEBOT_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 RPI_ROS_KINETIC_ROSCORE = 'duckietown/rpi-ros-kinetic-roscore:master18'
 SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote'
@@ -132,25 +132,26 @@ def run_image_on_duckiebot(image_name, duckiebot_name):
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
 
-def record_bag(duckiebot_name):
+def record_bag(duckiebot_name, duration):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
-    env_vars = default_env(duckiebot_name, duckiebot_ip)
     dtslogger.info("Starting bag recording...")
-    command_to_run = 'bash -c "rosbag record -a"'
     parameters = {
-        'image': DUCKIEBOT_BASE,
+        'image': RPI_DUCKIEBOT_BASE,
         'remove': True,
         'network_mode': 'host',
         'privileged': True,
         'detach': True,
-        'environment': env_vars,
-        'command': command_to_run
+        'environment': default_env(duckiebot_name, duckiebot_ip),
+        'command': 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
+        'datavol': setup_local_data_volume()
     }
 
     # Mac Docker has ARM support directly in the Docker environment, so we don't need to run qemu...
     if platform.system() != 'Darwin':
         parameters['entrypoint'] = 'qemu3-arm-static'
+
+    local_client.containers.run(**parameters)
 
 
 def start_slimremote_duckiebot_container(duckiebot_name):
@@ -158,7 +159,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_client = get_remote_client(duckiebot_ip)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
     parameters = {
-        'image': DUCKIEBOT_BASE,
+        'image': RPI_DUCKIEBOT_BASE,
         'remove': True,
         'network_mode': 'host',
         'privileged': True,
