@@ -40,7 +40,7 @@ class DTCommand(DTCommandAbs):
 
         group.add_argument('--duration', help="Duration of time to run evaluation", default=30)
 
-        group.add_argument('--remotely', action='store_true', default=False,
+        group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
 
         parsed = parser.parse_args(args)
