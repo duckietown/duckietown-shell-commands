@@ -89,7 +89,10 @@ def setup_expected_volumes():
         os.makedirs(challenge_description_dir)
         f = open(challenge_description_dir+'/description.yaml','w+')
         f.write("env: Duckietown-Lf-Lfv-Navv-Silent-v1")
-    
+
+    local_slimremote_dir = dir_fake_home_host+'/duckietown-slimremote'
+    if not os.path.exists(local_slimremote_dir):
+        setup_slimremote(dir_fake_home_host)
         
     dir_fake_home_guest = dir_home_guest
     dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
@@ -97,14 +100,23 @@ def setup_expected_volumes():
     dir_tmpdir_host = '/tmp'
     dir_tmpdir_guest = '/tmp'
 
+    
     return {'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
 #            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}, # LP: why do we need this ?
             dir_tmpdir_host: {'bind': dir_tmpdir_guest, 'mode': 'rw'},
             dir_dtshell_host: {'bind': dir_dtshell_guest, 'mode': 'ro'},
             dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
-            challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'}}
+            challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'},
+            local_slimremote_dir: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'}
+    }
 
+
+def setup_slimremote(dir):
+    from subprocess import call
+    dtslogger.info("cloning duckietown-slimremote locally to %s/duckietown-slimremote" % dir)
+    call(["git", "clone", "-b", "testing", "git@github.com:duckietown/duckietown-slimremote.git","%s/duckietown-slimremote" % dir])
+    
 
 # Runs everything on the Duckiebot
 
