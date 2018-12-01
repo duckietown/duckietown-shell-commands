@@ -84,6 +84,13 @@ def setup_expected_volumes():
     if not os.path.exists(dir_fake_home_host):
         os.makedirs(dir_fake_home_host)
 
+    challenge_description_dir = dir_fake_home_host+'/challenge-description'
+    if not os.path.exists(challenge_description_dir):
+        os.makedirs(challenge_description_dir)
+        f = open(challenge_description_dir+'/description.yaml','w+')
+        f.write("env: Duckietown-Lf-Lfv-Navv-Silent-v1")
+    
+        
     dir_fake_home_guest = dir_home_guest
     dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
     dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
@@ -96,7 +103,7 @@ def setup_expected_volumes():
             dir_dtshell_host: {'bind': dir_dtshell_guest, 'mode': 'ro'},
             dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
-            dir_home_guest+'/challenge-description': {'bind': '/challenge-description', 'mode': 'rw'}}
+            challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'}}
 
 
 # Runs everything on the Duckiebot
