@@ -65,9 +65,9 @@ class DTCommand(DTCommandAbs):
         volumes = setup_expected_volumes()
 
         if parsed.remotely:
-            evaluate_remotely(parsed.hostname, parsed.image, env, volumes)
+            evaluate_remotely(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
         else:
-            evaluate_locally(parsed.hostname, parsed.image, env, volumes)
+            evaluate_locally(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
 
  #       image_view_container = start_rqt_image_view(parsed.hostname)
             
@@ -120,7 +120,7 @@ def setup_slimremote(dir):
 
 # Runs everything on the Duckiebot
 
-def evaluate_locally(duckiebot_name, image_name, env, volumes):
+def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
     dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
     push_image_to_duckiebot(image_name, duckiebot_name)
     evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
@@ -128,19 +128,19 @@ def evaluate_locally(duckiebot_name, image_name, env, volumes):
     duckiebot_client = get_remote_client(duckiebot_ip)
     monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
     monitor_thread.start()
-    dtslogger.info("Letting %s run for 30s..." % image_name)
-    time.sleep(30)
+    dtslogger.info("Letting %s run for %d s..." % (image_name, duration) )
+    time.sleep(duration)
     stop_container(evaluation_container)
 
 
 # Sends actions over the local network
 
-def evaluate_remotely(duckiebot_name, image_name, env, volumes):
+def evaluate_remotely(duckiebot_name, image_name, duration, env, volumes):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env, volumes)
     local_client = check_docker_environment()
 #    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
 #    monitor_thread.start()
-    dtslogger.info("Letting %s run for 30s..." % image_name)
-    time.sleep(30)
+    dtslogger.info("Letting %s run for %d s..." % (image_name, duration) )
+    time.sleep(duration)
     stop_container(evaluation_container)

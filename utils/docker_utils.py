@@ -170,6 +170,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_client = get_remote_client(duckiebot_ip)
     dtslogger.info("starting slim remote on %s" % duckiebot_name)
     container_name='evaluator'
+    duckiebot_client.images.pull(SLIMREMOTE_IMAGE)
     parameters = {
         'image': SLIMREMOTE_IMAGE,
         'remove': True,
