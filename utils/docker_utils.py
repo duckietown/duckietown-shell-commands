@@ -20,7 +20,7 @@ RPI_DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
 RPI_DUCKIEBOT_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 RPI_ROS_KINETIC_ROSCORE = 'duckietown/rpi-ros-kinetic-roscore:master18'
-SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote'
+SLIMREMOTE_IMAGE = 'fgolemo/duckietown-slimremote:testing'
 
 
 def get_remote_client(duckiebot_ip):
@@ -110,7 +110,10 @@ def logs_for_container(client, container_id):
 def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
-            'DUCKIEBOT_IP': duckiebot_ip}
+            'DUCKIEBOT_IP': duckiebot_ip,
+            'DUCKIETOWN_SERVER': duckiebot_name
+    }
+
 
 
 def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
@@ -165,20 +168,20 @@ def record_bag(duckiebot_name, duration):
 def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
-    env_vars = default_env(duckiebot_name, duckiebot_ip)
-    dtslogger.info("starting slim remote with environment: %s" % env_vars)
+    dtslogger.info("starting slim remote on %s" % duckiebot_name)
+    container_name='evaluator'
     parameters = {
         'image': SLIMREMOTE_IMAGE,
         'remove': True,
-        'network_mode': 'host',
         'privileged': True,
         'detach': True,
-        'name': 'evaluator',
+        'name': container_name,
         'ports': {'5558': '5558', '8902': '8902'},
-        'environment': env_vars,
     }
 
     return duckiebot_client.containers.run(**parameters)
+ 
+
 
 
 def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
@@ -195,21 +198,21 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
+    container_name = 'local_submission'
+    
     params = {'image': image_name,
               'remove': True,
               'network_mode': 'host',
               'privileged': True,
               'detach': True,
+              'name' : container_name,
               'environment': env_vars}
 
     if volumes is not None:
         params['volumes'] = volumes
 
-    # Make sure we are not already running this image
-    if all(elem.image != image_name for elem in local_client.containers.list()):
-        return local_client.containers.run(**params)
-    else:
-        dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
+    return local_client.containers.run(**params)
+
 
 
 def start_picamera(duckiebot_name):
@@ -258,7 +261,6 @@ def start_rqt_image_view(duckiebot_name=None):
                                        privileged=True,
                                        detach=True,
                                        network_mode='host',
-                                       detach=True,
                                        environment=env_vars,
                                        command='bash -c "source /home/software/docker/env.sh && rqt_image_view"')
 

@@ -45,18 +45,18 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
-        run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, parsed.hostname)
+#        run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, parsed.hostname)
 
-        dtslogger.info('Waiting a few moments for roscore to start up...')
-        time.sleep(5)
+#        dtslogger.info('Waiting a few moments for roscore to start up...')
+#        time.sleep(5)
 
-        slimremote_conatiner = start_slimremote_duckiebot_container(parsed.hostname)
+        slimremote_container = start_slimremote_duckiebot_container(parsed.hostname)
 
         dtslogger.info('Waiting a few moments for slimremote to start up...')
         time.sleep(5)
         dtslogger.info("slimremote container is %s" % slimremote_container.status)
 
-        bag_container = record_bag(parsed.hostname, parsed.duration)
+ #       bag_container = record_bag(parsed.hostname, parsed.duration)
         env = {'username': 'root',
                'challenge_step_name': 'step1-simulation',
                'uid': 0,
@@ -69,13 +69,10 @@ class DTCommand(DTCommandAbs):
         else:
             evaluate_locally(parsed.hostname, parsed.image, env, volumes)
 
-        # this complains if there's not roscore so moving later
-        image_view_container = start_rqt_image_view(parsed.hostname)
-        dtslogger.info("image_view_container is %s" % image_view_container.status)
-
+ #       image_view_container = start_rqt_image_view(parsed.hostname)
             
-        stop_container(bag_container)
-        stop_container(slimremote_conatiner)
+ #       stop_container(bag_container)
+        stop_container(slimremote_container)
 
 
 def setup_expected_volumes():
@@ -94,11 +91,12 @@ def setup_expected_volumes():
     dir_tmpdir_guest = '/tmp'
 
     return {'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'},
+#            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}, # LP: why do we need this ?
             dir_tmpdir_host: {'bind': dir_tmpdir_guest, 'mode': 'rw'},
             dir_dtshell_host: {'bind': dir_dtshell_guest, 'mode': 'ro'},
             dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
-            '/etc/group': {'bind': '/etc/group', 'mode': 'ro'}}
+            '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
+            dir_home_guest+'/challenge-description': {'bind': '/challenge-description', 'mode': 'rw'}}
 
 
 # Runs everything on the Duckiebot
@@ -122,8 +120,8 @@ def evaluate_remotely(duckiebot_name, image_name, env, volumes):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env, volumes)
     local_client = check_docker_environment()
-    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
-    monitor_thread.start()
+#    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
+#    monitor_thread.start()
     dtslogger.info("Letting %s run for 30s..." % image_name)
     time.sleep(30)
     stop_container(evaluation_container)
