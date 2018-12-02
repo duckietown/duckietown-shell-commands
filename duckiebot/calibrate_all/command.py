@@ -12,7 +12,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
-from utils.docker_utils import setup_local_data_volume
+from utils.docker_utils import setup_local_data_volume, default_env
 
 
 class DTCommand(DTCommandAbs):
@@ -58,12 +58,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
     duckiebot_client.images.pull(RPI_DUCKIEBOT_BASE)
     local_client.images.pull(RPI_DUCKIEBOT_CALIBRATION)
 
-    env_vars = {
-        'ROS_MASTER': duckiebot_name,
-        'DUCKIEBOT_NAME': duckiebot_name,
-        'DUCKIEBOT_IP': duckiebot_ip,
-        'QT_X11_NO_MITSHM': True
-    }
+    env_vars = default_env(duckiebot_name, duckiebot_ip)
 
     if operating_system == 'Linux':
         call(["xhost", "+"])
