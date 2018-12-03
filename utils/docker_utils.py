@@ -111,9 +111,8 @@ def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
             'DUCKIEBOT_IP': duckiebot_ip,
-            'DUCKIETOWN_SERVER': duckiebot_name
-    }
-
+            'DUCKIETOWN_SERVER': duckiebot_name,
+            'QT_X11_NO_MITSHM': 1}
 
 
 def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
@@ -165,11 +164,12 @@ def record_bag(duckiebot_name, duration):
 
     return local_client.containers.run(**parameters)
 
+
 def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
-    dtslogger.info("starting slim remote on %s" % duckiebot_name)
-    container_name='evaluator'
+    dtslogger.info("Starting slim remote on %s" % duckiebot_name)
+    container_name = 'evaluator'
     duckiebot_client.images.pull(SLIMREMOTE_IMAGE)
     parameters = {
         'image': SLIMREMOTE_IMAGE,
@@ -181,8 +181,6 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     }
 
     return duckiebot_client.containers.run(**parameters)
- 
-
 
 
 def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
@@ -200,15 +198,15 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
     container_name = 'local_submission'
-    
+
     params = {'image': image_name,
               'remove': True,
               'network_mode': 'host',
               'privileged': True,
               'detach': True,
               'name' : container_name,
-              'environment': env_vars,
-    }
+              'environment': env_vars}
+
 
     if volumes is not None:
         params['volumes'] = volumes
@@ -216,14 +214,10 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     return local_client.containers.run(**params)
 
 
-
 def start_picamera(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-
     duckiebot_client = get_remote_client(duckiebot_ip)
-
     duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
-
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
     dtslogger.info("Running %s on %s with environment vars: %s" % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars))
@@ -245,7 +239,7 @@ def start_rqt_image_view(duckiebot_name=None):
 
     if duckiebot_name is not None:
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-        env_vars.update({'DUCKIEBOT_NAME': duckiebot_name, 'ROS_MASTER': duckiebot_name, 'DUCKIEBOT_IP': duckiebot_ip})
+        env_vars.update(default_env(duckiebot_name, duckiebot_ip))
 
     operating_system = platform.system()
     if operating_system == 'Linux':
@@ -274,13 +268,8 @@ def start_gui_tools(duckiebot_name):
 
     local_client.images.pull(RPI_GUI_TOOLS)
 
-    env_vars = {
-        'ROS_MASTER': duckiebot_name,
-        'DUCKIEBOT_NAME': duckiebot_name,
-        'DUCKIEBOT_IP': duckiebot_ip,
-        'QT_X11_NO_MITSHM': True,
-        'DISPLAY': True
-    }
+    env_vars = default_env(duckiebot_name, duckiebot_ip)
+    env_vars['DISPLAY'] = True
 
     container_name = 'gui-tools-interactive'
 
