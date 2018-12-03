@@ -3,6 +3,7 @@ import getpass
 import os
 import threading
 import time
+import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -60,22 +61,23 @@ class DTCommand(DTCommandAbs):
         env = {'username': 'root',
                'challenge_step_name': 'step1-simulation',
                'uid': 0,
-               'challenge_name': 'aido1_LF1_r3-v3'}
+               'challenge_name': 'aido1_LF1_r3-v3',
+               'VEHICLE_NAME': parsed.hostname
+        }
 
-        volumes = setup_expected_volumes()
-
+        volumes = setup_expected_volumes(parsed.hostname)
+        
         if parsed.remotely:
             evaluate_remotely(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
         else:
             evaluate_locally(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
 
  #       image_view_container = start_rqt_image_view(parsed.hostname)
-            
  #       stop_container(bag_container)
         stop_container(slimremote_container)
 
 
-def setup_expected_volumes():
+def setup_expected_volumes(hostname):
     tmpdir = '/tmp'
 
     USERNAME = getpass.getuser()
@@ -99,7 +101,9 @@ def setup_expected_volumes():
     dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
     dir_tmpdir_host = '/tmp'
     dir_tmpdir_guest = '/tmp'
-
+    get_calibration_files(dir_fake_home_host, hostname)
+    local_calibration_dir=dir_fake_home_host+'/config/calibrations'
+    
     
     return {'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
 #            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}, # LP: why do we need this ?
@@ -108,9 +112,22 @@ def setup_expected_volumes():
             dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
             challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'},
-            local_slimremote_dir: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'}
+            local_slimremote_dir: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'},
+            local_calibration_dir: {'bind': '/data/config/calibrations','mode':'rw'}
     }
 
+# get the calibration files off the robot
+def get_calibration_files(tmp_dir, host, username='duckie'):
+    dtslogger.info("Getting calibration files")
+    p = subprocess.Popen(["scp","-r","%s@%s:/data/config" % (username, host) , tmp_dir])
+    sts = os.waitpid(p.pid,0)
+
+    dtslogger.info("%s/config/calibrations/camera_instrisic/%s.yaml" % (tmp_dir, host))
+    ## for now we rename them to default.yaml - should change but it's the easiest way for now
+    os.rename(tmp_dir+'/config/calibrations/camera_intrinsic/'+host+'.yaml',tmp_dir+'/config/calibrations/camera_intrinsic/default.yaml')
+    os.rename(tmp_dir+'/config/calibrations/camera_extrinsic/'+host+'.yaml',tmp_dir+'/config/calibrations/camera_extrinsic/default.yaml')
+    os.rename(tmp_dir+'/config/calibrations/kinematics/'+host+'.yaml',tmp_dir+'/config/calibrations/kinematics/default.yaml')
+    
 
 def setup_slimremote(dir):
     from subprocess import call
@@ -139,8 +156,10 @@ def evaluate_remotely(duckiebot_name, image_name, duration, env, volumes):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env, volumes)
     local_client = check_docker_environment()
-#    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
-#    monitor_thread.start()
+    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
+    monitor_thread.start()
     dtslogger.info("Letting %s run for %d s..." % (image_name, duration) )
     time.sleep(duration)
     stop_container(evaluation_container)
+
+

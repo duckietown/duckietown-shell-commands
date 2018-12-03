@@ -36,7 +36,7 @@ def continuously_monitor(client, container_name):
             container = client.containers.get(container_name)
         except Exception as e:
             msg = 'Cannot get container %s: %s' % (container_name, e)
-            dtslogger.error(msg)
+            dtslogger.info(msg)
             break
             # dtslogger.info('Will wait.')
             # time.sleep(5)
@@ -187,11 +187,11 @@ def start_slimremote_duckiebot_container(duckiebot_name):
 
 def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
-
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-
     local_client = check_docker_environment()
 
+
+    
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
     if env is not None:
@@ -207,7 +207,8 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
               'privileged': True,
               'detach': True,
               'name' : container_name,
-              'environment': env_vars}
+              'environment': env_vars,
+    }
 
     if volumes is not None:
         params['volumes'] = volumes
