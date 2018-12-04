@@ -128,7 +128,7 @@ def get_calibration_files(tmp_dir, host, username='duckie'):
 def setup_slimremote(destination_dir):
     from git import Repo
     dtslogger.info("Cloning duckietown/duckietown-slimremote locally to %s" % destination_dir)
-    Repo.clone_from("git@github.com:duckietown/duckietown-slimremote.git", destination_dir, branch='testing')
+    Repo.clone_from("https://@github.com/duckietown/duckietown-slimremote", destination_dir, branch='testing')
 
 
 # Runs everything on the Duckiebot
