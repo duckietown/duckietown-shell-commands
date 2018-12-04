@@ -142,7 +142,6 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
         dtslogger.warn('Container with image %s is already running on %s, skipping...' % (image_name, duckiebot_name))
 
 
-# LP - I don't see how this is going to work - need to mount a volume at least. Also, is ros always running ?
 def record_bag(duckiebot_name, duration):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
