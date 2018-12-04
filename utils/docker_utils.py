@@ -111,7 +111,7 @@ def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
             'DUCKIEBOT_IP': duckiebot_ip,
-            'DUCKIETOWN_SERVER': duckiebot_name,
+            'DUCKIETOWN_SERVER': duckiebot_ip,
             'QT_X11_NO_MITSHM': 1}
 
 
@@ -186,7 +186,6 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
-
 
     
     env_vars = default_env(duckiebot_name, duckiebot_ip)
