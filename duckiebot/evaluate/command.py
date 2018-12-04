@@ -39,7 +39,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--image', help="Image to evaluate",
                            default="duckietown/challenge-aido1_lf1-template-ros:v3")
 
-        group.add_argument('--duration', help="Duration of time to run evaluation", default=30)
+        group.add_argument('--duration', help="Number of seconds to run evaluation", default=30)
 
         group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
@@ -57,6 +57,8 @@ class DTCommand(DTCommandAbs):
         time.sleep(5)
         dtslogger.info("slimremote container is %s" % slimremote_container.status)
 
+        volumes = setup_expected_volumes(parsed.hostname)
+
  #       bag_container = record_bag(parsed.hostname, parsed.duration)
         env = {'username': 'root',
                'challenge_step_name': 'step1-simulation',
@@ -65,8 +67,6 @@ class DTCommand(DTCommandAbs):
                'VEHICLE_NAME': parsed.hostname
         }
 
-        volumes = setup_expected_volumes(parsed.hostname)
-        
         if parsed.remotely:
             evaluate_remotely(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
         else:
@@ -95,7 +95,7 @@ def setup_expected_volumes(hostname):
     local_slimremote_dir = dir_fake_home_host+'/duckietown-slimremote'
     if not os.path.exists(local_slimremote_dir):
         setup_slimremote(dir_fake_home_host)
-        
+
     dir_fake_home_guest = dir_home_guest
     dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
     dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
@@ -103,8 +103,7 @@ def setup_expected_volumes(hostname):
     dir_tmpdir_guest = '/tmp'
     get_calibration_files(dir_fake_home_host, hostname)
     local_calibration_dir=dir_fake_home_host+'/config/calibrations'
-    
-    
+
     return {'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
 #            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}, # LP: why do we need this ?
             dir_tmpdir_host: {'bind': dir_tmpdir_guest, 'mode': 'rw'},
@@ -115,6 +114,7 @@ def setup_expected_volumes(hostname):
             local_slimremote_dir: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'},
             local_calibration_dir: {'bind': '/data/config/calibrations','mode':'rw'}
     }
+
 
 # get the calibration files off the robot
 def get_calibration_files(tmp_dir, host, username='duckie'):
@@ -127,13 +127,14 @@ def get_calibration_files(tmp_dir, host, username='duckie'):
     os.rename(tmp_dir+'/config/calibrations/camera_intrinsic/'+host+'.yaml',tmp_dir+'/config/calibrations/camera_intrinsic/default.yaml')
     os.rename(tmp_dir+'/config/calibrations/camera_extrinsic/'+host+'.yaml',tmp_dir+'/config/calibrations/camera_extrinsic/default.yaml')
     os.rename(tmp_dir+'/config/calibrations/kinematics/'+host+'.yaml',tmp_dir+'/config/calibrations/kinematics/default.yaml')
-    
+
 
 def setup_slimremote(dir):
-    from subprocess import call
-    dtslogger.info("cloning duckietown-slimremote locally to %s/duckietown-slimremote" % dir)
-    call(["git", "clone", "-b", "testing", "git@github.com:duckietown/duckietown-slimremote.git","%s/duckietown-slimremote" % dir])
-    
+    from git import Repo
+    destination_dir =  "%s/duckietown-slimremote" % dir
+    dtslogger.info("Cloning duckietown/duckietown-slimremote locally to %s" % destination_dir)
+    Repo.clone_from("git@github.com:duckietown/duckietown-slimremote.git", destination_dir, branch='testing')
+
 
 # Runs everything on the Duckiebot
 
