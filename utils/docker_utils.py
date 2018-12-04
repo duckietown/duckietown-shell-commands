@@ -167,9 +167,15 @@ def record_bag(duckiebot_name, duration):
 def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
-    dtslogger.info("Starting slim remote on %s" % duckiebot_name)
+
     container_name = 'evaluator'
-    duckiebot_client.images.pull(SLIMREMOTE_IMAGE)
+    try:
+        container = duckiebot_client.containers.get(container_name)
+        dtslogger.info("slim remote already running on %s" % duckiebot_name)
+        return container
+    except Exception as e:
+        dtslogger.info("Starting slim remote on %s" % duckiebot_name)
+
     parameters = {
         'image': SLIMREMOTE_IMAGE,
         'remove': True,
@@ -187,15 +193,22 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
-    
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
     if env is not None:
         env_vars.update(env)
 
+    container_name = 'local_submission'
+
+    try:
+        container = local_client.containers.get(container_name)
+        dtslogger.info("an image already on localhost - stopping it first..") 
+        local_client.constainers.stop(container_name)
+    except Exception as e:
+        dtslogger.info("no local image running already")
+        
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
-    container_name = 'local_submission'
 
     params = {'image': image_name,
               'remove': True,

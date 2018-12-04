@@ -46,16 +46,8 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
-        #        run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, parsed.hostname)
-
-        #        dtslogger.info('Waiting a few moments for roscore to start up...')
-        #        time.sleep(5)
-
         slimremote_container = start_slimremote_duckiebot_container(parsed.hostname)
-
-        dtslogger.info('Waiting a few moments for slimremote to start up...')
-        time.sleep(5)
-        dtslogger.info("slimremote container is %s" % slimremote_container.status)
+        time.sleep(2)
 
         volumes = setup_expected_volumes(parsed.hostname)
 
