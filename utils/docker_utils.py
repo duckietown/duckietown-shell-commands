@@ -167,8 +167,15 @@ def record_bag(duckiebot_name, duration):
 def start_slimremote_duckiebot_container(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
-    dtslogger.info("Starting slim remote on %s" % duckiebot_name)
+
     container_name = 'evaluator'
+    try:
+        container = duckiebot_client.containers.get(container_name)
+        dtslogger.info("slim remote already running on %s" % duckiebot_name)
+        return container
+    except Exception as e:
+        dtslogger.info("Starting slim remote on %s" % duckiebot_name)
+
     duckiebot_client.images.pull(SLIMREMOTE_IMAGE)
     parameters = {
         'image': SLIMREMOTE_IMAGE,
@@ -186,6 +193,8 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
+
+    local_client.images.pull(image_name)
 
     
     env_vars = default_env(duckiebot_name, duckiebot_ip)
