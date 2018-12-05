@@ -112,7 +112,7 @@ def setup_expected_volumes(hostname):
 # get the calibration files off the robot
 def get_calibration_files(tmp_dir, host, username='duckie'):
     dtslogger.info("Getting calibration files")
-    p = subprocess.Popen(["scp", "-r", "%s@%s:/data/config" % (username, host), tmp_dir])
+    p = subprocess.Popen(["scp", "-r", "%s@%s.local:/data/config" % (username, host), tmp_dir])
     sts = os.waitpid(p.pid, 0)
 
     dtslogger.info("%s/config/calibrations/camera_instrisic/%s.yaml" % (tmp_dir, host))
@@ -128,7 +128,7 @@ def get_calibration_files(tmp_dir, host, username='duckie'):
 def setup_slimremote(destination_dir):
     from git import Repo
     dtslogger.info("Cloning duckietown/duckietown-slimremote locally to %s" % destination_dir)
-    Repo.clone_from("https://@github.com/duckietown/duckietown-slimremote", destination_dir, branch='testing')
+    Repo.clone_from("https://github.com/duckietown/duckietown-slimremote", destination_dir, branch='testing')
 
 
 # Runs everything on the Duckiebot
