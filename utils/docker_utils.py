@@ -20,7 +20,7 @@ RPI_DUCKIEBOT_BASE = 'duckietown/rpi-duckiebot-base:master18'
 RPI_DUCKIEBOT_CALIBRATION = 'duckietown/rpi-duckiebot-calibration:master18'
 RPI_DUCKIEBOT_ROS_PICAM = 'duckietown/rpi-duckiebot-ros-picam:master18'
 RPI_ROS_KINETIC_ROSCORE = 'duckietown/rpi-ros-kinetic-roscore:master18'
-SLIMREMOTE_IMAGE = 'fgolemo/duckietown-slimremote:testing'
+SLIMREMOTE_IMAGE = 'duckietown/duckietown-slimremote:testing'
 
 
 def get_remote_client(duckiebot_ip):
@@ -171,8 +171,9 @@ def start_slimremote_duckiebot_container(duckiebot_name):
     container_name = 'evaluator'
     try:
         container = duckiebot_client.containers.get(container_name)
-        dtslogger.info("slim remote already running on %s" % duckiebot_name)
-        return container
+        dtslogger.info("slim remote already running on %s, restarting..." % duckiebot_name)
+        stop_container(container)
+        remove_container(container)
     except Exception as e:
         dtslogger.info("Starting slim remote on %s" % duckiebot_name)
 
@@ -203,7 +204,8 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     try:
         container = local_client.containers.get(container_name)
         dtslogger.info("an image already on localhost - stopping it first..") 
-        local_client.constainers.stop(container_name)
+        stop_container(container)
+        remove_container(container)
     except Exception as e:
         dtslogger.info("no local image running already")
         
@@ -216,13 +218,17 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
               'privileged': True,
               'detach': True,
               'name' : container_name,
-              'environment': env_vars}
+              'environment': env_vars,
+    }
 
 
     if volumes is not None:
         params['volumes'] = volumes
 
-    return local_client.containers.run(**params)
+    new_local_container = local_client.containers.run(**params)
+
+    attach_terminal(container_name)
+    return new_local_container
 
 
 def start_picamera(duckiebot_name):
@@ -307,8 +313,8 @@ def start_gui_tools(duckiebot_name):
 
 
 def attach_terminal(container_name, hostname=None):
-    duckiebot_ip = get_duckiebot_ip(hostname)
     if hostname is not None:
+        duckiebot_ip = get_duckiebot_ip(hostname)
         docker_attach_command = 'docker -H %s:2375 attach %s' % (duckiebot_ip, container_name)
     else:
         docker_attach_command = 'docker attach %s' % container_name
@@ -327,4 +333,10 @@ def stop_container(container):
     try:
         container.stop()
     except Exception as e:
-        dtslogger.warn("Container %s not found! %s" % (container, e))
+        dtslogger.warn("Container %s not found to stop! %s" % (container, e))
+
+def remove_container(container):
+    try:
+        container.remove()
+    except Exception as e:
+        dtslogger.warn("Container %s not found to remove! %s" % (container, e))
