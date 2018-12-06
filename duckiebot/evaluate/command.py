@@ -86,9 +86,18 @@ def setup_expected_volumes(hostname):
             f.write("env: Duckietown-Lf-Lfv-Navv-Silent-v1")
 
     local_slimremote_dir = dir_fake_home_host + '/duckietown-slimremote'
-    if not os.path.exists(local_slimremote_dir):
-        setup_slimremote(local_slimremote_dir)
+    
+    # It seems that the slimremote is put in two different places depending on the submission
+    # so for now we clone it twice and map to the two different locations
+    local_slimremote_dir_1 = local_slimremote_dir+'/1'
+    local_slimremote_dir_2 = local_slimremote_dir+'/2'
+    if not os.path.exists(local_slimremote_dir_1):
+        setup_slimremote(local_slimremote_dir_1)
+    if not os.path.exists(local_slimremote_dir_2):
+        setup_slimremote(local_slimremote_dir_2)
+    #### TODO else update the repo instead of cloning it
 
+        
     dir_fake_home_guest = dir_home_guest
     dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
     dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
@@ -104,7 +113,8 @@ def setup_expected_volumes(hostname):
             dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
             challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'},
-            local_slimremote_dir: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'},
+            local_slimremote_dir_1: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'},
+            local_slimremote_dir_2: {'bind': '/notebooks/src/duckietown-slimremote', 'mode': 'rw'},
             local_calibration_dir: {'bind': '/data/config/calibrations', 'mode': 'rw'},
             }
 
