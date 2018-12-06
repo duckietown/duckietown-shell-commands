@@ -186,6 +186,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
         'ports': {'5558': '5558', '8902': '8902'},
     }
 
+
     return duckiebot_client.containers.run(**parameters)
 
 
@@ -217,6 +218,7 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
               'network_mode': 'host',
               'privileged': True,
               'detach': True,
+              'tty': True,
               'name' : container_name,
               'environment': env_vars,
     }
@@ -226,8 +228,6 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
         params['volumes'] = volumes
 
     new_local_container = local_client.containers.run(**params)
-
-    attach_terminal(container_name)
     return new_local_container
 
 
