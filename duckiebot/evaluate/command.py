@@ -44,7 +44,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
 
-        group.add_argument('--max_vel', default=0.7, help"the max velocity for the duckiebot")
+        group.add_argument('--max_vel', default=0.7, help="the max velocity for the duckiebot")
 
         parsed = parser.parse_args(args)
 
