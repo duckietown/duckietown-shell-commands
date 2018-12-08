@@ -44,7 +44,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
 
-        group.add_argument('--max_vel', default=0.7, help="the max velocity for the duckiebot")
+        group.add_argument('--max_vel', help="the max velocity for the duckiebot", default=0.7)
 
         parsed = parser.parse_args(args)
 
@@ -69,7 +69,7 @@ class DTCommand(DTCommandAbs):
 
         #       image_view_container = start_rqt_image_view(parsed.hostname)
         stop_container(bag_container)
-        stop_container(slimremote_container)
+#        stop_container(slimremote_container)
 
 
 def setup_expected_volumes(hostname):

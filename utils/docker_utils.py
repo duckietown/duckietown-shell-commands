@@ -182,7 +182,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
         'remove': True,
         'privileged': True,
         'detach': True,
-        'environment': "DUCKIETOWN_MAXSPEED=%f" % max_vel,
+        'environment': {"DUCKIETOWN_MAXSPEED": max_vel},
         'name': container_name,
         'ports': {'5558': '5558', '8902': '8902'},
     }
