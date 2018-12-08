@@ -44,9 +44,11 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
 
+        group.add_argument('--max_vel', default=0.7, help"the max velocity for the duckiebot")
+
         parsed = parser.parse_args(args)
 
-        slimremote_container = start_slimremote_duckiebot_container(parsed.hostname)
+        slimremote_container = start_slimremote_duckiebot_container(parsed.hostname,parsed.max_vel)
         time.sleep(2)
 
         volumes = setup_expected_volumes(parsed.hostname)

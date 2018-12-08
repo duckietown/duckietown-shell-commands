@@ -164,7 +164,7 @@ def record_bag(duckiebot_name, duration):
     return local_client.containers.run(**parameters)
 
 
-def start_slimremote_duckiebot_container(duckiebot_name):
+def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     duckiebot_client = get_remote_client(duckiebot_ip)
 
@@ -182,6 +182,7 @@ def start_slimremote_duckiebot_container(duckiebot_name):
         'remove': True,
         'privileged': True,
         'detach': True,
+        'environment': "DUCKIETOWN_MAXSPEED=%f" % max_vel,
         'name': container_name,
         'ports': {'5558': '5558', '8902': '8902'},
     }
