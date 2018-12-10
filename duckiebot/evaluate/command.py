@@ -39,7 +39,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--image', help="Image to evaluate",
                            default="duckietown/challenge-aido1_lf1-template-ros:v3")
 
-        group.add_argument('--duration', help="Number of seconds to run evaluation", default=30)
+        group.add_argument('--duration', help="Number of seconds to run evaluation", default=120)
 
         group.add_argument('--remotely', action='store_true', default=True,
                            help="Run the image on the laptop without pushing to Duckiebot")
@@ -163,6 +163,7 @@ def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
 def evaluate_remotely(duckiebot_name, image_name, duration, env, volumes):
     dtslogger.info("Running %s on localhost" % image_name)
     evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env, volumes)
+    time.sleep(2)
     local_client = check_docker_environment()
     monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
     monitor_thread.start()
