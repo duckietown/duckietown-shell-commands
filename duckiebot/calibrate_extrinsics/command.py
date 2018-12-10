@@ -9,7 +9,7 @@ from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, RPI_DUCKIEBOT_BASE, RPI_DUCKIEBOT_CALIBRATION, setup_duckiebot_data_volume
+from utils.docker_utils import get_remote_client, RPI_DUCKIEBOT_BASE, RPI_DUCKIEBOT_CALIBRATION, bind_duckiebot_data_dir
 
 
 class DTCommand(DTCommandAbs):
@@ -61,7 +61,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
     duckiebot_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
-                                    datavol=setup_duckiebot_data_volume(),
+                                    datavol=bind_duckiebot_data_dir(),
                                     command="/bin/bash -c '%s'" % start_command)
 
     raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*' * 20))
@@ -75,5 +75,5 @@ def calibrate(duckiebot_name, duckiebot_ip):
     duckiebot_client.containers.run(image=RPI_DUCKIEBOT_CALIBRATION,
                                     privileged=True,
                                     network_mode='host',
-                                    datavol=setup_duckiebot_data_volume(),
+                                    datavol=bind_duckiebot_data_dir(),
                                     command="/bin/bash -c '%s'" % start_command)

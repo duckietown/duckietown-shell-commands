@@ -14,7 +14,7 @@ from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from dt_shell.remote import get_duckietown_server_url
 
-from utils.docker_utils import continuously_monitor, start_gui_tools, start_rqt_image_view
+from utils.docker_utils import continuously_monitor, start_rqt_image_view
 
 usage = """
 

@@ -1,18 +1,16 @@
 from __future__ import print_function
 
 import argparse
-import os
 import platform
 import subprocess
-import sys
 from os.path import join, realpath, dirname
 from subprocess import call
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
-from utils.docker_utils import setup_local_data_volume, default_env
+from utils.docker_utils import bind_local_data_dir, default_env
 
 
 class DTCommand(DTCommandAbs):
@@ -70,7 +68,7 @@ def calibrate(duckiebot_name, duckiebot_ip):
 
     local_client.containers.run(image=IMAGE_CALIBRATION,
                                 network_mode='host',
-                                volumes=setup_local_data_volume(),
+                                volumes=bind_local_data_dir(),
                                 privileged=True,
                                 environment=env_vars)
     duckiebot_client.containers.get('ros-picam').stop()

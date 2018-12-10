@@ -9,7 +9,7 @@
 #           duckiebot_compose_file: 	Path to the Duckiebot's primary docker-compose.yml config. Will use default if empty.
 
 #for debugging, enable command printout
-if [ -n "$DEBUG" ]; then
+if [[ -n "$DEBUG" ]]; then
     set -xu
 fi
 
@@ -18,7 +18,7 @@ set -e
 VERSION=1 # Increment version to bust the cache
 TMP_DIR="/tmp/duckietown"
 
-if [ ! -f $TMP_DIR/version ] || [ "$(cat $TMP_DIR/version)" != "$VERSION" ]; then
+if [[ ! -f $TMP_DIR/version ]] || [[ "$(cat $TMP_DIR/version)" != "$VERSION" ]]; then
    rm -rf $TMP_DIR
 fi
 
@@ -59,33 +59,33 @@ echo WIFISSID=$WIFISSID
 echo WIFIPASS=$WIFIPASS
 echo ------------------------------
 
-if [ ! -f $IDENTITY_FILE ]; then
+if [[ ! -f "$IDENTITY_FILE" ]]; then
     echo "Please set the environment variable IDENTITY_FILE to the path of a public key. "
     exit 1
 fi
 
 
-if [ -z "$HOST_NAME" ]; then
+if [[ -z "$HOST_NAME" ]]; then
     echo "Please set variable HOST_NAME"
     exit 1
 fi
 
-if [ -z "$DTS_USERNAME" ]; then
+if [[ -z "$DTS_USERNAME" ]]; then
     echo "Please set variable $DTS_USERNAME"
     exit 1
 fi
 
-if [ -z "$PASSWORD" ]; then
+if [[ -z "$PASSWORD" ]]; then
     echo "Please set variable $PASSWORD"
     exit 1
 fi
 
-if [ -z "WIFISSID" ]; then
+if [[ -z "$WIFISSID" ]]; then
     echo "Please set variable WIFISSID"
     exit 1
 fi
 
-if [ -z "WIFIPASS" ]; then
+if [[ -z "$WIFIPASS" ]]; then
     echo "Please set variable WIFIPASS"
     exit 1
 fi
@@ -391,9 +391,9 @@ EOF
 #     data:
 
     # If docker-compose is available on the host, attempt to validate
-    if [ $(command -v docker-compose) ]; then
+    if [[ $(command -v docker-compose) ]]; then
         docker-compose -f $duckiebot_compose_file config --quiet
-        if [ $? -ne 0 ]; then
+        if [[ $? -ne 0 ]]; then
             >&2 echo "Critical error! Invalid Duckiebot compose: $duckiebot_compose_file"
             exit 1
         fi
@@ -403,8 +403,8 @@ EOF
 }
 
 verify_duckietoken() {
-    if [ -n "$duckietoken" ]; then
-        if [ !$(dt tok verify $duckietoken) ]; then
+    if [[ -n "$duckietoken" ]]; then
+        if [[ !$(dt tok verify $duckietoken) ]]; then
             >&2 echo "Critical error! Unable to verify Duckie Token."
             exit 1 
         fi
@@ -414,11 +414,11 @@ verify_duckietoken() {
 check_deps() {
     missing_deps=()
     for dep in ${DEPS_LIST[@]}; do
-        if [ ! $(command -v ${dep}) ]; then
+        if [[ ! $(command -v ${dep}) ]]; then
             missing_deps+=("${dep}")
         fi
     done
-    if [ ${#missing_deps[@]} -ne 0 ]; then
+    if [[ ${#missing_deps[@]} -ne 0 ]]; then
         echo "The following dependencies are missing. Please install corresponding packages for:"
         echo "${missing_deps[@]}"
         [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
@@ -426,7 +426,7 @@ check_deps() {
 }
 
 download_etcher() {
-    if [ -f "$ETCHER_DIR/etcher" ]; then
+    if [[ -f "$ETCHER_DIR/etcher" ]]; then
         echo "Prior etcher-cli install detected at $ETCHER_DIR, skipping..."
     else
         # Download tool to burn image
@@ -442,7 +442,7 @@ download_etcher() {
 }
 
 download_hypriot() {
-    if [ -f $HYPRIOT_LOCAL ]; then
+    if [[ -f $HYPRIOT_LOCAL ]]; then
         echo "HypriotOS image was previously downloaded to $HYPRIOT_LOCAL, skipping..."
     else
         # Download the Hypriot Image echo "Downloading Hypriot image to ${HYPRIOT_LOCAL}"
@@ -464,7 +464,7 @@ download_docker_image() {
     image_filename="${IMAGE_DOWNLOADER_CACHEDIR}/${image_name}.tar.gz"
 
     # download docker image if it doesn't exist
-    if [ -f ${image_filename} ]; then
+    if [[ -f ${image_filename} ]]; then
         echo "${docker_tag} was previously downloaded to ${image_filename}, skipping..."
     else
         echo "Downloading ${docker_tag} from Docker Hub..."
@@ -521,7 +521,7 @@ mount_disks() {
     sudo udevadm trigger
     sleep 5
 
-    if [ ! -e "/dev/disk/by-label/root" ] || [ ! -e "/dev/disk/by-label/HypriotOS" ]; then
+    if [[ ! -e "/dev/disk/by-label/root" ]] || [[ ! -e "/dev/disk/by-label/HypriotOS" ]]; then
         echo "Downloading Message of the Day"
         echo "."
         sleep 1
@@ -597,7 +597,7 @@ else
     exit 0
 fi
 
-if [ "$CURRENT_WIFI" != "$WIFISSID" ]; then
+if [[ "$CURRENT_WIFI" != "$WIFISSID" ]]; then
     echo "Notice: the current WiFi network is '$CURRENT_WIFI', not '$WIFISSID'"
     echo "If you do not join '$WIFISSID', then $HOST_NAME might be unreachable"
 fi

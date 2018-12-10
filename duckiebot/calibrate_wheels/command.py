@@ -8,7 +8,7 @@ from dt_shell.env_checks import check_docker_environment
 from past.builtins import raw_input
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import setup_duckiebot_data_volume, attach_terminal
+from utils.docker_utils import bind_duckiebot_data_dir, attach_terminal
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -55,7 +55,7 @@ def calibrate(hostname):
                                                                   privileged=True,
                                                                   network_mode='host',
                                                                   tty=True,
-                                                                  datavol=setup_duckiebot_data_volume(),
+                                                                  datavol=bind_duckiebot_data_dir(),
                                                                   command='/bin/bash')
 
     attach_terminal(wheel_calibration_container.name, hostname)

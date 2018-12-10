@@ -44,7 +44,6 @@ def continuously_monitor(client, container_name):
 
         dtslogger.info('status: %s' % container.status)
         if container.status == 'exited':
-
             msg = 'The container exited.'
 
             logs = ''
@@ -154,7 +153,7 @@ def record_bag(duckiebot_name, duration):
         'detach': True,
         'environment': default_env(duckiebot_name, duckiebot_ip),
         'command': 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
-        'volumes': setup_local_data_volume()
+        'volumes': bind_local_data_dir()
     }
 
     # Mac Docker has ARM support directly in the Docker environment, so we don't need to run qemu...
@@ -187,7 +186,6 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
         'ports': {'5558': '5558', '8902': '8902'},
     }
 
-
     return duckiebot_client.containers.run(**parameters)
 
 
@@ -205,14 +203,13 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
 
     try:
         container = local_client.containers.get(container_name)
-        dtslogger.info("an image already on localhost - stopping it first..") 
+        dtslogger.info("an image already on localhost - stopping it first..")
         stop_container(container)
         remove_container(container)
     except Exception as e:
         dtslogger.info("no local image running already")
-        
-    dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
+    dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
     params = {'image': image_name,
               'remove': True,
@@ -220,10 +217,8 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
               'privileged': True,
               'detach': True,
               'tty': True,
-              'name' : container_name,
-              'environment': env_vars,
-    }
-
+              'name': container_name,
+              'environment': env_vars}
 
     if volumes is not None:
         params['volumes'] = volumes
@@ -322,11 +317,11 @@ def attach_terminal(container_name, hostname=None):
     return start_command_in_subprocess(docker_attach_command, os.environ)
 
 
-def setup_local_data_volume():
+def bind_local_data_dir():
     return {'%s/data' % expanduser("~"): {'bind': '/data'}}
 
 
-def setup_duckiebot_data_volume():
+def bind_duckiebot_data_dir():
     return {'/data': {'bind': '/data'}}
 
 
@@ -335,6 +330,7 @@ def stop_container(container):
         container.stop()
     except Exception as e:
         dtslogger.warn("Container %s not found to stop! %s" % (container, e))
+
 
 def remove_container(container):
     try:

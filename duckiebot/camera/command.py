@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import argparse
 import time
-from os.path import join, realpath, dirname
 
 from dt_shell import DTCommandAbs, dtslogger
 
