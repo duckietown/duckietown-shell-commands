@@ -26,4 +26,4 @@ echo "http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.h
 echo "You will now be given a container running on the Duckiebot for wheel calibration (press enter):"
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged  $IMAGE_BASE /bin/bash
+docker -H "$DUCKIEBOT_NAME.local" run -it --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash

@@ -46,14 +46,14 @@ docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net hos
 #echo "Running Simulated Verification"
 
 
-#docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline validate_calibration -o /data/$SNAME > /data/$SNAME.log"
+#docker -H "$DUCKIEBOT_NAME.local" run -it --privileged -v /data:/data --net host duckietown/rpi-duckiebot-base /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline validate_calibration -o /data/$SNAME > /data/$SNAME.log"
 
 
 echo "********************"
 echo "Place the Duckiebot in a lane and press ENTER."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it  --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
+docker -H "$DUCKIEBOT_NAME.local" run -it --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash -c "source /home/software/docker/env.sh && rosrun complete_image_pipeline single_image_pipeline -o /data/$VNAME > /data/$VNAME.log"
 
 
 echo "********************"
@@ -62,5 +62,5 @@ echo "http://docs.duckietown.org/DT18/opmanual_duckiebot/out/wheel_calibration.h
 echo "You will now be given a container running on the Duckiebot for wheel calibration."
 read
 
-docker -H "$DUCKIEBOT_NAME.local" run -it --net host --privileged  $IMAGE_BASE /bin/bash
+docker -H "$DUCKIEBOT_NAME.local" run -it --privileged -v /data:/data --net host $IMAGE_BASE /bin/bash
 

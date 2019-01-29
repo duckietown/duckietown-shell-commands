@@ -16,7 +16,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        script_file = join(dirname(realpath(__file__)), 'calibrate_duckiebot.sh')
+        script_file = join(dirname(realpath(__file__)), 'calibrate_extrinsics.sh')
 
         prog = 'dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME'
         usage = """
