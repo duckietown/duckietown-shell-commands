@@ -9,7 +9,7 @@ import termcolor
 import yaml
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
-from dt_shell.remote import dtserver_submit, get_duckietown_server_url
+from dt_shell.remote import dtserver_submit, get_duckietown_server_url, make_server_request
 
 
 def tag_from_date(d):
@@ -126,6 +126,7 @@ Submission with an arbitrary JSON payload:
         group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
                            help="Disable submission (only build and push)")
         group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
+        group.add_argument('--impersonate',type=int, default=None)
 
         group.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
@@ -150,6 +151,7 @@ Submission with an arbitrary JSON payload:
         if parsed.challenge:
             sub_info.challenge_name = parsed.challenge
 
+        impersonate = parsed.impersonate
         username = get_dockerhub_username(shell)
 
         if parsed.image is not None:
@@ -163,7 +165,7 @@ Submission with an arbitrary JSON payload:
                 'protocols': sub_info.protocols}
 
         if not parsed.no_submit:
-            submission_id = dtserver_submit(token, sub_info.challenge_name, data)
+            submission_id = dtserver_submit2(token, sub_info.challenge_name, data, impersonate=impersonate)
             url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
             url = href(url)
 
@@ -193,6 +195,14 @@ For more information, see the manual at {manual}
                 shell.sprint(msg)
             else:
                 print(msg)
+
+def dtserver_submit2(token, queue, data, impersonate=None):
+    endpoint = '/submissions'
+    method = 'POST'
+    data = {'queue': queue, 'parameters': data}
+    if impersonate is not None:
+        data['submitter_id'] = impersonate
+    return make_server_request(token, endpoint, data=data, method=method)
 
 
 def dark(x):

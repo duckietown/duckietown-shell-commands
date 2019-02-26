@@ -94,9 +94,12 @@ class DTCommand(DTCommandAbs):
         else:
             flag = ''
 
+        cache = '/tmp/cache'
+
         cmd = ['docker', 'run',
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
                '-v', '%s:%s%s' % (pwd1, pwd1, flag),
+               '-v', '%s:%s%s' % (cache, cache, flag),
                '-v', '%s:%s%s' % (fake_home, '/home/%s' % user, flag),
                '-e', 'USER=%s' % user,
                '-e', 'USERID=%s' % uid1,
