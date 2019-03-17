@@ -81,7 +81,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--no-delete', dest='no_delete', action='store_true', default=False,
                            help="Does not erase temporary files in /tmp/duckietown")
 
-        group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
+        group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v4')
 
         group.add_argument('--name', default=None, help='Name for this evaluator')
         group.add_argument("--features", default=None, help="Pretend to be what you are not.")
@@ -152,6 +152,7 @@ class DTCommand(DTCommandAbs):
         env['DTSERVER'] = url
 
         image = parsed.image
+        dtslogger.info('Using evaluator image %s' % image)
         name, tag = image.split(':')
         if not parsed.no_pull:
             dtslogger.info('Updating container %s' % image)
