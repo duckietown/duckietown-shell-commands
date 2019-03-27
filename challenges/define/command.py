@@ -146,7 +146,8 @@ def dtserver_challenge_define(token, yaml, force_invalidate):
     endpoint = '/challenge-define'
     method = 'POST'
     data = {'yaml': yaml, 'force-invalidate': force_invalidate}
-    return make_server_request(token, endpoint, data=data, method=method)
+    return make_server_request(token, endpoint, data=data, method=method,
+                               timeout=15)
 
 
 def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache=False):
