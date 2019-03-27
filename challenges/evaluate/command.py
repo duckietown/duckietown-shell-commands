@@ -40,7 +40,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--no-cache', action='store_true', default=False, help="")
         group.add_argument('--no-build', action='store_true', default=False, help="")
         group.add_argument('--no-pull', action='store_true', default=False, help="")
-        group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v3')
+        group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v4')
         group.add_argument('--shell', action='store_true', default=False, help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
         group.add_argument('--visualize', help="Visualize the evaluation", action='store_true', default=False)
