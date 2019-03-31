@@ -4,8 +4,8 @@ import dt_shell
 
 from .command import *
 
-min_duckietown_shell = '4.0.0'
-duckietown_shell_commands_version = '4.0.0'
+min_duckietown_shell = '4.0.1'
+duckietown_shell_commands_version = '4.0.1'
 
 
 def parse_version(x):
