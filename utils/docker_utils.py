@@ -109,6 +109,7 @@ def logs_for_container(client, container_id):
 def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
+            'DUCKIEFLEET_ROOT' : '/data/config',
             'DUCKIEBOT_IP': duckiebot_ip,
             'DUCKIETOWN_SERVER': duckiebot_ip,
             'QT_X11_NO_MITSHM': 1}
