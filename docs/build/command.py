@@ -14,8 +14,9 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 # ok
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
-IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
+# IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
+IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
 
 class DTCommand(DTCommandAbs):
 
@@ -95,6 +96,8 @@ class DTCommand(DTCommandAbs):
             flag = ''
 
         cache = '/tmp/cache'
+        if not os.path.exists(cache):
+            os.makedirs(cache)
 
         cmd = ['docker', 'run',
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
