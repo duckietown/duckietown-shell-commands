@@ -1,10 +1,11 @@
 import sys
 
 import dt_shell
+from dt_shell import UserError
 
 if sys.version_info < (3, 6):
-    msg = 'duckietown-shell-commands requires Python 3.6 and later. Detected %s.' % str(sys.version_info)
-    sys.exit(msg)
+    msg = 'duckietown-shell-commands requires Python 3.6 and later.\nDetected %s.' % str(sys.version)
+    raise UserError(msg)
 
 from .command import *
 
@@ -34,7 +35,7 @@ def check_compatible():
 Detected Duckietown Shell %s but these commands (%s) need Duckietown Shell >= %s.
 ''' % (render_version(vnow), duckietown_shell_commands_version, render_version(vneed))
 
-        from dt_shell import UserError
+
 
         raise UserError(msg)
 
