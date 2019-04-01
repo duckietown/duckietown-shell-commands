@@ -2,6 +2,10 @@ import sys
 
 import dt_shell
 
+if sys.version_info < (3, 6):
+    msg = 'duckietown-shell-commands requires Python 3.6 and later. Detected %s.' % str(sys.version_info)
+    sys.exit(msg)
+
 from .command import *
 
 min_duckietown_shell = '4.0.1'
