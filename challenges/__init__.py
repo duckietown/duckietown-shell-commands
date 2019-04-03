@@ -1,11 +1,11 @@
-from dt_shell import dtslogger
+from dt_shell import dtslogger, UserError
 from duckietown_challenges import __version__
-
 
 version = tuple(map(int, __version__.split('.')))
 required = (4, 0, 5)
 
 dtslogger.info(f'Detected duckietown-challenges {__version__} ({version!r}, {required!r}')
+
 
 def v(x):
     return ".".join(map(str, x))
@@ -13,7 +13,7 @@ def v(x):
 
 if version < required:
     msg = 'Expected duckietown-challenges of at least %s, got %s' % (v(required), v(__version__))
-    raise Exception(msg)
+    raise UserError(msg)
 
 from .config import *
 from .define import *
