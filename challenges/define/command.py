@@ -4,11 +4,13 @@ import os
 import subprocess
 
 import yaml
+
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.exceptions import UserError
-from dt_shell.remote import make_server_request
 from dt_shell.utils import indent
+from duckietown_challenges.cmd_submit_build import BuildResult, get_complete_tag, parse_complete_tag
+from duckietown_challenges.rest_methods import get_registry_info, RegistryInfo
 
 
 class DTCommand(DTCommandAbs):
@@ -16,6 +18,9 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         try:
+            from duckietown_challenges.rest_methods import dtserver_challenge_define
+            from duckietown_challenges.utils import tag_from_date
+
             from duckietown_challenges.challenge import ChallengeDescription
             from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
         except ImportError as e:
@@ -70,6 +75,8 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
+        ri = get_registry_info(token=token)
+
         if parsed.steps:
             use_steps = parsed.steps.split(",")
         else:
@@ -99,32 +106,25 @@ class DTCommand(DTCommandAbs):
                     if args:
                         dtslogger.warning('arguments not supported yet: %s' % args)
 
-                    image, tag, repo_only, tag_only = \
+                    br = \
                         build_image(client, context, challenge.name, step_name,
                                     service_name, dockerfile_abs,
-                                    no_cache)
-
-                    service.image = tag
-
-                    if not no_push:
-                        cmd = ['docker', 'push', tag]
-                        subprocess.check_call(cmd)
-
-                    image = client.images.get(service.image)
-                    service.image_digest = image.id
+                                    no_cache, registry_info=ri)
+                    complete = get_complete_tag(br)
+                    service.image = complete
 
                     # very important: get rid of it!
                     service.build = None
                 else:
-                    if service.image_digest is None:
-                        if service.image == SUBMISSION_CONTAINER_TAG:
-                            pass
-                        else:
-                            msg = 'Finding digest for image %s' % service.image
-                            dtslogger.info(msg)
-                            image = client.images.get(service.image)
-                            service.image_digest = image.id
-                            dtslogger.info('Found: %s' % image.id)
+
+                    if service.image == SUBMISSION_CONTAINER_TAG:
+                        pass
+                    else:
+                        msg = 'Finding digest for image %s' % service.image
+                        dtslogger.info(msg)
+                        image = client.images.get(service.image)
+                        service.image_digest = image.id
+                        dtslogger.info('Found: %s' % image.id)
 
         data2 = yaml.dump(challenge.as_dict())
 
@@ -142,37 +142,35 @@ class DTCommand(DTCommandAbs):
             print(msg)
 
 
-def dtserver_challenge_define(token, yaml, force_invalidate):
-    endpoint = '/challenge-define'
-    method = 'POST'
-    data = {'yaml': yaml, 'force-invalidate': force_invalidate}
-    return make_server_request(token, endpoint, data=data, method=method,
-                               timeout=15)
-
-
-def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache=False):
+def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache: bool,
+                registry_info: RegistryInfo) -> BuildResult:
     d = datetime.datetime.now()
     username = get_dockerhub_username()
-    tag_only = tag_from_date(d)
-    repo_only = '%s/%s-%s-%s' % (username, challenge_name.lower(), step_name.lower(), service_name.lower())
-    tag = '%s:%s' % (repo_only, tag_only)
-    cmd = ['docker', 'build', '-t', tag, '-f', filename]
+    from duckietown_challenges.utils import tag_from_date
+    br = BuildResult(
+            repository=('%s-%s-%s' % (challenge_name, step_name, service_name)).lower(),
+            organization=username,
+            registry=registry_info.registry,
+            tag=tag_from_date(d),
+            digest=None)
+    complete = get_complete_tag(br)
+    print(br, complete)
+    cmd = ['docker', 'build', '-t', complete, '-f', filename]
     if no_cache:
         cmd.append('--no-cache')
 
     cmd.append(path)
     subprocess.check_call(cmd)
     # _ = client.images.build(path=path, nocache=no_cache, tag=tag)
-    image = client.images.get(tag)
-    return image, tag, repo_only, tag_only
+    # image = client.images.get(complete)
 
+    cmd = ['docker', 'push', complete]
+    subprocess.check_call(cmd)
 
-def tag_from_date(d):
-    # YYYY-MM-DDTHH:MM:SS[.mmmmmm][+HH:MM].
-    s = d.isoformat()
+    image = client.images.get(complete)
+    dtslogger.info('image id: %s' % image.id)
+    dtslogger.info('complete: %s' % complete)
+    br.digest =   image.id
 
-    s = s.replace(':', '_')
-    s = s.replace('T', '_')
-    s = s.replace('-', '_')
-    s = s[:s.index('.')]
-    return s
+    br = parse_complete_tag(get_complete_tag(br))
+    return br

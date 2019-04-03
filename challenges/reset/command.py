@@ -1,7 +1,7 @@
 import argparse
 
 from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.remote import make_server_request
+
 
 
 class DTCommand(DTCommandAbs):
@@ -20,26 +20,15 @@ class DTCommand(DTCommandAbs):
             raise Exception(msg)
 
         if parsed.submission is not None:
+            from duckietown_challenges.rest_methods import dtserver_reset_submission
             submission_id = dtserver_reset_submission(token,
                                                       submission_id=parsed.submission,
                                                       step_name=parsed.step)
             dtslogger.info('Successfully reset %s' % submission_id)
         elif parsed.job is not None:
+            from duckietown_challenges.rest_methods import dtserver_reset_job
             job_id = dtserver_reset_job(token, job_id=parsed.job)
             dtslogger.info('Successfully reset %s' % job_id)
         else:
             assert False
 
-
-def dtserver_reset_submission(token, submission_id, step_name):
-    endpoint = '/reset-submission'
-    method = 'POST'
-    data = {'submission_id': submission_id, 'step_name': step_name}
-    return make_server_request(token, endpoint, data=data, method=method)
-
-
-def dtserver_reset_job(token, job_id):
-    endpoint = '/reset-job'
-    method = 'POST'
-    data = {'job_id': job_id}
-    return make_server_request(token, endpoint, data=data, method=method)

@@ -1,7 +1,7 @@
 import argparse
 
 from dt_shell import DTCommandAbs
-from dt_shell.remote import dtserver_retire
+
 
 usage = """
 
@@ -26,6 +26,7 @@ class DTCommand(DTCommandAbs):
         token = shell.get_dt1_token()
 
         submission_id = parsed.submission
+        from duckietown_challenges.rest_methods import dtserver_retire
         submission_id = dtserver_retire(token, submission_id)
 
         print('Successfully retired submission %s' % submission_id)

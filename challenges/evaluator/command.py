@@ -11,7 +11,7 @@ import traceback
 
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
-from dt_shell.remote import get_duckietown_server_url
+
 
 usage = """
 
@@ -136,6 +136,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_watchtower:
             ensure_watchtower_active(client)
 
+        from duckietown_challenges.rest import get_duckietown_server_url
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
         if 'localhost' in url:

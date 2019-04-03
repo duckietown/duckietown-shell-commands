@@ -1,15 +1,16 @@
-# import termcolor
-from __future__ import print_function
 
 import termcolor
 from dt_shell import DTCommandAbs
-from dt_shell.remote import get_dtserver_user_info, get_duckietown_server_url
+from duckietown_challenges import get_duckietown_server_url
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        from duckietown_challenges.rest_methods import get_dtserver_user_info
+
+
         token = shell.get_dt1_token()
 
         info = get_dtserver_user_info(token)

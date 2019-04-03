@@ -2,7 +2,7 @@ import re
 
 import termcolor
 from dt_shell import DTCommandAbs
-from dt_shell.remote import dtserver_get_user_submissions, get_duckietown_server_url
+
 
 
 class DTCommand(DTCommandAbs):
@@ -10,6 +10,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell, args):
         token = shell.get_dt1_token()
+        from duckietown_challenges.rest_methods import dtserver_get_user_submissions
 
         submissions = dtserver_get_user_submissions(token)
 
@@ -38,6 +39,7 @@ class DTCommand(DTCommandAbs):
                 def d(dt):
                     return dt.strftime("%Y-%m-%d %H:%M")
 
+                from duckietown_challenges import get_duckietown_server_url
                 server = get_duckietown_server_url()
 
                 url = server + '/humans/submissions/%s' % submission_id

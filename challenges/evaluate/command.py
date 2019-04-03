@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 
 import argparse
 import getpass
@@ -12,7 +11,7 @@ import yaml
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
-from dt_shell.remote import get_duckietown_server_url
+
 
 from utils.docker_utils import continuously_monitor, start_rqt_image_view
 
@@ -115,6 +114,7 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.debug('Environment:\n\n%s' % yaml.safe_dump(env, default_flow_style=False))
 
+        from duckietown_challenges.rest import get_duckietown_server_url
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
         if 'localhost' in url:
