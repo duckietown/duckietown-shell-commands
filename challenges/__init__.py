@@ -4,7 +4,7 @@ from duckietown_challenges import __version__
 version = tuple(map(int, __version__.split('.')))
 required = (4, 0, 5)
 
-dtslogger.info(f'Detected duckietown-challenges {__version__} ({version!r}, {required!r}')
+dtslogger.info(f'Detected duckietown-challenges {__version__} ')
 
 
 def v(x):

@@ -155,7 +155,7 @@ def build_image(client, path, challenge_name, step_name, service_name, filename,
             digest=None)
     complete = get_complete_tag(br)
     print(br, complete)
-    cmd = ['docker', 'build', '-t', complete, '-f', filename]
+    cmd = ['docker', 'build', '--pull', '-t', complete, '-f', filename]
     if no_cache:
         cmd.append('--no-cache')
 

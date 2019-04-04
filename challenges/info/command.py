@@ -2,6 +2,7 @@
 import termcolor
 from dt_shell import DTCommandAbs
 from duckietown_challenges import get_duckietown_server_url
+from duckietown_challenges.rest_methods import get_registry_info
 
 
 class DTCommand(DTCommandAbs):
@@ -51,10 +52,11 @@ You can find the list of your submissions at the page:
 
         '''.format(url=href(url))
 
-        if hasattr(shell, 'sprint'):
-            shell.sprint(s)
-        else:
-            print(s)
+
+        shell.sprint(s)
+
+        ri = get_registry_info(token)
+        shell.sprint('Registry: %s' % ri.registry)
 
         # print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
 
