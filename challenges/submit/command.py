@@ -67,12 +67,7 @@ Submission with an arbitrary JSON payload:
                            help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
-        # group.add_argument('--image', default=None, type=str,
-        #                    help="Specify image directly instead of building it.")
-        # group.add_argument('--no-push', dest='no_push', action='store_true', default=False,
-        #                    help="Disable pushing of container")
-        # group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
-        #                    help="Disable submission (only build and push)")
+
         group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
         group.add_argument('--impersonate', type=int, default=None)
 

@@ -33,9 +33,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--config', default='challenge.yaml',
                             help="YAML configuration file")
 
-        # parser.add_argument('--build', default=None, help="try `evaluator:.`")
         parser.add_argument('--no-cache', default=False, action='store_true')
-        parser.add_argument('--no-push', default=False, action='store_true')
         parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
         parser.add_argument('--force-invalidate-subs', default=False, action='store_true')
         parser.add_argument('-C', dest='cwd', default=None, help='Base directory')
@@ -52,7 +50,6 @@ class DTCommand(DTCommandAbs):
             os.chdir(parsed.cwd)
 
         no_cache = parsed.no_cache
-        no_push = parsed.no_push
 
         fn = os.path.join(parsed.config)
         if not os.path.exists(fn):
@@ -116,7 +113,6 @@ class DTCommand(DTCommandAbs):
                     # very important: get rid of it!
                     service.build = None
                 else:
-
                     if service.image == SUBMISSION_CONTAINER_TAG:
                         pass
                     else:
@@ -154,23 +150,23 @@ def build_image(client, path, challenge_name, step_name, service_name, filename,
             tag=tag_from_date(d),
             digest=None)
     complete = get_complete_tag(br)
-    print(br, complete)
+
     cmd = ['docker', 'build', '--pull', '-t', complete, '-f', filename]
     if no_cache:
         cmd.append('--no-cache')
 
     cmd.append(path)
+    dtslogger.debug('Running %s' % " ".join(cmd))
     subprocess.check_call(cmd)
-    # _ = client.images.build(path=path, nocache=no_cache, tag=tag)
-    # image = client.images.get(complete)
 
     cmd = ['docker', 'push', complete]
+    dtslogger.debug('Running %s' % " ".join(cmd))
     subprocess.check_call(cmd)
 
     image = client.images.get(complete)
     dtslogger.info('image id: %s' % image.id)
-    dtslogger.info('complete: %s' % complete)
-    br.digest =   image.id
+    dtslogger.info('complete: %s' % get_complete_tag(br))
+    br.digest = image.id
 
     br = parse_complete_tag(get_complete_tag(br))
     return br
