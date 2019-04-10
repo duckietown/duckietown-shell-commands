@@ -1,13 +1,14 @@
 import argparse
 
 from dt_shell import DTCommandAbs
-from duckietown_challenges.rest_methods import dtserver_auth
+
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
+        from duckietown_challenges.rest_methods import dtserver_auth
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
