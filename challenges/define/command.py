@@ -37,8 +37,10 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--steps', default=None, help='Which steps (comma separated)')
         parser.add_argument('--force-invalidate-subs', default=False, action='store_true')
         parser.add_argument('-C', dest='cwd', default=None, help='Base directory')
+        parser.add_argument('--impersonate', type=str, default=None)
 
         parsed = parser.parse_args(args)
+        impersonate = parsed.impersonate
 
         from dt_shell.env_checks import check_docker_environment
         client = check_docker_environment()
@@ -72,7 +74,7 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
-        ri = get_registry_info(token=token)
+        ri = get_registry_info(token=token, impersonate=impersonate)
 
         if parsed.steps:
             use_steps = parsed.steps.split(",")
@@ -124,7 +126,7 @@ class DTCommand(DTCommandAbs):
 
         data2 = yaml.dump(challenge.as_dict())
 
-        res = dtserver_challenge_define(token, data2, parsed.force_invalidate_subs)
+        res = dtserver_challenge_define(token, data2, parsed.force_invalidate_subs, impersonate=impersonate)
         challenge_id = res['challenge_id']
         steps_updated = res['steps_updated']
 

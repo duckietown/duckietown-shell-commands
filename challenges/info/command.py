@@ -1,3 +1,4 @@
+import argparse
 
 import termcolor
 from dt_shell import DTCommandAbs
@@ -12,9 +13,14 @@ class DTCommand(DTCommandAbs):
         from duckietown_challenges.rest_methods import get_dtserver_user_info
 
 
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--impersonate', type=str, default=None)
+
+        parsed = parser.parse_args(args)
+
         token = shell.get_dt1_token()
 
-        info = get_dtserver_user_info(token)
+        info = get_dtserver_user_info(token, impersonate=parsed.impersonate)
 
         NOT_PROVIDED = termcolor.colored('missing', 'red')
 
