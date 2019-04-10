@@ -22,7 +22,7 @@ class DTCommand(DTCommandAbs):
             from duckietown_challenges.utils import tag_from_date
 
             from duckietown_challenges.challenge import ChallengeDescription
-            from duckietown_challenges.challenge import SUBMISSION_CONTAINER_TAG
+            from duckietown_challenges.challenge import ChallengesConstants
         except ImportError as e:
             msg = 'You need to install or update duckietown-challenges:\n%s' % e
             raise Exception(msg)
@@ -113,7 +113,7 @@ class DTCommand(DTCommandAbs):
                     # very important: get rid of it!
                     service.build = None
                 else:
-                    if service.image == SUBMISSION_CONTAINER_TAG:
+                    if service.image == ChallengesConstants.SUBMISSION_CONTAINER_TAG:
                         pass
                     else:
                         msg = 'Finding digest for image %s' % service.image

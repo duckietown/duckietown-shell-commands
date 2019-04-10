@@ -25,3 +25,4 @@ from .list import *
 from .reset import *
 from .retire import *
 from .submit import *
+from .auth import *
