@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
-INIT_SD_CARD_VERSION = '2.0.3'  # incremental number, semantic version
+INIT_SD_CARD_VERSION = '2.0.4'  # incremental number, semantic version
 
 CHANGELOG = """ 
 Current version: %s
@@ -14,6 +14,10 @@ feature additions augment y,
 minor changes increment z.
 
 Newest changes applied to this SD CARD:
+
+2.0.4 - 2019-04-11
+
+    Copy in the default calibrations
 
 2.0.3 - 2018-10-10
    
@@ -442,7 +446,8 @@ If they are not there, it means that the boot process was interrupted.
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
-
+    copy_default_calibrations(add_file)
+    
     add_run_cmd(user_data, 'cat /sys/class/net/eth0/address > /data/stats/MAC/eth0')
     add_run_cmd(user_data, 'cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0')
 
@@ -715,6 +720,21 @@ Host {HOSTNAME}
             f.write(bit)
     else:
         dtslogger.info('Configuration already found in ~/.ssh/config')
+
+
+def copy_default_calibrations(add_file):
+    
+    kin_calib = get_resource('calib_kin_default.yaml')
+    ext_cam_calib = get_resource('calib_cam_ext_default.yaml')
+    int_cam_calib = get_resource('calib_cam_int_default.yaml')
+
+    kin_calib_file = open(kin_calib)
+    ext_cam_calib_file = open(ext_cam_calib)
+    int_cam_calib_file = open(int_cam_calib)
+    
+    add_file(path='/data/config/calibrations/kinematics/default.yaml', content=yaml.dump(yaml.load(kin_calib_file), default_flow_style=False))
+    add_file(path='/data/config/calibrations/camera_extrinsic/default.yaml',content=yaml.dump(yaml.load(ext_cam_calib_file), default_flow_style=False))
+    add_file(path='/data/config/calibrations/camera_intrinsic/default.yaml',content=yaml.dump(yaml.load(int_cam_calib_file), default_flow_style=False))
 
 
 def _run_cmd(cmd):
