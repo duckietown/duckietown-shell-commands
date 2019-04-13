@@ -39,6 +39,8 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--no-cache', action='store_true', default=False, help="")
         group.add_argument('--no-build', action='store_true', default=False, help="")
         group.add_argument('--no-pull', action='store_true', default=False, help="")
+        group.add_argument('--challenge', help="Specific challenge to evaluate")
+
         group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v4')
         group.add_argument('--shell', action='store_true', default=False, help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
@@ -57,7 +59,8 @@ class DTCommand(DTCommandAbs):
             command.append('--no-cache')
         if parsed.no_build:
             command.append('--no-build')
-
+        if parsed.challenge:
+            command.extend(['--challenge', parsed.challenge])
         output_rp = os.path.realpath(parsed.output)
         command.extend(['--output', parsed.output])
         #
