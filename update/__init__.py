@@ -10,7 +10,7 @@ if sys.version_info < (3, 6):
 from .command import *
 
 min_duckietown_shell = '4.0.9'
-duckietown_shell_commands_version = '4.0.6'
+duckietown_shell_commands_version = '4.0.7'
 
 
 def parse_version(x):
