@@ -9,6 +9,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.exceptions import UserError
 from dt_shell.utils import indent
+from duckietown_challenges import read_yaml_file
 from duckietown_challenges.cmd_submit_build import BuildResult, get_complete_tag, parse_complete_tag
 from duckietown_challenges.rest_methods import get_registry_info, RegistryInfo
 
@@ -59,8 +60,8 @@ class DTCommand(DTCommandAbs):
             raise UserError(msg)
 
         # basename = os.path.basename(os.path.splitext(fn)[0])
-        contents = open(fn).read()
-        data = yaml.load(contents)
+        # contents = open(fn).read()
+        data = read_yaml_file(fn)
 
         if 'description' not in data or data['description'] is None:
             fnd = os.path.join(os.path.dirname(fn), 'challenge.description.md')

@@ -4,16 +4,17 @@ import json
 import os
 import traceback
 from dataclasses import dataclass
+from datetime import datetime
 from typing import *
 
 import termcolor
-import yaml
 
+from challenges import pad_to_screen_length
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
-from duckietown_challenges import get_duckietown_server_url
+from duckietown_challenges import get_duckietown_server_url, read_yaml_file
 from duckietown_challenges.cmd_submit_build import submission_build
-from duckietown_challenges.rest_methods import get_registry_info, dtserver_submit2
+from duckietown_challenges.rest_methods import get_registry_info, dtserver_submit2, dtserver_get_challenges
 
 
 class DTCommand(DTCommandAbs):
@@ -74,10 +75,36 @@ Submission with an arbitrary JSON payload:
         group.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
         parsed = parser.parse_args(args)
+        impersonate = parsed.impersonate
+        sub_info = read_submission_info('.')
 
-        ri = get_registry_info(token=token)
+        ri = get_registry_info(token=token, impersonate=impersonate)
 
         registry = ri.registry
+
+        challenges = dtserver_get_challenges(token=token, impersonate=impersonate)
+        compatible = []
+        print('Looking for compatible and open challenges: \n')
+        fmt = '  %s  %-22s  %-10s    %s'
+        print(fmt % ('%-32s' % 'name', 'protocol', 'open?', 'title'))
+        print(fmt % ('%-32s' % '----', '--------', '-----', '-----'))
+
+        S = sorted(challenges, key=lambda _: tuple(_.split('_-')))
+        for challenge_name in S:
+            cd = challenges[challenge_name]
+            is_open = cd.date_open < datetime.now() < cd.date_close
+            if not is_open:
+                continue
+
+            is_compatible = cd.protocol in  sub_info.protocols
+            s = "open" if is_open else "closed"
+
+            if is_compatible:
+                compatible.append(challenge_name)
+                challenge_name = termcolor.colored(challenge_name, 'blue')
+            challenge_name = pad_to_screen_length(challenge_name, 32)
+            S = fmt % (challenge_name, cd.protocol, s, cd.title)
+            print(S)
 
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
@@ -87,7 +114,7 @@ Submission with an arbitrary JSON payload:
             msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
             raise UserError(msg)
 
-        sub_info = read_submission_info('.')
+
 
         if parsed.message:
             sub_info.user_label = parsed.message
@@ -95,10 +122,10 @@ Submission with an arbitrary JSON payload:
             sub_info.user_payload = json.loads(parsed.metadata)
         if parsed.challenge:
             sub_info.challenges = parsed.challenge.split(',')
+        if sub_info.challenges is None:
+            sub_info.challenges = compatible
 
-        impersonate = parsed.impersonate
         username = get_dockerhub_username(shell)
-
 
         br = submission_build(username=username, registry=registry,
                               no_cache=parsed.no_cache)
@@ -157,7 +184,7 @@ You can speed up the evaluation using your own evaluator:
 For more information, see the manual at {manual}
 '''
 
-            shell.sprint(msg)
+        shell.sprint(msg)
 
 
 def bright(x):
@@ -178,7 +205,7 @@ class CouldNotReadInfo(Exception):
 
 @dataclass
 class SubmissionInfo:
-    challenges: List[str]
+    challenges: Optional[List[str]]
     user_label: Optional[str]
     user_payload: Optional[dict]
     protocols: List[str]
@@ -190,11 +217,11 @@ def read_submission_info(dirname) -> SubmissionInfo:
 
     try:
         data = read_yaml_file(fn)
-    except BaseException as e:
+    except BaseException:
         raise CouldNotReadInfo(traceback.format_exc())
     try:
         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
-        challenges = data.pop('challenge')
+        challenges = data.pop('challenge', None)
         if isinstance(challenges, str):
             challenges = [challenges]
         protocols = data.pop('protocol')
@@ -212,17 +239,17 @@ def read_submission_info(dirname) -> SubmissionInfo:
         msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
         raise CouldNotReadInfo(msg)
 
-
-def read_yaml_file(fn):
-    if not os.path.exists(fn):
-        msg = 'File does not exist: %s' % fn
-        raise Exception(msg)
-
-    with open(fn) as f:
-        data = f.read()
-
-        try:
-            return yaml.load(data, Loader=yaml.Loader)
-        except Exception as e:
-            msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
-            raise Exception(msg)
+#
+# def read_yaml_file(fn):
+#     if not os.path.exists(fn):
+#         msg = 'File does not exist: %s' % fn
+#         raise Exception(msg)
+#
+#     with open(fn) as f:
+#         data = f.read()
+#
+#         try:
+#             return yaml.load(data, Loader=yaml.Loader)
+#         except Exception as e:
+#             msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
+#             raise Exception(msg)
