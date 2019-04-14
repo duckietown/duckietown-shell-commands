@@ -76,6 +76,14 @@ Submission with an arbitrary JSON payload:
 
         parsed = parser.parse_args(args)
         impersonate = parsed.impersonate
+        if parsed.cwd is not None:
+            dtslogger.info('Changing to directory %s' % parsed.cwd)
+            os.chdir(parsed.cwd)
+
+        if not os.path.exists('submission.yaml'):
+            msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
+            raise UserError(msg)
+
         sub_info = read_submission_info('.')
 
         ri = get_registry_info(token=token, impersonate=impersonate)
@@ -96,26 +104,17 @@ Submission with an arbitrary JSON payload:
             if not is_open:
                 continue
 
-            is_compatible = cd.protocol in  sub_info.protocols
+            is_compatible = cd.protocol in sub_info.protocols
             s = "open" if is_open else "closed"
 
             if is_compatible:
                 compatible.append(challenge_name)
                 challenge_name = termcolor.colored(challenge_name, 'blue')
             challenge_name = pad_to_screen_length(challenge_name, 32)
-            S = fmt % (challenge_name, cd.protocol, s, cd.title)
-            print(S)
-
-        if parsed.cwd is not None:
-            dtslogger.info('Changing to directory %s' % parsed.cwd)
-            os.chdir(parsed.cwd)
-
-        if not os.path.exists('submission.yaml'):
-            msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
-            raise UserError(msg)
-
-
-
+            s2 = fmt % (challenge_name, cd.protocol, s, cd.title)
+            print(s2)
+        print('')
+        print('')
         if parsed.message:
             sub_info.user_label = parsed.message
         if parsed.metadata:
@@ -125,8 +124,22 @@ Submission with an arbitrary JSON payload:
         if sub_info.challenges is None:
             sub_info.challenges = compatible
 
+        if not compatible:
+            msg = 'There are no compatible challenges with protocols %s.' % sub_info.protocols
+            raise UserError(msg)
+
+        for c in sub_info.challenges:
+            if not c in S:
+                msg = 'The challenge "%s" does not exist among %s.' % (c, challenges)
+                raise UserError(msg)
+            if not c in compatible:
+                msg = 'The challenge %s is not compatible with protocols %s .' % (c, sub_info.protocols)
+                raise UserError(msg)
         username = get_dockerhub_username(shell)
 
+        print('I will submit to the challenges %s' % sub_info.challenges)
+        print('')
+        print('')
         br = submission_build(username=username, registry=registry,
                               no_cache=parsed.no_cache)
 
