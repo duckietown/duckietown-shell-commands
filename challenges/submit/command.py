@@ -133,16 +133,14 @@ Submission with an arbitrary JSON payload:
             # print('obtained:\n%s' % json.dumps(data, indent=2))
             component_id = data['component_id']
             submissions = data['submissions']
-            url_component = href(get_duckietown_server_url() + '/humans/components/%s' % component_id)
+            # url_component = href(get_duckietown_server_url() + '/humans/components/%s' % component_id)
 
             msg = f'''
     
-    Successfully created component {component_id}.
-    
-    {url_component}
-    
+    Successfully created component.
     
     This component has been entered in {len(submissions)} challenge(s).
+    
             '''
 
             for challenge_name, sub_info in submissions.items():
@@ -156,7 +154,7 @@ Submission with an arbitrary JSON payload:
                 
     {head}
     
-    You can track the progress at:
+    Track this submission at:
     
         {url_submission}
              

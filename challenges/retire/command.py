@@ -1,7 +1,7 @@
 import argparse
 
-from dt_shell import DTCommandAbs
-
+from dt_shell import DTCommandAbs, DTShell, UserError
+from duckietown_challenges.rest import ServerIsDown
 
 usage = """
 
@@ -16,7 +16,7 @@ To retire the submission ID, use:
 class DTCommand(DTCommandAbs):
 
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
         prog = 'dts challenges retire'
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
@@ -27,6 +27,12 @@ class DTCommand(DTCommandAbs):
 
         submission_id = parsed.submission
         from duckietown_challenges.rest_methods import dtserver_retire
-        submission_id = dtserver_retire(token, submission_id)
 
-        print('Successfully retired submission %s' % submission_id)
+        try:
+            submission_id = dtserver_retire(token, submission_id)
+
+            shell.sprint('Successfully retired submission %s' % submission_id)
+        except ServerIsDown as e:
+            msg = 'The server is temporarily down. Please try again later.'
+            msg += '\n\n' + str(e)
+            raise UserError(msg)

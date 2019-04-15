@@ -1,19 +1,17 @@
 import argparse
 
 import termcolor
+
 from dt_shell import DTCommandAbs, UserError
 from duckietown_challenges import get_duckietown_server_url
 from duckietown_challenges.rest import ServerIsDown
-from duckietown_challenges.rest_methods import get_registry_info
+from duckietown_challenges.rest_methods import get_dtserver_user_info
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        from duckietown_challenges.rest_methods import get_dtserver_user_info
-
-
         parser = argparse.ArgumentParser()
         parser.add_argument('--impersonate', type=str, default=None)
 
@@ -68,8 +66,9 @@ class DTCommand(DTCommandAbs):
             # print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
         except ServerIsDown as e:
             msg = 'The server is temporarily down. Please try again later.'
-            msg +='\n\n' + str(e)
+            msg += '\n\n' + str(e)
             raise UserError(msg)
+
 
 def href(x):
     return termcolor.colored(x, 'blue', attrs=['underline'])

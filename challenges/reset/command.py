@@ -1,7 +1,7 @@
 import argparse
 
-from dt_shell import DTCommandAbs, dtslogger
-
+from dt_shell import DTCommandAbs, UserError
+from duckietown_challenges.rest import ServerIsDown
 
 
 class DTCommand(DTCommandAbs):
@@ -17,18 +17,23 @@ class DTCommand(DTCommandAbs):
 
         if parsed.submission is None and parsed.job is None:
             msg = 'You need to specify either --job or --submission.'
-            raise Exception(msg)
+            raise UserError(msg)
 
-        if parsed.submission is not None:
-            from duckietown_challenges.rest_methods import dtserver_reset_submission
-            submission_id = dtserver_reset_submission(token,
-                                                      submission_id=parsed.submission,
-                                                      step_name=parsed.step)
-            dtslogger.info('Successfully reset %s' % submission_id)
-        elif parsed.job is not None:
-            from duckietown_challenges.rest_methods import dtserver_reset_job
-            job_id = dtserver_reset_job(token, job_id=parsed.job)
-            dtslogger.info('Successfully reset %s' % job_id)
-        else:
-            assert False
+        try:
+            if parsed.submission is not None:
+                from duckietown_challenges.rest_methods import dtserver_reset_submission
+                submission_id = dtserver_reset_submission(token,
+                                                          submission_id=parsed.submission,
+                                                          step_name=parsed.step)
+                shell.sprint('Successfully reset %s' % submission_id)
+            elif parsed.job is not None:
+                from duckietown_challenges.rest_methods import dtserver_reset_job
+                job_id = dtserver_reset_job(token, job_id=parsed.job)
+                shell.sprint('Successfully reset %s' % job_id)
+            else:
+                assert False
 
+        except ServerIsDown as e:
+            msg = 'The server is temporarily down. Please try again later.'
+            msg += '\n\n' + str(e)
+            raise UserError(msg)
