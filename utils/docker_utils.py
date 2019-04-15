@@ -35,8 +35,8 @@ def continuously_monitor(client, container_name):
         try:
             container = client.containers.get(container_name)
         except Exception as e:
-            msg = 'Cannot get container %s: %s' % (container_name, e)
-            dtslogger.info(msg)
+            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            # dtslogger.info(msg)
             break
             # dtslogger.info('Will wait.')
             # time.sleep(5)
@@ -89,7 +89,7 @@ def continuously_monitor(client, container_name):
             dtslogger.error(traceback.format_exc())
             dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
-    dtslogger.debug('monitoring graceful exit')
+    # dtslogger.debug('monitoring graceful exit')
 
 
 def push_image_to_duckiebot(image_name, hostname):

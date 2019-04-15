@@ -91,7 +91,8 @@ Submission with an arbitrary JSON payload:
             compat = dtserver_get_compatible_challenges(token=token, impersonate=impersonate,
                                                         submission_protocols=sub_info.protocols)
             if not compat.compatible:
-                msg = 'There are no compatible challenges with protocols %s.' % sub_info.protocols
+                msg = 'There are no compatible challenges with protocols %s,\n' \
+                      ' or you might not have the necessary permissions.' % sub_info.protocols
                 raise UserError(msg)
 
             if parsed.message:
