@@ -97,7 +97,7 @@ Submission with an arbitrary JSON payload:
             if parsed.message:
                 sub_info.user_label = parsed.message
             if parsed.metadata:
-                sub_info.user_payload = json.loads(parsed.metadata)
+                sub_info.user_metadata = json.loads(parsed.metadata)
             if parsed.challenge:
                 sub_info.challenge_names = parsed.challenge.split(',')
             if sub_info.challenge_names is None:
@@ -110,7 +110,7 @@ Submission with an arbitrary JSON payload:
                     msg = 'The challenge "%s" does not exist among %s.' % (c, list(compat.available_submit))
                     raise UserError(msg)
                 if not c in compat.compatible:
-                    msg = 'The challenge %s is not compatible with protocols %s .' % (c, sub_info.protocols)
+                    msg = 'The challenge "%s" is not compatible with protocols %s .' % (c, sub_info.protocols)
                     raise UserError(msg)
             username = get_dockerhub_username(shell)
 
@@ -122,7 +122,7 @@ Submission with an arbitrary JSON payload:
 
             data = {'image': dataclasses.asdict(br),
                     'user_label': sub_info.user_label,
-                    'user_payload': sub_info.user_payload,
+                    'user_payload': sub_info.user_metadata,
                     'protocols': sub_info.protocols}
 
             data = dtserver_submit2(token=token,

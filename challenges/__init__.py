@@ -1,10 +1,10 @@
-from dt_shell import dtslogger, UserError, OtherVersions
+from dt_shell import UserError, OtherVersions
 from duckietown_challenges import __version__
 
 version = tuple(map(int, __version__.split('.')))
 required = (4, 0, 13)
 
-dtslogger.info(f'Detected duckietown-challenges {__version__} ')
+# dtslogger.info(f'Detected duckietown-challenges {__version__} ')
 
 OtherVersions.name2versions['duckietown-challenges'] = __version__
 
