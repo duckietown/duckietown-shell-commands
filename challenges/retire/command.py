@@ -1,7 +1,8 @@
 import argparse
 
-from dt_shell import DTCommandAbs, DTShell, UserError
-from duckietown_challenges.rest import ServerIsDown
+from challenges import wrap_server_operations
+from dt_shell import DTCommandAbs, DTShell
+from duckietown_challenges.rest_methods import dtserver_retire
 
 usage = """
 
@@ -26,13 +27,8 @@ class DTCommand(DTCommandAbs):
         token = shell.get_dt1_token()
 
         submission_id = parsed.submission
-        from duckietown_challenges.rest_methods import dtserver_retire
 
-        try:
+        with wrap_server_operations():
             submission_id = dtserver_retire(token, submission_id)
 
-            shell.sprint('Successfully retired submission %s' % submission_id)
-        except ServerIsDown as e:
-            msg = 'The server is temporarily down. Please try again later.'
-            msg += '\n\n' + str(e)
-            raise UserError(msg)
+        shell.sprint('Successfully retired submission %s' % submission_id)

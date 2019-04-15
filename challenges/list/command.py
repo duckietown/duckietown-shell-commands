@@ -1,7 +1,7 @@
 import termcolor
 
-from dt_shell import DTCommandAbs, UserError
-from duckietown_challenges.rest import ServerIsDown
+from challenges import wrap_server_operations
+from dt_shell import DTCommandAbs
 from duckietown_challenges.rest_methods import dtserver_get_user_submissions
 from duckietown_challenges.utils import pad_to_screen_length
 
@@ -12,18 +12,18 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         token = shell.get_dt1_token()
 
-        try:
+        with wrap_server_operations():
             submissions = dtserver_get_user_submissions(token)
-        except ServerIsDown as e:
-            msg = 'The server is temporarily down. Please try again later.'
-            msg += '\n\n' + str(e)
-            raise UserError(msg)
 
         def key(x):
             return submissions[x]['date_submitted']
 
         challenge_id2name = {}
-        for submission in submissions.values():
+        for submission_id, submission in list(submissions.items()):
+
+            if not submission.get('challenge_is_open', True):
+                continue
+
             challenge_id = submission['challenge_id']
             challenge_name = submission.get('challenge_name', '%s' % challenge_id)
             challenge_id2name[challenge_id] = challenge_name

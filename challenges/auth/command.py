@@ -2,8 +2,8 @@ import argparse
 import json
 from typing import List
 
-from dt_shell import DTCommandAbs, UserError, DTShell
-from duckietown_challenges.rest import ServerIsDown
+from challenges import wrap_server_operations
+from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):
@@ -21,11 +21,8 @@ class DTCommand(DTCommandAbs):
 
         cmd = parsed.cmd
 
-        try:
+        with wrap_server_operations():
             res = dtserver_auth(token=token, cmd=cmd, impersonate=parsed.impersonate)
-        except ServerIsDown:
-            msg = 'Server is down - please wait.'
-            raise UserError(msg)
 
         results: List[dict] = res['results']
         shell.sprint(json.dumps(results, indent=2))

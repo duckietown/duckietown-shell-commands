@@ -2,9 +2,9 @@ import argparse
 
 import termcolor
 
-from dt_shell import DTCommandAbs, UserError
+from challenges import wrap_server_operations
+from dt_shell import DTCommandAbs
 from duckietown_challenges import get_duckietown_server_url
-from duckietown_challenges.rest import ServerIsDown
 from duckietown_challenges.rest_methods import get_dtserver_user_info
 
 
@@ -19,7 +19,7 @@ class DTCommand(DTCommandAbs):
 
         token = shell.get_dt1_token()
 
-        try:
+        with wrap_server_operations():
             info = get_dtserver_user_info(token, impersonate=parsed.impersonate)
 
             NOT_PROVIDED = termcolor.colored('missing', 'red')
@@ -64,10 +64,6 @@ class DTCommand(DTCommandAbs):
             # shell.sprint('Registry: %s' % ri.registry)
 
             # print(' github: %s' % (info['github_username'] or NOT_PROVIDED))
-        except ServerIsDown as e:
-            msg = 'The server is temporarily down. Please try again later.'
-            msg += '\n\n' + str(e)
-            raise UserError(msg)
 
 
 def href(x):

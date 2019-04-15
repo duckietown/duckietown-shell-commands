@@ -5,28 +5,21 @@ import subprocess
 
 import yaml
 
+from challenges.challenges_cmd_utils import wrap_server_operations
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.exceptions import UserError
 from dt_shell.utils import indent
 from duckietown_challenges import read_yaml_file
+from duckietown_challenges.challenge import ChallengeDescription, ChallengesConstants
 from duckietown_challenges.cmd_submit_build import BuildResult, get_complete_tag, parse_complete_tag
-from duckietown_challenges.rest_methods import get_registry_info, RegistryInfo
+from duckietown_challenges.rest_methods import get_registry_info, RegistryInfo, dtserver_challenge_define
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        try:
-            from duckietown_challenges.rest_methods import dtserver_challenge_define
-            from duckietown_challenges.utils import tag_from_date
-
-            from duckietown_challenges.challenge import ChallengeDescription
-            from duckietown_challenges.challenge import ChallengesConstants
-        except ImportError as e:
-            msg = 'You need to install or update duckietown-challenges:\n%s' % e
-            raise Exception(msg)
 
         token = shell.get_dt1_token()
 
@@ -59,7 +52,6 @@ class DTCommand(DTCommandAbs):
             msg = 'File %s does not exist.' % fn
             raise UserError(msg)
 
-
         data = read_yaml_file(fn)
 
         if 'description' not in data or data['description'] is None:
@@ -74,70 +66,75 @@ class DTCommand(DTCommandAbs):
 
         challenge = ChallengeDescription.from_yaml(data)
 
-        ri = get_registry_info(token=token, impersonate=impersonate)
+        with wrap_server_operations():
+            go(token, impersonate, parsed, challenge, base, client, no_cache)
 
-        if parsed.steps:
-            use_steps = parsed.steps.split(",")
-        else:
-            use_steps = list(challenge.steps)
-        for step_name in use_steps:
-            if step_name not in challenge.steps:
-                msg = 'Could not find step "%s" in %s.' % (step_name, list(challenge.steps))
-                raise Exception(msg)
-            step = challenge.steps[step_name]
 
-            services = step.evaluation_parameters.services
-            for service_name, service in services.items():
-                if service.build:
-                    dockerfile = service.build.dockerfile
-                    context = os.path.join(base, service.build.context)
-                    if not os.path.exists(context):
-                        msg = 'Context does not exist %s' % context
-                        raise Exception(msg)
+def go(token, impersonate, parsed, challenge, base, client, no_cache):
+    ri = get_registry_info(token=token, impersonate=impersonate)
 
-                    dockerfile_abs = os.path.join(context, dockerfile)
-                    if not os.path.exists(dockerfile_abs):
-                        msg = 'Cannot find Dockerfile %s' % dockerfile_abs
-                        raise Exception(msg)
+    if parsed.steps:
+        use_steps = parsed.steps.split(",")
+    else:
+        use_steps = list(challenge.steps)
+    for step_name in use_steps:
+        if step_name not in challenge.steps:
+            msg = 'Could not find step "%s" in %s.' % (step_name, list(challenge.steps))
+            raise Exception(msg)
+        step = challenge.steps[step_name]
 
-                    dtslogger.info('context: %s' % context)
-                    args = service.build.args
-                    if args:
-                        dtslogger.warning('arguments not supported yet: %s' % args)
+        services = step.evaluation_parameters.services
+        for service_name, service in services.items():
+            if service.build:
+                dockerfile = service.build.dockerfile
+                context = os.path.join(base, service.build.context)
+                if not os.path.exists(context):
+                    msg = 'Context does not exist %s' % context
+                    raise Exception(msg)
 
-                    br = \
-                        build_image(client, context, challenge.name, step_name,
-                                    service_name, dockerfile_abs,
-                                    no_cache, registry_info=ri)
-                    complete = get_complete_tag(br)
-                    service.image = complete
+                dockerfile_abs = os.path.join(context, dockerfile)
+                if not os.path.exists(dockerfile_abs):
+                    msg = 'Cannot find Dockerfile %s' % dockerfile_abs
+                    raise Exception(msg)
 
-                    # very important: get rid of it!
-                    service.build = None
+                dtslogger.info('context: %s' % context)
+                args = service.build.args
+                if args:
+                    dtslogger.warning('arguments not supported yet: %s' % args)
+
+                br = \
+                    build_image(client, context, challenge.name, step_name,
+                                service_name, dockerfile_abs,
+                                no_cache, registry_info=ri)
+                complete = get_complete_tag(br)
+                service.image = complete
+
+                # very important: get rid of it!
+                service.build = None
+            else:
+                if service.image == ChallengesConstants.SUBMISSION_CONTAINER_TAG:
+                    pass
                 else:
-                    if service.image == ChallengesConstants.SUBMISSION_CONTAINER_TAG:
-                        pass
-                    else:
-                        msg = 'Finding digest for image %s' % service.image
-                        dtslogger.info(msg)
-                        image = client.images.get(service.image)
-                        service.image_digest = image.id
-                        dtslogger.info('Found: %s' % image.id)
+                    msg = 'Finding digest for image %s' % service.image
+                    dtslogger.info(msg)
+                    image = client.images.get(service.image)
+                    service.image_digest = image.id
+                    dtslogger.info('Found: %s' % image.id)
 
-        data2 = yaml.dump(challenge.as_dict())
+    data2 = yaml.dump(challenge.as_dict())
 
-        res = dtserver_challenge_define(token, data2, parsed.force_invalidate_subs, impersonate=impersonate)
-        challenge_id = res['challenge_id']
-        steps_updated = res['steps_updated']
+    res = dtserver_challenge_define(token, data2, parsed.force_invalidate_subs, impersonate=impersonate)
+    challenge_id = res['challenge_id']
+    steps_updated = res['steps_updated']
 
-        if steps_updated:
-            print('Updated challenge %s' % challenge_id)
-            print('The following steps were updated and will be invalidated.')
-            for step_name, reason in steps_updated.items():
-                print('\n\n' + indent(reason, ' ', step_name + '   '))
-        else:
-            msg = 'No update needed - the container digests did not change.'
-            print(msg)
+    if steps_updated:
+        print('Updated challenge %s' % challenge_id)
+        print('The following steps were updated and will be invalidated.')
+        for step_name, reason in steps_updated.items():
+            print('\n\n' + indent(reason, ' ', step_name + '   '))
+    else:
+        msg = 'No update needed - the container digests did not change.'
+        print(msg)
 
 
 def build_image(client, path, challenge_name, step_name, service_name, filename, no_cache: bool,

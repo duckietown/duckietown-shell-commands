@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import termcolor
 
+from challenges import wrap_server_operations
 from dt_shell import DTCommandAbs
 from duckietown_challenges.rest import ServerIsDown
 from duckietown_challenges.rest_methods import dtserver_get_info
@@ -34,7 +35,8 @@ class DTCommand(DTCommandAbs):
 
         submission_id = parsed.submission
 
-        follow_submission(shell, token, submission_id)
+        with wrap_server_operations():
+            follow_submission(shell, token, submission_id)
 
 
 def follow_submission(shell, token, submission_id):
