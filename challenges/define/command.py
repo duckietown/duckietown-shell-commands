@@ -59,8 +59,7 @@ class DTCommand(DTCommandAbs):
             msg = 'File %s does not exist.' % fn
             raise UserError(msg)
 
-        # basename = os.path.basename(os.path.splitext(fn)[0])
-        # contents = open(fn).read()
+
         data = read_yaml_file(fn)
 
         if 'description' not in data or data['description'] is None:
@@ -146,6 +145,10 @@ def build_image(client, path, challenge_name, step_name, service_name, filename,
     d = datetime.datetime.now()
     username = get_dockerhub_username()
     from duckietown_challenges.utils import tag_from_date
+    if username.lower() != username:
+        msg = f'Are you sure that the DockerHub username is not lowercase? You gave "{username}".'
+        dtslogger.warning(msg)
+        username = username.lower()
     br = BuildResult(
             repository=('%s-%s-%s' % (challenge_name, step_name, service_name)).lower(),
             organization=username,
