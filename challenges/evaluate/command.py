@@ -45,6 +45,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--shell', action='store_true', default=False, help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
         group.add_argument('--visualize', help="Visualize the evaluation", action='store_true', default=False)
+        parser.add_argument('--impersonate', type=str, default=None)
         group.add_argument('-C', dest='change', default=None)
 
         parsed = parser.parse_args(args)
@@ -61,6 +62,8 @@ class DTCommand(DTCommandAbs):
             command.append('--no-build')
         if parsed.challenge:
             command.extend(['--challenge', parsed.challenge])
+        if parsed.impersonate:
+            command.extend(['--impersonate', parsed.impersonate])
         output_rp = os.path.realpath(parsed.output)
         command.extend(['--output', parsed.output])
         #

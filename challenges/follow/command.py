@@ -52,7 +52,7 @@ def follow_submission(shell, token, submission_id):
             time.sleep(5)
             continue
         except BaseException as e:
-            shell.sprint(e, 'red')
+            shell.sprint(str(e), 'red')
             time.sleep(5)
             continue
         # print json.dumps(data, indent=4)
