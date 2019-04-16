@@ -75,13 +75,13 @@ class DTCommand(DTCommandAbs):
 
         UID = os.getuid()
         USERNAME = getpass.getuser()
-        dir_home_guest = os.path.expanduser('~')
+        dir_home_guest = '/fake-home/%s'% USERNAME # os.path.expanduser('~')
         dir_fake_home_host = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
         if not os.path.exists(dir_fake_home_host):
             os.makedirs(dir_fake_home_host)
 
         dir_fake_home_guest = dir_home_guest
-        dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
+        dir_dtshell_host = os.path.join(os.path.expanduser('~'), '.dt-shell')
         dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
         dir_tmpdir_host = '/tmp'
         dir_tmpdir_guest = '/tmp'
