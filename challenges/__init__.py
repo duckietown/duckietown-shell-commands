@@ -2,7 +2,7 @@ from dt_shell import UserError, OtherVersions
 from duckietown_challenges import __version__
 
 version = tuple(map(int, __version__.split('.')))
-required = (4, 0, 17)
+required = (4, 0, 18)
 
 # dtslogger.info(f'Detected duckietown-challenges {__version__} ')
 

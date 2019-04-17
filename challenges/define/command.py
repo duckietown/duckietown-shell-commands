@@ -159,17 +159,32 @@ def build_image(client, path, challenge_name, step_name, service_name, filename,
         cmd.append('--no-cache')
 
     cmd.append(path)
-    dtslogger.debug('Running %s' % " ".join(cmd))
+    dtslogger.debug('$ %s' % " ".join(cmd))
     subprocess.check_call(cmd)
 
+    image = client.images.get(complete)
+    repo_digests = image.attrs.get('RepoDigests', [])
+    if repo_digests:
+        msg = 'Already found repo digest: %s' % repo_digests
+        dtslogger.info(msg)
+    else:
+        dtslogger.info('Image not present on registry. Need to push.')
+
     cmd = ['docker', 'push', complete]
-    dtslogger.debug('Running %s' % " ".join(cmd))
+    dtslogger.debug('$ %s' % " ".join(cmd))
     subprocess.check_call(cmd)
 
     image = client.images.get(complete)
     dtslogger.info('image id: %s' % image.id)
     dtslogger.info('complete: %s' % get_complete_tag(br))
-    br.digest = image.id
+    repo_digests=  image.attrs.get('RepoDigests', [])
+    if not repo_digests:
+        msg = 'Could not find any repo digests (push not succeeded?)'
+        raise Exception(msg)
+    dtslogger.info('RepoDigests: %s' % repo_digests)
 
+    _, digest = repo_digests[0].split('@')
+    # br.digest = image.id
+    br.digest = digest
     br = parse_complete_tag(get_complete_tag(br))
     return br
