@@ -14,7 +14,7 @@ def v(x):
 
 
 if version < required:
-    msg = 'Expected duckietown-challenges of at least %s, got %s' % (v(required), v(__version__))
+    msg = 'Expected duckietown-challenges of at least %s, got %s' % (v(required), v(version))
     raise UserError(msg)
 
 from .config import *
