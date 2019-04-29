@@ -1,9 +1,4 @@
 import argparse
-import getpass
-import os
-import subprocess
-import threading
-import time
 import docker
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -21,7 +16,8 @@ usage = """
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
 
 """
-
+class InvalidUserInput(Exception):
+    pass
 
 class DTCommand(DTCommandAbs):
 
@@ -32,33 +28,54 @@ class DTCommand(DTCommandAbs):
 
         group = parser.add_argument_group('Basic')
 
-        parser.add_argument('--demo_name', default=None,
+        parser.add_argument('--demo_name', dest="demo_name", default=None,
                             help="Name of the demo to run")
 
-        parser.add_argument('--duckiebot_name', default=None,
+        parser.add_argument('--duckiebot_name', dest="duckiebot_name", default=None,
                             help="Name of the Duckiebot on which to run the demo")
-        
-        group.add_argument('--image', help="Docker image to use, you probably don't need to change ", default="duckietown/rpi-duckiebot-base:master19")
+
+        parser.add_argument('--package_name', dest="package_name", default="duckietown",
+                            help="You can specify the package that you want to use to look for launch files")
+
+        group.add_argument('--image', dest="image_to_run",
+                           default="duckietown/rpi-duckiebot-base:master19",
+                           help="Docker image to use, you probably don't need to change ",)
 
         parsed = parser.parse_args(args)
 
-        local_client = check_docker_environment()
-        demo_name=parsed.demo_name
-        duckiebot_name = parsed.duckiebot_name
-        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
+        check_docker_environment()
+        demo_name = parsed.demo_name
+        if demo_name is None:
+            msg = 'You must specify a demo_name'
+            raise InvalidUserInput(msg)
+
+        duckiebot_name=parsed.duckiebot_name
+        if duckiebot_name is None:
+            msg = 'You must specify a duckiebot_name'
+            raise InvalidUserInput(msg)
+
+
+        package_name=parsed.package_name
+        dtslogger.info("Using package %s" % package_name)
+
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
 
-        image_base=parsed.image
+        image_base=parsed.image_to_run
         env_vars = default_env(duckiebot_name,duckiebot_ip)
 
         duckiebot_client.images.pull(image_base)
 
         duckiebot_client.containers.prune()
 
+        cmd = 'roslaunch %s %s.launch veh:=%s' % (package_name, demo_name, duckiebot_name)
+        dtslogger.info("Running command %s" % cmd)
+
         duckiebot_client.containers.run(image=image_base,
-                                        command='roslaunch duckietown %s.launch veh:=%s' % (demo_name, duckiebot_name),
+                                        command= cmd,
                                         network_mode='host',
                                         volumes=bind_duckiebot_data_dir(),
                                         privileged=True,
                                         name='demo_%s' % demo_name,
                                         environment=env_vars)
+
