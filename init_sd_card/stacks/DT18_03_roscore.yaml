@@ -1,11 +1,17 @@
 version: '3'
 services:
 
-    roscore:
-        image: duckietown/rpi-ros-kinetic-roscore:master18
+    rpi-ros-kinetic-roscore:
+        image: duckietown/rpi-ros-kinetic-base:master19
         restart: unless-stopped
         network_mode: host
-        ports: # this is redundant if network_mode = host
-        - "11311:11311"
+        command: roscore
         environment:
           DISABLE_CONTRACTS: 1
+    duckiebot-interface:
+        image: duckietown/duckiebot-interface:master19
+        restart: unless-stopped
+        network_mode: host
+        privileged: true
+        volumes:
+        - /data:/data

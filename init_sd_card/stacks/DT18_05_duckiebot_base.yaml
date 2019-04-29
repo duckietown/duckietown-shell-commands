@@ -5,10 +5,6 @@ services:
     image: arm32v7/ros:kinetic-ros-base-xenial
   rpi-ros-kinetic-base:
     image: duckietown/rpi-ros-kinetic-base:master19
-  rpi-ros-kinetic-roscore:
-    image: duckietown/rpi-ros-kinetic-roscore:master18
-  duckiebot-interface:
-    image: duckietown/duckiebot-interface:master19
   rpi-duckiebot-base:
     image: duckietown/rpi-duckiebot-base:master19
   rpi-duckiebot-ros-picam:
