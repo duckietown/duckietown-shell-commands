@@ -1,13 +1,6 @@
 version: '3'
 services:
 
-    rpi-ros-kinetic-roscore:
-        image: duckietown/rpi-ros-kinetic-base:master19
-        restart: unless-stopped
-        network_mode: host
-        command: roscore
-        environment:
-          DISABLE_CONTRACTS: 1
     duckiebot-interface:
         image: duckietown/duckiebot-interface:master19
         restart: unless-stopped
