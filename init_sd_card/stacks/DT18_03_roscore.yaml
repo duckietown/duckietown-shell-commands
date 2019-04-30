@@ -6,14 +6,12 @@ services:
         restart: unless-stopped
         network_mode: host
         command: roscore
-        name: "roscore"
         environment:
           DISABLE_CONTRACTS: 1
     duckiebot-interface:
         image: duckietown/duckiebot-interface:master19
         restart: unless-stopped
         network_mode: host
-        name: "drivers"
         privileged: true
         environment:
             DISABLE_CONTRACTS: 1
