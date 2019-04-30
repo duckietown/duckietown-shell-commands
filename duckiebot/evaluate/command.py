@@ -76,10 +76,13 @@ class DTCommand(DTCommandAbs):
         duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
 
         duckiebot_client = get_remote_client(duckiebot_ip)
-        drivers_container = duckiebot_client.containers.get('drivers')
-        if drivers_container is None:
-            dtslogger.warn("The drivers are not running on the duckiebot")
-
+        try:
+            drivers_container = duckiebot_client.containers.get('duckiebot-interface')
+            if drivers_container is None:
+                dtslogger.warn("The  duckiebot-interface is not running on the duckiebot")
+        except Exception as e:
+            dtslogger.warn("Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
+            
 
         # let's start building stuff for the "glue" node
         glue_volumes =  {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'}}
