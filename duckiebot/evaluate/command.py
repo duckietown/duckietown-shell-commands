@@ -9,7 +9,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, \
-     stop_container, remove_container, default_env, \
+     stop_container, remove_container, default_env, remove_if_running, \
     continuously_monitor, get_remote_client, record_bag
 from utils.networking_utils import get_duckiebot_ip
 
@@ -162,16 +162,6 @@ class DTCommand(DTCommandAbs):
             stop_container(bag_container)
 
         # TODO remotely vs. locally
-
-def remove_if_running(client, container_name):
-        try:
-            container = client.containers.get(container_name)
-            dtslogger.info("%s already running - stopping it first.." % container_name)
-            stop_container(container)
-            dtslogger.info("removing %s" % container_name)
-            remove_container(container)
-        except Exception as e:
-            dtslogger.warn("couldn't remove existing container: %s" % e)
 
 
 # get the calibration files off the robot

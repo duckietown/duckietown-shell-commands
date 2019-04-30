@@ -4,7 +4,7 @@ import docker
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
-from utils.docker_utils import default_env, bind_duckiebot_data_dir
+from utils.docker_utils import default_env, bind_duckiebot_data_dir, remove_if_running
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -61,8 +61,11 @@ class DTCommand(DTCommandAbs):
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
 
+        container_name='demo_%s' % demo_name
+        remove_if_running(duckiebot_client, container_name)
         image_base=parsed.image_to_run
         env_vars = default_env(duckiebot_name,duckiebot_ip)
+        env_vars.update({'VEHICLE_NAME':duckiebot_name})
 
         cmd = 'roslaunch %s %s.launch veh:=%s' % (package_name, demo_name, duckiebot_name)
         dtslogger.info("Running command %s" % cmd)
@@ -72,6 +75,6 @@ class DTCommand(DTCommandAbs):
                                         network_mode='host',
                                         volumes=bind_duckiebot_data_dir(),
                                         privileged=True,
-                                        name='demo_%s' % demo_name,
+                                        name=container_name,
                                         environment=env_vars)
 
