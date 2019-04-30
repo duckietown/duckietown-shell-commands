@@ -64,10 +64,6 @@ class DTCommand(DTCommandAbs):
         image_base=parsed.image_to_run
         env_vars = default_env(duckiebot_name,duckiebot_ip)
 
-        duckiebot_client.images.pull(image_base)
-
-        duckiebot_client.containers.prune()
-
         cmd = 'roslaunch %s %s.launch veh:=%s' % (package_name, demo_name, duckiebot_name)
         dtslogger.info("Running command %s" % cmd)
 
