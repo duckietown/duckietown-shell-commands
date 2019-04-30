@@ -109,6 +109,7 @@ def logs_for_container(client, container_id):
 def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
+            'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip,
             'DUCKIEFLEET_ROOT' : '/data/config',
             'DUCKIEBOT_IP': duckiebot_ip,
             'DUCKIETOWN_SERVER': duckiebot_ip,
@@ -190,8 +191,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
-    run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
+def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
@@ -200,15 +200,13 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     if env is not None:
         env_vars.update(env)
 
-    container_name = 'local_submission'
-
     try:
         container = local_client.containers.get(container_name)
         dtslogger.info("an image already on localhost - stopping it first..")
         stop_container(container)
         remove_container(container)
     except Exception as e:
-        dtslogger.info("no local image running already")
+        dtslogger.warn("coulgn't remove existing container: %s" % e)
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
