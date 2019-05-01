@@ -1,6 +1,5 @@
 version: '3'
 services:
-
     duckiebot-interface:
         image: duckietown/duckiebot-interface:master19
         restart: unless-stopped
