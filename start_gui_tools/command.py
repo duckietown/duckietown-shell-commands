@@ -27,12 +27,12 @@ Keyboard control:
                             help='are we running in simulator?')
         parsed_args = parser.parse_args(args)
 
-        if not parsed_args.sim:
-            duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
-        else:
+        if parsed_args.sim:
             duckiebot_ip = "localhost"
-            script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
-            script_cmd = '/bin/bash %s %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip, parsed_args.network)
+        else:
+            duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
+        script_file = join(dirname(realpath(__file__)), 'start_gui_tools.sh')
+        script_cmd = '/bin/bash %s %s %s %s' % (script_file, parsed_args.hostname, duckiebot_ip, parsed_args.network)
             
         start_command_in_subprocess(script_cmd)
         # TODO: call
