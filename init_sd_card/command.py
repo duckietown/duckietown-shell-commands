@@ -116,6 +116,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--device', dest='device', default='',
                             help='The device with the SD card')
 
+        parser.add_argument('--aido', dest='aido', default=False, action='store_true',
+                            help='Only load what is necessary for an AI-DO submission')
+
         # parser.add_argument('--swap', default=False, action='store_true',
         #                     help='Create swap space')
         parser.add_argument('--country', default="US",
@@ -133,12 +136,17 @@ class DTCommand(DTCommandAbs):
 
         global SD_CARD_DEVICE
         SD_CARD_DEVICE = parsed.device
-
+        
         if parsed.reset_cache:
             dtslogger.info('Removing cache')
             if os.path.exists(DUCKIETOWN_TMP):
                 shutil.rmtree(DUCKIETOWN_TMP)
 
+        # if aido is set overwrite the stacks (don't load the base)
+        if parsed.aido:
+            parsed.stacks_to_load = 'DT18_00_basic,DT18_01_health_stats,DT18_03_roscore'
+            parsed.stacks_to_run = parsed.stacks_to_load
+                
         msg = """
 
 ## Tips and tricks
