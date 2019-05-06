@@ -57,7 +57,7 @@ Keyboard control:
         p = platform.system().lower()
         if 'darwin' in p:
             IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-            env['DISPLAY'] = '%s:0' % IP
+            env['DISPLAY'] = os.environ['DISPLAY']
             volumes = {
                 '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
             }
