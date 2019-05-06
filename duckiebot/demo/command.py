@@ -4,7 +4,7 @@ import threading
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
-
+from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import default_env, bind_duckiebot_data_dir, remove_if_running, continuously_monitor
 from utils.networking_utils import get_duckiebot_ip
 
@@ -66,9 +66,12 @@ class DTCommand(DTCommandAbs):
         env_vars = default_env(duckiebot_name,duckiebot_ip)
         env_vars.update({'VEHICLE_NAME':duckiebot_name})
 
-        cmd = 'roslaunch %s %s.launch veh:=%s' % (package_name, demo_name, duckiebot_name)
-        dtslogger.info("Running command %s" % cmd)
+        if demo_name == 'base':
+            cmd = '/bin/bash'
+        else:
+            cmd = 'roslaunch %s %s.launch veh:=%s' % (package_name, demo_name, duckiebot_name)
 
+        dtslogger.info("Running command %s" % cmd)
         demo_container = duckiebot_client.containers.run(image=image_base,
                                         command= cmd,
                                         network_mode='host',
@@ -77,9 +80,14 @@ class DTCommand(DTCommandAbs):
                                         name=container_name,
                                         mem_limit='800m',
                                         memswap_limit='2800m',
+                                        stdin_open=True,
                                         tty=True,
                                         detach=True,
                                         environment=env_vars)
+
+        if demo_name == 'base':
+            attach_cmd = 'docker -H %s.local attach %s' % (duckiebot_name, container_name)
+            start_command_in_subprocess(attach_cmd)
 
         monitor_thread = threading.Thread(target=continuously_monitor,args=(duckiebot_client, demo_container))
         monitor_thread.start()
