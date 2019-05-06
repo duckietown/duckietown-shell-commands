@@ -77,9 +77,13 @@ class DTCommand(DTCommandAbs):
 
         duckiebot_client = get_remote_client(duckiebot_ip)
         try:
-            drivers_container = duckiebot_client.containers.get('duckiebot-interface')
-            if drivers_container is None:
-                dtslogger.warn("The  duckiebot-interface is not running on the duckiebot")
+            duckiebot_containers = duckiebot_client.containers.list()
+            interface_container_found=False
+            for c in duckiebot_containers:
+                if 'duckiebot-interface' in c.name:
+                    interface_container_found=True
+            if not interface_container_found:
+                dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
         except Exception as e:
             dtslogger.warn("Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
             
