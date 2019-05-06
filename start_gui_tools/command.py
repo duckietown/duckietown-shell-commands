@@ -4,6 +4,7 @@ import argparse
 import os
 import subprocess
 import platform
+import socket
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import remove_if_running
@@ -56,8 +57,7 @@ Keyboard control:
 
         p = platform.system().lower()
         if 'darwin' in p:
-            IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-            env['DISPLAY'] = os.environ['DISPLAY']
+            env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
             volumes = {
                 '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
             }
