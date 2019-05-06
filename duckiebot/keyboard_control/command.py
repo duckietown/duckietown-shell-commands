@@ -2,6 +2,7 @@ from __future__ import print_function
 
 
 import argparse
+import os
 import platform
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
@@ -63,7 +64,7 @@ def run_gui_controller(hostname, image):
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
         }
     else:
-        env['DISPLAY'] = ':0'
+        env['DISPLAY'] = os.environ['DISPLAY']
 
     dtslogger.info("Running %s on localhost with environment vars: %s" %
                    (container_name, env))
