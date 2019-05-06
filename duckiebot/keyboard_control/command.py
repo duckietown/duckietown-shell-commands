@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import argparse
 import platform
+import subprocess
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.networking_utils import get_duckiebot_ip
@@ -51,6 +52,8 @@ def run_gui_controller(hostname, image):
     env['QT_X11_NO_MITSHM'] = 1
 
     volumes = {}
+
+    subprocess.call(["xhost", "+"])
 
     p = platform.system().lower()
     if 'darwin' in p:
