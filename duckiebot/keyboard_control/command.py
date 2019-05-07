@@ -42,7 +42,7 @@ Keyboard control:
 
 def run_gui_controller(hostname, image):
     client = check_docker_environment()
-    container_name = "joystick_gui"
+    container_name = "joystick_gui_%s" % hostname
     remove_if_running(client, container_name)
     duckiebot_ip = get_duckiebot_ip(hostname)
     env = { 'HOSTNAME':hostname,
@@ -91,7 +91,7 @@ def run_gui_controller(hostname, image):
 
 def run_cli_controller(hostname,image):
     client=check_docker_environment()
-    container_name = "joystick_cli"
+    container_name = "joystick_cli_%s" % hostname
     remove_if_running(client, container_name)
     duckiebot_ip=get_duckiebot_ip(hostname)
     env = { 'HOSTNAME':hostname,

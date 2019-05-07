@@ -41,7 +41,7 @@ Keyboard control:
         image = parsed_args.image
 
         client = check_docker_environment()
-        container_name = "interactive_gui_tools"
+        container_name = "interactive_gui_tools_%s" % hostname
         remove_if_running(client, container_name)
         duckiebot_ip = get_duckiebot_ip(hostname)
         env = {'HOSTNAME': hostname,
