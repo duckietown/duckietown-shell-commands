@@ -101,10 +101,10 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--linux-password', default='quackquack')
 
         parser.add_argument('--stacks-load', dest="stacks_to_load",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base,DT18_06_dashboard",
                             help="which stacks to load")
         parser.add_argument('--stacks-run', dest="stacks_to_run",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore,DT18_06_dashboard",
                             help="which stacks to RUN by default")
 
         parser.add_argument('--reset-cache', dest='reset_cache', default=False, action='store_true',
