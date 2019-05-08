@@ -5,6 +5,7 @@ import argparse
 import os
 import platform
 import subprocess
+import socket
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.networking_utils import get_duckiebot_ip
@@ -58,8 +59,7 @@ def run_gui_controller(hostname, image):
 
     p = platform.system().lower()
     if 'darwin' in p:
-        IP = subprocess.check_output(['/bin/sh', '-c', 'ifconfig en0 | grep inet | awk \'$1=="inet" {print $2}\''])
-        env['DISPLAY'] = '%s:0' % IP
+        env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
         volumes = {
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
         }
