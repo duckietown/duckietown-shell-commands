@@ -8,7 +8,6 @@ import os
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.networking_utils import get_duckiebot_ip
-from utils.cli_utils import get_clean_env, start_command_in_subprocess
 from utils.docker_utils import get_remote_client, remove_if_running
 
 
@@ -32,9 +31,23 @@ Calibrate:
         parsed_args = parser.parse_args(args)
         hostname = parsed_args.hostname
         duckiebot_ip = get_duckiebot_ip(hostname)
+        duckiebot_client = get_remote_client(duckiebot_ip)
+
+        # is the interface running?
+        try:
+            duckiebot_containers = duckiebot_client.containers.list()
+            interface_container_found = False
+            for c in duckiebot_containers:
+                if 'duckiebot-interface' in c.name:
+                    interface_container_found = True
+            if not interface_container_found:
+                dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
+                exit()
+        except Exception as e:
+            dtslogger.warn(
+                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
 
         # is the raw imagery being published?
-        duckiebot_client = get_remote_client(duckiebot_ip)
         try:
             duckiebot_containers = duckiebot_client.containers.list()
             raw_imagery_found = False
@@ -43,6 +56,7 @@ Calibrate:
                     raw_imagery_found = True
             if not raw_imagery_found:
                 dtslogger.error("The  demo_camera is not running on the duckiebot - please run `dts duckiebot demo --demo_name camera duckiebot name %s" % hostname)
+                exit()
 
         except Exception as e:
             dtslogger.warn("%s" % e)
