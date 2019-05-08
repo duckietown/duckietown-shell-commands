@@ -40,6 +40,9 @@ class DTCommand(DTCommandAbs):
                            default="duckietown/rpi-duckiebot-base:master19",
                            help="Docker image to use, you probably don't need to change ",)
 
+        parser.add_argument('--debug', action='store_true', default=False,
+                            help="will enter you into the running container")
+
         parsed = parser.parse_args(args)
 
         check_docker_environment()
@@ -85,9 +88,7 @@ class DTCommand(DTCommandAbs):
                                         detach=True,
                                         environment=env_vars)
 
-        if demo_name == 'base':
+        if demo_name == 'base' or parsed.debug:
             attach_cmd = 'docker -H %s.local attach %s' % (duckiebot_name, container_name)
             start_command_in_subprocess(attach_cmd)
 
-        monitor_thread = threading.Thread(target=continuously_monitor,args=(duckiebot_client, demo_container))
-        monitor_thread.start()
