@@ -33,8 +33,10 @@ Calibrate:
         duckiebot_ip = get_duckiebot_ip(hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
-        container_name = "extrinsic_calibration"
-        remove_if_running(duckiebot_client,container_name)
+        calibration_container_name = "extrinsic_calibration"
+        validation_container_name = "extrinsic_calibration_validation"
+        remove_if_running(duckiebot_client,calibration_container_name)
+        remove_if_running(duckiebot_client,validation_container_name)
 
         # need to temporarily pause the image streaming from the robot
         try:
@@ -64,7 +66,7 @@ Calibrate:
         env = default_env(hostname,duckiebot_ip)
 
         duckiebot_client.containers.run(image=image,
-                                    name=container_name,
+                                    name=calibration_container_name,
                                     privileged=True,
                                     network_mode='host',
                                     volumes=bind_duckiebot_data_dir(),
@@ -80,7 +82,7 @@ Calibrate:
             dtslogger.info('Running command: {}'.format(start_command))
 
             duckiebot_client.containers.run(image=image,
-                                    name="%s_validation" % container_name,
+                                    name=validation_container_name,
                                     privileged=True,
                                     network_mode='host',
                                     volumes=bind_duckiebot_data_dir(),
