@@ -55,7 +55,7 @@ Calibrate:
                 if 'demo_camera' in c.name:
                     raw_imagery_found = True
             if not raw_imagery_found:
-                dtslogger.error("The  demo_camera is not running on the duckiebot - please run `dts duckiebot demo --demo_name camera duckiebot name %s" % hostname)
+                dtslogger.error("The  demo_camera is not running on the duckiebot - please run `dts duckiebot demo --demo_name camera --duckiebot_name %s" % hostname)
                 exit()
 
         except Exception as e:
