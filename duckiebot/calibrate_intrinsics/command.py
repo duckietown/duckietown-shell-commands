@@ -4,6 +4,7 @@ import argparse
 import platform
 import subprocess
 import os
+import socket
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
