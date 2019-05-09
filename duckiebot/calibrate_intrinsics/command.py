@@ -67,7 +67,7 @@ Calibrate:
 
 
         client = check_docker_environment()
-        container_name = "intrisic_calibration_%s" % hostname
+        container_name = "intrinsic_calibration_%s" % hostname
         remove_if_running(client,container_name)
         env = {'HOSTNAME': hostname,
                'ROS_MASTER': hostname,
