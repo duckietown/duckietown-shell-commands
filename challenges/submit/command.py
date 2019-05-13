@@ -5,11 +5,11 @@ import os
 
 import termcolor
 
+from challenges import wrap_server_operations
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from duckietown_challenges import get_duckietown_server_url
 from duckietown_challenges.cmd_submit_build import submission_build
-from duckietown_challenges.rest import ServerIsDown
 from duckietown_challenges.rest_methods import get_registry_info, dtserver_submit2, dtserver_get_compatible_challenges
 from duckietown_challenges.submission_read import read_submission_info
 
@@ -83,7 +83,7 @@ Submission with an arbitrary JSON payload:
 
         sub_info = read_submission_info('.')
 
-        try:
+        with wrap_server_operations():
             ri = get_registry_info(token=token, impersonate=impersonate)
 
             registry = ri.registry
@@ -114,7 +114,6 @@ Submission with an arbitrary JSON payload:
                     msg = 'The challenge "%s" is not compatible with protocols %s .' % (c, sub_info.protocols)
                     raise UserError(msg)
             username = get_dockerhub_username(shell)
-
 
             print('')
             print('')
@@ -174,10 +173,6 @@ Submission with an arbitrary JSON payload:
     '''
 
             shell.sprint(msg)
-        except ServerIsDown as e:
-            msg = 'The server is temporarily down. Please try again later.'
-            msg +='\n\n' + str(e)
-            raise UserError(msg)
 
 
 def bright(x):

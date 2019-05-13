@@ -126,6 +126,8 @@ class DTCommand(DTCommandAbs):
             os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'},
             '/tmp': {'bind': '/tmp', 'mode': 'rw'}
         }
+        if os.path.exists('/ipfs'):
+            volumes['/ipfs'] = {'bind': '/ipfs', 'mode': 'ro'}
         env = {}
 
         UID = os.getuid()
