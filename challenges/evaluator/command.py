@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 
-from dt_shell import dtslogger, DTCommandAbs
+from dt_shell import dtslogger, DTCommandAbs, UserError
 from dt_shell.env_checks import check_docker_environment
 
 
@@ -86,6 +86,9 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--name', default=None, help='Name for this evaluator')
         group.add_argument("--features", default=None, help="Pretend to be what you are not.")
 
+        group.add_argument("--ipfs", action='store_true', default=False, help="Run with IPFS available")
+        group.add_argument("--one", action='store_true', default=False, help="Only run 1 submission")
+
         dtslogger.debug('args: %s' % args)
         parsed = parser.parse_args(args)
 
@@ -117,6 +120,9 @@ class DTCommand(DTCommandAbs):
             command += ['--no-pull']
         if parsed.no_delete:
             command += ['--no-delete']
+
+        if parsed.one:
+            command += ['--one']
         if parsed.features:
             dtslogger.debug('Passing features %r' % parsed.features)
             command += ['--features', parsed.features]
@@ -126,8 +132,16 @@ class DTCommand(DTCommandAbs):
             os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'},
             '/tmp': {'bind': '/tmp', 'mode': 'rw'}
         }
-        if os.path.exists('/ipfs'):
+
+        if parsed.ipfs:
+            if not ipfs_available():
+
+                msg = 'IPFS not available/mounted correctly.'
+                raise UserError(msg)
+
+            command += ['--ipfs']
             volumes['/ipfs'] = {'bind': '/ipfs', 'mode': 'ro'}
+
         env = {}
 
         UID = os.getuid()
@@ -244,6 +258,23 @@ class DTCommand(DTCommandAbs):
                     dtslogger.info('Will try to re-attach to container.')
                     time.sleep(3)
 
+def ipfs_available():
+    if os.path.exists('/ipfs'):
+        fn = '/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/readme'
+        try:
+            d = open(fn).read()
+        except:
+            msg = f'Could not open an IPFS file: {traceback.format_exc()}'
+            dtslogger.warning(msg)
+            return False
+
+        if 'Hello' in d:
+            return True
+        else:
+            dtslogger.warning(d)
+            return False
+    else:
+        return False
 
 def ensure_watchtower_active(client):
     containers = client.containers.list(filters=dict(status='running'))
