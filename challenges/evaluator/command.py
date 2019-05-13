@@ -108,7 +108,8 @@ class DTCommand(DTCommandAbs):
             if parsed.reset:
                 command += ['--reset']
         else:
-            command += ['--continuous']
+            if not parsed.one:
+                command += ['--continuous']
 
         command += ['--name', container_name]
         command += ['--machine-id', machine_id]
