@@ -131,9 +131,6 @@ class DTCommand(DTCommandAbs):
             image_name = tag
         else:
             image_name = parsed.image_name
-            dtslogger.info("Pulling %s ... " % image_name)
-            client.images.pull(image_name)
-            dtslogger.info("done")
 
 
         # start to build the agent stuff
