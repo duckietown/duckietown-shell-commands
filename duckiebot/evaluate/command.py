@@ -43,6 +43,8 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--duration', help="Number of seconds to run evaluation", default=15)
         group.add_argument('--remotely', action='store_true', default=True,
                            help="If true run the image over network without pushing to Duckiebot")
+        group.add_argument('--no_cache', help="disable cache on docker build",
+                           action="store_true", default=False)
         group.add_argument('--record_bag', action='store_true', default=False,
                            help="If true record a rosbag")
         group.add_argument('--max_vel', help="the max velocity for the duckiebot", default=0.7)
@@ -119,7 +121,11 @@ class DTCommand(DTCommandAbs):
                 msg = 'No Dockerfile'
                 raise Exception(msg)
             tag='myimage'
-            cmd = ['docker', 'build', '-t', tag, '-f', dockerfile]
+            if parsed.no_cache:
+                cmd = ['docker', 'build', '--no-cache', '-t', tag, '-f', dockerfile]
+            else:
+                cmd = ['docker', 'build', '-t', tag, '-f', dockerfile]
+            dtslogger.info("Running command: %s" % cmd)
             cmd.append(path)
             subprocess.check_call(cmd)
             image_name = tag
