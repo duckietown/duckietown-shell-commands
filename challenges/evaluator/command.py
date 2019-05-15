@@ -239,9 +239,14 @@ class DTCommand(DTCommandAbs):
             try:
                 if last_log_timestamp is not None:
                     print('since: %s' % last_log_timestamp.isoformat())
-                for c in container.logs(stdout=True, stderr=True, stream=True,  # follow=True,
+                for c0 in container.logs(stdout=True, stderr=True, stream=True,  # follow=True,
                                         since=last_log_timestamp, tail=0):
-                    sys.stdout.write(c.decode('utf-8'))
+                    c: bytes = c0
+                    try:
+                        s = c.decode('utf-8')
+                    except:
+                        s = c.decode('utf-8', errors='replace')
+                    sys.stdout.write(s)
                     last_log_timestamp = datetime.datetime.now()
 
                 time.sleep(3)

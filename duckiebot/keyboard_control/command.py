@@ -1,6 +1,3 @@
-from __future__ import print_function
-
-
 import argparse
 import os
 import platform
@@ -9,7 +6,7 @@ import socket
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.networking_utils import get_duckiebot_ip
-from utils.docker_utils import remove_if_running, continuously_monitor
+from utils.docker_utils import remove_if_running
 from utils.cli_utils import start_command_in_subprocess
 
 class DTCommand(DTCommandAbs):
