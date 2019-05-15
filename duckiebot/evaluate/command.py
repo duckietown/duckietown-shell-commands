@@ -4,6 +4,8 @@ import os
 import subprocess
 import threading
 import time
+import socket
+import platform
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -11,6 +13,7 @@ from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, \
      stop_container, remove_container, default_env, remove_if_running, \
     continuously_monitor, get_remote_client, record_bag
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -47,6 +50,8 @@ class DTCommand(DTCommandAbs):
                            action="store_true", default=False)
         group.add_argument('--record_bag', action='store_true', default=False,
                            help="If true record a rosbag")
+        group.add_argument("--debug", action='store_true', default=False,
+                           help="If true you will get a shell instead of executing")
         group.add_argument('--max_vel', help="the max velocity for the duckiebot", default=0.7)
         group.add_argument('--challenge', help="Specific challenge to evaluate")
         parsed = parser.parse_args(args)
@@ -110,8 +115,9 @@ class DTCommand(DTCommandAbs):
         # run the glue container
         glue_container = client.containers.run(**params)
 
-        monitor_thread = threading.Thread(target=continuously_monitor, args=(client, glue_container.name))
-        monitor_thread.start()
+        if not parsed.debug:
+            monitor_thread = threading.Thread(target=continuously_monitor, args=(client, glue_container.name))
+            monitor_thread.start()
 
         if parsed.image_name is None:
             # if we didn't get an `image_name` we try need to build the local container
@@ -150,10 +156,22 @@ class DTCommand(DTCommandAbs):
                   'tty': True,
                   'volumes': agent_volumes}
 
+        if parsed.debug:
+            params['command'] = '/bin/bash'
+            params['stdin_open'] = True
+
+
+        
         dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, agent_env))
         agent_container = client.containers.run(**params)
-        monitor_thread = threading.Thread(target=continuously_monitor,args=(client, agent_container_name))
-        monitor_thread.start()
+
+        if parsed.debug:
+            attach_cmd = 'docker attach %s' % agent_container_name
+            start_command_in_subprocess(attach_cmd)
+
+        else:
+            monitor_thread = threading.Thread(target=continuously_monitor,args=(client, agent_container_name))
+            monitor_thread.start()
 
         duration = int(parsed.duration)
         # should we record a bag?
