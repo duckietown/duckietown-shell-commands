@@ -1,11 +1,10 @@
 import argparse
 import docker
-import threading
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import default_env, bind_duckiebot_data_dir, remove_if_running, continuously_monitor
+from utils.docker_utils import default_env, bind_duckiebot_data_dir, remove_if_running
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
