@@ -945,8 +945,8 @@ def log_current_phase(user_data, phase, msg):
 
 
 def add_run_cmd(user_data, cmd):
-    cmd_pre = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
-    cmd_post = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
+    cmd_pre = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
+    cmd_post = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
     user_data['runcmd'].append(cmd_pre)
     user_data['runcmd'].append(cmd)
     user_data['runcmd'].append(cmd_post)
