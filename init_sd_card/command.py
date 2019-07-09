@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
-INIT_SD_CARD_VERSION = '2.0.4'  # incremental number, semantic version
+INIT_SD_CARD_VERSION = '2.0.5'  # incremental number, semantic version
 
 CHANGELOG = """ 
 Current version: %s
@@ -14,6 +14,11 @@ feature additions augment y,
 minor changes increment z.
 
 Newest changes applied to this SD CARD:
+
+2.0.5 - 2019-07-07
+
+    Initial boot-up LED feedback: alternating red-green
+    during stacks initialization, solid green when ready
 
 2.0.4 - 2019-04-11
 
@@ -397,6 +402,18 @@ def step_setup(shell, parsed):
 
     add_run_cmd(user_data, 'raspi-config nonint do_camera 0')
     add_run_cmd(user_data, 'raspi-config nonint do_i2c 0')
+
+    # Start the blinking feedback: the RPi red and green LEDs will alternately flash
+    # on and off until all Docker stacks are up
+    cmd =  """/bin/bash -c "while ! cat /data/boot-log.txt | grep -q 'All stacks up'; """
+    cmd += """do echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 1 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; done; """
+    cmd += """echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null" > /dev/null 2>&1 & """
+    add_run_cmd(user_data, cmd)
+
     # raspi-config nonint do_wifi_country %s"
 
     # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
@@ -612,6 +629,8 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
                 user_data['bootcmd'].append(cmd)  # every boot
 
+    # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
+    # If modifying, make sure to adjust the blinking feedback
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
@@ -926,8 +945,8 @@ def log_current_phase(user_data, phase, msg):
 
 
 def add_run_cmd(user_data, cmd):
-    cmd_pre = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
-    cmd_post = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
+    cmd_pre = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
+    cmd_post = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
     user_data['runcmd'].append(cmd_pre)
     user_data['runcmd'].append(cmd)
     user_data['runcmd'].append(cmd_post)
