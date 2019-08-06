@@ -3,6 +3,8 @@ from __future__ import print_function
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
 INIT_SD_CARD_VERSION = '2.0.5'  # incremental number, semantic version
+HYPRIOTOS_STABLE_VERSION = '1.9.0'
+HYPRIOTOS_EXPERIMENTAL_VERSION = '1.11.1'
 
 CHANGELOG = """
 Current version: %s
@@ -137,6 +139,9 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument('--ethz-username', default=None)
         parser.add_argument('--ethz-password', default=None)
+
+        parser.add_argument('--experimental', dest='experimental', default=False, action='store_true',
+                            help='Use experimental settings')
 
         parsed = parser.parse_args(args=args)
 
@@ -276,14 +281,25 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
     script_cmd = '/bin/bash %s' % script_file
     env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
+    # pass HypriotOS version to init_sd_card script
+    if parsed.experimental:
+        env['HYPRIOTOS_VERSION'] = HYPRIOTOS_EXPERIMENTAL_VERSION
+    else:
+        env['HYPRIOTOS_VERSION'] = HYPRIOTOS_STABLE_VERSION
     start_command_in_subprocess(script_cmd, env)
+
+    dtslogger.info('Waiting 5 seconds for the device to get ready...')
+    time.sleep(5)
+
+    dtslogger.info('Partitions created:')
+    cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
+    _run_cmd(cmd)
 
 
 def step_expand(shell, parsed):
-    check_program_dependency('parted')
-    check_program_dependency('resize2fs')
-    check_program_dependency('df')
-    check_program_dependency('umount')
+    deps = ['parted', 'resize2fs', 'e2fsck', 'lsblk', 'fdisk', 'umount']
+    for dep in deps:
+        check_program_dependency(dep)
 
     global SD_CARD_DEVICE
 
