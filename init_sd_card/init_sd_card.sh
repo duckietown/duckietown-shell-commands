@@ -32,7 +32,7 @@ fi
 ETCHER_DIR="${TMP_DIR}/etcher-cli"
 TMP_ETCHER_LOCAL=$(mktemp -p ${TMP_DIR})
 
-HYPRIOT_URL="https://github.com/hypriot/image-builder-rpi/releases/download/v1.9.0/hypriotos-rpi-v1.9.0.img.zip"
+HYPRIOT_URL="https://github.com/hypriot/image-builder-rpi/releases/download/v1.11.1/hypriotos-rpi-v1.11.1.img.zip"
 HYPRIOT_LOCAL="${TMP_DIR}/${HYPRIOT_URL##*/}"
 
 IMAGE_DOWNLOADER_CACHEDIR="${TMP_DIR}/docker_images"

@@ -4,7 +4,7 @@ from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
 INIT_SD_CARD_VERSION = '2.0.5'  # incremental number, semantic version
 
-CHANGELOG = """ 
+CHANGELOG = """
 Current version: %s
 
 Semantic versioning: x.y.z
@@ -25,10 +25,10 @@ Newest changes applied to this SD CARD:
     Copy in the default calibrations
 
 2.0.3 - 2018-10-10
-   
+
     Correct initialization for camera (on is 0 , not 1)
-    
-    
+
+
 2.0.2 - 2018-10-10
 
     More documentation.
@@ -141,7 +141,7 @@ class DTCommand(DTCommandAbs):
 
         global SD_CARD_DEVICE
         SD_CARD_DEVICE = parsed.device
-        
+
         if parsed.reset_cache:
             dtslogger.info('Removing cache')
             if os.path.exists(DUCKIETOWN_TMP):
@@ -151,7 +151,7 @@ class DTCommand(DTCommandAbs):
         if parsed.aido:
             parsed.stacks_to_load = 'DT18_00_basic,DT18_01_health_stats,DT18_03_roscore'
             parsed.stacks_to_run = parsed.stacks_to_load
-                
+
         msg = """
 
 ## Tips and tricks
@@ -271,7 +271,7 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
         raise Exception(msg)
 
-    script_file = get_resource('init_sd_card2.sh')
+    script_file = get_resource(' init_sd_card.sh')
     script_cmd = '/bin/bash %s' % script_file
     env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
@@ -327,12 +327,16 @@ def step_expand(shell, parsed):
     dtslogger.info('Current status:')
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
+
     cmd = ['sudo', 'parted', '-s', SD_CARD_DEVICE, 'resizepart', '2', '100%']
     _run_cmd(cmd)
+
     cmd = ['sudo', 'e2fsck', '-f', DEVp2]
     _run_cmd(cmd)
+
     cmd = ['sudo', 'resize2fs', DEVp2]
     _run_cmd(cmd)
+
     dtslogger.info('Updated status:')
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
@@ -431,20 +435,20 @@ def step_setup(shell, parsed):
              content=token)
 
     add_file(path='/data/stats/init_sd_card/README.txt', content="""
-    
+
 The files in this directory:
 
     version        incremental number
     CHANGELOG      description of latest changes
-    
+
     flash_time     ISO-formatted date of when this card was flashed
     flash_user     user who flashed
     flash_machine  machine that flashed
-    
+
     parameters
-        
+
         hostname       Hostname used for flashing. (Helps checking if it changed.)
-     
+
     """.strip())
     add_file(path='/data/stats/init_sd_card/CHANGELOG', content=CHANGELOG)
     add_file(path='/data/stats/init_sd_card/version', content=str(INIT_SD_CARD_VERSION))
@@ -466,14 +470,14 @@ The files in this directory:
 Two files will be created in this directory, called "eth0" and "wlan0",
 and they will contain the MAC addresses of the two interfaces.
 
-If they are not there, it means that the boot process was interrupted.     
+If they are not there, it means that the boot process was interrupted.
 
     """.strip())
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
-    
+
     add_run_cmd(user_data, 'cat /sys/class/net/eth0/address > /data/stats/MAC/eth0')
     add_run_cmd(user_data, 'cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0')
 
@@ -751,7 +755,7 @@ Host {HOSTNAME}
 
 
 def copy_default_calibrations(add_file):
-    
+
     kin_calib = get_resource('calib_kin_default.yaml')
     ext_cam_calib = get_resource('calib_cam_ext_default.yaml')
     int_cam_calib = get_resource('calib_cam_int_default.yaml')
@@ -759,7 +763,7 @@ def copy_default_calibrations(add_file):
     kin_calib_file = open(kin_calib)
     ext_cam_calib_file = open(ext_cam_calib)
     int_cam_calib_file = open(int_cam_calib)
-    
+
     add_file(path='/data/config/calibrations/kinematics/default.yaml', content=yaml.dump(yaml.load(kin_calib_file), default_flow_style=False))
     add_file(path='/data/config/calibrations/camera_extrinsic/default.yaml',content=yaml.dump(yaml.load(ext_cam_calib_file), default_flow_style=False))
     add_file(path='/data/config/calibrations/camera_intrinsic/default.yaml',content=yaml.dump(yaml.load(int_cam_calib_file), default_flow_style=False))
