@@ -272,7 +272,7 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
         raise Exception(msg)
 
-    script_file = get_resource(' init_sd_card.sh')
+    script_file = get_resource('init_sd_card.sh')
     script_cmd = '/bin/bash %s' % script_file
     env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
