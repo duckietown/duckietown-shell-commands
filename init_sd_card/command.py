@@ -568,9 +568,10 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             msg = 'If you want to run %r you need to load it as well.' % _
             raise Exception(msg)
 
+    mode = 'experimental' if parsed.experimental else 'stable'
     for cf in stacks_to_load:
         # local path
-        lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
+        lpath = get_resource(os.path.join('stacks', mode, cf + '.yaml'))
         # path on PI
         rpath = '/var/local/%s.yaml' % cf
 
@@ -582,7 +583,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
         add_file_local(path=rpath, local=lpath)
 
-    stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
+    stack2yaml = get_stack2yaml(stacks_to_load, get_resource(os.path.join('stacks', mode)))
     if not stack2yaml:
         msg = 'Not even one stack specified'
         raise Exception(msg)

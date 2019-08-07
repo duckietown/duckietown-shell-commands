@@ -1,0 +1,39 @@
+version: '3'
+services:
+
+# these two are contained in base and therefore redundant
+#  kinetic-ros-base-xenial:
+#    image: arm32v7/ros:kinetic-ros-base-xenial
+#  rpi-ros-kinetic-base:
+#    image: duckietown/rpi-ros-kinetic-base:master19
+
+
+  rpi-duckiebot-base:
+    image: duckietown/rpi-duckiebot-base:master19
+
+# now launchable through shell as a demo so not needed as a separate image
+#  rpi-duckiebot-ros-picam:
+#    image: duckietown/rpi-duckiebot-ros-picam:master18
+
+
+  # rpi-duckiebot-web_video_server:
+  #   image: duckietown/rpi-duckiebot-web_video_server:master18
+
+# To visualize dependencies:
+
+# 1) you might want to prune all images
+
+#2) Run
+# alias dockviz="docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock fabianlee/dockviz"
+
+# dockviz images -t -l
+
+# dockviz images -d -s | dot -Tpdf -o images.pdf
+# images=(duckietown/rpi-duckiebot-base:master18  duckietown/rpi-duckiebot-joystick-demo:master18 duckietown/rpi-duckiebot-lanefollowing-demo:master18 duckietown/rpi-duckiebot-ros-picam:master18 duckietown/rpi-duckiebot-camera-node:master18 duckietown/rpi-duckiebot-web_video_server:master18 duckietown/rpi-ros-kinetic-roscore:master18 duckietown/rpi-ros-kinetic-base:master18)
+# dockviz images -d duckietown/rpi-duckiebot-base:master18  duckietown/rpi-duckiebot-joystick-demo:master18 duckietown/rpi-duckiebot-lanefollowing-demo:master18 duckietown/rpi-duckiebot-ros-picam:master18 duckietown/rpi-duckiebot-camera-node:master18 duckietown/rpi-duckiebot-web_video_server:master18 duckietown/rpi-ros-kinetic-roscore:master18 duckietown/rpi-ros-kinetic-base:master18 arm32v7/ros:kinetic-ros-base-xenial | dot -Tpdf -o images.pdf
+
+
+#  rpi-duckiebot-calibration:
+#    image: duckietown/rpi-duckiebot-calibration:master18
+#  rpi-duckiebot-keyboard-demo:
+#    image: duckietown/rpi-duckiebot-keyboard-demo:master18
