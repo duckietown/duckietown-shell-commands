@@ -345,6 +345,8 @@ def step_expand(shell, parsed):
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
 
+    # get the disk identifier of the SD card.
+    # IMPORTANT: This must be executed before `parted`
     p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
     cmd = ['sudo' ,'fdisk', '-l', SD_CARD_DEVICE]
     dtslogger.debug('$ %s' % cmd)
@@ -362,6 +364,7 @@ def step_expand(shell, parsed):
     cmd = ['sudo', 'resize2fs', DEVp2]
     _run_cmd(cmd)
 
+    # restore the original disk identifier
     cmd = ['sudo' ,'fdisk', SD_CARD_DEVICE]
     dtslogger.debug('$ %s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
