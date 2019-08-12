@@ -87,6 +87,7 @@ PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
 SD_CARD_DEVICE = ""
+DEFAULT_CONFIGURATION = "master19"
 
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
@@ -143,6 +144,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--experimental', dest='experimental', default=False, action='store_true',
                             help='Use experimental settings')
 
+        parser.add_argument('--configuration', dest='configuration', default=DEFAULT_CONFIGURATION,
+                            help='Which configuration of Docker stacks to flash')
+
         parsed = parser.parse_args(args=args)
 
         global SD_CARD_DEVICE
@@ -195,6 +199,17 @@ You can use --steps to run only some of those:
         check_docker_environment()
         check_good_platform()
         check_dependencies()
+
+        if parsed.experimental:
+            dtslogger.info('Running experimental mode!')
+
+        configuration = parsed.configuration
+        try:
+            get_resource(os.path.join('stacks', configuration))
+        except:
+            msg = 'Cannot find configuration "%s"' % configuration
+            raise InvalidUserInput(msg)
+        dtslogger.info('Configuration: %s' % configuration)
 
         dtslogger.setLevel(logging.DEBUG)
 
@@ -568,10 +583,10 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             msg = 'If you want to run %r you need to load it as well.' % _
             raise Exception(msg)
 
-    mode = 'experimental' if parsed.experimental else 'stable'
+    configuration = parsed.configuration
     for cf in stacks_to_load:
         # local path
-        lpath = get_resource(os.path.join('stacks', mode, cf + '.yaml'))
+        lpath = get_resource(os.path.join('stacks', configuration, cf + '.yaml'))
         # path on PI
         rpath = '/var/local/%s.yaml' % cf
 
@@ -583,7 +598,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
         add_file_local(path=rpath, local=lpath)
 
-    stack2yaml = get_stack2yaml(stacks_to_load, get_resource(os.path.join('stacks', mode)))
+    stack2yaml = get_stack2yaml(stacks_to_load, get_resource(os.path.join('stacks', configuration)))
     if not stack2yaml:
         msg = 'Not even one stack specified'
         raise Exception(msg)
