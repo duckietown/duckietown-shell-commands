@@ -27,13 +27,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('The command `%s` cannot be found.' % cmd)
         # install
         for cmd in to_install:
-            dtslogger.info('Installing command `%s`...' % cmd, end='')
+            dtslogger.info('Installing command `%s`...' % cmd)
             shell.enable_command(cmd)
             need_reload = True
             dtslogger.info('Done!')
         # update list of commands
         if need_reload:
-            dtslogger.info('Updating index...', end='')
+            dtslogger.info('Updating index...')
             shell.reload_commands()
             dtslogger.info('Done!')
         else:

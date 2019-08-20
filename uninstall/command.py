@@ -20,14 +20,14 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn('The command `%s` cannot be found.' % cmd)
         # uninstall
         for cmd in to_uninstall:
-            dtslogger.info('Removing command `%s`...' % cmd, end='')
+            dtslogger.info('Removing command `%s`...' % cmd)
             shell.disable_command(cmd)
             need_reload = True
             dtslogger.info('Successfully completed calibration!')
             print('Done!')
         # update list of commands
         if need_reload:
-            print('Updating index...', end='')
+            print('Updating index...')
             shell.reload_commands()
             print('Done!')
         else:
