@@ -61,15 +61,19 @@ class DTCommand(DTCommandAbs):
         tag = "%s-%s" % (default_tag, parsed.arch)
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
-            _run_cmd([
-                'docker',
-                    '-H=%s' % parsed.machine,
-                    'run',
-                        '--rm',
-                        '--privileged',
-                        'multiarch/qemu-user-static:register',
-                        '--reset'
-            ])
+            try:
+                _run_cmd([
+                    'docker',
+                        '-H=%s' % parsed.machine,
+                        'run',
+                            '--rm',
+                            '--privileged',
+                            'multiarch/qemu-user-static:registers',
+                            '--reset'
+                ])
+            except:
+                msg = 'Multiarch cannot be enabled on the target machine. This might create issues.\n'
+                dtslogger.warning(msg)
         # build
         buildlog = _run_cmd([
             'docker',
