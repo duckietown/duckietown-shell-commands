@@ -25,8 +25,6 @@ class DTCommand(DTCommandAbs):
                             help="Target architecture for the image to build")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to build the image")
-        parser.add_argument('-t', '--tag', default=None,
-                            help="Tag to give to the Docker image")
         parser.add_argument('--pull', default=False, action='store_true',
                             help="Whether to pull the latest base image used by the Dockerfile")
         parser.add_argument('--no-cache', default=False, action='store_true',
@@ -61,8 +59,6 @@ class DTCommand(DTCommandAbs):
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
-        if parsed.tag is not None:
-            tag = parsed.tag
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
             _run_cmd([
@@ -99,7 +95,7 @@ class DTCommand(DTCommandAbs):
         # run docker image analysis
         ImageAnalyzer.process(buildlog, historylog, codens=100)
         # image tagging
-        if parsed.arch == DEFAULT_ARCH and parsed.tag is None:
+        if parsed.arch == DEFAULT_ARCH:
             dtslogger.info("Tagging image {} as {}.".format(tag, default_tag))
             _run_cmd([
                 'docker',
@@ -113,19 +109,7 @@ class DTCommand(DTCommandAbs):
             shell.include.devel.push.command(shell, args)
         # perform remove (if needed)
         if parsed.rm:
-            tags = [tag]
-            if parsed.arch == DEFAULT_ARCH and parsed.tag is None:
-                tags += [default_tag]
-            # delete images
-            for t in tags:
-                dtslogger.info("Removing image {}...".format(t))
-                _run_cmd([
-                    'docker',
-                        '-H=%s' % parsed.machine,
-                        'rmi',
-                            t
-                ])
-
+            shell.include.devel.clean.command(shell, args)
 
 
     @staticmethod
