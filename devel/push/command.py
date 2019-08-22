@@ -17,13 +17,13 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=None,
-                            help="Directory containing the project to build")
+                            help="Directory containing the project to push")
         parser.add_argument('-a', '--arch', default=DEFAULT_ARCH,
-                            help="Target architecture for the image to build")
+                            help="Target architecture for the image to push")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
-                            help="Docker socket or hostname where to build the image")
+                            help="Docker socket or hostname from where to push the image")
         parser.add_argument('-f', '--force', default=False, action='store_true',
-                            help="Whether to force the build when the git index is not clean")
+                            help="Whether to force the push when the git index is not clean")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -46,22 +46,15 @@ class DTCommand(DTCommandAbs):
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
-        # push image
-        dtslogger.info("Pushing image {}...".format(tag))
-        _run_cmd([
-            'docker',
-                '-H=%s' % parsed.machine,
-                'push',
-                    tag
-        ])
-        # image tagging
-        if parsed.arch == DEFAULT_ARCH:
-            dtslogger.info("Pushing image {}...".format(default_tag))
+        tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
+        for t in tags:
+            # push image
+            dtslogger.info("Pushing image {}...".format(t))
             _run_cmd([
                 'docker',
                     '-H=%s' % parsed.machine,
                     'push',
-                        default_tag
+                        t
             ])
 
 
