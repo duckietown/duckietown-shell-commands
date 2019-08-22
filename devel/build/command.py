@@ -68,7 +68,7 @@ class DTCommand(DTCommandAbs):
                         'run',
                             '--rm',
                             '--privileged',
-                            'multiarch/qemu-user-static:registers',
+                            'multiarch/qemu-user-static:register',
                             '--reset'
                 ])
             except:
