@@ -158,7 +158,6 @@ if __name__ == '__main__':
     if len(parsed.machine) > 0:
         docker_H = ['-H', parsed.machine]
 
-
     # check if the build process succeded
     if not final_layer_pattern.match(lines[-1]):
         exit(2)
