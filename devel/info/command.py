@@ -1,4 +1,5 @@
 import os
+import argparse
 import subprocess
 from dt_shell import DTCommandAbs
 
@@ -26,7 +27,14 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        info = DTCommand.get_project_info(os.getcwd())
+        # configure arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-C', '--workdir', default=None,
+                            help="Directory containing the project to show")
+        parsed, _ = parser.parse_known_args(args=args)
+        # ---
+        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
+        info = DTCommand.get_project_info(code_dir)
         print(PROJECT_INFO % (
             info['NAME'],
             info['VERSION'],
