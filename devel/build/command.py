@@ -25,6 +25,8 @@ class DTCommand(DTCommandAbs):
                             help="Target architecture for the image to build")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to build the image")
+        parser.add_argument('-t', '--tag', default=None,
+                            help="Tag to give to the Docker image")
         parser.add_argument('--pull', default=False, action='store_true',
                             help="Whether to pull the latest base image used by the Dockerfile")
         parser.add_argument('--no-cache', default=False, action='store_true',
@@ -35,6 +37,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force the build when the git index is not clean")
         parser.add_argument('--push', default=False, action='store_true',
                             help="Whether to push the resulting image")
+        parser.add_argument('--rm', '--remove', default=False, action='store_true',
+                            help="Whether to remove the images once the build succeded (after pushing)")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -56,7 +60,9 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning('Forced!')
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
-        tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
+        tag = "%s-%s" % (default_tag, parsed.arch)
+        if parsed.tag is not None:
+            tag = parsed.tag
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
             _run_cmd([
@@ -93,7 +99,7 @@ class DTCommand(DTCommandAbs):
         # run docker image analysis
         ImageAnalyzer.process(buildlog, historylog, codens=100)
         # image tagging
-        if parsed.arch == DEFAULT_ARCH:
+        if parsed.arch == DEFAULT_ARCH and parsed.tag is None:
             dtslogger.info("Tagging image {} as {}.".format(tag, default_tag))
             _run_cmd([
                 'docker',
@@ -105,6 +111,21 @@ class DTCommand(DTCommandAbs):
         # perform push (if needed)
         if parsed.push:
             shell.include.devel.push.command(shell, args)
+        # perform remove (if needed)
+        if parsed.remove:
+            tags = [tag]
+            if parsed.arch == DEFAULT_ARCH and parsed.tag is None:
+                tags += [default_tag]
+            # delete images
+            for t in tags:
+                dtslogger.info("Removing image {}...".format(t))
+                _run_cmd([
+                    'docker',
+                        '-H=%s' % parsed.machine,
+                        'rmi',
+                            t
+                ])
+
 
 
     @staticmethod
