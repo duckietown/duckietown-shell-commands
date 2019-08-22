@@ -10,7 +10,7 @@ if sys.version_info < (3, 6):
 
 
 min_duckietown_shell = '.'.join(['4', '0', '25'])
-duckietown_shell_commands_version = '4.0.34'
+duckietown_shell_commands_version = '4.0.35'
 
 
 def parse_version(x):
