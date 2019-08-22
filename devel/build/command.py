@@ -29,6 +29,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to pull the latest base image used by the Dockerfile")
         parser.add_argument('--no-cache', default=False, action='store_true',
                             help="Whether to use the Docker cache")
+        parser.add_argument('--multiarch', default=True, action='store_true',
+                            help="Whether to enable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
                             help="Whether to force the build when the git index is not clean")
         parser.add_argument('--push', default=False, action='store_true',
@@ -55,16 +57,17 @@ class DTCommand(DTCommandAbs):
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
-        # register bin_fmt in the target machine
-        _run_cmd([
-            'docker',
-                '-H=%s' % parsed.machine,
-                'run',
-                    '--rm',
-                    '--privileged',
-                    'multiarch/qemu-user-static:register',
-                    '--reset'
-        ])
+        # register bin_fmt in the target machine (if needed)
+        if parsed.multiarch:
+            _run_cmd([
+                'docker',
+                    '-H=%s' % parsed.machine,
+                    'run',
+                        '--rm',
+                        '--privileged',
+                        'multiarch/qemu-user-static:register',
+                        '--reset'
+            ])
         # build
         buildlog = _run_cmd([
             'docker',
