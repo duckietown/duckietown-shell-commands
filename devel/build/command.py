@@ -37,7 +37,7 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force the build when the git index is not clean")
         parser.add_argument('--push', default=False, action='store_true',
                             help="Whether to push the resulting image")
-        parser.add_argument('--rm', '--remove', default=False, action='store_true',
+        parser.add_argument('--rm', default=False, action='store_true',
                             help="Whether to remove the images once the build succeded (after pushing)")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -112,7 +112,7 @@ class DTCommand(DTCommandAbs):
         if parsed.push:
             shell.include.devel.push.command(shell, args)
         # perform remove (if needed)
-        if parsed.remove:
+        if parsed.rm:
             tags = [tag]
             if parsed.arch == DEFAULT_ARCH and parsed.tag is None:
                 tags += [default_tag]
