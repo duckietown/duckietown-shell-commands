@@ -1,6 +1,7 @@
 import os
 import argparse
 import subprocess
+import io
 from dt_shell import DTCommandAbs, dtslogger
 
 DEFAULT_ARCH='arm32v7'
@@ -40,19 +41,43 @@ class DTCommand(DTCommandAbs):
         tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
         # remove images
         for t in tags:
-            dtslogger.info("Removing image {}...".format(t))
-            _run_cmd([
+            img = _run_cmd([
                 'docker',
                     '-H=%s' % parsed.machine,
-                    'rmi',
+                    'images',
+                        '-q',
                         t
-            ])
+            ], get_output=True)
+            if img:
+                dtslogger.info("Removing image {}...".format(t))
+                _run_cmd([
+                    'docker',
+                        '-H=%s' % parsed.machine,
+                        'rmi',
+                            t
+                ])
 
     @staticmethod
     def complete(shell, word, line):
         return []
 
 
-def _run_cmd(cmd):
+def _run_cmd(cmd, get_output=False, print_output=False):
     dtslogger.debug('$ %s' % cmd)
-    subprocess.check_call(cmd)
+    if get_output:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        lines = []
+        for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
+            line = line.rstrip()
+            if print_output:
+                print(line)
+            if line:
+                lines.append(line)
+        proc.wait()
+        if proc.returncode != 0:
+            msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
+            dtslogger.error(msg)
+            raise RuntimeError(msg)
+        return lines
+    else:
+        subprocess.check_call(cmd)
