@@ -1,4 +1,5 @@
 import os
+import json
 import argparse
 import subprocess
 import io, sys
@@ -6,8 +7,37 @@ import getpass
 from .image_analyzer import ImageAnalyzer
 from dt_shell import DTCommandAbs, dtslogger
 
-DEFAULT_ARCH='arm32v7'
-DEFAULT_MACHINE='unix:///var/run/docker.sock'
+DEFAULT_ARCH = 'arm32v7'
+DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
+DOCKER_INFO = """
+Docker Endpoint:
+  Hostname: {Name}
+  Operating System: {OperatingSystem}
+  Kernel Version: {KernelVersion}
+  OSType: {OSType}
+  Architecture: {Architecture}
+  Total Memory: {MemTotal}
+  CPUs: {NCPU}
+"""
+ARCH_MAP={
+    'arm32v7' : ['arm', 'arm32v7', 'armv7l', 'armhf'],
+    'amd64' : ['x64', 'x86_64', 'amd64', 'Intel 64'],
+    'arm64v8' : ['arm64', 'arm64v8', 'armv8', 'aarch64']
+}
+CANONICAL_ARCH={
+    'arm' : 'arm32v7',
+    'arm32v7' : 'arm32v7',
+    'armv7l' : 'arm32v7',
+    'armhf' : 'arm32v7',
+    'x64' : 'amd64',
+    'x86_64' : 'amd64',
+    'amd64' : 'amd64',
+    'Intel 64' : 'amd64',
+    'arm64' : 'arm64v8',
+    'arm64v8' : 'arm64v8',
+    'armv8' : 'arm64v8',
+    'aarch64' : 'arm64v8'
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -21,7 +51,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=None,
                             help="Directory containing the project to build")
-        parser.add_argument('-a', '--arch', default=DEFAULT_ARCH,
+        parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to build the image")
@@ -59,21 +89,42 @@ class DTCommand(DTCommandAbs):
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
+        # get info about docker endpoint
+        dtslogger.info('Retrieving info about Docker endpoint...')
+        epoint = _run_cmd([
+            'docker',
+                '-H=%s' % parsed.machine,
+                'info',
+                    '--format',
+                    '{{json .}}'
+        ], get_output=True, print_output=False)
+        epoint = json.loads(epoint[0])
+        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        print(DOCKER_INFO.format(**epoint))
+        # print info about multiarch
+        msg = 'Building an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
+        dtslogger.info(msg)
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
-            try:
-                _run_cmd([
-                    'docker',
-                        '-H=%s' % parsed.machine,
-                        'run',
-                            '--rm',
-                            '--privileged',
-                            'multiarch/qemu-user-static:register',
-                            '--reset'
-                ])
-            except:
-                msg = 'Multiarch cannot be enabled on the target machine. This might create issues.\n'
-                dtslogger.warning(msg)
+            if epoint['Architecture'] not in ARCH_MAP[CANONICAL_ARCH[parsed.arch]]:
+                dtslogger.info('Configuring machine for multiarch builds...')
+                try:
+                    _run_cmd([
+                        'docker',
+                            '-H=%s' % parsed.machine,
+                            'run',
+                                '--rm',
+                                '--privileged',
+                                'multiarch/qemu-user-static:register',
+                                '--reset'
+                    ], True)
+                    dtslogger.info('Multiarch Enabled!')
+                except:
+                    msg = 'Multiarch cannot be enabled on the target machine. This might create issues.'
+                    dtslogger.warning(msg)
+            else:
+                msg = 'Building an image for {} on {}. Multiarch not needed!'.format(parsed.arch, epoint['Architecture'])
+                dtslogger.info(msg)
         # build
         buildlog = _run_cmd([
             'docker',
@@ -140,3 +191,10 @@ def _run_cmd(cmd, get_output=False, print_output=False):
         return lines
     else:
         subprocess.check_call(cmd)
+
+def _sizeof_fmt(num, suffix='B'):
+    for unit in ['','K','M','G','T','P','E','Z']:
+        if abs(num) < 1024.0:
+            return "%3.2f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.2f%s%s" % (num, 'Yi', suffix)
