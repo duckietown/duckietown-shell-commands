@@ -105,7 +105,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--steps', default="flash,expand,mount,setup,unmount",
                             help="Steps to perform")
 
-        parser.add_argument('--hostname', default='duckiebot')
+        parser.add_argument('--hostname', required=True)
         parser.add_argument('--linux-username', default='duckie')
         parser.add_argument('--linux-password', default='quackquack')
 
