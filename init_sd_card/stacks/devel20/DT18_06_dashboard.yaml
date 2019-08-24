@@ -9,7 +9,7 @@ services:
       - compose-data:/var/www/html
 
   ros-websocket:
-    image: duckietown/rosbridge-websocket:master19
+    image: duckietown/dt-rosbridge-websocket:devel20
     restart: unless-stopped
     network_mode: "host"
 
