@@ -82,7 +82,7 @@ class DTCommand(DTCommandAbs):
         # check if the index is clean
         if nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
-            dtslogger.warning('If you know what you are doing, use --force to force the execution of the command.')
+            dtslogger.warning('If you know what you are doing, use --force (-f) to force the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
