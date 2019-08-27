@@ -67,6 +67,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to push the resulting image")
         parser.add_argument('--rm', default=False, action='store_true',
                             help="Whether to remove the images once the build succeded (after pushing)")
+        parser.add_argument('--ignore-watchtower', default=False, action='store_true',
+                            help="Whether to ignore a running Docker watchtower")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -101,6 +103,16 @@ class DTCommand(DTCommandAbs):
         epoint = json.loads(epoint[0])
         epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
+        # check if there is a watchtower instance running on the endpoint
+        if shell.include.devel.watchtower.is_running(parsed.machine):
+            dtslogger.warning('An instance of a Docker watchtower was found running on the Docker endpoint.')
+            dtslogger.warning('Building new images next to an active watchtower might (sure it will) create race conditions.')
+            dtslogger.warning('Solutions:')
+            dtslogger.warning('  - Recommended: Use the command `dts devel watchtower stop [options]` to stop the watchtower.')
+            dtslogger.warning('  - NOT Recommended: Use the flag `--ignore-watchtower` to ignore this warning and continue.')
+            if not parsed.ignore_watchtower:
+                exit(2)
+            dtslogger.warning('Ignored!')
         # print info about multiarch
         msg = 'Building an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
         dtslogger.info(msg)
