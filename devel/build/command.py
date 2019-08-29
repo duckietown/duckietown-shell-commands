@@ -69,6 +69,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to push the resulting image")
         parser.add_argument('--rm', default=False, action='store_true',
                             help="Whether to remove the images once the build succeded (after pushing)")
+        parser.add_argument('--loop', default=False, action='store_true',
+                            help="(Experimental) Whether to reuse the same base image to speed up the build process")
         parser.add_argument('--ignore-watchtower', default=False, action='store_true',
                             help="Whether to ignore a running Docker watchtower")
         parsed, _ = parser.parse_known_args(args=args)
@@ -139,6 +141,18 @@ class DTCommand(DTCommandAbs):
             else:
                 msg = 'Building an image for {} on {}. Multiarch not needed!'.format(parsed.arch, epoint['Architecture'])
                 dtslogger.info(msg)
+        # define labels
+        buildlabels = []
+        # define build args
+        buildargs = ['--build-arg', 'ARCH={}'.format(parsed.arch)]
+        # loop mode (Experimental)
+        if parsed.loop:
+            buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
+            buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(branch, parsed.arch)]
+            buildlabels += ['--label', 'LOOP=1']
+            # ---
+            msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
+            dtslogger.warn(msg)
         # build
         buildlog = _run_cmd([
             'docker',
@@ -146,8 +160,9 @@ class DTCommand(DTCommandAbs):
                 'build',
                     '--pull=%d' % int(parsed.pull),
                     '--no-cache=%d' % int(parsed.no_cache),
-                    '-t', tag,
-                    '--build-arg', 'ARCH={}'.format(parsed.arch),
+                    '-t', tag] + \
+                    buildlabels + \
+                    buildargs + [
                     code_dir
         ], True, True)
         # get image history
@@ -175,7 +190,11 @@ class DTCommand(DTCommandAbs):
             ])
         # perform push (if needed)
         if parsed.push:
-            shell.include.devel.push.command(shell, args)
+            if not parsed.loop:
+                shell.include.devel.push.command(shell, args)
+            else:
+                msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
+                dtslogger.warn(msg)
         # perform remove (if needed)
         if parsed.rm:
             shell.include.devel.clean.command(shell, args)
