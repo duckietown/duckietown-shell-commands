@@ -50,15 +50,18 @@ class DTCommand(DTCommandAbs):
                 container_id = _get_container_id(parsed.machine, all=True)
                 if container_id is None:
                     msg = 'Watchtower instance not found. Run `docker run ...` first.'
-                    dtslogger.error(msg)
+                    dtslogger.info(msg)
                     return
         # action: [stop, start]
-        _run_cmd([
+        dtslogger.info('{}ing watchtower container...'.format(action.title()))
+        _ = _run_cmd([
             'docker',
                 '-H=%s' % parsed.machine,
                 action,
                     container_id
-        ])
+        ], get_output=True)
+        dtslogger.info('Done!')
+
 
 
     @staticmethod
