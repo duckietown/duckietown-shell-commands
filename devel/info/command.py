@@ -1,14 +1,17 @@
 import os
 import argparse
 import subprocess
+from termcolor import colored
 from dt_shell import DTCommandAbs
 
 PROJECT_INFO = """
-Project: %s
-  Version: %s
-  Path: %s
-  Type: %s
-  Template Version: %s
+{project}
+{space}{name}
+{space}Version: {VERSION}
+{space}Path: {PATH}
+{space}Type: {TYPE}
+{space}Template Version: {TYPE_VERSION}
+{end}
 """
 
 class DTCommand(DTCommandAbs):
@@ -35,13 +38,13 @@ class DTCommand(DTCommandAbs):
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         info = DTCommand.get_project_info(code_dir)
-        print(PROJECT_INFO % (
-            info['NAME'],
-            info['VERSION'],
-            info['PATH'],
-            info['TYPE'],
-            info['TYPE_VERSION']
-        ))
+        info.update({
+            'name': colored('Name: '+info['NAME'], 'grey', 'on_white'),
+            'project': colored('Project:', 'grey', 'on_white'),
+            'space': colored('  ', 'grey', 'on_white'),
+            'end': colored('________', 'grey', 'on_white')
+        })
+        print(PROJECT_INFO.format(**info))
 
 
     @staticmethod
