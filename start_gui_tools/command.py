@@ -59,7 +59,7 @@ Keyboard control:
 
         volumes = {}
 
-        subprocess.call(["xhost", "+", '%s' %  socket.gethostbyname(socket.gethostname())])
+        subprocess.call(["xhost", "+"])
 
         p = platform.system().lower()
         if 'darwin' in p:
