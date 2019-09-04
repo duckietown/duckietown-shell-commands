@@ -43,17 +43,23 @@ Keyboard control:
         client = check_docker_environment()
         container_name = "interactive_gui_tools_%s" % hostname
         remove_if_running(client, container_name)
-        duckiebot_ip = get_duckiebot_ip(hostname)
-        env = {'HOSTNAME': hostname,
-               'ROS_MASTER': hostname,
-               'DUCKIEBOT_NAME': hostname,
-               'ROS_MASTER_URI': 'http://%s:11311' % duckiebot_ip}
+
+        if parsed_args.sim:
+            env = {'HOSTNAME': 'default',
+                   'ROS_MASTER': hostname,
+                   'DUCKIEBOT_NAME': hostname,
+                   'ROS_MASTER_URI': 'http://%s:11311' % hostname}
+        else:
+            env = {'HOSTNAME': hostname,
+                   'ROS_MASTER': hostname,
+                   'DUCKIEBOT_NAME': hostname,
+                   'ROS_MASTER_URI': 'http://%s:11311' % duckiebot_ip}
 
         env['QT_X11_NO_MITSHM'] = 1
 
         volumes = {}
 
-        subprocess.call(["xhost", "+"])
+        subprocess.call(["xhost", "+", '%s' %  socket.gethostbyname(socket.gethostname())])
 
         p = platform.system().lower()
         if 'darwin' in p:
