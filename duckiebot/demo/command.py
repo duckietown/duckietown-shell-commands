@@ -11,7 +11,12 @@ usage = """
 
 ## Basic usage
 
-    Runs a demo on the Duckiebot
+    Runs a demo on the Duckiebot. Effectively, this is a wrapper around roslaunch. You
+    can specify a docker image, ros package and launch file to be started. A demo is a 
+    launch file specified by `--demo_name`. The argument `--package_name` specifies 
+    the package where the launch file should is located (by default assumes `duckietown`).
+    
+    To find out more, use `dts duckiebot demo -h`.
 
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
 
