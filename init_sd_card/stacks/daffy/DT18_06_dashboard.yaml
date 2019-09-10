@@ -2,7 +2,7 @@ version: '3'
 services:
 
   dashboard:
-    image: duckietown/rpi-duckiebot-dashboard:master19
+    image: duckietown/dt-duckiebot-dashboard:daffy
     restart: unless-stopped
     network_mode: "host"
     volumes:
