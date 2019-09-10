@@ -11,7 +11,7 @@ services:
     volumes:
     - /data:/data
 
-  duckiebot-interface:
+  car-interface:
     image: duckietown/dt-car-interface:daffy
     restart: unless-stopped
     network_mode: host
