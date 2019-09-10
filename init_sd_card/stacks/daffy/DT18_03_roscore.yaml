@@ -2,7 +2,17 @@ version: '3'
 services:
   
   duckiebot-interface:
-    image: duckietown/dt-duckiebot-interface:devel20
+    image: duckietown/dt-duckiebot-interface:daffy
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DISABLE_CONTRACTS: 1
+    volumes:
+    - /data:/data
+
+  car-interface:
+    image: duckietown/dt-car-interface:daffy
     restart: unless-stopped
     network_mode: host
     privileged: true
