@@ -6,6 +6,7 @@ import socket
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 from utils.docker_utils import get_remote_client, remove_if_running
 
@@ -26,6 +27,9 @@ Calibrate:
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
         parser.add_argument('--base_image', dest='image',
                             default="duckietown/rpi-duckiebot-base:master19-no-arm")
+        parser.add_argument('--debug', action='store_true', default=False,
+                            help="will enter you into the running container")
+
 
         parsed_args = parser.parse_args(args)
         hostname = parsed_args.hostname
@@ -89,7 +93,7 @@ Calibrate:
                        (container_name, env))
 
         dtslogger.info("When the window opens you will need to move the checkerboard around in front of the Duckiebot camera")
-        cmd = "roslaunch duckietown intrinsic_calibration.launch veh:=%s" % hostname
+        cmd = "roslaunch pi_camera intrinsic_calibration.launch veh:=%s" % hostname
 
         params = {'image': image,
                   'name': container_name,
@@ -104,3 +108,7 @@ Calibrate:
                   }
 
         container = client.containers.run(**params)
+
+        if parsed_args.debug:
+            attach_cmd = 'docker attach %s' % (container_name)
+            start_command_in_subprocess(attach_cmd)
