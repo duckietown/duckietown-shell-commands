@@ -66,7 +66,7 @@ def run_gui_controller(hostname, image):
                    (container_name, env))
 
 
-    if 'master19' in imge:
+    if 'master19' in image:
         image = "duckietown/rpi-duckiebot-base:master19-no-arm"
         cmd = "python misc/virtualJoy/virtualJoy.py %s" % hostname
     elif 'daffy' in image:
