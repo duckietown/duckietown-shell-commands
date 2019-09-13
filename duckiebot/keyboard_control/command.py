@@ -3,6 +3,7 @@ import os
 import platform
 import subprocess
 import socket
+import docker
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.networking_utils import get_duckiebot_ip
@@ -29,9 +30,6 @@ Keyboard control:
                             help="The base image, probably don't change the default")
         parsed_args = parser.parse_args(args)
 
-
-
-
         if not parsed_args.cli:
             run_gui_controller(parsed_args.hostname, parsed_args.image)
         else:
@@ -56,6 +54,7 @@ def run_gui_controller(hostname, image):
 
     p = platform.system().lower()
     if 'darwin' in p:
+        dtslogger.warn("We can try but running the joystick gui on MacOSx is not expected to work...")
         env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
         volumes = {
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
@@ -66,7 +65,14 @@ def run_gui_controller(hostname, image):
     dtslogger.info("Running %s on localhost with environment vars: %s" %
                    (container_name, env))
 
-    cmd = "python misc/virtualJoy/virtualJoy.py %s" % hostname
+
+    if 'master19' in imge:
+        image = "duckietown/rpi-duckiebot-base:master19-no-arm"
+        cmd = "python misc/virtualJoy/virtualJoy.py %s" % hostname
+    elif 'daffy' in image:
+        image = "duckietown/dt-core:daffy"
+        cmd = "roslaunch virtual_joystick virtual_joystick_gui.launch veh:=%s" % hostname
+
 
     params = {'image': image,
               'name': container_name,
@@ -86,10 +92,12 @@ def run_gui_controller(hostname, image):
     cmd = 'docker attach %s' % container_name
     start_command_in_subprocess(cmd)
 
+### if it's the CLI may as well run it on the robot itself.
 def run_cli_controller(hostname,image):
-    client=check_docker_environment()
+    duckiebot_ip = get_duckiebot_ip(hostname)
+    duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
     container_name = "joystick_cli_%s" % hostname
-    remove_if_running(client, container_name)
+    remove_if_running(duckiebot_client, container_name)
     duckiebot_ip=get_duckiebot_ip(hostname)
     env = { 'HOSTNAME':hostname,
             'ROS_MASTER':hostname,
@@ -99,7 +107,13 @@ def run_cli_controller(hostname,image):
     dtslogger.info("Running %s on localhost with environment vars: %s" %
                    (container_name, env))
 
-    cmd = "python misc/virtualJoy/joy_cli.py %s" % hostname
+
+    if 'master19' in image:
+        image = "duckietown/rpi-duckiebot-base:master19" # run on robot
+        cmd = "python misc/virtualJoy/joy_cli.py %s" % hostname
+    elif 'daffy' in image:
+        image = "duckietown/dt-core:daffy-arm32v7"
+        cmd = "roslaunch virtual_joystick virtual_joystick_cli.launch veh:=%s" % hostname
 
     params = {'image': image,
                 'name': container_name,
@@ -112,7 +126,7 @@ def run_cli_controller(hostname,image):
               'detach':True
               }
 
-    container = client.containers.run(**params)
+    container = duckiebot_client.containers.run(**params)
 
-    cmd = 'docker attach %s' % container_name
+    cmd = 'docker -H %s.local attach %s' % (hostname, container_name)
     start_command_in_subprocess(cmd)
