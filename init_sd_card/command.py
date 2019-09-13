@@ -992,15 +992,18 @@ def save_images(stack2yaml, compress):
 
 
 def log_current_phase(user_data, phase, msg):
-    j = json.dumps(dict(phase=phase, msg=msg))
-    # cmd = ['bash', '-c', "echo '%s' > /data/phase.json" % j]
+    # NOTE: double json dumps to add escaped quotes
+    j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
     cmd = 'echo %s >> /data/boot-log.txt' % j
     user_data['runcmd'].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
-    cmd_pre = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
-    cmd_post = 'echo %s >> /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
+    # NOTE: double json dumps to add escaped quotes
+    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command')))
+    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command')))
+    cmd_pre = 'echo %s >> /data/command.json' % pre_json
+    cmd_post = 'echo %s >> /data/command.json' % post_json
     user_data['runcmd'].append(cmd_pre)
     user_data['runcmd'].append(cmd)
     user_data['runcmd'].append(cmd_post)
