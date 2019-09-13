@@ -441,8 +441,10 @@ def step_setup(shell, parsed):
     add_file_local(path=os.path.join(user_home_path, '.ssh/authorized_keys'),
                    local=ssh_key_pub)
 
-    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Configure runcmd
+    add_run_cmd(user_data, 'echo "Initialization STARTED"')
 
+    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     add_run_cmd(user_data, cmd)
 
     add_run_cmd(user_data, "chown -R 1000:1000 {home}".format(home=user_home_path))
@@ -532,7 +534,10 @@ If they are not there, it means that the boot process was interrupted.
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
-    user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
+    add_run_cmd(user_data, 'echo "Intialization COMPLETED"')
+
+    user_data_yaml = yaml.dump(user_data, default_flow_style=False)
+    user_data_yaml = '#cloud-config\n' + user_data_yaml
 
     validate_user_data(user_data_yaml)
 
@@ -992,20 +997,22 @@ def save_images(stack2yaml, compress):
 
 
 def log_current_phase(user_data, phase, msg):
-    # NOTE: double json dumps to add escaped quotes
+    # NOTE: double json.dumps to add escaped quotes
     j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
     cmd = 'echo %s >> /data/boot-log.txt' % j
     user_data['runcmd'].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
-    # NOTE: double json dumps to add escaped quotes
-    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command')))
-    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command')))
+    # PRE action (NOTE: double json.dumps to add escaped quotes)
+    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command', pos=len(user_data['runcmd']))))
     cmd_pre = 'echo %s >> /data/command.json' % pre_json
-    cmd_post = 'echo %s >> /data/command.json' % post_json
     user_data['runcmd'].append(cmd_pre)
+    # COMMAND
     user_data['runcmd'].append(cmd)
+    # POST action (NOTE: double json.dumps to add escaped quotes)
+    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command', pos=len(user_data['runcmd']))))
+    cmd_post = 'echo %s >> /data/command.json' % post_json
     user_data['runcmd'].append(cmd_post)
 
 
