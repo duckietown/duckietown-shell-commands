@@ -4,16 +4,11 @@ import os
 import subprocess
 import threading
 import time
-import socket
-import platform
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
-
-from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, \
-     stop_container, remove_container, default_env, remove_if_running, \
-    continuously_monitor, get_remote_client, record_bag
 from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import continuously_monitor, get_remote_client, record_bag, remove_if_running, stop_container
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -35,7 +30,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         group = parser.add_argument_group('Basic')
         group.add_argument('--duckiebot_name', default=None,
-                            help="Name of the Duckiebot on which to perform evaluation")
+                           help="Name of the Duckiebot on which to perform evaluation")
         group.add_argument('--duckiebot_username', default="duckie",
                            help="The duckiebot username")
         group.add_argument('--image', dest='image_name',
@@ -75,42 +70,46 @@ class DTCommand(DTCommandAbs):
         # setup the fifos2 volume (requires pruning it if it's still hanging around from last time)
         try:
             client.volumes.prune()
-            fifo2_volume=client.volumes.create(name='fifos2')
+            fifo2_volume = client.volumes.create(name='fifos2')
         except Exception as e:
             dtslogger.warn("error creating volume: %s" % e)
-
+            raise
 
         duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
 
         duckiebot_client = get_remote_client(duckiebot_ip)
         try:
             duckiebot_containers = duckiebot_client.containers.list()
-            interface_container_found=False
+            interface_container_found = False
             for c in duckiebot_containers:
                 if 'duckiebot-interface' in c.name:
-                    interface_container_found=True
+                    interface_container_found = True
             if not interface_container_found:
                 dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
         except Exception as e:
-            dtslogger.warn("Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
-            
+            dtslogger.warn(
+                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
 
         # let's start building stuff for the "glue" node
-        glue_volumes =  {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'}}
-        glue_env = {'HOSTNAME':parsed.duckiebot_name,
-                    'DUCKIEBOT_NAME':parsed.duckiebot_name,
-                    'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip}
+        glue_volumes = {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'}}
+        glue_env = {
+            'HOSTNAME': parsed.duckiebot_name,
+            'DUCKIEBOT_NAME': parsed.duckiebot_name,
+            'ROS_MASTER_URI': 'http://%s:11311' % duckiebot_ip
+        }
 
         dtslogger.info("Running %s on localhost with environment vars: %s" %
                        (parsed.glue_node_image, glue_env))
-        params = {'image': parsed.glue_node_image,
-                  'name': glue_container_name,
-                  'network_mode': 'host',
-                  'privileged': True,
-                  'environment': glue_env,
-                  'detach': True,
-                  'tty': True,
-                  'volumes': glue_volumes}
+        params = {
+            'image': parsed.glue_node_image,
+            'name': glue_container_name,
+            'network_mode': 'host',
+            'privileged': True,
+            'environment': glue_env,
+            'detach': True,
+            'tty': True,
+            'volumes': glue_volumes
+        }
 
         # run the glue container
         glue_container = client.containers.run(**params)
@@ -126,7 +125,7 @@ class DTCommand(DTCommandAbs):
             if not os.path.exists(dockerfile):
                 msg = 'No Dockerfile'
                 raise Exception(msg)
-            tag='myimage'
+            tag = 'myimage'
             if parsed.no_cache:
                 cmd = ['docker', 'build', '--no-cache', '-t', tag, '-f', dockerfile]
             else:
@@ -138,30 +137,31 @@ class DTCommand(DTCommandAbs):
         else:
             image_name = parsed.image_name
 
-
         # start to build the agent stuff
-        agent_env = {'AIDONODE_DATA_IN':'/fifos/agent-in',
-                    'AIDONODE_DATA_OUT':'fifo:/fifos/agent-out'}
+        agent_env = {
+            'AIDONODE_DATA_IN': '/fifos/agent-in',
+            'AIDONODE_DATA_OUT': 'fifo:/fifos/agent-out'
+        }
 
-        agent_volumes = {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'},
-                         dir_fake_home: {'bind': '/data/config', 'mode': 'rw'}
-                         }
+        agent_volumes = {
+            fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'},
+            dir_fake_home: {'bind': '/data/config', 'mode': 'rw'}
+        }
 
-
-        params = {'image': image_name,
-                  'remove': True,
-                  'name': agent_container_name,
-                  'environment': agent_env,
-                  'detach': True,
-                  'tty': True,
-                  'volumes': agent_volumes}
+        params = {
+            'image': image_name,
+            'remove': True,
+            'name': agent_container_name,
+            'environment': agent_env,
+            'detach': True,
+            'tty': True,
+            'volumes': agent_volumes
+        }
 
         if parsed.debug:
             params['command'] = '/bin/bash'
             params['stdin_open'] = True
 
-
-        
         dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, agent_env))
         agent_container = client.containers.run(**params)
 
@@ -170,13 +170,15 @@ class DTCommand(DTCommandAbs):
             start_command_in_subprocess(attach_cmd)
 
         else:
-            monitor_thread = threading.Thread(target=continuously_monitor,args=(client, agent_container_name))
+            monitor_thread = threading.Thread(target=continuously_monitor, args=(client, agent_container_name))
             monitor_thread.start()
 
         duration = int(parsed.duration)
         # should we record a bag?
         if parsed.record_bag:
             bag_container = record_bag(parsed.hostname, duration)
+        else:
+            bag_container = None
 
         dtslogger.info("Running for %d s" % duration)
         time.sleep(duration)
@@ -196,10 +198,9 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
                           dir])
     sts = os.waitpid(p.pid, 0)
 
-
 # Runs everything on the Duckiebot
 
-#def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
+# def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
 #    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
 #    push_image_to_duckiebot(image_name, duckiebot_name)
 #    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
@@ -210,5 +211,3 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
 #    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
 #    time.sleep(duration)
 #    stop_container(evaluation_container)
-
-

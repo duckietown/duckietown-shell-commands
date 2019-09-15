@@ -1,10 +1,11 @@
 import argparse
 import datetime
 
-from dt_shell import DTCommandAbs, dtslogger
 from past.builtins import raw_input
+
+from dt_shell import DTCommandAbs, dtslogger
+from utils.docker_utils import bind_duckiebot_data_dir, default_env, get_remote_client, remove_if_running
 from utils.networking_utils import get_duckiebot_ip
-from utils.docker_utils import get_remote_client, bind_duckiebot_data_dir, default_env, remove_if_running
 
 
 class DTCommand(DTCommandAbs):
@@ -33,8 +34,8 @@ Calibrate:
 
         calibration_container_name = "extrinsic_calibration"
         validation_container_name = "extrinsic_calibration_validation"
-        remove_if_running(duckiebot_client,calibration_container_name)
-        remove_if_running(duckiebot_client,validation_container_name)
+        remove_if_running(duckiebot_client, calibration_container_name)
+        remove_if_running(duckiebot_client, validation_container_name)
 
         # need to temporarily pause the image streaming from the robot
         try:
@@ -61,15 +62,15 @@ Calibrate:
         start_command = 'rosrun {0} {1}'.format(ros_pkg, rosrun_params)
         dtslogger.info('Running command: {}'.format(start_command))
 
-        env = default_env(hostname,duckiebot_ip)
+        env = default_env(hostname, duckiebot_ip)
 
         duckiebot_client.containers.run(image=image,
-                                    name=calibration_container_name,
-                                    privileged=True,
-                                    network_mode='host',
-                                    volumes=bind_duckiebot_data_dir(),
-                                    command="/bin/bash -c '%s'" % start_command,
-                                    environment=env)
+                                        name=calibration_container_name,
+                                        privileged=True,
+                                        network_mode='host',
+                                        volumes=bind_duckiebot_data_dir(),
+                                        command="/bin/bash -c '%s'" % start_command,
+                                        environment=env)
 
         if not parsed_args.no_verification:
             raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format('*' * 20))
@@ -80,14 +81,13 @@ Calibrate:
             dtslogger.info('Running command: {}'.format(start_command))
 
             duckiebot_client.containers.run(image=image,
-                                    name=validation_container_name,
-                                    privileged=True,
-                                    network_mode='host',
-                                    volumes=bind_duckiebot_data_dir(),
-                                    command="/bin/bash -c '%s'" % start_command,
-                                    environment=env
+                                            name=validation_container_name,
+                                            privileged=True,
+                                            network_mode='host',
+                                            volumes=bind_duckiebot_data_dir(),
+                                            command="/bin/bash -c '%s'" % start_command,
+                                            environment=env
                                             )
-
 
         # restart the camera streaming
         try:

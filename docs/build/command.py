@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import argparse
 import getpass
 import os
@@ -16,7 +14,10 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
-IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
+# IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
+from utils.docker_utils import pull_image
+
+IMAGE = 'andreacensi/mcdp_books:daffy'
 
 class DTCommand(DTCommandAbs):
 
@@ -59,6 +60,8 @@ class DTCommand(DTCommandAbs):
         bookname = entries[0]
         src = os.path.join(bookdir, bookname)
 
+        pull_image(image)
+
         git_version = system_cmd_result(pwd, ['git', '--version']).strip()
         dtslogger.debug('git version: %s' % git_version)
 
@@ -100,6 +103,7 @@ class DTCommand(DTCommandAbs):
             os.makedirs(cache)
 
         cmd = ['docker', 'run',
+               '--pull=always',
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
                '-v', '%s:%s%s' % (pwd1, pwd1, flag),
                '-v', '%s:%s%s' % (cache, cache, flag),
