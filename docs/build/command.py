@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
             os.makedirs(cache)
 
         cmd = ['docker', 'run',
-               '--pull=always',
+               
                '-v', '%s:%s%s' % (gitdir, gitdir, flag),
                '-v', '%s:%s%s' % (pwd1, pwd1, flag),
                '-v', '%s:%s%s' % (cache, cache, flag),
