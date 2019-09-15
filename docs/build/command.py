@@ -4,20 +4,18 @@ import os
 import subprocess
 import sys
 
-from dt_shell import DTCommandAbs, UserError, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
+from utils.docker_utils import pull_image
 
 # image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ecc502de748fa936f4420980b2fa9f255250400bce32c9b20ad4d6d7bfc49ccf'
 # ok
 # image = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
-
 # IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
-
 # IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
-from utils.docker_utils import pull_image
-
 IMAGE = 'andreacensi/mcdp_books:daffy'
+
 
 class DTCommand(DTCommandAbs):
 

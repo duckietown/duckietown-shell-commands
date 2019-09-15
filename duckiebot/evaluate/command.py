@@ -8,7 +8,8 @@ import time
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import continuously_monitor, get_remote_client, record_bag, remove_if_running, stop_container
+from utils.docker_utils import (continuously_monitor, get_remote_client, record_bag, remove_if_running, stop_container,
+                                pull_image)
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -100,6 +101,8 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info("Running %s on localhost with environment vars: %s" %
                        (parsed.glue_node_image, glue_env))
+
+        pull_image(parsed.glue_node_image)
         params = {
             'image': parsed.glue_node_image,
             'name': glue_container_name,

@@ -47,8 +47,8 @@ Calibrate:
                 dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
                 exit()
         except Exception as e:
-            dtslogger.warn(
-                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
+            msg = "Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e
+            dtslogger.warn(msg)
 
         # is the raw imagery being published?
         try:
