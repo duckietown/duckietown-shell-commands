@@ -70,7 +70,7 @@ def run_gui_controller(hostname, image):
         image = "duckietown/rpi-duckiebot-base:master19-no-arm"
         cmd = "python misc/virtualJoy/virtualJoy.py %s" % hostname
     elif 'daffy' in image:
-        image = "duckietown/dt-core:daffy"
+        image = "duckietown/dt-core:daffy-amd64"
         cmd = "roslaunch virtual_joystick virtual_joystick_gui.launch veh:=%s" % hostname
 
 
