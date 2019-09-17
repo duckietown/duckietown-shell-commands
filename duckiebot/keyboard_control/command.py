@@ -55,7 +55,7 @@ def run_gui_controller(hostname, image):
     p = platform.system().lower()
     if 'darwin' in p:
         dtslogger.warn("We can try but running the joystick gui on MacOSx is not expected to work...")
-        env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
+        env['DISPLAY'] = 'host.docker.internal:0' 
         volumes = {
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
         }

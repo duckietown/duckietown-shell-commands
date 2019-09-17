@@ -82,7 +82,7 @@ Calibrate:
 
         p = platform.system().lower()
         if 'darwin' in p:
-            env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
+            env['DISPLAY'] = 'host.docker.internal:0' 
             volumes = {
                 '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
             }
