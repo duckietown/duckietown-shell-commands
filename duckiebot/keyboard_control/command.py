@@ -112,7 +112,7 @@ def run_cli_controller(hostname,image):
         image = "duckietown/rpi-duckiebot-base:master19" # run on robot
         cmd = "python misc/virtualJoy/joy_cli.py %s" % hostname
     elif 'daffy' in image:
-        image = "duckietown/dt-core:daffy-arm32v7"
+        image = "duckietown/dt-core:daffy"
         cmd = "roslaunch virtual_joystick virtual_joystick_cli.launch veh:=%s" % hostname
 
     params = {'image': image,
