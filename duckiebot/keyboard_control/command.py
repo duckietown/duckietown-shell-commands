@@ -55,7 +55,7 @@ def run_gui_controller(hostname, image):
     p = platform.system().lower()
     if 'darwin' in p:
         dtslogger.warn("We can try but running the joystick gui on MacOSx is not expected to work...")
-        env['DISPLAY'] = '%s:0' % socket.gethostbyname(socket.gethostname())
+        env['DISPLAY'] = 'host.docker.internal:0' 
         volumes = {
             '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
         }
@@ -70,7 +70,7 @@ def run_gui_controller(hostname, image):
         image = "duckietown/rpi-duckiebot-base:master19-no-arm"
         cmd = "python misc/virtualJoy/virtualJoy.py %s" % hostname
     elif 'daffy' in image:
-        image = "duckietown/dt-core:daffy"
+        image = "duckietown/dt-core:daffy-amd64"
         cmd = "roslaunch virtual_joystick virtual_joystick_gui.launch veh:=%s" % hostname
 
 
@@ -112,7 +112,7 @@ def run_cli_controller(hostname,image):
         image = "duckietown/rpi-duckiebot-base:master19" # run on robot
         cmd = "python misc/virtualJoy/joy_cli.py %s" % hostname
     elif 'daffy' in image:
-        image = "duckietown/dt-core:daffy-arm32v7"
+        image = "duckietown/dt-core:daffy"
         cmd = "roslaunch virtual_joystick virtual_joystick_cli.launch veh:=%s" % hostname
 
     params = {'image': image,
