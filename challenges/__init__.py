@@ -1,4 +1,5 @@
-from dt_shell import UserError, OtherVersions
+from dt_shell import UserError
+from dt_shell.main import OtherVersions
 from duckietown_challenges import __version__
 
 version = tuple(map(int, __version__.split('.')))
