@@ -16,7 +16,8 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # IMAGE = 'andreacensi/mcdp_books:duckuments@sha256:ae2fcdbb8ce409e4817ed74c67b04bb91cd14ca96bed887e75e5275fa2efc933'
 
-IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
+# IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
+IMAGE = 'andreacensi/mcdp_books:daffy'
 
 class DTCommand(DTCommandAbs):
 
