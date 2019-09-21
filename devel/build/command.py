@@ -105,6 +105,9 @@ class DTCommand(DTCommandAbs):
                     '{{json .}}'
         ], get_output=True, print_output=False)
         epoint = json.loads(epoint[0])
+        if 'ServerErrors' in epoint:
+            dtslogger.error('\n'.join(epoint['ServerErrors']))
+            return
         epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # check if there is a watchtower instance running on the endpoint
