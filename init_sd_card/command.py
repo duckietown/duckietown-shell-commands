@@ -88,6 +88,7 @@ PHASE_DONE = 'done'
 
 SD_CARD_DEVICE = ""
 DEFAULT_CONFIGURATION = "master19"
+DEFAULT_ROBOT_TYPE = "duckiebot"
 
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
@@ -147,6 +148,10 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--configuration', dest='configuration', default=DEFAULT_CONFIGURATION,
                             help='Which configuration of Docker stacks to flash')
 
+        parser.add_argument('--type', dest='robot_type', default=None,
+                            choices=['duckiebot', 'watchtower'],
+                            help='Which type of robot we are setting up')
+
         parsed = parser.parse_args(args=args)
 
         global SD_CARD_DEVICE
@@ -202,6 +207,16 @@ You can use --steps to run only some of those:
 
         if parsed.experimental:
             dtslogger.info('Running experimental mode!')
+
+        if parsed.robot_type is None:
+            while True:
+                r = input('You did not specify a robot type. Default is "{}". Do you confirm? [y]'.format(DEFAULT_ROBOT_TYPE))
+                if r.strip() in ['', 'y', 'Y', 'yes', 'YES', 'yup', 'YUP']:
+                    parsed.robot_type = DEFAULT_ROBOT_TYPE
+                    break;
+                elif r.strip() in ['', 'n', 'N', 'no', 'NO', 'nope', 'NOPE']:
+                    dtslogger.info('Please retry while specifying a robot type. Bye bye!')
+                    exit(1)
 
         configuration = parsed.configuration
         try:
@@ -515,6 +530,7 @@ The files in this directory:
     add_file(path='/data/stats/init_sd_card/parameters/country', content=str(parsed.country))
     add_file(path='/data/stats/init_sd_card/parameters/wifi', content=str(parsed.wifi))
     add_file(path='/data/stats/init_sd_card/parameters/ethz_username', content=str(parsed.ethz_username))
+    add_file(path='/data/stats/init_sd_card/parameters/robot_type', content=str(parsed.robot_type))
 
     add_file(path='/data/stats/MAC/README.txt', content="""
 
