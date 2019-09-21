@@ -1,7 +1,4 @@
-from dt_shell import DTCommandAbs, dtslogger
-
-
-from dt_shell import DTShell
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.commands_ import _get_commands
 
 

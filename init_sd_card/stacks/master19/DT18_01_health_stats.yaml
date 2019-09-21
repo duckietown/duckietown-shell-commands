@@ -6,7 +6,7 @@ services:
     restart: always
     network_mode: "host"
     volumes:
-    - "/data:/data"
+      - "/data:/data"
     working_dir: /data
 
   rpi-health:
@@ -14,24 +14,24 @@ services:
     restart: always
     network_mode: "host"
     devices:
-    - "/dev/vchiq:/dev/vchiq"
+      - "/dev/vchiq:/dev/vchiq"
 
   rpi-duckiebot-online:
     image: duckietown/rpi-duckiebot-online:master18
     restart: always
     network_mode: "host"
     volumes:
-    - "/data:/data"
-    - "/secrets:/secrets"
-    - "/var/local:/var/local"
+      - "/data:/data"
+      - "/secrets:/secrets"
+      - "/var/local:/var/local"
 
   rpi-duckiebot-loader:
     image: duckietown/rpi-duckiebot-loader:master18
     restart: always
     network_mode: "host"
     volumes:
-    - "/var/run/docker.sock:/var/run/docker.sock"
-    - "/data:/data"
-    - "/secrets:/secrets"
-    - "/var/local:/var/local"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/data:/data"
+      - "/secrets:/secrets"
+      - "/var/local:/var/local"
 

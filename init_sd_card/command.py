@@ -1,5 +1,3 @@
-
-
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
@@ -121,7 +119,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--stacks-load",
             dest="stacks_to_load",
-            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base,DT18_06_dashboard",
+            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base,"
+            "DT18_06_dashboard",
             help="which stacks to load",
         )
         parser.add_argument(
@@ -943,7 +942,6 @@ Host {HOSTNAME}
 
 
 def copy_default_calibrations(add_file):
-
     kin_calib = get_resource("calib_kin_default.yaml")
     ext_cam_calib = get_resource("calib_cam_ext_default.yaml")
     int_cam_calib = get_resource("calib_cam_int_default.yaml")

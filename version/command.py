@@ -1,7 +1,4 @@
-from dt_shell import DTCommandAbs, __version__
-
-
-from dt_shell import DTShell
+from dt_shell import __version__, DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):

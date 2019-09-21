@@ -11,7 +11,7 @@ except ImportError:
     pass
 
 import glob
-from os.path import dirname, basename, isdir
+from os.path import basename, dirname, isdir
 
 modules = glob.glob(dirname(__file__) + "/*")
 

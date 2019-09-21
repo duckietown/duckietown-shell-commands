@@ -1,17 +1,17 @@
 # Works on DB17 hardware (adafruit)
 
-# TODO: remove the adafruit driver from here, have it launch in the 1-drivers/actuation-adafruit.yaml 
+# TODO: remove the adafruit driver from here, have it launch in the 1-drivers/actuation-adafruit.yaml
 
 version: '3'
 services:
 
-    joystick:
-        image: duckietown/rpi-duckiebot-joystick-demo:master18
-        restart: unless-stopped
-        network_mode: host
+  joystick:
+    image: duckietown/rpi-duckiebot-joystick-demo:master18
+    restart: unless-stopped
+    network_mode: host
 
-        environment:
-          DISABLE_CONTRACTS: 1
-        devices:
-        - "/dev/input/js0:/dev/input/js0"
-        - "/dev/i2c-1:/dev/i2c-1"
+    environment:
+      DISABLE_CONTRACTS: 1
+    devices:
+      - "/dev/input/js0:/dev/input/js0"
+      - "/dev/i2c-1:/dev/i2c-1"

@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 
 from dt_shell import UserError
-from duckietown_challenges.rest import NotAuthorized, ServerIsDown, NotFound
+from duckietown_challenges.rest import NotAuthorized, NotFound, ServerIsDown
 
 
 @contextmanager

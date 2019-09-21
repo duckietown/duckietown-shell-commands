@@ -1,16 +1,15 @@
 import argparse
 import os
 import platform
-import subprocess
 import socket
-import docker
-from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.env_checks import check_docker_environment
-from utils.networking_utils import get_duckiebot_ip
-from utils.docker_utils import remove_if_running
-from utils.cli_utils import start_command_in_subprocess
+import subprocess
 
-from dt_shell import DTShell
+import docker
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.env_checks import check_docker_environment
+from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import remove_if_running
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):

@@ -1,6 +1,6 @@
 version: '3'
 services:
-  
+
   duckiebot-interface:
     image: duckietown/dt-duckiebot-interface:daffy
     restart: unless-stopped
@@ -9,7 +9,7 @@ services:
     environment:
       DISABLE_CONTRACTS: 1
     volumes:
-    - /data:/data
+      - /data:/data
 
   car-interface:
     image: duckietown/dt-car-interface:daffy
@@ -19,4 +19,4 @@ services:
     environment:
       DISABLE_CONTRACTS: 1
     volumes:
-    - /data:/data
+      - /data:/data

@@ -1,10 +1,7 @@
 import argparse
 
 from challenges import wrap_server_operations
-from dt_shell import DTCommandAbs, UserError
-
-
-from dt_shell import DTShell
+from dt_shell import DTCommandAbs, DTShell, UserError
 
 
 class DTCommand(DTCommandAbs):

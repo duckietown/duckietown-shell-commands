@@ -3,7 +3,7 @@
 import glob
 
 # import subcommands
-from os.path import dirname, basename, isdir
+from os.path import basename, dirname, isdir
 
 from dt_shell.utils import format_exception
 

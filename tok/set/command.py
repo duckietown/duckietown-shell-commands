@@ -1,5 +1,3 @@
-
-
 import webbrowser
 
 import termcolor
@@ -9,7 +7,6 @@ from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
 token_dt1_config_key = "token_dt1"
-
 
 from dt_shell import DTShell
 

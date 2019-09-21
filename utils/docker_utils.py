@@ -7,11 +7,11 @@ import time
 import traceback
 from os.path import expanduser
 
-import docker
 import six
+
+import docker
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 

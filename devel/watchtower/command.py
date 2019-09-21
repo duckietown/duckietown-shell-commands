@@ -9,12 +9,10 @@ WATCHTOWER_IMAGE = "v2tec/watchtower"
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 VALID_COMMANDS = ["stop", "start", "status"]
 
-
 from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Manages a Docker watchtower instance"
 
     @staticmethod

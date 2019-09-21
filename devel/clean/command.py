@@ -1,18 +1,17 @@
-import os
 import argparse
-import subprocess
 import io
+import os
+import subprocess
+
 from dt_shell import DTCommandAbs, dtslogger
 
 DEFAULT_ARCH = "arm32v7"
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 
-
 from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Removes the Docker images relative to the current project"
 
     @staticmethod

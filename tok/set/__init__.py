@@ -12,7 +12,7 @@ except ImportError:
 import glob
 
 # import subcommands
-from os.path import dirname, basename, isdir
+from os.path import basename, dirname, isdir
 
 modules = glob.glob(dirname(__file__) + "/*")
 

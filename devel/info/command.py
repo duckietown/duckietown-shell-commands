@@ -1,7 +1,9 @@
-import os
 import argparse
+import os
 import subprocess
+
 from termcolor import colored
+
 from dt_shell import DTCommandAbs
 
 PROJECT_INFO = """
@@ -18,7 +20,6 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Shows information about the current project"
 
     REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"]}

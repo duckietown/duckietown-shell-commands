@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     network_mode: host
     devices:
-    - "/dev/vchiq:/dev/vchiq"
+      - "/dev/vchiq:/dev/vchiq"
     environment:
       DISABLE_CONTRACTS: 1
 

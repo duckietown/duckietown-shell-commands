@@ -1,19 +1,19 @@
 version: '3'
 services:
 
-# these two are contained in base and therefore redundant
-#  kinetic-ros-base-xenial:
-#    image: arm32v7/ros:kinetic-ros-base-xenial
-#  rpi-ros-kinetic-base:
-#    image: duckietown/rpi-ros-kinetic-base:master19
+  # these two are contained in base and therefore redundant
+  #  kinetic-ros-base-xenial:
+  #    image: arm32v7/ros:kinetic-ros-base-xenial
+  #  rpi-ros-kinetic-base:
+  #    image: duckietown/rpi-ros-kinetic-base:master19
 
 
   rpi-duckiebot-base:
     image: duckietown/rpi-duckiebot-base:master19
 
-# now launchable through shell as a demo so not needed as a separate image
-#  rpi-duckiebot-ros-picam:
-#    image: duckietown/rpi-duckiebot-ros-picam:master18
+  # now launchable through shell as a demo so not needed as a separate image
+  #  rpi-duckiebot-ros-picam:
+  #    image: duckietown/rpi-duckiebot-ros-picam:master18
 
 
   rpi-duckiebot-web_video_server:

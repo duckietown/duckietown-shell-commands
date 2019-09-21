@@ -1,17 +1,14 @@
 import argparse
-import platform
-import subprocess
 import os
+import platform
 import socket
+import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.networking_utils import get_duckiebot_ip
 from utils.docker_utils import get_remote_client, remove_if_running
-
-
-from dt_shell import DTShell
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
@@ -73,8 +70,8 @@ Calibrate:
                     raw_imagery_found = True
             if not raw_imagery_found:
                 dtslogger.error(
-                    "The  demo_camera is not running on the duckiebot - please run `dts duckiebot demo --demo_name camera --duckiebot_name %s"
-                    % hostname
+                    "The  demo_camera is not running on the duckiebot - please run `dts duckiebot demo --demo_name "
+                    "camera --duckiebot_name %s" % hostname
                 )
                 exit()
 

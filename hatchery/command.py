@@ -1,13 +1,7 @@
+from os.path import dirname, join, realpath
 
-
-from os.path import join, realpath, dirname
-
-from dt_shell import DTCommandAbs
-
+from dt_shell import DTCommandAbs, DTShell
 from utils.cli_utils import start_command_in_subprocess
-
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):

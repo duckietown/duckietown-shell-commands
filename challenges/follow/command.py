@@ -20,7 +20,6 @@ To follow the fate of the submission, use:
 
 """
 
-
 from dt_shell import DTShell
 
 
@@ -128,7 +127,6 @@ def write_status_line(x):
 
 
 def color_status(x: str):
-
     status2color = {
         "failed": dict(color="red", on_color=None, attrs=None),
         "error": dict(color="red", on_color=None, attrs=None),

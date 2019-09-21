@@ -1,12 +1,9 @@
 import termcolor
 
 from challenges import wrap_server_operations
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, DTShell
 from duckietown_challenges.rest_methods import dtserver_get_user_submissions
 from duckietown_challenges.utils import pad_to_screen_length
-
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):

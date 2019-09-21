@@ -1,17 +1,16 @@
-import os
 import argparse
+import os
 import subprocess
+
 from dt_shell import DTCommandAbs, dtslogger
 
 DEFAULT_ARCH = "arm32v7"
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 
-
 from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Push the images relative to the current project"
 
     @staticmethod

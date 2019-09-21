@@ -1,7 +1,7 @@
 import sys
 
 import dt_shell
-from dt_shell import UserError, dtslogger
+from dt_shell import dtslogger, UserError
 
 if sys.version_info < (3, 6):
     msg = (
@@ -9,7 +9,6 @@ if sys.version_info < (3, 6):
         % str(sys.version)
     )
     raise UserError(msg)
-
 
 min_duckietown_shell = ".".join(["4", "0", "25"])
 duckietown_shell_commands_version = "4.0.43"

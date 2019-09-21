@@ -1,24 +1,24 @@
 version: '3'
 services:
-    wifi:
-        image: cjimti/iotwifi
-        restart: unless-stopped
-        privileged: true
-        network_mode: "host"
-        volumes:
-            - /var/local/wificfg.json:/cfg/wificfg.json
-            - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
-    portainer:
-        image: portainer/portainer:linux-arm
-        command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
-        restart: unless-stopped
-        network_mode: "host"
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-    watchtower:
-        image: v2tec/watchtower:armhf-latest
-        command: ["--cleanup", "--interval", "15"]
-        restart: unless-stopped
-        network_mode: "host"
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
+  wifi:
+    image: cjimti/iotwifi
+    restart: unless-stopped
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - /var/local/wificfg.json:/cfg/wificfg.json
+      - /etc/wpa_supplicant/wpa_supplicant.conf:/etc/wpa_supplicant/wpa_supplicant.conf
+  portainer:
+    image: portainer/portainer:linux-arm
+    command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  watchtower:
+    image: v2tec/watchtower:armhf-latest
+    command: ["--cleanup", "--interval", "15"]
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

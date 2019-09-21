@@ -19,6 +19,8 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 # IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
 IMAGE = 'andreacensi/mcdp_books:daffy'
 from dt_shell import DTShell
+
+
 class DTCommand(DTCommandAbs):
 
     @staticmethod

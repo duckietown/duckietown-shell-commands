@@ -1,18 +1,16 @@
 import argparse
 import datetime
 
-from dt_shell import DTCommandAbs, dtslogger
 from past.builtins import raw_input
-from utils.networking_utils import get_duckiebot_ip
+
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    get_remote_client,
     bind_duckiebot_data_dir,
     default_env,
+    get_remote_client,
     remove_if_running,
 )
-
-
-from dt_shell import DTShell
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):

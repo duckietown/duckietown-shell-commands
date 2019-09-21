@@ -17,7 +17,11 @@ from duckietown_challenges.cmd_submit_build import (
     get_complete_tag,
     parse_complete_tag,
 )
-from duckietown_challenges.rest_methods import (dtserver_challenge_define, get_registry_info, RegistryInfo)
+from duckietown_challenges.rest_methods import (
+    dtserver_challenge_define,
+    get_registry_info,
+    RegistryInfo,
+)
 
 
 class DTCommand(DTCommandAbs):

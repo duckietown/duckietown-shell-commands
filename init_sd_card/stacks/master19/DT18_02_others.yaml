@@ -1,7 +1,7 @@
 version: '3'
 services:
 
-    rpi-python-picamera:
-        image: duckietown/rpi-python-picamera:master18
-        network_mode: host
+  rpi-python-picamera:
+    image: duckietown/rpi-python-picamera:master18
+    network_mode: host
 

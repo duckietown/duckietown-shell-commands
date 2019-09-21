@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 
-from dt_shell import dtslogger, DTCommandAbs, UserError
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 usage = """
@@ -50,7 +50,6 @@ usage = """
         
 
 """
-
 
 from dt_shell import DTShell
 
