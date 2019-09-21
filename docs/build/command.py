@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from dt_shell import DTCommandAbs, UserError, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
@@ -18,11 +18,11 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
 IMAGE = 'andreacensi/mcdp_books:daffy'
-
+from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
 
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
 
         parser = argparse.ArgumentParser()
 

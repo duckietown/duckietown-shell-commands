@@ -7,15 +7,15 @@ from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
         from duckietown_challenges.rest_methods import dtserver_auth
+
         token = shell.get_dt1_token()
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--cmd', required=True)
-        parser.add_argument('--impersonate', default=None)
+        parser.add_argument("--cmd", required=True)
+        parser.add_argument("--impersonate", default=None)
 
         parsed = parser.parse_args(args)
 
@@ -24,18 +24,18 @@ class DTCommand(DTCommandAbs):
         with wrap_server_operations():
             res = dtserver_auth(token=token, cmd=cmd, impersonate=parsed.impersonate)
 
-        results: List[dict] = res['results']
+        results: List[dict] = res["results"]
         shell.sprint(json.dumps(results, indent=2))
         for result in results:
-            ok = result['ok']
-            msg = result.get('msg')
-            line = result.get('line')
+            ok = result["ok"]
+            msg = result.get("msg")
+            line = result.get("line")
             if msg is None:
-                msg = ''
-            qr = result.get('query_result')
+                msg = ""
+            qr = result.get("query_result")
 
-            shell.sprint('query: %s' % line)
-            s = 'OK' if ok else "ERR"
-            shell.sprint('processed: %s' % s)
-            shell.sprint('   result: %s' % qr)
-            shell.sprint('message: %s' % msg)
+            shell.sprint("query: %s" % line)
+            s = "OK" if ok else "ERR"
+            shell.sprint("processed: %s" % s)
+            shell.sprint("   result: %s" % qr)
+            shell.sprint("message: %s" % msg)

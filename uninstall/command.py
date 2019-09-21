@@ -1,13 +1,16 @@
-from __future__ import print_function
+
 
 from dt_shell import DTCommandAbs, dtslogger
 
 
+from dt_shell import DTShell
+
+
 class DTCommand(DTCommandAbs):
-    help = 'Uninstalls a command.'
+    help = "Uninstalls a command."
 
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
         # get installed commands
         installed = set(shell.commands.keys())
         # get list of commands to uninstall / not-uninstallable
@@ -17,21 +20,21 @@ class DTCommand(DTCommandAbs):
         need_reload = False
         # not uninstallable
         for cmd in not_uninstallable:
-            dtslogger.warn('The command `%s` cannot be found.' % cmd)
+            dtslogger.warn("The command `%s` cannot be found." % cmd)
         # uninstall
         for cmd in to_uninstall:
-            dtslogger.info('Removing command `%s`...' % cmd)
+            dtslogger.info("Removing command `%s`..." % cmd)
             shell.disable_command(cmd)
             need_reload = True
-            dtslogger.info('Successfully completed calibration!')
-            print('Done!')
+            dtslogger.info("Successfully completed calibration!")
+            print("Done!")
         # update list of commands
         if need_reload:
-            print('Updating index...')
+            print("Updating index...")
             shell.reload_commands()
-            print('Done!')
+            print("Done!")
         else:
-            print('Nothing to do.')
+            print("Nothing to do.")
         return True
 
     @staticmethod

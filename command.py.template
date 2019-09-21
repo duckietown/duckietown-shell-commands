@@ -8,7 +8,7 @@ class DTCommand(DTCommandAbs):
     # commands = <read-only> a dictionary of subcommands
 
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
         # this function will be invoked when the user presses the [Return] key and submits the command
         #
         #   shell   is the instance of DTShell hosting this command

@@ -9,8 +9,8 @@ def wrap_server_operations():
     try:
         yield
     except ServerIsDown as e:
-        msg = 'Server is down; try again later.'
-        msg += f'\n\n{e}'
+        msg = "Server is down; try again later."
+        msg += f"\n\n{e}"
         raise UserError(msg) from None
 
     except NotAuthorized as e:

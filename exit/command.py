@@ -1,9 +1,11 @@
 from dt_shell import DTCommandAbs
 
 
-class DTCommand(DTCommandAbs):
+from dt_shell import DTShell
 
+
+class DTCommand(DTCommandAbs):
     @staticmethod
-    def command(shell, args):
-        print('Bye bye!')
+    def command(shell: DTShell, args):
+        print("Bye bye!")
         exit()

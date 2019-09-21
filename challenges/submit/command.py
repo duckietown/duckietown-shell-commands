@@ -10,19 +10,25 @@ from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
 from duckietown_challenges import get_duckietown_server_url
 from duckietown_challenges.cmd_submit_build import submission_build
-from duckietown_challenges.rest_methods import get_registry_info, dtserver_submit2, dtserver_get_compatible_challenges
+from duckietown_challenges.rest_methods import (
+    get_registry_info,
+    dtserver_submit2,
+    dtserver_get_compatible_challenges,
+)
 from duckietown_challenges.submission_read import read_submission_info
 
 
-class DTCommand(DTCommandAbs):
+from dt_shell import DTShell
 
+
+class DTCommand(DTCommandAbs):
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
         check_docker_environment()
 
         token = shell.get_dt1_token()
 
-        prog = 'dts challenges submit'
+        prog = "dts challenges submit"
         usage = """
         
 
@@ -57,42 +63,61 @@ Submission with an arbitrary JSON payload:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         group = parser.add_argument_group("Submission identification")
-        parser.add_argument('--challenge',
-                            help="Specify challenge name.", default=None)
-        group.add_argument('--user-label', dest='message', default=None, type=str,
-                           help="Submission message")
-        group.add_argument('--user-meta', dest='metadata', default=None, type=str,
-                           help="Custom JSON structure to attach to the submission")
+        parser.add_argument("--challenge", help="Specify challenge name.", default=None)
+        group.add_argument(
+            "--user-label",
+            dest="message",
+            default=None,
+            type=str,
+            help="Submission message",
+        )
+        group.add_argument(
+            "--user-meta",
+            dest="metadata",
+            default=None,
+            type=str,
+            help="Custom JSON structure to attach to the submission",
+        )
 
         group = parser.add_argument_group("Building settings.")
 
-        group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
-        group.add_argument('--impersonate', type=int, default=None)
+        group.add_argument(
+            "--no-cache", dest="no_cache", action="store_true", default=False
+        )
+        group.add_argument("--impersonate", type=int, default=None)
 
-        group.add_argument('-C', dest='cwd', default=None, help='Base directory')
+        group.add_argument("-C", dest="cwd", default=None, help="Base directory")
 
         parsed = parser.parse_args(args)
         impersonate = parsed.impersonate
         if parsed.cwd is not None:
-            dtslogger.info('Changing to directory %s' % parsed.cwd)
+            dtslogger.info("Changing to directory %s" % parsed.cwd)
             os.chdir(parsed.cwd)
 
-        if not os.path.exists('submission.yaml'):
-            msg = 'Expected a submission.yaml file in %s.' % (os.path.realpath(os.getcwd()))
+        if not os.path.exists("submission.yaml"):
+            msg = "Expected a submission.yaml file in %s." % (
+                os.path.realpath(os.getcwd())
+            )
             raise UserError(msg)
 
-        sub_info = read_submission_info('.')
+        sub_info = read_submission_info(".")
 
         with wrap_server_operations():
             ri = get_registry_info(token=token, impersonate=impersonate)
 
             registry = ri.registry
 
-            compat = dtserver_get_compatible_challenges(token=token, impersonate=impersonate,
-                                                        submission_protocols=sub_info.protocols)
+            compat = dtserver_get_compatible_challenges(
+                token=token,
+                impersonate=impersonate,
+                submission_protocols=sub_info.protocols,
+            )
             if not compat.compatible:
-                msg = 'There are no compatible challenges with protocols %s,\n' \
-                      ' or you might not have the necessary permissions.' % sub_info.protocols
+                msg = (
+                    "There are no compatible challenges with protocols %s,\n"
+                    " or you might not have the necessary permissions."
+                    % sub_info.protocols
+                )
                 raise UserError(msg)
 
             if parsed.message:
@@ -100,56 +125,73 @@ Submission with an arbitrary JSON payload:
             if parsed.metadata:
                 sub_info.user_metadata = json.loads(parsed.metadata)
             if parsed.challenge:
-                sub_info.challenge_names = parsed.challenge.split(',')
+                sub_info.challenge_names = parsed.challenge.split(",")
             if sub_info.challenge_names is None:
                 sub_info.challenge_names = compat.compatible
 
-            print('I will submit to the challenges %s' % sub_info.challenge_names)
+            print("I will submit to the challenges %s" % sub_info.challenge_names)
 
             for c in sub_info.challenge_names:
                 if not c in compat.available_submit:
-                    msg = 'The challenge "%s" does not exist among %s.' % (c, list(compat.available_submit))
+                    msg = 'The challenge "%s" does not exist among %s.' % (
+                        c,
+                        list(compat.available_submit),
+                    )
                     raise UserError(msg)
                 if not c in compat.compatible:
-                    msg = 'The challenge "%s" is not compatible with protocols %s .' % (c, sub_info.protocols)
+                    msg = 'The challenge "%s" is not compatible with protocols %s .' % (
+                        c,
+                        sub_info.protocols,
+                    )
                     raise UserError(msg)
             username = get_dockerhub_username(shell)
 
-            print('')
-            print('')
-            br = submission_build(username=username, registry=registry,
-                                  no_cache=parsed.no_cache)
+            print("")
+            print("")
+            br = submission_build(
+                username=username, registry=registry, no_cache=parsed.no_cache
+            )
 
-            data = {'image': dataclasses.asdict(br),
-                    'user_label': sub_info.user_label,
-                    'user_payload': sub_info.user_metadata,
-                    'protocols': sub_info.protocols}
+            data = {
+                "image": dataclasses.asdict(br),
+                "user_label": sub_info.user_label,
+                "user_payload": sub_info.user_metadata,
+                "protocols": sub_info.protocols,
+            }
 
-            data = dtserver_submit2(token=token,
-                                    challenges=sub_info.challenge_names, data=data,
-                                    impersonate=impersonate)
+            data = dtserver_submit2(
+                token=token,
+                challenges=sub_info.challenge_names,
+                data=data,
+                impersonate=impersonate,
+            )
 
             # print('obtained:\n%s' % json.dumps(data, indent=2))
-            component_id = data['component_id']
-            submissions = data['submissions']
+            component_id = data["component_id"]
+            submissions = data["submissions"]
             # url_component = href(get_duckietown_server_url() + '/humans/components/%s' % component_id)
 
-            msg = f'''
+            msg = f"""
     
     Successfully created component.
     
     This component has been entered in {len(submissions)} challenge(s).
     
-            '''
+            """
 
             for challenge_name, sub_info in submissions.items():
-                submission_id = sub_info['submission_id']
-                url_submission = href(get_duckietown_server_url() + '/humans/submissions/%s' % submission_id)
-                challenge_title = sub_info['challenge']['title']
-                submission_id_color = termcolor.colored(submission_id, 'cyan')
-                P = dark('$')
-                head = bright(f'## Challenge {challenge_name} - {challenge_title}')
-                msg += '\n\n' + f'''
+                submission_id = sub_info["submission_id"]
+                url_submission = href(
+                    get_duckietown_server_url()
+                    + "/humans/submissions/%s" % submission_id
+                )
+                challenge_title = sub_info["challenge"]["title"]
+                submission_id_color = termcolor.colored(submission_id, "cyan")
+                P = dark("$")
+                head = bright(f"## Challenge {challenge_name} - {challenge_title}")
+                msg += (
+                    "\n\n"
+                    + f"""
                 
     {head}
     
@@ -165,26 +207,28 @@ Submission with an arbitrary JSON payload:
     
         {P} dts challenges evaluator --submission {submission_id_color}
         
-    '''.strip()
-                manual = href('http://docs.duckietown.org/DT19/AIDO/out/')
-                msg += f'''
+    """.strip()
+                )
+                manual = href("http://docs.duckietown.org/DT19/AIDO/out/")
+                msg += f"""
     
     For more information, see the manual at {manual}
-    '''
+    """
 
             shell.sprint(msg)
 
 
 def bright(x):
-    return termcolor.colored(x, 'blue')
+    return termcolor.colored(x, "blue")
 
 
 def dark(x):
-    return termcolor.colored(x, attrs=['dark'])
+    return termcolor.colored(x, attrs=["dark"])
 
 
 def href(x):
-    return termcolor.colored(x, 'blue', attrs=['underline'])
+    return termcolor.colored(x, "blue", attrs=["underline"])
+
 
 # class CouldNotReadInfo(Exception):
 #     pass

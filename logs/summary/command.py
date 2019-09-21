@@ -1,8 +1,10 @@
 from dt_shell import DTCommandAbs
 
 
-class DTCommand(DTCommandAbs):
+from dt_shell import DTShell
 
+
+class DTCommand(DTCommandAbs):
     @staticmethod
-    def command(shell, args):
+    def command(shell: DTShell, args):
         pass

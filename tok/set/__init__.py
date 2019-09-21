@@ -4,11 +4,13 @@
 
 # import current command
 try:
-    from .command import *
+    # noinspection PyUnresolvedReferences
+    from .command import DTCommand
 except ImportError:
     pass
 
 import glob
+
 # import subcommands
 from os.path import dirname, basename, isdir
 
@@ -17,6 +19,6 @@ modules = glob.glob(dirname(__file__) + "/*")
 # load submodules
 for mod in [m for m in modules if isdir(m)]:
     try:
-        exec ('import %s' % basename(mod))
+        exec("import %s" % basename(mod))
     except ImportError:
         pass

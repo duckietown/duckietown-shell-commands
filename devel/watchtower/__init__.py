@@ -4,7 +4,9 @@
 
 # import current command
 try:
-    from .command import *
+    # noinspection PyUnresolvedReferences
+    from .command import DTCommand
+
 except ImportError:
     pass
 
@@ -16,6 +18,6 @@ modules = glob.glob(dirname(__file__) + "/*")
 # load submodules
 for mod in [m for m in modules if isdir(m)]:
     try:
-        exec ('from .%s import *' % basename(mod))
+        exec("from .%s import *" % basename(mod))
     except ImportError:
         pass
