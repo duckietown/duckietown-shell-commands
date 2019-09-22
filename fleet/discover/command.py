@@ -114,6 +114,7 @@ class DiscoverListener:
             data_plain.append(row_plain)
 
         # print table
+        print("NOTE: Only devices flashed using duckietown-shell-commands v4.1.0+ are supported.\n")
         print(format_matrix(
             header,
             data,
