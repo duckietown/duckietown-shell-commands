@@ -23,16 +23,18 @@ users:
 package_upgrade: false
 
 write_files:
-  - content: |
+  - path: /etc/network/interfaces.d/wlan0
+    content: |
       allow-hotplug wlan0
       iface wlan0 inet dhcp
-    path: /etc/network/interfaces.d/wlan0
 
-  - content: |
+  - path: /etc/modules
+    content: |
       i2c-bcm2708
       i2c-dev
-    path: /etc/modules
-  - content: |
+
+  - path: /etc/systemd/system/docker-tcp.socket
+    content: |
       [Unit]
       Description=Docker Socket for the API
 
@@ -43,7 +45,6 @@ write_files:
 
       [Install]
       WantedBy=sockets.target
-    path: /etc/systemd/system/docker-tcp.socket
 
   - path: /etc/dphys-swapfile
     content: "CONF_SWAPSIZE=2048"

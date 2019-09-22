@@ -17,7 +17,7 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts duckiebot keyboard_control DUCKIEBOT_NAME"
         usage = """
-Keyboard control: 
+Keyboard control:
 
     %(prog)s
 """

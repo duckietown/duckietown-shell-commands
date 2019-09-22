@@ -89,6 +89,7 @@ PHASE_DONE = "done"
 
 SD_CARD_DEVICE = ""
 DEFAULT_CONFIGURATION = "master19"
+DEFAULT_ROBOT_TYPE = "duckiebot"
 
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
@@ -191,6 +192,10 @@ class DTCommand(DTCommandAbs):
             help="Which configuration of Docker stacks to flash",
         )
 
+        parser.add_argument('--type', dest='robot_type', default=None,
+                            choices=['duckiebot', 'watchtower'],
+                            help='Which type of robot we are setting up')
+
         parsed = parser.parse_args(args=args)
 
         global SD_CARD_DEVICE
@@ -246,6 +251,16 @@ You can use --steps to run only some of those:
 
         if parsed.experimental:
             dtslogger.info("Running experimental mode!")
+
+        if parsed.robot_type is None:
+            while True:
+                r = input('You did not specify a robot type. Default is "{}". Do you confirm? [y]'.format(DEFAULT_ROBOT_TYPE))
+                if r.strip() in ['', 'y', 'Y', 'yes', 'YES', 'yup', 'YUP']:
+                    parsed.robot_type = DEFAULT_ROBOT_TYPE
+                    break;
+                elif r.strip() in ['', 'n', 'N', 'no', 'NO', 'nope', 'NOPE']:
+                    dtslogger.info('Please retry while specifying a robot type. Bye bye!')
+                    exit(1)
 
         configuration = parsed.configuration
         try:
@@ -493,8 +508,10 @@ def step_setup(shell, parsed):
         path=os.path.join(user_home_path, ".ssh/authorized_keys"), local=ssh_key_pub
     )
 
-    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Configure runcmd
+    add_run_cmd(user_data, 'echo "Initialization STARTED"')
 
+    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     add_run_cmd(user_data, cmd)
 
     add_run_cmd(user_data, "chown -R 1000:1000 {home}".format(home=user_home_path))
@@ -597,6 +614,7 @@ The files in this directory:
         path="/data/stats/init_sd_card/parameters/ethz_username",
         content=str(parsed.ethz_username),
     )
+    add_file(path='/data/stats/init_sd_card/parameters/robot_type', content=str(parsed.robot_type))
 
     add_file(
         path="/data/stats/MAC/README.txt",
@@ -610,6 +628,19 @@ If they are not there, it means that the boot process was interrupted.
     """.strip(),
     )
 
+    # remove non-static services
+    user_data['bootcmd'].append('find /etc/avahi/services -type f ! -name "dt.static.*.service" -exec rm -f {} \;')
+
+    # flash static services
+    add_file_local(
+        '/etc/avahi/services/dt.static.presence.service',
+        get_resource(os.path.join('avahi_services', 'dt.presence.service'))
+    )
+    add_file_local(
+        '/etc/avahi/services/dt.static.robot_type.service',
+        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
+    )
+
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
@@ -619,7 +650,10 @@ If they are not there, it means that the boot process was interrupted.
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
-    user_data_yaml = "#cloud-config\n" + yaml.dump(user_data, default_flow_style=False)
+    add_run_cmd(user_data, 'echo "Intialization COMPLETED"')
+
+    user_data_yaml = yaml.dump(user_data, default_flow_style=False)
+    user_data_yaml = '#cloud-config\n' + user_data_yaml
 
     validate_user_data(user_data_yaml)
 
@@ -1145,21 +1179,23 @@ def save_images(stack2yaml, compress):
 
 
 def log_current_phase(user_data, phase, msg):
-    # NOTE: double json dumps to add escaped quotes
+    # NOTE: double json.dumps to add escaped quotes
     j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
     cmd = "echo %s >> /data/boot-log.txt" % j
     user_data["runcmd"].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
-    # NOTE: double json dumps to add escaped quotes
-    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg="running command")))
-    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg="finished command")))
-    cmd_pre = "echo %s >> /data/command.json" % pre_json
-    cmd_post = "echo %s >> /data/command.json" % post_json
-    user_data["runcmd"].append(cmd_pre)
-    user_data["runcmd"].append(cmd)
-    user_data["runcmd"].append(cmd_post)
+    # PRE action (NOTE: double json.dumps to add escaped quotes)
+    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command', pos=len(user_data['runcmd']))))
+    cmd_pre = 'echo %s >> /data/command.json' % pre_json
+    user_data['runcmd'].append(cmd_pre)
+    # COMMAND
+    user_data['runcmd'].append(cmd)
+    # POST action (NOTE: double json.dumps to add escaped quotes)
+    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command', pos=len(user_data['runcmd']))))
+    cmd_post = 'echo %s >> /data/command.json' % post_json
+    user_data['runcmd'].append(cmd_post)
 
 
 def get_stack2yaml(stacks, base):

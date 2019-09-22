@@ -17,7 +17,7 @@ class DTCommand(DTCommandAbs):
 
         prog = "dts duckiebot calibrate_intrinsics DUCKIEBOT_NAME"
         usage = """
-Calibrate: 
+Calibrate:
 
     %(prog)s
 """

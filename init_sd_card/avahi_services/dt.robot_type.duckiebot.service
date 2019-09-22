@@ -1,0 +1,10 @@
+<?xml version="1.0" standalone='no'?><!--*-nxml-*-->
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">DT::ROBOT_TYPE::%h</name>
+  <service>
+    <type>_duckietown._tcp</type>
+    <txt-record>{"type": "duckiebot"}</txt-record>
+    <port>0</port>
+  </service>
+</service-group>
