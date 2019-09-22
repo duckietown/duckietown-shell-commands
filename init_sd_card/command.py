@@ -88,7 +88,7 @@ PHASE_LOADING = "loading"
 PHASE_DONE = "done"
 
 SD_CARD_DEVICE = ""
-DEFAULT_CONFIGURATION = "master19"
+DEFAULT_CONFIGURATION = "daffy"
 DEFAULT_ROBOT_TYPE = "duckiebot"
 
 
