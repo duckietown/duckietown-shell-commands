@@ -3,6 +3,7 @@ services:
 
   dashboard:
     image: duckietown/dt-duckiebot-dashboard:daffy
+    container_name: duckiebot-dashboard
     restart: unless-stopped
     network_mode: "host"
     volumes:
@@ -17,11 +18,17 @@ services:
       - /var/local:/robot/var/local
       # generic duckietown data
       - /data:/robot/data
+      # avahi services
+      - /etc/avahi/services:/etc/avahi/services
 
   ros-websocket:
     image: duckietown/dt-rosbridge-websocket:daffy
+    container_name: rosbridge-websocket
     restart: unless-stopped
     network_mode: "host"
+    volumes:
+      # avahi services
+      - /etc/avahi/services:/etc/avahi/services
 
 volumes:
   compose-data:

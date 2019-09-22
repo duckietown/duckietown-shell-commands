@@ -3,3 +3,6 @@ services:
 
   dt-core:
     image: duckietown/dt-core:daffy
+    container_name: core
+    volumes:
+      - /etc/avahi/services:/etc/avahi/services
