@@ -21,9 +21,9 @@ services:
     volumes:
       - /etc/avahi/services:/etc/avahi/services
 
-  rpi-duckiebot-online:
-    image: duckietown/rpi-duckiebot-online:master18
-    container_name: duckiebot-online
+  dt-device-online:
+    image: duckietown/dt-device-online:daffy
+    container_name: device-online
     restart: always
     network_mode: "host"
     volumes:

@@ -3,6 +3,7 @@ services:
 
   portainer:
     image: portainer/portainer:linux-arm
+    container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
     network_mode: "host"
@@ -11,6 +12,7 @@ services:
 
   watchtower:
     image: v2tec/watchtower:armhf-latest
+    container_name: watchtower
     command: ["--cleanup"]
     restart: always
     network_mode: "host"
