@@ -29,10 +29,10 @@ class DiscoverListener:
         'DT::ONLINE',
         'DT::PRESENCE'
     ]
-    status_order = ['On', 'Ready', 'Busy']
+    status_order = ['On', 'Online', 'Busy']
     status_to_service = {
         'On' : 'DT::PRESENCE',
-        'Ready' : 'DT::ONLINE',
+        'Online' : 'DT::ONLINE',
         'Busy' : 'DT::BUSY'
     }
 
