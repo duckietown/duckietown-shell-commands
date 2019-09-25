@@ -57,17 +57,14 @@ Keyboard control:
 
         env['QT_X11_NO_MITSHM'] = 1
 
-        volumes = {}
-
-
-
         p = platform.system().lower()
+        volumes = {
+            '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
+        }
+        
         if 'darwin' in p:
             subprocess.call(["xhost", "+", '127.0.0.1'])
             env['DISPLAY'] = 'host.docker.internal:0'
-            volumes = {
-                '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
-            }
         else:
             subprocess.call(["xhost", "+"])
             env['DISPLAY'] = os.environ['DISPLAY']
