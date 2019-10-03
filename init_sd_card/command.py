@@ -219,7 +219,7 @@ class DTCommand(DTCommandAbs):
             parsed.stacks_to_run = parsed.stacks_to_load
 
         # turn off wifi for type watchtower
-        if parsed.type == 'watchtower':
+        if parsed.robot_type == 'watchtower':
             parsed.wifi = ""
 
         if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
