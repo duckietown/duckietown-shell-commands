@@ -112,10 +112,13 @@ class DTCommand(DTCommandAbs):
         print(DOCKER_INFO.format(**epoint))
         # check if there is a watchtower instance running on the endpoint
         if shell.include.devel.watchtower.is_running(parsed.machine):
+            w_machine = ''
+            if parsed.machine != DEFAULT_MACHINE:
+                w_machine = ' -H {}'.format(parsed.machine)
             dtslogger.warning('An instance of a Docker watchtower was found running on the Docker endpoint.')
             dtslogger.warning('Building new images next to an active watchtower might (sure it will) create race conditions.')
             dtslogger.warning('Solutions:')
-            dtslogger.warning('  - Recommended: Use the command `dts devel watchtower stop [options]` to stop the watchtower.')
+            dtslogger.warning('  - Recommended: Use the command `dts devel watchtower stop{}` to stop the watchtower.'.format(w_machine))
             dtslogger.warning('  - NOT Recommended: Use the flag `--ignore-watchtower` to ignore this warning and continue.')
             if not parsed.ignore_watchtower:
                 exit(2)

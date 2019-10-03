@@ -62,7 +62,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.info(msg)
                     return
         # action: [stop, start]
-        dtslogger.info("{}ing watchtower container...".format(action.title()))
+        dtslogger.info("{} watchtower container...".format(action.title()))
         _ = _run_cmd(
             ["docker", "-H=%s" % parsed.machine, action, container_id], get_output=True
         )
