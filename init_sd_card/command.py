@@ -758,10 +758,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             msg = "If you want to run %r you need to load it as well." % _
             raise Exception(msg)
 
-    # create directories for the device loader
-    # for d in ['images_to_load', 'stacks_to_load', 'stacks_to_run']:
-    #     _run_cmd(['sudo', 'mkdir', '-p', os.path.join(TMP_ROOT_MOUNTPOINT, 'data', 'loader', d)])
-
     # the device loader expects:
     # - .tar files to be loaded (docker load) in /data/loader/images_to_load
     # - .yaml files to be loaded (parse yaml and load images) in /data/loader/stacks_to_load
