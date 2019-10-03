@@ -1138,6 +1138,8 @@ def write_to_hypriot(rpath, contents):
 
 def interpret_wifi_string(s):
     results = []
+    if len(s.strip()) == 0:
+        return []
     for i, connection in enumerate(s.split(",")):
         tokens = connection.split(":")
         if len(tokens) != 2:
