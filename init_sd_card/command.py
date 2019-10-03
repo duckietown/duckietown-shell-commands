@@ -232,7 +232,7 @@ class DTCommand(DTCommandAbs):
 
 ### Multiple networks
 
-    dts init_sd_card --wifi  network1:password1,network2:password2 --country US
+    dts init_sd_card --wifi network1:password1,network2:password2 --country US
 
 
 
