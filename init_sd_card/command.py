@@ -707,6 +707,12 @@ If they are not there, it means that the boot process was interrupted.
         get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
     )
 
+    # flash temporary services
+    add_file_local(
+        '/etc/avahi/services/dt.device-init.service',
+        get_resource(os.path.join('avahi_services', 'dt.device-init.service'))
+    )
+
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
