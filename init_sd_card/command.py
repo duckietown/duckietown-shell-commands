@@ -218,6 +218,10 @@ class DTCommand(DTCommandAbs):
             parsed.stacks_to_load = AIDO_STACKS_TO_LOAD
             parsed.stacks_to_run = parsed.stacks_to_load
 
+        # turn off wifi for type watchtower
+        if parsed.type == 'watchtower':
+            parsed.wifi = ""
+
         if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
             msg = "The option --online cannot be used together with --stacks-load/--stacks-run."
             raise Exception(msg)
