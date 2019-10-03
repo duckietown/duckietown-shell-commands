@@ -89,7 +89,6 @@ PHASE_LOADING = "loading"
 PHASE_DONE = "done"
 
 SD_CARD_DEVICE = ""
-DEFAULT_CONFIGURATION = "daffy"
 DEFAULT_ROBOT_TYPE = "duckiebot"
 MINIMAL_STACKS_TO_LOAD = ['DT18_00_basic']
 DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_02_others,DT18_03_interface,DT18_05_core"
@@ -190,13 +189,6 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--configuration",
-            dest="configuration",
-            default=DEFAULT_CONFIGURATION,
-            help="Which configuration of Docker stacks to flash"
-        )
-
-        parser.add_argument(
             '--type',
             dest='robot_type',
             default=None,
@@ -280,14 +272,6 @@ You can use --steps to run only some of those:
                 elif r.strip() in ['', 'n', 'N', 'no', 'NO', 'nope', 'NOPE']:
                     dtslogger.info('Please retry while specifying a robot type. Bye bye!')
                     exit(1)
-
-        configuration = parsed.configuration
-        try:
-            get_resource(os.path.join("stacks", configuration))
-        except:
-            msg = 'Cannot find configuration "%s"' % configuration
-            raise InvalidUserInput(msg)
-        dtslogger.info("Configuration: %s" % configuration)
 
         dtslogger.setLevel(logging.DEBUG)
 
@@ -758,8 +742,6 @@ dtparam=i2c_arm=on
 
 
 def configure_images(parsed, user_data, add_file_local, add_file):
-    configuration = parsed.configuration
-
     # read and validate docker-compose stacks
     arg_stacks_to_load = parsed.stacks_to_load.split(",")
     arg_stacks_to_run = parsed.stacks_to_run.split(",")
@@ -799,7 +781,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
     # export images to tar files
     stack2yaml = get_stack2yaml(
-        stacks_for_images_to_load, get_resource(os.path.join("stacks", configuration))
+        stacks_for_images_to_load, get_resource("stacks")
     )
     if not stack2yaml:
         msg = "Not even one stack specified"
@@ -821,7 +803,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     for stack_type, stacks_deck in {'load': stacks_to_load, 'run': stacks_to_run}.items():
         for cf in stacks_deck:
             # local path
-            lpath = get_resource(os.path.join("stacks", configuration, cf + ".yaml"))
+            lpath = get_resource(os.path.join("stacks", cf + ".yaml"))
             # path on PI
             rpath = "/data/loader/stacks_to_{}/{}.yaml".format(stack_type, cf)
 
