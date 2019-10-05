@@ -101,6 +101,8 @@ class DTCommand(DTCommandAbs):
         origin_url = _run_cmd(['git', '-C', path, 'config', '--get', 'remote.origin.url'])[0]
         if origin_url.endswith('.git'):
             origin_url = origin_url[:-4]
+        if origin_url.endswith("/"):
+            origin_url = origin_url[:-1]
         repo = origin_url.split('/')[-1]
         # get info about current git INDEX
         nmodified = len(_run_cmd(['git', '-C', path, 'status', '--porcelain', '--untracked-files=no']))
