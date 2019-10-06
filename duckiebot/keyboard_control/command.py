@@ -111,7 +111,7 @@ def run_cli_controller(hostname,image,duckiebot_ip, network_mode, sim):
     remove_if_running(duckiebot_client, container_name)
     env = { 'HOSTNAME':hostname,
             'ROS_MASTER':hostname,
-            'DUCKIEBOT_NAME':hostname,
+            'VEHICLE_NAME':hostname,
             'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip}
 
     dtslogger.info("Running %s on localhost with environment vars: %s" %
