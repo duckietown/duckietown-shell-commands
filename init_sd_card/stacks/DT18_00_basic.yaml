@@ -49,8 +49,6 @@ services:
     environment:
       - EXCLUDE_RUN=DT18_00_basic
     volumes:
-      # docker CLI
-      - /usr/bin/docker:/usr/bin/docker
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
       # avahi services
