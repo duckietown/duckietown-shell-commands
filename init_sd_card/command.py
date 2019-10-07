@@ -937,6 +937,7 @@ def configure_ssh(parsed, ssh_key_pri, ssh_key_pub):
         shutil.copy(ssh_key_pri, ssh_key_pri_copied)
     if not os.path.exists(ssh_key_pub_copied):
         shutil.copy(ssh_key_pub, ssh_key_pub_copied)
+    os.chmod(ssh_key_pri_copied, 0o600)
 
     ssh_config = os.path.join(ssh_dir, "config")
     if not os.path.exists(ssh_config):
