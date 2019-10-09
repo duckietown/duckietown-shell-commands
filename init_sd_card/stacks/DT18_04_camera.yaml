@@ -11,6 +11,7 @@ services:
     environment:
       DISABLE_CONTRACTS: 1
     volumes:
+      # avahi services
       - /etc/avahi/services:/etc/avahi/services
 
   video_server:
@@ -19,4 +20,5 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes:
+      # avahi services
       - /etc/avahi/services:/etc/avahi/services

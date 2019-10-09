@@ -5,4 +5,5 @@ services:
     image: duckietown/dt-core:daffy
     container_name: core
     volumes:
+      # avahi services
       - /etc/avahi/services:/etc/avahi/services
