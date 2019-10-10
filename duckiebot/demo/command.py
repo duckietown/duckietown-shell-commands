@@ -4,7 +4,7 @@ import docker
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running
+from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -105,6 +105,8 @@ class DTCommand(DTCommandAbs):
                 demo_name,
                 duckiebot_name,
             )
+
+        pull_if_not_exist(client, image_base)
 
         dtslogger.info("Running command %s" % cmd)
         demo_container = duckiebot_client.containers.run(
