@@ -7,7 +7,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, remove_if_running
+from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -122,6 +122,8 @@ Calibrate:
             "command": cmd,
             "volumes": volumes,
         }
+
+        pull_if_not_exist(client, image)
 
         container = client.containers.run(**params)
 

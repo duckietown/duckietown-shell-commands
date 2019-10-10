@@ -106,7 +106,7 @@ class DTCommand(DTCommandAbs):
                 duckiebot_name,
             )
 
-        pull_if_not_exist(client, image_base)
+        pull_if_not_exist(duckiebot_client, image_base)
 
         dtslogger.info("Running command %s" % cmd)
         demo_container = duckiebot_client.containers.run(

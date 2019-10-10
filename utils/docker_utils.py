@@ -419,6 +419,13 @@ def pull_if_not_exist(client, image_name):
         except IndexError:
             tag = 'latest'
 
-        for line in client.api.pull(repository, tag, stream=True, decode=True):
-            print(json.dumps(line, indent=4))
+        loader = 'Downloading .'
+        for _ in client.api.pull(repository, tag, stream=True, decode=True):
+            loader += '.'
+            if len(loader)>40:
+                print(' '*60, end='\r', flush=True)
+                loader = 'Downloading .'
+            print(loader, end='\r', flush=True)
+        print('\n')
+
 
