@@ -66,11 +66,17 @@ class DTCommand(DTCommandAbs):
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
-        tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
-        for t in tags:
-            # push image
-            dtslogger.info("Pushing image {}...".format(t))
-            _run_cmd(["docker", "-H=%s" % parsed.machine, "push", t])
+        _run_cmd(["docker", "-H=%s" % parsed.machine, "push", tag])
+
+        dtslogger.info("Creating manifest {}...".format(default_tag))
+        _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", tag])
+        _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag])
+        # tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
+        # for t in tags:
+        #     # push image
+        #     dtslogger.info("Pushing image {}...".format(t))
+        #     _run_cmd(["docker", "-H=%s" % parsed.machine, "push", t])
+
 
     @staticmethod
     def complete(shell, word, line):
