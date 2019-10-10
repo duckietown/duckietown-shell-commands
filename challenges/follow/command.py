@@ -5,8 +5,11 @@ import time
 from collections import defaultdict
 
 import termcolor
+
+from challenges import wrap_server_operations
 from dt_shell import DTCommandAbs
-from dt_shell.remote import make_server_request
+from duckietown_challenges.rest import ServerIsDown
+from duckietown_challenges.rest_methods import dtserver_get_info
 
 usage = """
 
@@ -32,66 +35,76 @@ class DTCommand(DTCommandAbs):
 
         submission_id = parsed.submission
 
-        follow_submission(token, submission_id)
+        with wrap_server_operations():
+            follow_submission(shell, token, submission_id)
 
 
-def follow_submission(token, submission_id):
+def follow_submission(shell, token, submission_id):
     step2job_seen = {}
     step2status_seen = defaultdict(lambda: "")
 
     print('')
     while True:
         try:
-            data = get_info(token, submission_id)
+            data = dtserver_get_info(token, submission_id)
+        except ServerIsDown:
+            shell.sprint('Server is down - please wait.', 'red')
+            time.sleep(5)
+            continue
         except BaseException as e:
-            print(e)
+            shell.sprint(str(e), 'red')
             time.sleep(5)
             continue
         # print json.dumps(data, indent=4)
+
         status_details = data['status-details']
-        complete = status_details['complete']
-        result = status_details['result']
-        step2status = status_details['step2status']
-        step2status.pop('START', None)
-
-        step2job = status_details['step2job']
-        for k, v in step2job.items():
-            if k not in step2job_seen or step2job_seen[k] != v:
-                step2job_seen[k] = v
-
-                write_status_line('Job "%s" created for step %s' % (v, k))
-
-        for k, v in step2status.items():
-            if k not in step2status_seen or step2status_seen[k] != v:
-                step2status_seen[k] = v
-
-                write_status_line('Step "%s" is in state %s' % (k, v))
-
-        next_steps = status_details['next_steps']
-
-        # if complete:
-        #     msg = 'The submission is complete with result "%s".' % result
-        #     print(msg)
-        #     break
-        cs = []
-
-        if complete:
-            cs.append('complete')
+        if status_details is None:
+            write_status_line('Not processed yet.')
         else:
-            cs.append('please wait')
 
-        cs.append('status: %s' % color_status(data['status']))
+            complete = status_details['complete']
+            result = status_details['result']
+            step2status = status_details['step2status']
+            step2status.pop('START', None)
 
-        if step2status:
+            step2job = status_details['step2job']
+            for k, v in step2job.items():
+                if k not in step2job_seen or step2job_seen[k] != v:
+                    step2job_seen[k] = v
 
-            for step_name, step_state in step2status.items():
-                cs.append('%s: %s' % (step_name, color_status(step_state)))
+                    write_status_line('Job "%s" created for step %s' % (v, k))
 
-        if next_steps:
-            cs.append("  In queue: %s" % " ".join(map(str, next_steps)))
+            for k, v in step2status.items():
+                if k not in step2status_seen or step2status_seen[k] != v:
+                    step2status_seen[k] = v
 
-        s = '  '.join(cs)
-        write_status_line(s)
+                    write_status_line('Step "%s" is in state %s' % (k, v))
+
+            next_steps = status_details['next_steps']
+
+            # if complete:
+            #     msg = 'The submission is complete with result "%s".' % result
+            #     print(msg)
+            #     break
+            cs = []
+
+            if complete:
+                cs.append('complete')
+            else:
+                cs.append('please wait')
+
+            cs.append('status: %s' % color_status(status_details['result']))
+
+            if step2status:
+
+                for step_name, step_state in step2status.items():
+                    cs.append('%s: %s' % (step_name, color_status(step_state)))
+
+            if next_steps:
+                cs.append("  In queue: %s" % " ".join(map(str, next_steps)))
+
+            s = '  '.join(cs)
+            write_status_line(s)
 
         time.sleep(10)
 
@@ -112,7 +125,8 @@ def write_status_line(x):
     Storage.previous = x
 
 
-def color_status(x):
+def color_status(x: str):
+
     status2color = {
         'failed': dict(color='red', on_color=None, attrs=None),
         'error': dict(color='red', on_color=None, attrs=None),
@@ -126,13 +140,3 @@ def color_status(x):
         return termcolor.colored(x, **status2color[x])
     else:
         return x
-
-
-def get_info(token, submission_id):
-    endpoint = '/submission/%s' % submission_id
-    method = 'GET'
-    data = {}
-    try:
-        return make_server_request(token, endpoint, data=data, method=method, suppress_user_msg=True)
-    except:
-        return make_server_request(token, endpoint, data=data, method=method)

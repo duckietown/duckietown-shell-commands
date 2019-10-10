@@ -35,8 +35,8 @@ def continuously_monitor(client, container_name):
         try:
             container = client.containers.get(container_name)
         except Exception as e:
-            msg = 'Cannot get container %s: %s' % (container_name, e)
-            dtslogger.info(msg)
+            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            # dtslogger.info(msg)
             break
             # dtslogger.info('Will wait.')
             # time.sleep(5)
@@ -89,7 +89,7 @@ def continuously_monitor(client, container_name):
             dtslogger.error(traceback.format_exc())
             dtslogger.info('Will try to re-attach to container.')
             time.sleep(3)
-    dtslogger.debug('monitoring graceful exit')
+    # dtslogger.debug('monitoring graceful exit')
 
 
 def push_image_to_duckiebot(image_name, hostname):
@@ -109,6 +109,7 @@ def logs_for_container(client, container_id):
 def default_env(duckiebot_name, duckiebot_ip):
     return {'ROS_MASTER': duckiebot_name,
             'DUCKIEBOT_NAME': duckiebot_name,
+            'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip,
             'DUCKIEFLEET_ROOT' : '/data/config',
             'DUCKIEBOT_IP': duckiebot_ip,
             'DUCKIETOWN_SERVER': duckiebot_ip,
@@ -190,8 +191,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
-    run_image_on_duckiebot(RPI_ROS_KINETIC_ROSCORE, duckiebot_name)
+def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
@@ -200,15 +200,13 @@ def run_image_on_localhost(image_name, duckiebot_name, env=None, volumes=None):
     if env is not None:
         env_vars.update(env)
 
-    container_name = 'local_submission'
-
     try:
         container = local_client.containers.get(container_name)
         dtslogger.info("an image already on localhost - stopping it first..")
         stop_container(container)
         remove_container(container)
     except Exception as e:
-        dtslogger.info("no local image running already")
+        dtslogger.warn("coulgn't remove existing container: %s" % e)
 
     dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
@@ -243,6 +241,15 @@ def start_picamera(duckiebot_name):
                                            detach=True,
                                            environment=env_vars)
 
+def remove_if_running(client, container_name):
+    try:
+        container = client.containers.get(container_name)
+        dtslogger.info("%s already running - stopping it first.." % container_name)
+        stop_container(container)
+        dtslogger.info("removing %s" % container_name)
+        remove_container(container)
+    except Exception as e:
+        dtslogger.warn("couldn't remove existing container: %s" % e)
 
 def start_rqt_image_view(duckiebot_name=None):
     dtslogger.info("""{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format('*' * 20))

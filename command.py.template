@@ -1,5 +1,4 @@
-from __future__ import print_function
-from dt_shell import DTCommandAbs
+from dt_shell import DTCommandAbs, dtslogger
 
 class DTCommand(DTCommandAbs):
 

@@ -12,6 +12,17 @@ set -e
 VERSION=1 # Increment version to bust the cache
 TMP_DIR="/tmp/duckietown"
 
+# check required arguments
+if [ -z "$INIT_SD_CARD_DEV" ]; then
+  echo "The variable INIT_SD_CARD_DEV is required. Exiting..."
+  exit 1
+fi
+
+if [ -z "$HYPRIOTOS_VERSION" ]; then
+  echo "The variable HYPRIOTOS_VERSION is required. Exiting..."
+  exit 1
+fi
+
 if [[ ! -f $TMP_DIR/version ]] || [[ "$(cat $TMP_DIR/version)" != "$VERSION" ]]; then
    rm -rf $TMP_DIR
 fi
@@ -32,7 +43,7 @@ fi
 ETCHER_DIR="${TMP_DIR}/etcher-cli"
 TMP_ETCHER_LOCAL=$(mktemp -p ${TMP_DIR})
 
-HYPRIOT_URL="https://github.com/hypriot/image-builder-rpi/releases/download/v1.9.0/hypriotos-rpi-v1.9.0.img.zip"
+HYPRIOT_URL="https://github.com/hypriot/image-builder-rpi/releases/download/v${HYPRIOTOS_VERSION}/hypriotos-rpi-v${HYPRIOTOS_VERSION}.img.zip"
 HYPRIOT_LOCAL="${TMP_DIR}/${HYPRIOT_URL##*/}"
 
 IMAGE_DOWNLOADER_CACHEDIR="${TMP_DIR}/docker_images"

@@ -2,9 +2,11 @@ from __future__ import print_function
 
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 
-INIT_SD_CARD_VERSION = '2.0.4'  # incremental number, semantic version
+INIT_SD_CARD_VERSION = '2.0.5'  # incremental number, semantic version
+HYPRIOTOS_STABLE_VERSION = '1.9.0'
+HYPRIOTOS_EXPERIMENTAL_VERSION = '1.11.1'
 
-CHANGELOG = """ 
+CHANGELOG = """
 Current version: %s
 
 Semantic versioning: x.y.z
@@ -15,15 +17,20 @@ minor changes increment z.
 
 Newest changes applied to this SD CARD:
 
+2.0.5 - 2019-07-07
+
+    Initial boot-up LED feedback: alternating red-green
+    during stacks initialization, solid green when ready
+
 2.0.4 - 2019-04-11
 
     Copy in the default calibrations
 
 2.0.3 - 2018-10-10
-   
+
     Correct initialization for camera (on is 0 , not 1)
-    
-    
+
+
 2.0.2 - 2018-10-10
 
     More documentation.
@@ -61,6 +68,7 @@ from os.path import join
 from future import builtins
 import yaml
 from whichcraft import which
+import re
 
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
@@ -79,6 +87,8 @@ PHASE_LOADING = 'loading'
 PHASE_DONE = 'done'
 
 SD_CARD_DEVICE = ""
+DEFAULT_CONFIGURATION = "master19"
+DEFAULT_ROBOT_TYPE = "duckiebot"
 
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
@@ -96,14 +106,15 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--steps', default="flash,expand,mount,setup,unmount",
                             help="Steps to perform")
 
-        parser.add_argument('--hostname', default='duckiebot')
+        parser.add_argument('--hostname', required=True)
         parser.add_argument('--linux-username', default='duckie')
         parser.add_argument('--linux-password', default='quackquack')
 
         parser.add_argument('--stacks-load', dest="stacks_to_load",
-                            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_05_duckiebot_base",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base,DT18_06_dashboard",
                             help="which stacks to load")
-        parser.add_argument('--stacks-run', dest="stacks_to_run", default="DT18_00_basic,DT18_01_health_stats",
+        parser.add_argument('--stacks-run', dest="stacks_to_run",
+                            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore,DT18_06_dashboard",
                             help="which stacks to RUN by default")
 
         parser.add_argument('--reset-cache', dest='reset_cache', default=False, action='store_true',
@@ -114,6 +125,9 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument('--device', dest='device', default='',
                             help='The device with the SD card')
+
+        parser.add_argument('--aido', dest='aido', default=False, action='store_true',
+                            help='Only load what is necessary for an AI-DO submission')
 
         # parser.add_argument('--swap', default=False, action='store_true',
         #                     help='Create swap space')
@@ -128,6 +142,16 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--ethz-username', default=None)
         parser.add_argument('--ethz-password', default=None)
 
+        parser.add_argument('--experimental', dest='experimental', default=False, action='store_true',
+                            help='Use experimental settings')
+
+        parser.add_argument('--configuration', dest='configuration', default=DEFAULT_CONFIGURATION,
+                            help='Which configuration of Docker stacks to flash')
+
+        parser.add_argument('--type', dest='robot_type', default=None,
+                            choices=['duckiebot', 'watchtower'],
+                            help='Which type of robot we are setting up')
+
         parsed = parser.parse_args(args=args)
 
         global SD_CARD_DEVICE
@@ -137,6 +161,11 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('Removing cache')
             if os.path.exists(DUCKIETOWN_TMP):
                 shutil.rmtree(DUCKIETOWN_TMP)
+
+        # if aido is set overwrite the stacks (don't load the base)
+        if parsed.aido:
+            parsed.stacks_to_load = 'DT18_00_basic,DT18_01_health_stats,DT18_03_roscore'
+            parsed.stacks_to_run = parsed.stacks_to_load
 
         msg = """
 
@@ -175,6 +204,27 @@ You can use --steps to run only some of those:
         check_docker_environment()
         check_good_platform()
         check_dependencies()
+
+        if parsed.experimental:
+            dtslogger.info('Running experimental mode!')
+
+        if parsed.robot_type is None:
+            while True:
+                r = input('You did not specify a robot type. Default is "{}". Do you confirm? [y]'.format(DEFAULT_ROBOT_TYPE))
+                if r.strip() in ['', 'y', 'Y', 'yes', 'YES', 'yup', 'YUP']:
+                    parsed.robot_type = DEFAULT_ROBOT_TYPE
+                    break;
+                elif r.strip() in ['', 'n', 'N', 'no', 'NO', 'nope', 'NOPE']:
+                    dtslogger.info('Please retry while specifying a robot type. Bye bye!')
+                    exit(1)
+
+        configuration = parsed.configuration
+        try:
+            get_resource(os.path.join('stacks', configuration))
+        except:
+            msg = 'Cannot find configuration "%s"' % configuration
+            raise InvalidUserInput(msg)
+        dtslogger.info('Configuration: %s' % configuration)
 
         dtslogger.setLevel(logging.DEBUG)
 
@@ -257,18 +307,29 @@ to include \'/dev/\'. Here\'s a list of the devices on your system:'
         msg = 'Device %s was not found on your system. Maybe you mistyped something.' % SD_CARD_DEVICE
         raise Exception(msg)
 
-    script_file = get_resource('init_sd_card2.sh')
+    script_file = get_resource('init_sd_card.sh')
     script_cmd = '/bin/bash %s' % script_file
     env = get_clean_env()
     env['INIT_SD_CARD_DEV'] = SD_CARD_DEVICE
+    # pass HypriotOS version to init_sd_card script
+    if parsed.experimental:
+        env['HYPRIOTOS_VERSION'] = HYPRIOTOS_EXPERIMENTAL_VERSION
+    else:
+        env['HYPRIOTOS_VERSION'] = HYPRIOTOS_STABLE_VERSION
     start_command_in_subprocess(script_cmd, env)
+
+    dtslogger.info('Waiting 5 seconds for the device to get ready...')
+    time.sleep(5)
+
+    dtslogger.info('Partitions created:')
+    cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
+    _run_cmd(cmd)
 
 
 def step_expand(shell, parsed):
-    check_program_dependency('parted')
-    check_program_dependency('resize2fs')
-    check_program_dependency('df')
-    check_program_dependency('umount')
+    deps = ['parted', 'resize2fs', 'e2fsck', 'lsblk', 'fdisk', 'umount']
+    for dep in deps:
+        check_program_dependency(dep)
 
     global SD_CARD_DEVICE
 
@@ -313,12 +374,33 @@ def step_expand(shell, parsed):
     dtslogger.info('Current status:')
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
+
+    # get the disk identifier of the SD card.
+    # IMPORTANT: This must be executed before `parted`
+    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+    cmd = ['sudo' ,'fdisk', '-l', SD_CARD_DEVICE]
+    dtslogger.debug('$ %s' % cmd)
+    pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ret, err = pc.communicate()
+    m = p.search(ret.decode('utf-8'))
+    uuid = m.group(1)
+
     cmd = ['sudo', 'parted', '-s', SD_CARD_DEVICE, 'resizepart', '2', '100%']
     _run_cmd(cmd)
+
     cmd = ['sudo', 'e2fsck', '-f', DEVp2]
     _run_cmd(cmd)
+
     cmd = ['sudo', 'resize2fs', DEVp2]
     _run_cmd(cmd)
+
+    # restore the original disk identifier
+    cmd = ['sudo' ,'fdisk', SD_CARD_DEVICE]
+    dtslogger.debug('$ %s' % cmd)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+    ret, err = p.communicate(input=('x\ni\n0x%s\nr\nw' % uuid).encode('ascii'))
+    print(ret.decode('utf-8'))
+
     dtslogger.info('Updated status:')
     cmd = ['sudo', 'lsblk', SD_CARD_DEVICE]
     _run_cmd(cmd)
@@ -374,8 +456,10 @@ def step_setup(shell, parsed):
     add_file_local(path=os.path.join(user_home_path, '.ssh/authorized_keys'),
                    local=ssh_key_pub)
 
-    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Configure runcmd
+    add_run_cmd(user_data, 'echo "Initialization STARTED"')
 
+    cmd = 'date -s "%s"' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     add_run_cmd(user_data, cmd)
 
     add_run_cmd(user_data, "chown -R 1000:1000 {home}".format(home=user_home_path))
@@ -388,6 +472,18 @@ def step_setup(shell, parsed):
 
     add_run_cmd(user_data, 'raspi-config nonint do_camera 0')
     add_run_cmd(user_data, 'raspi-config nonint do_i2c 0')
+
+    # Start the blinking feedback: the RPi red and green LEDs will alternately flash
+    # on and off until all Docker stacks are up
+    cmd =  """/bin/bash -c "while ! cat /data/boot-log.txt | grep -q 'All stacks up'; """
+    cmd += """do echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 1 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; done; """
+    cmd += """echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
+    cmd += """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null" > /dev/null 2>&1 & """
+    add_run_cmd(user_data, cmd)
+
     # raspi-config nonint do_wifi_country %s"
 
     # https://www.raspberrypi.org/forums/viewtopic.php?t=21632
@@ -405,20 +501,20 @@ def step_setup(shell, parsed):
              content=token)
 
     add_file(path='/data/stats/init_sd_card/README.txt', content="""
-    
+
 The files in this directory:
 
     version        incremental number
     CHANGELOG      description of latest changes
-    
+
     flash_time     ISO-formatted date of when this card was flashed
     flash_user     user who flashed
     flash_machine  machine that flashed
-    
+
     parameters
-        
+
         hostname       Hostname used for flashing. (Helps checking if it changed.)
-     
+
     """.strip())
     add_file(path='/data/stats/init_sd_card/CHANGELOG', content=CHANGELOG)
     add_file(path='/data/stats/init_sd_card/version', content=str(INIT_SD_CARD_VERSION))
@@ -434,26 +530,43 @@ The files in this directory:
     add_file(path='/data/stats/init_sd_card/parameters/country', content=str(parsed.country))
     add_file(path='/data/stats/init_sd_card/parameters/wifi', content=str(parsed.wifi))
     add_file(path='/data/stats/init_sd_card/parameters/ethz_username', content=str(parsed.ethz_username))
+    add_file(path='/data/stats/init_sd_card/parameters/robot_type', content=str(parsed.robot_type))
 
     add_file(path='/data/stats/MAC/README.txt', content="""
 
 Two files will be created in this directory, called "eth0" and "wlan0",
 and they will contain the MAC addresses of the two interfaces.
 
-If they are not there, it means that the boot process was interrupted.     
+If they are not there, it means that the boot process was interrupted.
 
     """.strip())
+
+    # remove non-static services
+    user_data['bootcmd'].append('find /etc/avahi/services -type f ! -name "dt.static.*.service" -exec rm -f {} \;')
+
+    # flash static services
+    add_file_local(
+        '/etc/avahi/services/dt.static.presence.service',
+        get_resource(os.path.join('avahi_services', 'dt.presence.service'))
+    )
+    add_file_local(
+        '/etc/avahi/services/dt.static.robot_type.service',
+        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
+    )
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
-    
+
     add_run_cmd(user_data, 'cat /sys/class/net/eth0/address > /data/stats/MAC/eth0')
     add_run_cmd(user_data, 'cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0')
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
-    user_data_yaml = '#cloud-config\n' + yaml.dump(user_data, default_flow_style=False)
+    add_run_cmd(user_data, 'echo "Intialization COMPLETED"')
+
+    user_data_yaml = yaml.dump(user_data, default_flow_style=False)
+    user_data_yaml = '#cloud-config\n' + user_data_yaml
 
     validate_user_data(user_data_yaml)
 
@@ -504,9 +617,10 @@ def configure_images(parsed, user_data, add_file_local, add_file):
             msg = 'If you want to run %r you need to load it as well.' % _
             raise Exception(msg)
 
+    configuration = parsed.configuration
     for cf in stacks_to_load:
         # local path
-        lpath = get_resource(os.path.join('stacks', cf + '.yaml'))
+        lpath = get_resource(os.path.join('stacks', configuration, cf + '.yaml'))
         # path on PI
         rpath = '/var/local/%s.yaml' % cf
 
@@ -518,7 +632,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
         add_file_local(path=rpath, local=lpath)
 
-    stack2yaml = get_stack2yaml(stacks_to_load, get_resource('stacks'))
+    stack2yaml = get_stack2yaml(stacks_to_load, get_resource(os.path.join('stacks', configuration)))
     if not stack2yaml:
         msg = 'Not even one stack specified'
         raise Exception(msg)
@@ -603,6 +717,8 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 cmd = ['docker-compose', '-p', cf, '--file', '/var/local/%s.yaml' % cf, 'up', '-d']
                 user_data['bootcmd'].append(cmd)  # every boot
 
+    # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
+    # If modifying, make sure to adjust the blinking feedback
     log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
@@ -723,7 +839,7 @@ Host {HOSTNAME}
 
 
 def copy_default_calibrations(add_file):
-    
+
     kin_calib = get_resource('calib_kin_default.yaml')
     ext_cam_calib = get_resource('calib_cam_ext_default.yaml')
     int_cam_calib = get_resource('calib_cam_int_default.yaml')
@@ -731,7 +847,7 @@ def copy_default_calibrations(add_file):
     kin_calib_file = open(kin_calib)
     ext_cam_calib_file = open(ext_cam_calib)
     int_cam_calib_file = open(int_cam_calib)
-    
+
     add_file(path='/data/config/calibrations/kinematics/default.yaml', content=yaml.dump(yaml.load(kin_calib_file), default_flow_style=False))
     add_file(path='/data/config/calibrations/camera_extrinsic/default.yaml',content=yaml.dump(yaml.load(ext_cam_calib_file), default_flow_style=False))
     add_file(path='/data/config/calibrations/camera_intrinsic/default.yaml',content=yaml.dump(yaml.load(int_cam_calib_file), default_flow_style=False))
@@ -910,17 +1026,22 @@ def save_images(stack2yaml, compress):
 
 
 def log_current_phase(user_data, phase, msg):
-    j = json.dumps(dict(phase=phase, msg=msg))
-    # cmd = ['bash', '-c', "echo '%s' > /data/phase.json" % j]
+    # NOTE: double json.dumps to add escaped quotes
+    j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
     cmd = 'echo %s >> /data/boot-log.txt' % j
     user_data['runcmd'].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
-    cmd_pre = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='running command'))
-    cmd_post = 'echo %s > /data/command.json' % json.dumps(dict(cmd=cmd, msg='finished command'))
+    # PRE action (NOTE: double json.dumps to add escaped quotes)
+    pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command', pos=len(user_data['runcmd']))))
+    cmd_pre = 'echo %s >> /data/command.json' % pre_json
     user_data['runcmd'].append(cmd_pre)
+    # COMMAND
     user_data['runcmd'].append(cmd)
+    # POST action (NOTE: double json.dumps to add escaped quotes)
+    post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command', pos=len(user_data['runcmd']))))
+    cmd_post = 'echo %s >> /data/command.json' % post_json
     user_data['runcmd'].append(cmd_post)
 
 

@@ -4,13 +4,16 @@ import os
 import subprocess
 import threading
 import time
+import socket
+import platform
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
 from utils.docker_utils import push_image_to_duckiebot, run_image_on_duckiebot, run_image_on_localhost, \
-    start_slimremote_duckiebot_container, stop_container, \
+     stop_container, remove_container, default_env, remove_if_running, \
     continuously_monitor, get_remote_client, record_bag
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -19,7 +22,7 @@ usage = """
 
     Evaluates the current submission on the Duckiebot:
 
-        $ dts duckiebot evaluate
+        $ dts duckiebot evaluate --duckiebot_name ![DUCKIEBOT_HOSTNAME]
 
 """
 
@@ -30,143 +33,182 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         prog = 'dts duckiebot evaluate'
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
         group = parser.add_argument_group('Basic')
-
-        parser.add_argument('hostname', default=None,
+        group.add_argument('--duckiebot_name', default=None,
                             help="Name of the Duckiebot on which to perform evaluation")
-
-        group.add_argument('--image', help="Image to evaluate",
-                           default="duckietown/challenge-aido1_lf1-template-ros:v3")
-
-        group.add_argument('--duration', help="Number of seconds to run evaluation", default=120)
-
+        group.add_argument('--duckiebot_username', default="duckie",
+                           help="The duckiebot username")
+        group.add_argument('--image', dest='image_name',
+                           help="Image to evaluate, if none specified then we will build your current context",
+                           default=None)
+        group.add_argument('--glue_node_image', default="duckietown/challenge-aido_lf-duckiebot:aido2",
+                           help="The node that glues your submission with ROS on the duckiebot. Probably don't change")
+        group.add_argument('--duration', help="Number of seconds to run evaluation", default=15)
         group.add_argument('--remotely', action='store_true', default=True,
-                           help="Run the image on the laptop without pushing to Duckiebot")
-
+                           help="If true run the image over network without pushing to Duckiebot")
+        group.add_argument('--no_cache', help="disable cache on docker build",
+                           action="store_true", default=False)
+        group.add_argument('--record_bag', action='store_true', default=False,
+                           help="If true record a rosbag")
+        group.add_argument("--debug", action='store_true', default=False,
+                           help="If true you will get a shell instead of executing")
         group.add_argument('--max_vel', help="the max velocity for the duckiebot", default=0.7)
-
+        group.add_argument('--challenge', help="Specific challenge to evaluate")
         parsed = parser.parse_args(args)
 
-        slimremote_container = start_slimremote_duckiebot_container(parsed.hostname,parsed.max_vel)
-        time.sleep(2)
+        tmpdir = '/tmp'
+        USERNAME = getpass.getuser()
+        dir_home_guest = os.path.expanduser('~')
+        dir_fake_home = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
+        if not os.path.exists(dir_fake_home):
+            os.makedirs(dir_fake_home)
+        get_calibration_files(dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name)
 
-        volumes = setup_expected_volumes(parsed.hostname)
+        client = check_docker_environment()
+        agent_container_name = "agent"
+        glue_container_name = "aido_glue"
 
-        bag_container = record_bag(parsed.hostname, parsed.duration)
+        # remove the containers if they are already running
+        remove_if_running(client, agent_container_name)
+        remove_if_running(client, glue_container_name)
 
-        env = {'username': 'root',
-               'challenge_step_name': 'step1-simulation',
-               'uid': 0,
-               'challenge_name': 'aido1_LF1_r3-v3',
-               'VEHICLE_NAME': parsed.hostname
-               }
+        # setup the fifos2 volume (requires pruning it if it's still hanging around from last time)
+        try:
+            client.volumes.prune()
+            fifo2_volume=client.volumes.create(name='fifos2')
+        except Exception as e:
+            dtslogger.warn("error creating volume: %s" % e)
 
-        if parsed.remotely:
-            evaluate_remotely(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
+
+        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
+
+        duckiebot_client = get_remote_client(duckiebot_ip)
+        try:
+            duckiebot_containers = duckiebot_client.containers.list()
+            interface_container_found=False
+            for c in duckiebot_containers:
+                if 'duckiebot-interface' in c.name:
+                    interface_container_found=True
+            if not interface_container_found:
+                dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
+        except Exception as e:
+            dtslogger.warn("Not sure if the duckiebot-interface is running because we got and exception when trying: %s" % e)
+            
+
+        # let's start building stuff for the "glue" node
+        glue_volumes =  {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'}}
+        glue_env = {'HOSTNAME':parsed.duckiebot_name,
+                    'DUCKIEBOT_NAME':parsed.duckiebot_name,
+                    'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip}
+
+        dtslogger.info("Running %s on localhost with environment vars: %s" %
+                       (parsed.glue_node_image, glue_env))
+        params = {'image': parsed.glue_node_image,
+                  'name': glue_container_name,
+                  'network_mode': 'host',
+                  'privileged': True,
+                  'environment': glue_env,
+                  'detach': True,
+                  'tty': True,
+                  'volumes': glue_volumes}
+
+        # run the glue container
+        glue_container = client.containers.run(**params)
+
+        if not parsed.debug:
+            monitor_thread = threading.Thread(target=continuously_monitor, args=(client, glue_container.name))
+            monitor_thread.start()
+
+        if parsed.image_name is None:
+            # if we didn't get an `image_name` we try need to build the local container
+            path = '.'
+            dockerfile = os.path.join(path, 'Dockerfile')
+            if not os.path.exists(dockerfile):
+                msg = 'No Dockerfile'
+                raise Exception(msg)
+            tag='myimage'
+            if parsed.no_cache:
+                cmd = ['docker', 'build', '--no-cache', '-t', tag, '-f', dockerfile]
+            else:
+                cmd = ['docker', 'build', '-t', tag, '-f', dockerfile]
+            dtslogger.info("Running command: %s" % cmd)
+            cmd.append(path)
+            subprocess.check_call(cmd)
+            image_name = tag
         else:
-            evaluate_locally(parsed.hostname, parsed.image, int(parsed.duration), env, volumes)
-
-        #       image_view_container = start_rqt_image_view(parsed.hostname)
-        stop_container(bag_container)
-#        stop_container(slimremote_container)
+            image_name = parsed.image_name
 
 
-def setup_expected_volumes(hostname):
-    tmpdir = '/tmp'
+        # start to build the agent stuff
+        agent_env = {'AIDONODE_DATA_IN':'/fifos/agent-in',
+                    'AIDONODE_DATA_OUT':'fifo:/fifos/agent-out'}
 
-    USERNAME = getpass.getuser()
-    dir_home_guest = os.path.expanduser('~')
-    dir_fake_home_host = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
-    if not os.path.exists(dir_fake_home_host):
-        os.makedirs(dir_fake_home_host)
+        agent_volumes = {fifo2_volume.name: {'bind': '/fifos', 'mode': 'rw'},
+                         dir_fake_home: {'bind': '/data/config', 'mode': 'rw'}
+                         }
 
-    challenge_description_dir = dir_fake_home_host + '/challenge-description'
-    if not os.path.exists(challenge_description_dir):
-        os.makedirs(challenge_description_dir)
-        with(open(challenge_description_dir + '/description.yaml', 'w+')) as f:
-            f.write("env: Duckietown-Lf-Lfv-Navv-Silent-v1")
 
-    local_slimremote_dir = dir_fake_home_host + '/duckietown-slimremote'
-    
-    # It seems that the slimremote is put in two different places depending on the submission
-    # so for now we clone it twice and map to the two different locations
-    local_slimremote_dir_1 = local_slimremote_dir+'/1'
-    local_slimremote_dir_2 = local_slimremote_dir+'/2'
-    if not os.path.exists(local_slimremote_dir_1):
-        setup_slimremote(local_slimremote_dir_1)
-    if not os.path.exists(local_slimremote_dir_2):
-        setup_slimremote(local_slimremote_dir_2)
-    #### TODO else update the repo instead of cloning it
+        params = {'image': image_name,
+                  'remove': True,
+                  'name': agent_container_name,
+                  'environment': agent_env,
+                  'detach': True,
+                  'tty': True,
+                  'volumes': agent_volumes}
+
+        if parsed.debug:
+            params['command'] = '/bin/bash'
+            params['stdin_open'] = True
+
 
         
-    dir_fake_home_guest = dir_home_guest
-    dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
-    dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
-    dir_tmpdir_host = '/tmp'
-    dir_tmpdir_guest = '/tmp'
-    get_calibration_files(dir_fake_home_host, hostname)
-    local_calibration_dir = dir_fake_home_host + '/config/calibrations'
+        dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, agent_env))
+        agent_container = client.containers.run(**params)
 
-    return {'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
-            #            os.getcwd(): {'bind': os.getcwd(), 'mode': 'ro'}, # LP: why do we need this ?
-            dir_tmpdir_host: {'bind': dir_tmpdir_guest, 'mode': 'rw'},
-            dir_dtshell_host: {'bind': dir_dtshell_guest, 'mode': 'ro'},
-            dir_fake_home_host: {'bind': dir_fake_home_guest, 'mode': 'rw'},
-            '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
-            challenge_description_dir: {'bind': '/challenge-description', 'mode': 'rw'},
-            local_slimremote_dir_1: {'bind': '/workspace/src/duckietown-slimremote', 'mode': 'rw'},
-            local_slimremote_dir_2: {'bind': '/notebooks/src/duckietown-slimremote', 'mode': 'rw'},
-            local_calibration_dir: {'bind': '/data/config/calibrations', 'mode': 'rw'},
-            }
+        if parsed.debug:
+            attach_cmd = 'docker attach %s' % agent_container_name
+            start_command_in_subprocess(attach_cmd)
+
+        else:
+            monitor_thread = threading.Thread(target=continuously_monitor,args=(client, agent_container_name))
+            monitor_thread.start()
+
+        duration = int(parsed.duration)
+        # should we record a bag?
+        if parsed.record_bag:
+            bag_container = record_bag(parsed.hostname, duration)
+
+        dtslogger.info("Running for %d s" % duration)
+        time.sleep(duration)
+        stop_container(glue_container)
+        stop_container(agent_container)
+
+        if parsed.record_bag:
+            stop_container(bag_container)
+
+        # TODO remotely vs. locally
 
 
 # get the calibration files off the robot
-def get_calibration_files(tmp_dir, host, username='duckie'):
+def get_calibration_files(dir, duckiebot_username, duckiebot_name):
     dtslogger.info("Getting calibration files")
-    p = subprocess.Popen(["scp", "-r", "%s@%s.local:/data/config" % (username, host), tmp_dir])
+    p = subprocess.Popen(["scp", "-r", "%s@%s.local:/data/config" % (duckiebot_username, duckiebot_name),
+                          dir])
     sts = os.waitpid(p.pid, 0)
-
-    dtslogger.info("%s/config/calibrations/camera_instrisic/%s.yaml" % (tmp_dir, host))
-    ## for now we rename them to default.yaml - should change but it's the easiest way for now
-    os.rename(tmp_dir + '/config/calibrations/camera_intrinsic/' + host + '.yaml',
-              tmp_dir + '/config/calibrations/camera_intrinsic/default.yaml')
-    os.rename(tmp_dir + '/config/calibrations/camera_extrinsic/' + host + '.yaml',
-              tmp_dir + '/config/calibrations/camera_extrinsic/default.yaml')
-    os.rename(tmp_dir + '/config/calibrations/kinematics/' + host + '.yaml',
-              tmp_dir + '/config/calibrations/kinematics/default.yaml')
-
-
-def setup_slimremote(destination_dir):
-    from git import Repo
-    dtslogger.info("Cloning duckietown/duckietown-slimremote locally to %s" % destination_dir)
-    Repo.clone_from("https://github.com/duckietown/duckietown-slimremote", destination_dir, branch='testing')
 
 
 # Runs everything on the Duckiebot
 
-def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
-    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
-    push_image_to_duckiebot(image_name, duckiebot_name)
-    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    duckiebot_client = get_remote_client(duckiebot_ip)
-    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
-    monitor_thread.start()
-    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
-    time.sleep(duration)
-    stop_container(evaluation_container)
+#def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
+#    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
+#    push_image_to_duckiebot(image_name, duckiebot_name)
+#    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
+#    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
+#    duckiebot_client = get_remote_client(duckiebot_ip)
+#    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
+#    monitor_thread.start()
+#    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
+#    time.sleep(duration)
+#    stop_container(evaluation_container)
 
 
-# Sends actions over the local network
-
-def evaluate_remotely(duckiebot_name, image_name, duration, env, volumes):
-    dtslogger.info("Running %s on localhost" % image_name)
-    evaluation_container = run_image_on_localhost(image_name, duckiebot_name, env, volumes)
-    time.sleep(2)
-    local_client = check_docker_environment()
-    monitor_thread = threading.Thread(target=continuously_monitor, args=(local_client, evaluation_container.name))
-    monitor_thread.start()
-    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
-    time.sleep(duration)
-    stop_container(evaluation_container)

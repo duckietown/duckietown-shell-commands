@@ -1,0 +1,27 @@
+version: '3'
+services:
+
+  dashboard:
+    image: duckietown/dt-duckiebot-dashboard:daffy
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - compose-data:/var/www/html
+      # cloud-init userdata file
+      - /boot/user-data:/robot/boot/user-data
+      # raspberry configuration
+      - /boot/config.txt:/robot/boot/config.txt
+      # info about the underlying OS (read-only)
+      - /boot/os-release:/robot/boot/os-release:ro
+      # stuff written by init_sd_card
+      - /var/local:/robot/var/local
+      # generic duckietown data
+      - /data:/robot/data
+
+  ros-websocket:
+    image: duckietown/dt-rosbridge-websocket:daffy
+    restart: unless-stopped
+    network_mode: "host"
+
+volumes:
+  compose-data:

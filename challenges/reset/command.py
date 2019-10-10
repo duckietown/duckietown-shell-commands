@@ -1,7 +1,7 @@
 import argparse
 
-from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.remote import make_server_request
+from challenges import wrap_server_operations
+from dt_shell import DTCommandAbs, UserError
 
 
 class DTCommand(DTCommandAbs):
@@ -13,33 +13,24 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--job", default=None, help='Only reset this particular job', type=int)
         parser.add_argument("--submission", default=None, type=int, help='Reset this particular submission')
         parser.add_argument("--step", default=None, help='Only reset this particular step')
+        parser.add_argument("--impersonate", default=None)
         parsed = parser.parse_args(args)
 
         if parsed.submission is None and parsed.job is None:
             msg = 'You need to specify either --job or --submission.'
-            raise Exception(msg)
+            raise UserError(msg)
 
-        if parsed.submission is not None:
-            submission_id = dtserver_reset_submission(token,
-                                                      submission_id=parsed.submission,
-                                                      step_name=parsed.step)
-            dtslogger.info('Successfully reset %s' % submission_id)
-        elif parsed.job is not None:
-            job_id = dtserver_reset_job(token, job_id=parsed.job)
-            dtslogger.info('Successfully reset %s' % job_id)
-        else:
-            assert False
-
-
-def dtserver_reset_submission(token, submission_id, step_name):
-    endpoint = '/reset-submission'
-    method = 'POST'
-    data = {'submission_id': submission_id, 'step_name': step_name}
-    return make_server_request(token, endpoint, data=data, method=method)
-
-
-def dtserver_reset_job(token, job_id):
-    endpoint = '/reset-job'
-    method = 'POST'
-    data = {'job_id': job_id}
-    return make_server_request(token, endpoint, data=data, method=method)
+        with wrap_server_operations():
+            if parsed.submission is not None:
+                from duckietown_challenges.rest_methods import dtserver_reset_submission
+                submission_id = dtserver_reset_submission(token,
+                                                          submission_id=parsed.submission,
+                                                          impersonate=parsed.impersonate,
+                                                           step_name=parsed.step)
+                shell.sprint('Successfully reset %s' % submission_id)
+            elif parsed.job is not None:
+                from duckietown_challenges.rest_methods import dtserver_reset_job
+                job_id = dtserver_reset_job(token, job_id=parsed.job, impersonate=parsed.impersonate)
+                shell.sprint('Successfully reset %s' % job_id)
+            else:
+                assert False

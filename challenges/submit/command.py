@@ -1,71 +1,17 @@
 import argparse
-import datetime
+import dataclasses
 import json
 import os
-import subprocess
-import traceback
 
 import termcolor
-import yaml
+
+from challenges import wrap_server_operations
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import get_dockerhub_username, check_docker_environment
-from dt_shell.remote import dtserver_submit, get_duckietown_server_url, make_server_request
-
-
-def tag_from_date(d):
-    # YYYY-MM-DDTHH:MM:SS[.mmmmmm][+HH:MM].
-    s = d.isoformat()
-
-    s = s.replace(':', '_')
-    s = s.replace('T', '_')
-    s = s.replace('-', '_')
-    s = s[:s.index('.')]
-    return s
-
-
-def build(username, challenge, do_push=True, no_cache=False):
-    tag = tag_from_date(datetime.datetime.now())
-    df = 'Dockerfile'
-    image = '%s/%s:%s' % (username.lower(), challenge.lower() + '-submission', tag)
-
-    if not os.path.exists(df):
-        msg = 'I expected to find the file "%s".' % df
-        raise Exception(msg)
-
-    cmd = ['docker', 'build',
-           '-t', image,
-           '-f', df,
-           '.',
-           ]
-
-    if no_cache:
-        cmd.append('--no-cache')
-    print(cmd)
-    p = subprocess.Popen(cmd)
-    p.communicate()
-    if p.returncode != 0:
-        msg = 'Could not run docker build.'
-        raise Exception(msg)
-
-    if do_push:
-        cmd = ['docker', 'push', image]
-        p = subprocess.Popen(cmd)
-        p.communicate()
-        p.communicate()
-
-        if p.returncode != 0:
-            msg = 'Could not run docker push.'
-
-            msg += '\n\nI tried to push the tag\n\n   %s' % image
-
-            msg += '\n\nYou told me your DockerHub username is "%s"' % username
-
-            msg += '\n\nEither the username is wrong or you need to login using "docker login".'
-
-            msg += '\n\nTo change the username use\n\n    dts challenges config --docker-username USERNAME'
-            raise Exception(msg)
-
-    return image
+from duckietown_challenges import get_duckietown_server_url
+from duckietown_challenges.cmd_submit_build import submission_build
+from duckietown_challenges.rest_methods import get_registry_info, dtserver_submit2, dtserver_get_compatible_challenges
+from duckietown_challenges.submission_read import read_submission_info
 
 
 class DTCommand(DTCommandAbs):
@@ -119,21 +65,14 @@ Submission with an arbitrary JSON payload:
                            help="Custom JSON structure to attach to the submission")
 
         group = parser.add_argument_group("Building settings.")
-        group.add_argument('--image', default=None, type=str,
-                           help="Specify image directly instead of building it.")
-        group.add_argument('--no-push', dest='no_push', action='store_true', default=False,
-                           help="Disable pushing of container")
-        group.add_argument('--no-submit', dest='no_submit', action='store_true', default=False,
-                           help="Disable submission (only build and push)")
+
         group.add_argument('--no-cache', dest='no_cache', action='store_true', default=False)
-        group.add_argument('--impersonate',type=int, default=None)
+        group.add_argument('--impersonate', type=int, default=None)
 
         group.add_argument('-C', dest='cwd', default=None, help='Base directory')
 
         parsed = parser.parse_args(args)
-
-        do_push = not parsed.no_push
-
+        impersonate = parsed.impersonate
         if parsed.cwd is not None:
             dtslogger.info('Changing to directory %s' % parsed.cwd)
             os.chdir(parsed.cwd)
@@ -144,65 +83,100 @@ Submission with an arbitrary JSON payload:
 
         sub_info = read_submission_info('.')
 
-        if parsed.message:
-            sub_info.user_label = parsed.message
-        if parsed.metadata:
-            sub_info.user_payload = json.loads(parsed.metadata)
-        if parsed.challenge:
-            sub_info.challenge_name = parsed.challenge
+        with wrap_server_operations():
+            ri = get_registry_info(token=token, impersonate=impersonate)
 
-        impersonate = parsed.impersonate
-        username = get_dockerhub_username(shell)
+            registry = ri.registry
 
-        if parsed.image is not None:
-            hashname = parsed.image
-        else:
-            hashname = build(username, sub_info.challenge_name, do_push, no_cache=parsed.no_cache)
+            compat = dtserver_get_compatible_challenges(token=token, impersonate=impersonate,
+                                                        submission_protocols=sub_info.protocols)
+            if not compat.compatible:
+                msg = 'There are no compatible challenges with protocols %s,\n' \
+                      ' or you might not have the necessary permissions.' % sub_info.protocols
+                raise UserError(msg)
 
-        data = {'hash': hashname,
-                'user_label': sub_info.user_label,
-                'user_payload': sub_info.user_payload,
-                'protocols': sub_info.protocols}
+            if parsed.message:
+                sub_info.user_label = parsed.message
+            if parsed.metadata:
+                sub_info.user_metadata = json.loads(parsed.metadata)
+            if parsed.challenge:
+                sub_info.challenge_names = parsed.challenge.split(',')
+            if sub_info.challenge_names is None:
+                sub_info.challenge_names = compat.compatible
 
-        if not parsed.no_submit:
-            submission_id = dtserver_submit2(token, sub_info.challenge_name, data, impersonate=impersonate)
-            url = get_duckietown_server_url() + '/humans/submissions/%s' % submission_id
-            url = href(url)
+            print('I will submit to the challenges %s' % sub_info.challenge_names)
 
-            manual = href('http://docs.duckietown.org/DT18/AIDO/out/')
-            ID = termcolor.colored(submission_id, 'cyan')
-            msg = '''
+            for c in sub_info.challenge_names:
+                if not c in compat.available_submit:
+                    msg = 'The challenge "%s" does not exist among %s.' % (c, list(compat.available_submit))
+                    raise UserError(msg)
+                if not c in compat.compatible:
+                    msg = 'The challenge "%s" is not compatible with protocols %s .' % (c, sub_info.protocols)
+                    raise UserError(msg)
+            username = get_dockerhub_username(shell)
 
-Successfully created submission {ID}.
+            print('')
+            print('')
+            br = submission_build(username=username, registry=registry,
+                                  no_cache=parsed.no_cache)
 
-You can track the progress at:
+            data = {'image': dataclasses.asdict(br),
+                    'user_label': sub_info.user_label,
+                    'user_payload': sub_info.user_metadata,
+                    'protocols': sub_info.protocols}
 
-    {url}
-         
-You can also use the command `follow` to follow its fate:
+            data = dtserver_submit2(token=token,
+                                    challenges=sub_info.challenge_names, data=data,
+                                    impersonate=impersonate)
 
-    {P} dts challenges follow --submission {ID}
+            # print('obtained:\n%s' % json.dumps(data, indent=2))
+            component_id = data['component_id']
+            submissions = data['submissions']
+            # url_component = href(get_duckietown_server_url() + '/humans/components/%s' % component_id)
+
+            msg = f'''
     
-You can speed up the evaluation using your own evaluator:
-
-    {P} dts challenges evaluator --submission {ID}
-
-For more information, see the manual at {manual}
+    Successfully created component.
     
-'''.format(ID=ID, P=dark('$'), url=url, manual=manual)
+    This component has been entered in {len(submissions)} challenge(s).
+    
+            '''
 
-            if hasattr(shell, 'sprint'):
-                shell.sprint(msg)
-            else:
-                print(msg)
+            for challenge_name, sub_info in submissions.items():
+                submission_id = sub_info['submission_id']
+                url_submission = href(get_duckietown_server_url() + '/humans/submissions/%s' % submission_id)
+                challenge_title = sub_info['challenge']['title']
+                submission_id_color = termcolor.colored(submission_id, 'cyan')
+                P = dark('$')
+                head = bright(f'## Challenge {challenge_name} - {challenge_title}')
+                msg += '\n\n' + f'''
+                
+    {head}
+    
+    Track this submission at:
+    
+        {url_submission}
+             
+    You can follow its fate using:
+    
+        {P} dts challenges follow --submission {submission_id_color}
+        
+    You can speed up the evaluation using your own evaluator:
+    
+        {P} dts challenges evaluator --submission {submission_id_color}
+        
+    '''.strip()
+                manual = href('http://docs.duckietown.org/DT19/AIDO/out/')
+                msg += f'''
+    
+    For more information, see the manual at {manual}
+    '''
 
-def dtserver_submit2(token, queue, data, impersonate=None):
-    endpoint = '/submissions'
-    method = 'POST'
-    data = {'queue': queue, 'parameters': data}
-    if impersonate is not None:
-        data['submitter_id'] = impersonate
-    return make_server_request(token, endpoint, data=data, method=method)
+            shell.sprint(msg)
+
+
+def bright(x):
+    return termcolor.colored(x, 'blue')
 
 
 def dark(x):
@@ -212,56 +186,57 @@ def dark(x):
 def href(x):
     return termcolor.colored(x, 'blue', attrs=['underline'])
 
+# class CouldNotReadInfo(Exception):
+#     pass
 
-class CouldNotReadInfo(Exception):
-    pass
+#
+# @dataclass
+# class SubmissionInfo:
+#     challenges: Optional[List[str]]
+#     user_label: Optional[str]
+#     user_payload: Optional[dict]
+#     protocols: List[str]
+#
+#
+# def read_submission_info(dirname) -> SubmissionInfo:
+#     bn = 'submission.yaml'
+#     fn = os.path.join(dirname, bn)
+#
+#     try:
+#         data = read_yaml_file(fn)
+#     except BaseException:
+#         raise CouldNotReadInfo(traceback.format_exc())
+#     try:
+#         known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
+#         challenges = data.pop('challenge', None)
+#         if isinstance(challenges, str):
+#             challenges = [challenges]
+#         protocols = data.pop('protocol')
+#         if not isinstance(protocols, list):
+#             protocols = [protocols]
+#         user_label = data.pop('user-label', None)
+#         user_payload = data.pop('user-payload', None)
+#         description = data.pop('description', None)
+#         if data:
+#             msg = 'Unknown keys: %s' % list(data)
+#             msg += '\n\nI expect only the keys %s' % known
+#             raise Exception(msg)
+#         return SubmissionInfo(challenges, user_label, user_payload, protocols)
+#     except BaseException as e:
+#         msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
+#         raise CouldNotReadInfo(msg)
 
-
-class SubmissionInfo(object):
-    def __init__(self, challenge_name, user_label, user_payload, protocols):
-        self.challenge_name = challenge_name
-        self.user_label = user_label
-        self.user_payload = user_payload
-        self.protocols = protocols
-
-
-def read_submission_info(dirname):
-    bn = 'submission.yaml'
-    fn = os.path.join(dirname, bn)
-
-    try:
-        data = read_yaml_file(fn)
-    except BaseException as e:
-        raise CouldNotReadInfo(traceback.format_exc())
-    try:
-        known = ['challenge', 'protocol', 'user-label', 'user-payload', 'description']
-        challenge_name = data.pop('challenge')
-        protocols = data.pop('protocol')
-        if not isinstance(protocols, list):
-            protocols = [protocols]
-        user_label = data.pop('user-label', None)
-        user_payload = data.pop('user-payload', None)
-        description = data.pop('description', None)
-        if data:
-            msg = 'Unknown keys: %s' % list(data)
-            msg += '\n\nI expect only the keys %s' % known
-            raise Exception(msg)
-        return SubmissionInfo(challenge_name, user_label, user_payload, protocols)
-    except BaseException as e:
-        msg = 'Could not read file %r: %s' % (fn, traceback.format_exc())
-        raise CouldNotReadInfo(msg)
-
-
-def read_yaml_file(fn):
-    if not os.path.exists(fn):
-        msg = 'File does not exist: %s' % fn
-        raise Exception(msg)
-
-    with open(fn) as f:
-        data = f.read()
-
-        try:
-            return yaml.load(data, Loader=yaml.Loader)
-        except Exception as e:
-            msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
-            raise Exception(msg)
+#
+# def read_yaml_file(fn):
+#     if not os.path.exists(fn):
+#         msg = 'File does not exist: %s' % fn
+#         raise Exception(msg)
+#
+#     with open(fn) as f:
+#         data = f.read()
+#
+#         try:
+#             return yaml.load(data, Loader=yaml.Loader)
+#         except Exception as e:
+#             msg = 'Could not read YAML file %s:\n\n%s' % (fn, e)
+#             raise Exception(msg)

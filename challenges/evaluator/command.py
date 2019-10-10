@@ -9,9 +9,8 @@ import sys
 import time
 import traceback
 
-from dt_shell import dtslogger, DTCommandAbs
+from dt_shell import dtslogger, DTCommandAbs, UserError
 from dt_shell.env_checks import check_docker_environment
-from dt_shell.remote import get_duckietown_server_url
 
 usage = """
 
@@ -86,7 +85,10 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--name', default=None, help='Name for this evaluator')
         group.add_argument("--features", default=None, help="Pretend to be what you are not.")
 
-        dtslogger.debug('args: %s' % args)
+        group.add_argument("--ipfs", action='store_true', default=False, help="Run with IPFS available")
+        group.add_argument("--one", action='store_true', default=False, help="Only run 1 submission")
+
+        # dtslogger.debug('args: %s' % args)
         parsed = parser.parse_args(args)
 
         machine_id = socket.gethostname()
@@ -106,7 +108,8 @@ class DTCommand(DTCommandAbs):
             if parsed.reset:
                 command += ['--reset']
         else:
-            command += ['--continuous']
+            if not parsed.one:
+                command += ['--continuous']
 
         command += ['--name', container_name]
         command += ['--machine-id', machine_id]
@@ -117,15 +120,29 @@ class DTCommand(DTCommandAbs):
             command += ['--no-pull']
         if parsed.no_delete:
             command += ['--no-delete']
+
+        if parsed.one:
+            command += ['--one']
         if parsed.features:
             dtslogger.debug('Passing features %r' % parsed.features)
             command += ['--features', parsed.features]
-
+        mounts = []
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
             os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'},
             '/tmp': {'bind': '/tmp', 'mode': 'rw'}
         }
+
+        if parsed.ipfs:
+            if not ipfs_available():
+                msg = 'IPFS not available/mounted correctly.'
+                raise UserError(msg)
+
+            command += ['--ipfs']
+            # volumes['/ipfs'] = {'bind': '/ipfs', 'mode': 'ro'}
+            from docker.types import Mount
+            mount = Mount(type='bind', source='/ipfs', target='/ipfs', read_only=True)
+            mounts.append(mount)
         env = {}
 
         UID = os.getuid()
@@ -136,6 +153,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_watchtower:
             ensure_watchtower_active(client)
 
+        from duckietown_challenges.rest import get_duckietown_server_url
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
         if 'localhost' in url:
@@ -159,6 +177,7 @@ class DTCommand(DTCommandAbs):
 
             client.images.pull(name, tag)
 
+        # noinspection PyBroadException
         try:
             container = client.containers.get(container_name)
         except:
@@ -182,6 +201,7 @@ class DTCommand(DTCommandAbs):
                               command=command,
                               volumes=volumes,
                               environment=env,
+                              mounts=mounts,
                               network_mode='host',
                               detach=True,
                               name=container_name,
@@ -219,9 +239,14 @@ class DTCommand(DTCommandAbs):
             try:
                 if last_log_timestamp is not None:
                     print('since: %s' % last_log_timestamp.isoformat())
-                for c in container.logs(stdout=True, stderr=True, stream=True,  # follow=True,
+                for c0 in container.logs(stdout=True, stderr=True, stream=True,  # follow=True,
                                         since=last_log_timestamp, tail=0):
-                    sys.stdout.write(c.decode('utf-8'))
+                    c: bytes = c0
+                    try:
+                        s = c.decode('utf-8')
+                    except:
+                        s = c.decode('utf-8', errors='replace')
+                    sys.stdout.write(s)
                     last_log_timestamp = datetime.datetime.now()
 
                 time.sleep(3)
@@ -242,6 +267,25 @@ class DTCommand(DTCommandAbs):
                     time.sleep(3)
 
 
+def ipfs_available():
+    if os.path.exists('/ipfs'):
+        fn = '/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/readme'
+        try:
+            d = open(fn).read()
+        except:
+            msg = f'Could not open an IPFS file: {traceback.format_exc()}'
+            dtslogger.warning(msg)
+            return False
+
+        if 'Hello' in d:
+            return True
+        else:
+            dtslogger.warning(d)
+            return False
+    else:
+        return False
+
+
 def ensure_watchtower_active(client):
     containers = client.containers.list(filters=dict(status='running'))
     watchtower_tag = 'v2tec/watchtower'
@@ -253,16 +297,17 @@ def ensure_watchtower_active(client):
                 found = c
 
     if found is not None:
-        print('I found watchtower active.')
+        dtslogger.info('I found watchtower active.')
     else:
-        print('Starting watchtower')
+        dtslogger.info('Starting watchtower')
         env = {}
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'rw'},
             # os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'}
         }
-        container = client.containers.run(watchtower_tag, volumes=volumes, environment=env, network_mode='host', detach=True)
-        print('Detached: %s' % container)
+        container = client.containers.run(watchtower_tag, volumes=volumes, environment=env, network_mode='host',
+                                          detach=True)
+        dtslogger.info('Detached: %s' % container)
 
 
 def indent(s, prefix, first=None):

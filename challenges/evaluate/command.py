@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 
 import argparse
 import getpass
@@ -12,7 +11,7 @@ import yaml
 from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
-from dt_shell.remote import get_duckietown_server_url
+
 
 from utils.docker_utils import continuously_monitor, start_rqt_image_view
 
@@ -40,10 +39,13 @@ class DTCommand(DTCommandAbs):
         group.add_argument('--no-cache', action='store_true', default=False, help="")
         group.add_argument('--no-build', action='store_true', default=False, help="")
         group.add_argument('--no-pull', action='store_true', default=False, help="")
+        group.add_argument('--challenge', help="Specific challenge to evaluate")
+
         group.add_argument('--image', help="Evaluator image to run", default='duckietown/dt-challenges-evaluator:v4')
         group.add_argument('--shell', action='store_true', default=False, help="Runs a shell in the container")
         group.add_argument('--output', help="", default='output')
         group.add_argument('--visualize', help="Visualize the evaluation", action='store_true', default=False)
+        parser.add_argument('--impersonate', type=str, default=None)
         group.add_argument('-C', dest='change', default=None)
 
         parsed = parser.parse_args(args)
@@ -58,7 +60,10 @@ class DTCommand(DTCommandAbs):
             command.append('--no-cache')
         if parsed.no_build:
             command.append('--no-build')
-
+        if parsed.challenge:
+            command.extend(['--challenge', parsed.challenge])
+        if parsed.impersonate:
+            command.extend(['--impersonate', parsed.impersonate])
         output_rp = os.path.realpath(parsed.output)
         command.extend(['--output', parsed.output])
         #
@@ -70,13 +75,13 @@ class DTCommand(DTCommandAbs):
 
         UID = os.getuid()
         USERNAME = getpass.getuser()
-        dir_home_guest = os.path.expanduser('~')
+        dir_home_guest = '/fake-home/%s'% USERNAME # os.path.expanduser('~')
         dir_fake_home_host = os.path.join(tmpdir, 'fake-%s-home' % USERNAME)
         if not os.path.exists(dir_fake_home_host):
             os.makedirs(dir_fake_home_host)
 
         dir_fake_home_guest = dir_home_guest
-        dir_dtshell_host = os.path.join(dir_home_guest, '.dt-shell')
+        dir_dtshell_host = os.path.join(os.path.expanduser('~'), '.dt-shell')
         dir_dtshell_guest = os.path.join(dir_fake_home_guest, '.dt-shell')
         dir_tmpdir_host = '/tmp'
         dir_tmpdir_guest = '/tmp'
@@ -115,6 +120,7 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.debug('Environment:\n\n%s' % yaml.safe_dump(env, default_flow_style=False))
 
+        from duckietown_challenges.rest import get_duckietown_server_url
         url = get_duckietown_server_url()
         dtslogger.info('The server URL is: %s' % url)
         if 'localhost' in url:

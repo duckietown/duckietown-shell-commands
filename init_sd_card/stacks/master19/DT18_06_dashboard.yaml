@@ -1,0 +1,17 @@
+version: '3'
+services:
+
+  dashboard:
+    image: duckietown/rpi-duckiebot-dashboard:master19
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - compose-data:/var/www/html
+
+  ros-websocket:
+    image: duckietown/rosbridge-websocket:master19
+    restart: unless-stopped
+    network_mode: "host"
+
+volumes:
+  compose-data:
