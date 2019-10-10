@@ -68,11 +68,10 @@ class DTCommand(DTCommandAbs):
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
         _run_cmd(["docker", "-H=%s" % parsed.machine, "push", tag])
-
+        # add all supported images to manifest
         dtslogger.info("Creating manifest {}...".format(default_tag))
-        print(ARCH_MAP)
         for key in ARCH_MAP:
-            t = "duckietown/%s:%s-%s" % (repo, branch,key)
+            t = "duckietown/%s:%s-%s" % (repo, branch, key)
             try:
                 dtslogger.info("Adding {} to manifest...".format(t))        
                 _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t])
@@ -80,12 +79,6 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warning('Could not find %s on DockerHub, it probably doesn\'t exist'%t)
 
         _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag])
-        # tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
-        # for t in tags:
-        #     # push image
-        #     dtslogger.info("Pushing image {}...".format(t))
-        #     _run_cmd(["docker", "-H=%s" % parsed.machine, "push", t])
-
 
     @staticmethod
     def complete(shell, word, line):

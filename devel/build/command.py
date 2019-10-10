@@ -184,16 +184,6 @@ class DTCommand(DTCommandAbs):
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # run docker image analysis
         ImageAnalyzer.process(buildlog, historylog, codens=100)
-        # image tagging
-        # if parsed.arch == DEFAULT_ARCH:
-        #     dtslogger.info("Tagging image {} as {}.".format(tag, default_tag))
-        #     _run_cmd([
-        #         'docker',
-        #             '-H=%s' % parsed.machine,
-        #             'tag',
-        #                 tag,
-        #                 default_tag
-        #     ])
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
