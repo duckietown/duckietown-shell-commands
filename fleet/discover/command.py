@@ -91,7 +91,7 @@ class DiscoverListener:
         data = []
         data_plain = []
 
-        for device_hostname in hostnames:
+        for device_hostname in list(sorted(hostnames)):
             # filter by robot type
             robot_type = hostname_to_type[device_hostname]
             if self.args.filter_type and robot_type != self.args.filter_type:
