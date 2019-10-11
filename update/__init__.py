@@ -10,6 +10,7 @@ if sys.version_info < (3, 6):
     )
     raise UserError(msg)
 
+
 min_duckietown_shell = ".".join(["4", "0", "25"])
 duckietown_shell_commands_version = "4.1.3"
 

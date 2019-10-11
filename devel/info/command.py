@@ -110,7 +110,10 @@ class DTCommand(DTCommandAbs):
         )[0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
-        repo = origin_url.split("/")[-1]
+        if origin_url.endswith("/"):
+            origin_url = origin_url[:-1]
+        repo = origin_url.split('/')[-1]
+
         # get info about current git INDEX
         nmodified = len(
             _run_cmd(
