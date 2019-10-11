@@ -11,6 +11,7 @@ services:
       DISABLE_CONTRACTS: 1
     volumes:
       - /data:/data
+      # avahi services
       - /etc/avahi/services:/etc/avahi/services
 
   car-interface:
@@ -23,4 +24,14 @@ services:
       DISABLE_CONTRACTS: 1
     volumes:
       - /data:/data
+      # avahi services
+      - /etc/avahi/services:/etc/avahi/services
+
+  ros-websocket:
+    image: duckietown/dt-rosbridge-websocket:daffy
+    container_name: rosbridge-websocket
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      # avahi services
       - /etc/avahi/services:/etc/avahi/services

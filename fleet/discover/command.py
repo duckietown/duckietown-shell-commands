@@ -27,14 +27,10 @@ class DiscoverListener:
     services = defaultdict(dict)
     supported_services = [
         'DT::ONLINE',
-        'DT::PRESENCE'
+        'DT::PRESENCE',
+        'DT::DEVICE-INIT',
+        'DT::DASHBOARD'
     ]
-    status_order = ['On', 'Online', 'Busy']
-    status_to_service = {
-        'On' : 'DT::PRESENCE',
-        'Online' : 'DT::ONLINE',
-        'Busy' : 'DT::BUSY'
-    }
 
     def __init__(self, args):
         self.args = args
@@ -84,11 +80,18 @@ class DiscoverListener:
                 except:
                     pass
         # prepare table
-        header = ['Type'] + ['Status: '+s for s in self.status_order] + ['Hostname']
+        columns = [
+            'Status',       # Loading [yellow], Ready [green]
+            'Online',       # No [grey], Yes [green]
+            'Dashboard',    # Down [grey], Up [green]
+            'Busy',         # No [grey], Yes [green]
+        ]
+        columns = list(map(lambda c: ' %s ' % c, columns))
+        header = ['Type'] + columns + ['Hostname']
         data = []
         data_plain = []
 
-        for device_hostname in hostnames:
+        for device_hostname in list(sorted(hostnames)):
             # filter by robot type
             robot_type = hostname_to_type[device_hostname]
             if self.args.filter_type and robot_type != self.args.filter_type:
@@ -96,17 +99,12 @@ class DiscoverListener:
             # prepare status list
             statuses = []
             statuses_plain = []
-            for status in self.status_order:
-                service_name = self.status_to_service[status]
-                status_header_l = len('Status: ')+len(status)
-                service = self.status_to_service[status]
-                status_plain_txt = 'No'
-                status_txt = fill_cell(status_plain_txt, status_header_l, 'white', 'grey')
-                if device_hostname in self.services[service_name]:
-                    status_plain_txt = 'Yes'
-                    status_txt = fill_cell(status_plain_txt, status_header_l, 'white', 'green')
-                statuses.append(status_txt)
-                statuses_plain.append(status_plain_txt)
+
+            for column in columns:
+                text, color, bg_color = column_to_text_and_color(column, device_hostname, self.services)
+                column_txt = fill_cell(text, len(column), color, bg_color)
+                statuses.append(column_txt)
+                statuses_plain.append(text)
 
             row = [device_hostname, robot_type] + statuses + [device_hostname+'.local']
             row_plain = [device_hostname, robot_type] + statuses_plain + [device_hostname+'.local']
@@ -181,3 +179,31 @@ def fill_cell(text, width, foreground, background):
     s2 = math.ceil((float(width)-len(text)) / 2.0)
     s = ' '*s1 + text + ' '*s2
     return colored(s, foreground, 'on_'+background)
+
+
+def column_to_text_and_color(column, hostname, services):
+    column = column.strip()
+    text, color, bg_color = 'ND', 'white', 'grey'
+    #  -> Status
+    if column == 'Status':
+        if hostname in services['DT::PRESENCE']:
+            text, color, bg_color = 'Ready', 'white', 'green'
+        if hostname in services['DT::DEVICE-INIT']:
+            text, color, bg_color = 'Loading', 'white', 'yellow'
+    #  -> Dashboard
+    if column == 'Dashboard':
+        text, color, bg_color = 'Down', 'white', 'grey'
+        if hostname in services['DT::DASHBOARD']:
+            text, color, bg_color = 'Up', 'white', 'green'
+    #  -> Online
+    if column == 'Online':
+        text, color, bg_color = 'No', 'white', 'grey'
+        if hostname in services['DT::ONLINE']:
+            text, color, bg_color = 'Yes', 'white', 'green'
+    #  -> Busy
+    if column == 'Busy':
+        text, color, bg_color = 'No', 'white', 'grey'
+        if hostname in services['DT::BUSY']:
+            text, color, bg_color = 'Yes', 'white', 'green'
+    # ----------
+    return text, color, bg_color

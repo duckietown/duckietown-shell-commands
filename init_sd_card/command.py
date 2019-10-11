@@ -63,6 +63,7 @@ import platform
 import shutil
 import socket
 import subprocess
+import psutil
 import time
 from collections import namedtuple, OrderedDict
 from os.path import join
@@ -88,8 +89,11 @@ PHASE_LOADING = "loading"
 PHASE_DONE = "done"
 
 SD_CARD_DEVICE = ""
-DEFAULT_CONFIGURATION = "daffy"
 DEFAULT_ROBOT_TYPE = "duckiebot"
+MINIMAL_STACKS_TO_LOAD = ['DT18_00_basic']
+DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_02_others,DT18_03_interface,DT18_05_core"
+DEFAULT_STACKS_TO_RUN = "DT18_00_basic,DT18_01_health,DT18_03_interface"
+AIDO_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_05_core"
 
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
@@ -120,14 +124,13 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--stacks-load",
             dest="stacks_to_load",
-            default="DT18_00_basic,DT18_01_health_stats,DT18_02_others,DT18_03_roscore,DT18_05_duckiebot_base,"
-            "DT18_06_dashboard",
+            default=DEFAULT_STACKS_TO_LOAD,
             help="which stacks to load",
         )
         parser.add_argument(
             "--stacks-run",
             dest="stacks_to_run",
-            default="DT18_00_basic,DT18_01_health_stats,DT18_03_roscore,DT18_06_dashboard",
+            default=DEFAULT_STACKS_TO_RUN,
             help="which stacks to RUN by default",
         )
 
@@ -186,15 +189,19 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--configuration",
-            dest="configuration",
-            default=DEFAULT_CONFIGURATION,
-            help="Which configuration of Docker stacks to flash",
+            '--type',
+            dest='robot_type',
+            default=None,
+            choices=['duckiebot', 'watchtower'],
+            help='Which type of robot we are setting up'
         )
 
-        parser.add_argument('--type', dest='robot_type', default=None,
-                            choices=['duckiebot', 'watchtower'],
-                            help='Which type of robot we are setting up')
+        parser.add_argument(
+            '--online',
+            default=False,
+            action="store_true",
+            help='Whether to flash the images to the SD card'
+        )
 
         parsed = parser.parse_args(args=args)
 
@@ -208,8 +215,16 @@ class DTCommand(DTCommandAbs):
 
         # if aido is set overwrite the stacks (don't load the base)
         if parsed.aido:
-            parsed.stacks_to_load = "DT18_00_basic,DT18_01_health_stats,DT18_03_roscore"
+            parsed.stacks_to_load = AIDO_STACKS_TO_LOAD
             parsed.stacks_to_run = parsed.stacks_to_load
+
+        # turn off wifi for type watchtower
+        if parsed.robot_type == 'watchtower':
+            parsed.wifi = ""
+
+        if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
+            msg = "The option --online cannot be used together with --stacks-load/--stacks-run."
+            raise Exception(msg)
 
         msg = """
 
@@ -217,7 +232,7 @@ class DTCommand(DTCommandAbs):
 
 ### Multiple networks
 
-    dts init_sd_card --wifi  network1:password1,network2:password2 --country US
+    dts init_sd_card --wifi network1:password1,network2:password2 --country US
 
 
 
@@ -261,14 +276,6 @@ You can use --steps to run only some of those:
                 elif r.strip() in ['', 'n', 'N', 'no', 'NO', 'nope', 'NOPE']:
                     dtslogger.info('Please retry while specifying a robot type. Bye bye!')
                     exit(1)
-
-        configuration = parsed.configuration
-        try:
-            get_resource(os.path.join("stacks", configuration))
-        except:
-            msg = 'Cannot find configuration "%s"' % configuration
-            raise InvalidUserInput(msg)
-        dtslogger.info("Configuration: %s" % configuration)
 
         dtslogger.setLevel(logging.DEBUG)
 
@@ -325,6 +332,53 @@ def check_good_platform():
     if "darwin" in p:
         msg = "This procedure cannot be run on Mac. You need an Ubuntu machine."
         raise Exception(msg)
+
+
+def friendly_size(b):
+    gbs = b / (1024.0 * 1024.0 * 1024.0)
+    return "%.3f GB" % gbs
+
+
+def friendly_size_file(fn):
+    s = os.stat(fn).st_size
+    return friendly_size(s)
+
+
+def copy_file(origin, destination, partition='root', overwrite=False):
+    buffer_bytes = 100 * 1024 * 1024
+    destination0 = destination
+    partition = {'root': TMP_ROOT_MOUNTPOINT, 'boot': TMP_HYPRIOT_MOUNTPOINT}[partition]
+    destination = destination[1:] if destination.startswith('/') else destination
+    destination = os.path.join(partition, destination)
+    size = os.stat(origin).st_size
+    dtslogger.info(
+        "Considering copying %s of size %s to SD:%s" % (origin, friendly_size_file(origin), destination0)
+    )
+    # create destination dir
+    _run_cmd(['sudo', 'mkdir', '-p', os.path.dirname(destination)])
+    # check if there is enough space
+    available = psutil.disk_usage(partition).free
+    dtslogger.info("available %s" % friendly_size(available))
+    if available < size + buffer_bytes:
+        msg = "You have %s available on %s but need %s for %s" % (
+            friendly_size(available),
+            partition,
+            friendly_size_file(origin),
+            origin,
+        )
+        dtslogger.info(msg)
+        return
+    dtslogger.info("OK, copying...")
+    if os.path.exists(destination) and not overwrite:
+        msg = "Skipping copying file that already exist at %s." % destination
+        dtslogger.info(msg)
+    else:
+        if which("rsync"):
+            cmd = ["sudo", "rsync", "-avP", origin, destination]
+        else:
+            cmd = ["sudo", "cp", origin, destination]
+        _run_cmd(cmd)
+        sync_data()
 
 
 def step_flash(shell, parsed):
@@ -641,6 +695,12 @@ If they are not there, it means that the boot process was interrupted.
         get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
     )
 
+    # flash temporary services
+    add_file_local(
+        '/etc/avahi/services/dt.device-init.service',
+        get_resource(os.path.join('avahi_services', 'dt.device-init.service'))
+    )
+
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
@@ -685,94 +745,75 @@ dtparam=i2c_arm=on
     dtslogger.info("setup step concluded")
 
 
-def friendly_size(b):
-    gbs = b / (1024.0 * 1024.0 * 1024.0)
-    return "%.3f GB" % gbs
-
-
-def friendly_size_file(fn):
-    s = os.stat(fn).st_size
-    return friendly_size(s)
-
-
 def configure_images(parsed, user_data, add_file_local, add_file):
-    import psutil
+    # read and validate docker-compose stacks
+    arg_stacks_to_load = parsed.stacks_to_load.split(",")
+    arg_stacks_to_run = parsed.stacks_to_run.split(",")
+    dtslogger.info("Stacks to load: %s" % arg_stacks_to_load)
+    dtslogger.info("Stacks to run: %s" % arg_stacks_to_run)
 
-    # read and validate duckiebot-compose
-    stacks_to_load = parsed.stacks_to_load.split(",")
-    stacks_to_run = parsed.stacks_to_run.split(",")
-    dtslogger.info("Stacks to load: %s" % stacks_to_load)
-    dtslogger.info("Stacks to run: %s" % stacks_to_run)
-    for _ in stacks_to_run:
-        if _ not in stacks_to_load:
+    # make sure stacks_to_run is a subset of stacks_to_load
+    for _ in arg_stacks_to_run:
+        if _ not in arg_stacks_to_load:
             msg = "If you want to run %r you need to load it as well." % _
             raise Exception(msg)
 
-    configuration = parsed.configuration
-    for cf in stacks_to_load:
-        # local path
-        lpath = get_resource(os.path.join("stacks", configuration, cf + ".yaml"))
-        # path on PI
-        rpath = "/var/local/%s.yaml" % cf
+    # the device loader expects:
+    # - .tar files to be loaded (docker load) in /data/loader/images_to_load
+    # - .yaml files to be loaded (parse yaml and load images) in /data/loader/stacks_to_load
+    # - .yaml files to be run (docker compose up) at every boot in /data/loader/stacks_to_run
 
-        if which("docker-compose") is None:
-            msg = "Could not find docker-compose. Cannot validate file."
-            dtslogger.error(msg)
-        else:
-            _run_cmd(["docker-compose", "-f", lpath, "config", "--quiet"])
+    stacks_for_images_to_load = []
+    stacks_to_load = arg_stacks_to_load
+    stacks_to_run = arg_stacks_to_run
 
-        add_file_local(path=rpath, local=lpath)
+    if parsed.online:
+        # online:
+        # - only minimal configuration gets copied to the SD card
+        stacks_for_images_to_load = MINIMAL_STACKS_TO_LOAD
+        # load everything (but the minimal)
+        stacks_to_load = [_ for _ in arg_stacks_to_load if _ not in MINIMAL_STACKS_TO_LOAD]
+    else:
+        # offline:
+        # - all the selected images get copied to the SD card
+        stacks_for_images_to_load = stacks_to_load
+        stacks_to_load = []
 
+    # export images to tar files
     stack2yaml = get_stack2yaml(
-        stacks_to_load, get_resource(os.path.join("stacks", configuration))
+        stacks_for_images_to_load, get_resource("stacks")
     )
     if not stack2yaml:
         msg = "Not even one stack specified"
         raise Exception(msg)
-
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
-    buffer_bytes = 100 * 1024 * 1024
+    # copy images to SD card
     stacks_written = []
     stack2archive_rpath = {}
     dtslogger.debug(stack2info)
-
     for stack, stack_info in stack2info.items():
         tgz = stack_info.archive
-        size = os.stat(tgz).st_size
-        dtslogger.info(
-            "Considering copying %s of size %s" % (tgz, friendly_size_file(tgz))
-        )
-
-        rpath = os.path.join("var", "local", os.path.basename(tgz))
-        destination = os.path.join(TMP_ROOT_MOUNTPOINT, rpath)
-        available = psutil.disk_usage(TMP_ROOT_MOUNTPOINT).free
-        dtslogger.info("available %s" % friendly_size(available))
-        if available < size + buffer_bytes:
-            msg = "You have %s available on %s but need %s for %s" % (
-                friendly_size(available),
-                TMP_ROOT_MOUNTPOINT,
-                friendly_size_file(tgz),
-                tgz,
-            )
-            dtslogger.info(msg)
-            continue
-
-        dtslogger.info("OK, copying, and loading it on first boot.")
-        if os.path.exists(destination):
-            msg = "Skipping copying image that already exist at %s." % destination
-            dtslogger.info(msg)
-        else:
-            if which("rsync"):
-                cmd = ["sudo", "rsync", "-avP", tgz, destination]
-            else:
-                cmd = ["sudo", "cp", tgz, destination]
-            _run_cmd(cmd)
-            sync_data()
-
+        rpath = os.path.join("data", "loader", "images_to_load", os.path.basename(tgz))
+        copy_file(tgz, rpath)
         stack2archive_rpath[stack] = os.path.join("/", rpath)
-
         stacks_written.append(stack)
+
+    # copy stacks_to_load and stacks_to_run to SD card
+    for stack_type, stacks_deck in {'load': stacks_to_load, 'run': stacks_to_run}.items():
+        for cf in stacks_deck:
+            # local path
+            lpath = get_resource(os.path.join("stacks", cf + ".yaml"))
+            # path on PI
+            rpath = "/data/loader/stacks_to_{}/{}.yaml".format(stack_type, cf)
+
+            if which("docker-compose") is None:
+                msg = "Could not find docker-compose. Cannot validate file."
+                dtslogger.error(msg)
+            else:
+                _run_cmd(["docker-compose", "-f", lpath, "config", "--quiet"])
+
+            copy_file(lpath, rpath)
 
     client = check_docker_environment()
 
@@ -782,7 +823,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
     for cf in order:
 
-        if cf in stacks_written:
+        if (cf in stacks_written) and (cf in MINIMAL_STACKS_TO_LOAD):
 
             log_current_phase(
                 user_data, PHASE_LOADING, "Stack %s: Loading containers" % cf
@@ -798,10 +839,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 stack2archive_rpath[cf] + ".labels.json",
                 json.dumps(stack2info[cf].image_name2id, indent=4),
             )
-            # cmd = ['docker', 'load', '--input', stack2archive_rpath[cf]]
-            # add_run_cmd(user_data, cmd)
-            # cmd = ['rm', stack2archive_rpath[cf]]
-            # add_run_cmd(user_data, cmd)
 
             for image_name, image_id in stack2info[cf].image_name2id.items():
                 image = client.images.get(image_name)
@@ -821,7 +858,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 cmd = [
                     "docker-compose",
                     "--file",
-                    "/var/local/%s.yaml" % cf,
+                    "/data/loader/stacks_to_run/%s.yaml" % cf,
                     "-p",
                     cf,
                     "up",
@@ -834,15 +871,17 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                     "-p",
                     cf,
                     "--file",
-                    "/var/local/%s.yaml" % cf,
+                    "/data/loader/stacks_to_run/%s.yaml" % cf,
                     "up",
                     "-d",
                 ]
                 user_data["bootcmd"].append(cmd)  # every boot
 
+
     # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
     # If modifying, make sure to adjust the blinking feedback
-    log_current_phase(user_data, PHASE_DONE, "All stacks up")
+    if not parsed.online:
+        log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
 def configure_networks(parsed, add_file):
@@ -937,6 +976,7 @@ def configure_ssh(parsed, ssh_key_pri, ssh_key_pub):
         shutil.copy(ssh_key_pri, ssh_key_pri_copied)
     if not os.path.exists(ssh_key_pub_copied):
         shutil.copy(ssh_key_pub, ssh_key_pub_copied)
+    os.chmod(ssh_key_pri_copied, 0o600)
 
     ssh_config = os.path.join(ssh_dir, "config")
     if not os.path.exists(ssh_config):
@@ -1099,6 +1139,8 @@ def write_to_hypriot(rpath, contents):
 
 def interpret_wifi_string(s):
     results = []
+    if len(s.strip()) == 0:
+        return []
     for i, connection in enumerate(s.split(",")):
         tokens = connection.split(":")
         if len(tokens) != 2:
