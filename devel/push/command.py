@@ -73,8 +73,10 @@ class DTCommand(DTCommandAbs):
         for key in ARCH_MAP:
             t = "duckietown/%s:%s-%s" % (repo, branch, key)
             try:
-                dtslogger.info("Adding {} to manifest...".format(t))        
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t])
+                dtslogger.info("Adding {} to manifest...".format(t))
+                env = {"DOCKER_CLI_EXPERIMENTAL": "enabled"}
+                cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t]
+                _run_cmd(cmd, env)
             except subprocess.CalledProcessError:
                 dtslogger.warning('Could not find %s on DockerHub, it probably doesn\'t exist'%t)
 
@@ -85,6 +87,9 @@ class DTCommand(DTCommandAbs):
         return []
 
 
-def _run_cmd(cmd):
+def _run_cmd(cmd, env=None):
     dtslogger.debug("$ %s" % cmd)
-    subprocess.check_call(cmd)
+    environ = os.environ
+    if env:
+      environ.update(env)
+    subprocess.check_call(cmd, env=environ)
