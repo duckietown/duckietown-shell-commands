@@ -7,8 +7,6 @@ from dt_shell import DTCommandAbs
 from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 from future import builtins
 
-token_dt1_config_key = 'token_dt1'
-
 
 class DTCommand(DTCommandAbs):
 
@@ -22,7 +20,7 @@ Please enter your Duckietown token.
 It looks something like this:
 
     {example}
-    
+
 To find your token, first login to duckietown.org, and open the page:
 
     {link}
@@ -50,7 +48,7 @@ Enter token: """.format(link=href(link), example=dark(example))
             shell.sprint(msg)
             return
 
-        shell.config[token_dt1_config_key] = s
+        shell.shell_config.token_dt1 = s
         shell.save_config()
 
 
