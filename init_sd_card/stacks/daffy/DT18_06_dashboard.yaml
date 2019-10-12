@@ -2,7 +2,7 @@ version: '3'
 services:
 
   dashboard:
-    image: duckietown/dt-duckiebot-dashboard:daffy
+    image: duckietown/dt-duckiebot-dashboard:daffy-arm32v7
     restart: unless-stopped
     network_mode: "host"
     volumes:
@@ -19,7 +19,7 @@ services:
       - /data:/robot/data
 
   ros-websocket:
-    image: duckietown/dt-rosbridge-websocket:daffy
+    image: duckietown/dt-rosbridge-websocket:daffy-arm32v7
     restart: unless-stopped
     network_mode: "host"
 

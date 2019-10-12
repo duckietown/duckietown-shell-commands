@@ -1,8 +1,8 @@
 version: '3'
 services:
-  
+
   duckiebot-interface:
-    image: duckietown/dt-duckiebot-interface:daffy
+    image: duckietown/dt-duckiebot-interface:daffy-arm32v7
     restart: unless-stopped
     network_mode: host
     privileged: true
@@ -12,7 +12,7 @@ services:
     - /data:/data
 
   car-interface:
-    image: duckietown/dt-car-interface:daffy
+    image: duckietown/dt-car-interface:daffy-arm32v7
     restart: unless-stopped
     network_mode: host
     privileged: true
