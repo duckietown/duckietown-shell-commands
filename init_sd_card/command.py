@@ -880,8 +880,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
 
     # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
     # If modifying, make sure to adjust the blinking feedback
-    if not parsed.online:
-        log_current_phase(user_data, PHASE_DONE, "All stacks up")
+    log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
 def configure_networks(parsed, add_file):
