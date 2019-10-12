@@ -8,14 +8,3 @@ services:
     volumes:
       # avahi services
       - /etc/avahi/services:/etc/avahi/services
-
-  rpi-simple-server:
-    image: duckietown/rpi-simple-server:master18
-    container_name: simple-server
-    restart: always
-    network_mode: "host"
-    volumes:
-      - /data:/data
-      # avahi services
-      - /etc/avahi/services:/etc/avahi/services
-    working_dir: /data
