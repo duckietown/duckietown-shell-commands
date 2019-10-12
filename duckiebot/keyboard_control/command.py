@@ -61,7 +61,7 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
 
     env["QT_X11_NO_MITSHM"] = 1
 
-    volumes = {}
+    volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
 
     subprocess.call(["xhost", "+"])
 
@@ -71,7 +71,6 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
             "We can try but running the joystick gui on MacOSx is not expected to work..."
         )
         env["DISPLAY"] = "%s:0" % socket.gethostbyname(socket.gethostname())
-        volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
     else:
         env["DISPLAY"] = os.environ["DISPLAY"]
 
