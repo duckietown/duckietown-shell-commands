@@ -1,16 +1,19 @@
-from __future__ import unicode_literals
-
 import argparse
 import datetime
 import getpass
+import json
 import os
 import socket
 import sys
 import time
 import traceback
 
+from docker import DockerClient
+
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
+
+EVALUATOR_IMAGE = "duckietown/dt-challenges-evaluator:daffy"
 
 usage = """
 
@@ -110,7 +113,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument(
             "--image",
             help="Evaluator image to run",
-            default="duckietown/dt-challenges-evaluator:v4",
+            default=EVALUATOR_IMAGE,
         )
 
         group.add_argument("--name", default=None, help="Name for this evaluator")
@@ -220,8 +223,8 @@ class DTCommand(DTCommandAbs):
         name, tag = image.split(":")
         if not parsed.no_pull:
             dtslogger.info("Updating container %s" % image)
-
-            client.images.pull(name, tag)
+            make_sure_image_pulled(client, name, tag)
+            # client.images.pull(name, tag)
 
         # noinspection PyBroadException
         try:
@@ -342,7 +345,27 @@ def ipfs_available():
         return False
 
 
-def ensure_watchtower_active(client):
+def make_sure_image_pulled(client: DockerClient, repository: str, tag: str = None) -> None:
+    dtslogger.info(f"Pulling tag {repository!r} tag {tag!r}")
+    i = 0
+    cols = 80
+    for outs in client.api.pull(repository=repository, tag=tag, stream=True):
+        try:
+            outs2 = outs.decode().strip()
+            # print(outs2.__repr__())
+            out = json.loads(outs2)
+            s = out.get('status', '')
+            s = '%d: %s' % (i, s)
+            i += 1
+            s = s.ljust(cols)
+            sys.stderr.write(s + '\r')
+        except:
+            pass
+    sys.stderr.write('\n')
+    dtslogger.info('pull complete')
+
+
+def ensure_watchtower_active(client: DockerClient):
     containers = client.containers.list(filters=dict(status="running"))
     watchtower_tag = "v2tec/watchtower"
     found = None
@@ -352,15 +375,19 @@ def ensure_watchtower_active(client):
             if watchtower_tag in t:
                 found = c
 
+    make_sure_image_pulled(client, watchtower_tag, "latest")
+
     if found is not None:
         dtslogger.info("I found watchtower active.")
     else:
+
         dtslogger.info("Starting watchtower")
         env = {}
         volumes = {
             "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
             # os.path.join(home, '.dt-shell'): {'bind': '/root/.dt-shell', 'mode': 'ro'}
         }
+
         container = client.containers.run(
             watchtower_tag,
             volumes=volumes,

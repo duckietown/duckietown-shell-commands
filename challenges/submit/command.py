@@ -141,7 +141,7 @@ Submission with an arbitrary JSON payload:
                         sub_info.protocols,
                     )
                     raise UserError(msg)
-            username = get_dockerhub_username(shell)
+            username = get_dockerhub_username()
 
             print("")
             print("")
