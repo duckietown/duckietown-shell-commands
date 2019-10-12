@@ -20,7 +20,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   dashboard:
-    image: duckietown/dt-duckiebot-dashboard:daffy
+    image: duckietown/dt-duckiebot-dashboard:daffy-arm32v7
     container_name: duckiebot-dashboard
     restart: unless-stopped
     network_mode: "host"
@@ -42,7 +42,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   dt-device-loader:
-    image: duckietown/dt-device-loader:daffy
+    image: duckietown/dt-device-loader:daffy-arm32v7
     container_name: device-loader
     restart: on-failure
     network_mode: "host"
