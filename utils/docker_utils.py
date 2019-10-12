@@ -426,6 +426,3 @@ def pull_if_not_exist(client, image_name):
                 print(' '*60, end='\r', flush=True)
                 loader = 'Downloading .'
             print(loader, end='\r', flush=True)
-        print('\n')
-
-
