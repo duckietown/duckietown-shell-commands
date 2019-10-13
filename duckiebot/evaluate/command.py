@@ -52,7 +52,7 @@ class DTCommand(DTCommandAbs):
         )
         group.add_argument(
             "--glue_node_image",
-            default="duckietown/challenge-aido_lf-duckiebot:aido2",
+            default="duckietown/challenge-aido_lf-duckiebot:daffy",
             help="The node that glues your submission with ROS on the duckiebot. Probably don't change",
         )
         group.add_argument(

@@ -43,7 +43,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument(
             "--image",
             help="Evaluator image to run",
-            default="duckietown/dt-challenges-evaluator:v4",
+            default="duckietown/dt-challenges-evaluator:daffy",
         )
         group.add_argument(
             "--shell",
