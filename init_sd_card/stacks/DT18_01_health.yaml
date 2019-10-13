@@ -13,7 +13,7 @@ services:
       - /etc/avahi/services:/etc/avahi/services
 
   dt-device-online:
-    image: duckietown/dt-device-online:daffy
+    image: duckietown/dt-device-online:daffy-arm32v7
     container_name: device-online
     restart: always
     network_mode: "host"
