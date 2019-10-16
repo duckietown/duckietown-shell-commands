@@ -75,7 +75,7 @@ class DTCommand(DTCommandAbs):
         # add all supported images to manifest
         dtslogger.info("Creating manifest {}...".format(default_tag))
         for key in ARCH_MAP:
-            t = "duckietown/%s:%s-%s" % (repo, branch, key)
+            t = "%s/%s:%s-%s" % (user, repo, branch, key)
             try:
                 dtslogger.info("Adding {} to manifest...".format(t))
                 env = {"DOCKER_CLI_EXPERIMENTAL": "enabled"}
