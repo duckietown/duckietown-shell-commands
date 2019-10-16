@@ -73,6 +73,8 @@ class DTCommand(DTCommandAbs):
                             help="(Experimental) Whether to reuse the same base image to speed up the build process")
         parser.add_argument('--ignore-watchtower', default=False, action='store_true',
                             help="Whether to ignore a running Docker watchtower")
+        parser.add_argument('-u','--username',default="duckietown",
+                            help="the docker registry username to tag the image with")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -93,7 +95,8 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning('Forced!')
         # create defaults
-        default_tag = "duckietown/%s:%s" % (repo, branch)
+        user = parsed.username
+        default_tag = "%s/%s:%s" % (user,repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')

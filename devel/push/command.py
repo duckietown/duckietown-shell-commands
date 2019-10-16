@@ -43,6 +43,9 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Whether to force the push when the git index is not clean",
         )
+        parser.add_argument('-u','--username',default="duckietown",
+                            help="the docker registry username to tag the image with")
+
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -65,8 +68,9 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
         # create defaults
-        default_tag = "duckietown/%s:%s" % (repo, branch)
-        tag = "duckietown/%s:%s-%s" % (repo, branch, parsed.arch)
+        user = parsed.username
+        default_tag = "%s/%s:%s" % (user, repo, branch)
+        tag = "%s/%s:%s-%s" % (user, repo, branch, parsed.arch)
         _run_cmd(["docker", "-H=%s" % parsed.machine, "push", tag])
         # add all supported images to manifest
         dtslogger.info("Creating manifest {}...".format(default_tag))
