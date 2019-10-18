@@ -44,7 +44,7 @@ class DTCommand(DTCommandAbs):
                            default="duckietown/rpi-duckiebot-base:master19",
                            help="Docker image to use, you probably don't need to change ",)
 
-        parser.add_argument('--debug', '-g', action='store_true', default=False,
+        parser.add_argument('--debug', '-g', dest="debug", action='store_true', default=False,
                             help="will enter you into the running container")
 
         parsed = parser.parse_args(args)
