@@ -31,20 +31,20 @@ class DTCommand(DTCommandAbs):
         prog = 'dts duckiebot demo'
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument('--demo_name', dest="demo_name", default=None,
+        parser.add_argument('--demo_name', '-d', dest="demo_name", default=None,
                             help="Name of the demo to run")
 
-        parser.add_argument('--duckiebot_name', dest="duckiebot_name", default=None,
+        parser.add_argument('--duckiebot_name', '-b', dest="duckiebot_name", default=None,
                             help="Name of the Duckiebot on which to run the demo")
 
-        parser.add_argument('--package_name', dest="package_name", default="duckietown",
+        parser.add_argument('--package_name', '-p', dest="package_name", default="duckietown",
                             help="You can specify the package that you want to use to look for launch files")
 
-        parser.add_argument('--image', dest="image_to_run",
+        parser.add_argument('--image', '-i', dest="image_to_run",
                            default="duckietown/rpi-duckiebot-base:master19",
                            help="Docker image to use, you probably don't need to change ",)
 
-        parser.add_argument('--debug', action='store_true', default=False,
+        parser.add_argument('--debug', '-g', dest="debug", action='store_true', default=False,
                             help="will enter you into the running container")
 
         parsed = parser.parse_args(args)
