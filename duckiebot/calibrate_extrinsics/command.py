@@ -31,7 +31,7 @@ Calibrate:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/rpi-duckiebot-base:master19",
+            default="duckietown/dt-core:daffy",
         )
         parser.add_argument(
             "--no_verification",

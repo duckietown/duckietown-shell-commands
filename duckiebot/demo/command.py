@@ -60,7 +60,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--image", '-i',
             dest="image_to_run",
-            default="duckietown/rpi-duckiebot-base:master19",
+            default="duckietown/dt-core:daffy",
             help="Docker image to use, you probably don't need to change ",
         )
 

@@ -31,7 +31,7 @@ Keyboard control:
         parser.add_argument('--sim', action='store_true', default=False,
                             help='are we running in simulator?')
         parser.add_argument('--base_image', dest='image',
-                            default="duckietown/rpi-duckiebot-base:master19-no-arm",
+                            default="duckietown/dt-core:daffy-amd64",
                             help="The base image, probably don't change the default")
 
         parsed_args = parser.parse_args(args)
