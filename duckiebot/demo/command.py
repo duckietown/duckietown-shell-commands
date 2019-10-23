@@ -53,7 +53,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--package_name", '-p',
             dest="package_name",
-            default="duckietown",
+            default="duckietown_demos",
             help="You can specify the package that you want to use to look for launch files",
         )
 
