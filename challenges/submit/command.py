@@ -206,7 +206,7 @@ Submission with an arbitrary JSON payload:
         
     """.strip()
                 )
-                manual = href("http://docs.duckietown.org/DT19/AIDO/out/")
+                manual = href("http://docs.duckietown.org/daffy/AIDO/out/")
                 msg += f"""
     
     For more information, see the manual at {manual}
