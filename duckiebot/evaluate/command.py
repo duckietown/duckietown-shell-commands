@@ -192,7 +192,7 @@ class DTCommand(DTCommandAbs):
 
         agent_volumes = {
             fifo2_volume.name: {"bind": "/fifos", "mode": "rw"},
-            dir_fake_home: {"bind": "/data/config", "mode": "rw"},
+            dir_fake_home: {"bind": "/data", "mode": "rw"},
         }
 
         params = {
@@ -249,7 +249,7 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
         [
             "scp",
             "-r",
-            "%s@%s.local:/data/config" % (duckiebot_username, duckiebot_name),
+            "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
             dir,
         ]
     )
