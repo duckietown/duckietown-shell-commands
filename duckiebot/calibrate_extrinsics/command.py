@@ -9,6 +9,7 @@ from utils.docker_utils import (
     default_env,
     get_remote_client,
     remove_if_running,
+    pull_if_not_exist,
 )
 from utils.networking_utils import get_duckiebot_ip
 
@@ -83,6 +84,8 @@ Calibrate:
 
         env = default_env(hostname, duckiebot_ip)
 
+        pull_if_not_exist(duckiebot_client, image)
+
         duckiebot_client.containers.run(
             image=image,
             name=calibration_container_name,
@@ -102,6 +105,8 @@ Calibrate:
             ros_pkg = "complete_image_pipeline single_image_pipeline"
             start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
             dtslogger.info("Running command: {}".format(start_command))
+
+            pull_if_not_exist(duckiebot_client, image)
 
             duckiebot_client.containers.run(
                 image=image,

@@ -6,7 +6,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running
+from utils.docker_utils import remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -101,6 +101,7 @@ Keyboard control:
             "volumes": volumes,
         }
 
+        pull_if_not_exist(client, params['image'])
         container = client.containers.run(**params)
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)

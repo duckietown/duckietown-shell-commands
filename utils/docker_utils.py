@@ -212,9 +212,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(
-    image_name, duckiebot_name, container_name, env=None, volumes=None
-):
+def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
@@ -406,3 +404,25 @@ def remove_container(container):
         container.remove()
     except Exception as e:
         dtslogger.warn("Container %s not found to remove! %s" % (container, e))
+
+def pull_if_not_exist(client, image_name):
+    from docker.errors import ImageNotFound
+
+    try:
+        client.images.get(image_name)
+    except ImageNotFound:
+        dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
+
+        repository = image_name.split(':')[0]
+        try:
+            tag = image_name.split(':')[1]
+        except IndexError:
+            tag = 'latest'
+
+        loader = 'Downloading .'
+        for _ in client.api.pull(repository, tag, stream=True, decode=True):
+            loader += '.'
+            if len(loader)>40:
+                print(' '*60, end='\r', flush=True)
+                loader = 'Downloading .'
+            print(loader, end='\r', flush=True)
