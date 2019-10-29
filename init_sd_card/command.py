@@ -862,16 +862,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                     "-d",
                 ]
                 add_run_cmd(user_data, cmd)
-                # XXX
-                cmd = [
-                    "docker-compose",
-                    "-p",
-                    cf,
-                    "--file",
-                    "/data/loader/stacks_to_run/%s.yaml" % cf,
-                    "up",
-                    "-d",
-                ]
                 user_data["bootcmd"].append(cmd)  # every boot
 
 
