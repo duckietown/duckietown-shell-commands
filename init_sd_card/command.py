@@ -747,8 +747,8 @@ dtparam=i2c_arm=on
 
 def configure_images(parsed, user_data, add_file_local, add_file):
     # read and validate docker-compose stacks
-    arg_stacks_to_load = parsed.stacks_to_load.split(",")
-    arg_stacks_to_run = parsed.stacks_to_run.split(",")
+    arg_stacks_to_load = list(filter(lambda s: len(s) > 0, parsed.stacks_to_load.split(",")))
+    arg_stacks_to_run = list(filter(lambda s: len(s) > 0, parsed.stacks_to_run.split(",")))
     dtslogger.info("Stacks to load: %s" % arg_stacks_to_load)
     dtslogger.info("Stacks to run: %s" % arg_stacks_to_run)
 
@@ -783,9 +783,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     stack2yaml = get_stack2yaml(
         stacks_for_images_to_load, get_resource("stacks")
     )
-    if not stack2yaml:
-        msg = "Not even one stack specified"
-        raise Exception(msg)
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
     # copy images to SD card
