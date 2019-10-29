@@ -192,7 +192,7 @@ class DTCommand(DTCommandAbs):
             '--type',
             dest='robot_type',
             default=None,
-            choices=['duckiebot', 'watchtower'],
+            choices=['duckiebot', 'watchtower', 'duckiedrone'],
             help='Which type of robot we are setting up'
         )
 
@@ -221,6 +221,11 @@ class DTCommand(DTCommandAbs):
         # turn off wifi for type watchtower
         if parsed.robot_type == 'watchtower':
             parsed.wifi = ""
+
+        # support drones
+        if parsed.robot_type == 'duckiedrone':
+            parsed.stacks_to_load = ""
+            parsed.stacks_to_run = ""
 
         if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
             msg = "The option --online cannot be used together with --stacks-load/--stacks-run."
