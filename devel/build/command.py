@@ -102,7 +102,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning('Forced!')
         # create defaults
         user = parsed.username
-        default_tag = "%s/%s:%s" % (user,repo, branch)
+        default_tag = "%s/%s:%s" % (user, repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
