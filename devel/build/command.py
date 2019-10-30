@@ -75,10 +75,16 @@ class DTCommand(DTCommandAbs):
                             help="Whether to ignore a running Docker watchtower")
         parser.add_argument('-u','--username',default="duckietown",
                             help="the docker registry username to tag the image with")
+        parser.add_argument('--ci', default=False, action='store_true',
+                            help="Overwrites configuration for CI (Continuous Integration) builds")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         dtslogger.info('Project workspace: {}'.format(code_dir))
+        # CI builds
+        if parsed.ci:
+            parsed.pull = True
+            parsed.no_multiarch = True
         # show info about project
         shell.include.devel.info.command(shell, args)
         # get info about current repo
@@ -162,6 +168,20 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
+        cache_from = []
+        if not parsed.no_cache:
+            cache_from.append('--cache-from=%s' % tag)
+            # try to pull the same image so Docker can use it as cache source
+            dtslogger.info('Pulling image "%s" to use as cache...' % tag)
+            try:
+                _run_cmd([
+                    'docker',
+                        '-H=%s' % parsed.machine,
+                        'pull',
+                            tag
+                ], get_output=True, print_output=False, suppress_errors=True)
+            except:
+                dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
         # build
         buildlog = _run_cmd([
             'docker',
@@ -170,6 +190,7 @@ class DTCommand(DTCommandAbs):
                     '--pull=%d' % int(parsed.pull),
                     '--no-cache=%d' % int(parsed.no_cache),
                     '-t', tag] + \
+                    cache_from + \
                     buildlabels + \
                     buildargs + [
                     code_dir
@@ -204,7 +225,7 @@ class DTCommand(DTCommandAbs):
         return []
 
 
-def _run_cmd(cmd, get_output=False, print_output=False):
+def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False):
     dtslogger.debug('$ %s' % cmd)
     if get_output:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -224,8 +245,9 @@ def _run_cmd(cmd, get_output=False, print_output=False):
                 lines.append(line)
         proc.wait()
         if proc.returncode != 0:
-            msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
-            dtslogger.error(msg)
+            if not suppress_errors:
+                msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
+                dtslogger.error(msg)
             raise RuntimeError(msg)
         return lines
     else:
