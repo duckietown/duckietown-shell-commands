@@ -74,7 +74,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--ignore-watchtower', default=False, action='store_true',
                             help="Whether to ignore a running Docker watchtower")
         parser.add_argument('-u','--username',default="duckietown",
-                            help="the docker registry username to tag the image with")
+                            help="The docker registry username to tag the image with")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parsed, _ = parser.parse_known_args(args=args)
