@@ -75,6 +75,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to ignore a running Docker watchtower")
         parser.add_argument('-u','--username',default="duckietown",
                             help="The docker registry username to tag the image with")
+        parser.add_argument('-b', '--base-tag', default=None,
+                            help="Docker tag for the base image. Used when the base image is a development version")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parsed, _ = parser.parse_known_args(args=args)
@@ -160,6 +162,9 @@ class DTCommand(DTCommandAbs):
         buildlabels = []
         # define build args
         buildargs = ['--build-arg', 'ARCH={}'.format(parsed.arch)]
+        # development base images
+        if parsed.base_tag is not None:
+            buildargs += ['--build-arg', 'MAJOR={}'.format(parsed.base_tag)]
         # loop mode (Experimental)
         if parsed.loop:
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
