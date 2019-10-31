@@ -83,10 +83,14 @@ class DTCommand(DTCommandAbs):
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         dtslogger.info('Project workspace: {}'.format(code_dir))
+        # define labels / build-args
+        buildlabels = []
+        buildargs = []
         # CI builds
         if parsed.ci:
             parsed.pull = True
             parsed.no_multiarch = True
+            buildlabels += ['--label', 'DT_AUTHORITATIVE=1']
         # show info about project
         shell.include.devel.info.command(shell, args)
         # get info about current repo
@@ -158,10 +162,8 @@ class DTCommand(DTCommandAbs):
             else:
                 msg = 'Building an image for {} on {}. Multiarch not needed!'.format(parsed.arch, epoint['Architecture'])
                 dtslogger.info(msg)
-        # define labels
-        buildlabels = []
-        # define build args
-        buildargs = ['--build-arg', 'ARCH={}'.format(parsed.arch)]
+        # architecture target
+        buildargs += ['--build-arg', 'ARCH={}'.format(parsed.arch)]
         # development base images
         if parsed.base_tag is not None:
             buildargs += ['--build-arg', 'MAJOR={}'.format(parsed.base_tag)]
