@@ -1,4 +1,5 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.assets_utils import get_asset_dir
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -94,7 +95,6 @@ MINIMAL_STACKS_TO_LOAD = ['DT18_00_basic']
 DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_02_others,DT18_03_interface,DT18_05_core"
 DEFAULT_STACKS_TO_RUN = "DT18_00_basic,DT18_01_health,DT18_03_interface"
 AIDO_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_05_core"
-
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
@@ -780,8 +780,9 @@ def configure_images(parsed, user_data, add_file_local, add_file):
         stacks_to_load = []
 
     # export images to tar files
+    stacks_location = os.path.join(get_asset_dir('dt-docker-stacks'), parsed.robot_type)
     stack2yaml = get_stack2yaml(
-        stacks_for_images_to_load, get_resource("stacks")
+        stacks_for_images_to_load, stacks_location
     )
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
