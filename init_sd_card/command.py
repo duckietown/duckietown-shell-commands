@@ -780,7 +780,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
         stacks_to_load = []
 
     # export images to tar files
-    stacks_location = os.path.join(get_asset_dir('dt-docker-stacks'), parsed.robot_type)
+    stacks_location = os.path.join(get_asset_dir('dt-docker-stacks'), 'stacks', parsed.robot_type)
     stack2yaml = get_stack2yaml(
         stacks_for_images_to_load, stacks_location
     )
