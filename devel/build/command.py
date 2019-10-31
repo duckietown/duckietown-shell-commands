@@ -184,7 +184,7 @@ class DTCommand(DTCommandAbs):
                         '-H=%s' % parsed.machine,
                         'pull',
                             tag
-                ], get_output=True, print_output=False, suppress_errors=True)
+                ], get_output=True, print_output=True, suppress_errors=True)
             except:
                 dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
         # build
