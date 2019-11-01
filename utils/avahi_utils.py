@@ -28,7 +28,7 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
     stime = time.time()
     while workspace.data is None:
         time.sleep(0.5)
-        if (timeout > 0) and (time.time() - stime > TimeoutError):
+        if (timeout > 0) and (time.time() - stime > timeout):
             msg = f'No devices matched the search criteria (service={target_service}, hostname={target_hostname}).'
             raise TimeoutError(msg)
     # ---
