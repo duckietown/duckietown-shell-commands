@@ -40,6 +40,7 @@ CANONICAL_ARCH={
     'aarch64' : 'arm64v8'
 }
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
+DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
 
 class DTCommand(DTCommandAbs):
@@ -90,15 +91,24 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             parsed.pull = True
             parsed.no_multiarch = True
-            buildlabels += ['--label', 'DT_AUTHORITATIVE=1']
+            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.authoritative=1']
         # show info about project
         shell.include.devel.info.command(shell, args)
+        project_info = shell.include.devel.info.get_project_info(code_dir)
         # get info about current repo
         repo_info = shell.include.devel.info.get_repo_info(code_dir)
         repo = repo_info['REPOSITORY']
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
         nadded = repo_info['INDEX_NUM_ADDED']
+        # add code labels
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.vcs=git"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.repository={repo_info['REPOSITORY']}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.branch={repo_info['BRANCH']}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.url={repo_info['ORIGIN.HTTPS.URL']}"]
+        # add template labels
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.name={project_info['TYPE']}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.version={project_info['TYPE_VERSION']}"]
         # check if the index is clean
         if nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
