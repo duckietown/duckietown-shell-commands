@@ -21,10 +21,11 @@ RPI_DUCKIEBOT_CALIBRATION = "duckietown/rpi-duckiebot-calibration:master18"
 RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
+DEFAULT_DOCKER_TCP_PORT = '2375'
 
 
-def get_remote_client(duckiebot_ip):
-    return docker.DockerClient(base_url="tcp://" + duckiebot_ip + ":2375")
+def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+    return docker.DockerClient(base_url=f'tcp://{duckiebot_ip}:{port}')
 
 
 def continuously_monitor(client, container_name):
