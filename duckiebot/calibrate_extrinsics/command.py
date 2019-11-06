@@ -10,6 +10,7 @@ from utils.docker_utils import (
     get_remote_client,
     remove_if_running,
     pull_if_not_exist,
+    check_if_running,
 )
 from utils.networking_utils import get_duckiebot_ip
 
@@ -51,7 +52,7 @@ Calibrate:
         remove_if_running(duckiebot_client, calibration_container_name)
         remove_if_running(duckiebot_client, validation_container_name)
 
-        # TODO check if interface is running
+        check_if_running(duckiebot_client, "duckiebot-interface")
 
         image = parsed_args.image
 
