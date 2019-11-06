@@ -51,21 +51,7 @@ Calibrate:
         remove_if_running(duckiebot_client, calibration_container_name)
         remove_if_running(duckiebot_client, validation_container_name)
 
-        # need to temporarily pause the image streaming from the robot
-        try:
-            duckiebot_containers = duckiebot_client.containers.list()
-            interface_container_found = False
-            for c in duckiebot_containers:
-                if "duckiebot-interface" in c.name:
-                    interface_container_found = True
-                    interface_container = c
-                    dtslogger.info("Temporarily stopping image streaming...")
-                    interface_container.stop()
-        except Exception as e:
-            dtslogger.warn(
-                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s"
-                % e
-            )
+        # TODO check if interface is running
 
         image = parsed_args.image
 
@@ -116,19 +102,4 @@ Calibrate:
                 volumes=bind_duckiebot_data_dir(),
                 command="/bin/bash -c '%s'" % start_command,
                 environment=env,
-            )
-
-        # restart the camera streaming
-        try:
-            all_duckiebot_containers = duckiebot_client.containers.list(all=True)
-            found = False
-            for c in all_duckiebot_containers:
-                if "duckiebot-interface" in c.name:
-                    found = True
-                    dtslogger.info("Restarting image streaming...")
-                    c.start()
-        except Exception as e:
-            dtslogger.warn(
-                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s"
-                % e
             )
