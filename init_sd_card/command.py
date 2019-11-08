@@ -478,15 +478,17 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
     _run_cmd(cmd)
 
-    # get the disk identifier of the SD card.
-    # IMPORTANT: This must be executed before `parted`
-    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
-    cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    ret, err = pc.communicate()
-    m = p.search(ret.decode("utf-8"))
-    uuid = m.group(1)
+    # get the disk identifier of the SD card (experimental mode only)
+    uuid = None
+    if parsed.experimental:
+        # IMPORTANT: This must be executed before `parted`
+        p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+        cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ret, err = pc.communicate()
+        m = p.search(ret.decode("utf-8"))
+        uuid = m.group(1)
 
     cmd = ["sudo", "parted", "-s", SD_CARD_DEVICE, "resizepart", "2", "100%"]
     _run_cmd(cmd)
@@ -497,14 +499,15 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "resize2fs", DEVp2]
     _run_cmd(cmd)
 
-    # restore the original disk identifier
-    cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    p = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
-    )
-    ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
-    print(ret.decode("utf-8"))
+    # restore the original disk identifier (experimental mode only)
+    if parsed.experimental:
+        cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
+        )
+        ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
+        print(ret.decode("utf-8"))
 
     dtslogger.info("Updated status:")
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
