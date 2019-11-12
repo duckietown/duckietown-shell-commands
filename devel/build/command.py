@@ -187,18 +187,36 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
         cache_from = []
         if not parsed.no_cache:
-            cache_from.append('--cache-from=%s' % tag)
-            # try to pull the same image so Docker can use it as cache source
-            dtslogger.info('Pulling image "%s" to use as cache...' % tag)
+            # check if the endpoint contains an image with the same name
+            is_present = False
             try:
-                _run_cmd([
+                out = _run_cmd([
                     'docker',
                         '-H=%s' % parsed.machine,
-                        'pull',
-                            tag
-                ], get_output=True, print_output=True, suppress_errors=True)
+                        'images',
+                            '--format',
+                            "{{.Repository}}:{{.Tag}}"
+                ], get_output=True, print_output=False, suppress_errors=True)
+                is_present = tag in out
             except:
-                dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
+                pass
+            if not is_present:
+                # try to pull the same image so Docker can use it as cache source
+                dtslogger.info('Pulling image "%s" to use as cache...' % tag)
+                try:
+                    _run_cmd([
+                        'docker',
+                            '-H=%s' % parsed.machine,
+                            'pull',
+                                tag
+                    ], get_output=True, print_output=True, suppress_errors=True)
+                except:
+                    dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
+            else:
+                dtslogger.info('Found an image with the same name. Using it as cache source.')
+            # use image as cache source
+            cache_from.append('--cache-from=%s' % tag)
+
         # build
         buildlog = _run_cmd([
             'docker',
