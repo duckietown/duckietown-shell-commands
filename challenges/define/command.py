@@ -2,6 +2,7 @@ import argparse
 import datetime
 import os
 import subprocess
+from typing import List, Optional
 
 import yaml
 
@@ -22,6 +23,7 @@ from duckietown_challenges.rest_methods import (
     get_registry_info,
     RegistryInfo,
 )
+from zuper_ipce import ipce_from_object, IESO
 
 
 class DTCommand(DTCommandAbs):
@@ -44,6 +46,9 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("-C", dest="cwd", default=None, help="Base directory")
         parser.add_argument("--impersonate", type=str, default=None)
+        parser.add_argument(
+            "--pull", default=False, action="store_true"
+        )
 
         parsed = parser.parse_args(args)
         impersonate = parsed.impersonate
@@ -83,7 +88,7 @@ class DTCommand(DTCommandAbs):
             go(token, impersonate, parsed, challenge, base, client, no_cache)
 
 
-def go(token, impersonate, parsed, challenge, base, client, no_cache):
+def go(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescription, base, client, no_cache):
     ri = get_registry_info(token=token, impersonate=impersonate)
 
     if parsed.steps:
@@ -124,6 +129,7 @@ def go(token, impersonate, parsed, challenge, base, client, no_cache):
                     dockerfile_abs,
                     no_cache,
                     registry_info=ri,
+                    dopull = parsed.pull,
                 )
                 complete = get_complete_tag(br)
                 service.image = complete
@@ -140,8 +146,10 @@ def go(token, impersonate, parsed, challenge, base, client, no_cache):
                     service.image_digest = image.id
                     dtslogger.info("Found: %s" % image.id)
 
-    data2 = yaml.dump(challenge.as_dict())
-
+    ieso = IESO(with_schema=False)
+    ipce = ipce_from_object(challenge, ChallengeDescription, ieso=ieso)
+    data2 = yaml.dump(ipce)
+    # data2 = yaml.dump(challenge.as_dict())
     res = dtserver_challenge_define(
         token, data2, parsed.force_invalidate_subs, impersonate=impersonate
     )
@@ -167,6 +175,7 @@ def build_image(
     filename,
     no_cache: bool,
     registry_info: RegistryInfo,
+    dopull: bool,
 ) -> BuildResult:
     d = datetime.datetime.now()
     username = get_dockerhub_username()
@@ -185,7 +194,12 @@ def build_image(
     )
     complete = get_complete_tag(br)
 
-    cmd = ["docker", "build", "--pull", "-t", complete, "-f", filename]
+    cmd = ["docker", "build"]
+    if dopull:
+        cmd.append("--pull")
+
+    cmd.extend(["-t", complete, "-f", filename])
+
     if no_cache:
         cmd.append("--no-cache")
 
@@ -193,13 +207,16 @@ def build_image(
     dtslogger.debug("$ %s" % " ".join(cmd))
     subprocess.check_call(cmd)
 
-    image = client.images.get(complete)
-    repo_digests = image.attrs.get("RepoDigests", [])
-    if repo_digests:
-        msg = "Already found repo digest: %s" % repo_digests
-        dtslogger.info(msg)
-    else:
-        dtslogger.info("Image not present on registry. Need to push.")
+    use_repo_digests  = False
+
+    if use_repo_digests:
+        try:
+            br = get_compatible_br(client, complete, registry_info.registry)
+            return br
+        except KeyError:
+            pass
+
+    dtslogger.info("Image not present on registry. Need to push.")
 
     cmd = ["docker", "push", complete]
     dtslogger.debug("$ %s" % " ".join(cmd))
@@ -208,14 +225,54 @@ def build_image(
     image = client.images.get(complete)
     dtslogger.info("image id: %s" % image.id)
     dtslogger.info("complete: %s" % get_complete_tag(br))
-    repo_digests = image.attrs.get("RepoDigests", [])
-    if not repo_digests:
+
+
+
+    try:
+        br0 = get_compatible_br(client, complete, registry_info.registry)
+    except KeyError:
         msg = "Could not find any repo digests (push not succeeded?)"
         raise Exception(msg)
-    dtslogger.info("RepoDigests: %s" % repo_digests)
 
-    _, digest = repo_digests[0].split("@")
-    # br.digest = image.id
-    br.digest = digest
-    br = parse_complete_tag(get_complete_tag(br))
+
+
+    br = parse_complete_tag(complete)
+    br.digest =br0.digest
+
+
+    dtslogger.info(f'using: {br}')
     return br
+
+from dataclasses import replace
+
+def fix_none(br: BuildResult) -> BuildResult:
+    if br.registry is None:
+        return replace(br, registry='docker.io')
+    else:
+        return br
+def compatible_br(rd: List[str], registry) -> List[BuildResult]:
+    # dtslogger.info(rd)
+    brs = [parse_complete_tag(_) for _ in rd]
+    brs = list(map(fix_none, brs))
+    compatible = [_ for _ in brs if _.registry==registry]
+    return compatible
+
+
+def get_compatible_br(client, complete, registry) -> BuildResult:
+    image = client.images.get(complete)
+
+    repo_tags = list(reversed(sorted(image.attrs.get("RepoTags", []))))
+    repo_digests = list(reversed(sorted(image.attrs.get("RepoDigests", []))))
+    dtslogger.info(f'repo_tags: {repo_tags}')
+    dtslogger.info(f'repo_digests: {repo_digests}')
+    compatible_digests = compatible_br(repo_digests, registry)
+    compatible_tags = compatible_br(repo_tags, registry)
+
+    if compatible_digests and compatible_tags:
+        dtslogger.info(f'compatible: {compatible_digests} {compatible_tags}')
+        br = compatible_tags[0]
+        br.digest = compatible_digests[0].digest
+        dtslogger.info(f'choosing: {br}\n{get_complete_tag(br)}')
+        return br
+    else:
+        raise KeyError()
