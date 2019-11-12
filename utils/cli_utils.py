@@ -40,6 +40,7 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
         )
         if return_code == 0:
             print("Done!")
+            break
         else:
             if retry == 1 or retry == trial+1:
                 msg = f"Error occurred while running {run_cmd}, please check and retry ({return_code})"
