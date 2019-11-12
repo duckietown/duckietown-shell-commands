@@ -1,4 +1,5 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.duckietown_utils import get_robot_types
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -192,7 +193,7 @@ class DTCommand(DTCommandAbs):
             '--type',
             dest='robot_type',
             default=None,
-            choices=['duckiebot', 'watchtower'],
+            choices=get_robot_types(),
             help='Which type of robot we are setting up'
         )
 
