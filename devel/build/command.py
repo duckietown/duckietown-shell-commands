@@ -185,7 +185,6 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
-        cache_from = []
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
             is_present = False
@@ -214,8 +213,6 @@ class DTCommand(DTCommandAbs):
                     dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
             else:
                 dtslogger.info('Found an image with the same name. Using it as cache source.')
-            # use image as cache source
-            cache_from.append('--cache-from=%s' % tag)
 
         # build
         buildlog = _run_cmd([
@@ -225,7 +222,6 @@ class DTCommand(DTCommandAbs):
                     '--pull=%d' % int(parsed.pull),
                     '--no-cache=%d' % int(parsed.no_cache),
                     '-t', tag] + \
-                    cache_from + \
                     buildlabels + \
                     buildargs + [
                     code_dir
