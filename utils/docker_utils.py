@@ -273,6 +273,16 @@ def start_picamera(duckiebot_name):
     )
 
 
+def check_if_running(client, container_name):
+    try:
+        _ = client.containers.get(container_name)
+        dtslogger.info("%s is running." % container_name)
+        return True
+    except Exception as e:
+        dtslogger.error("%s is NOT running - Aborting" % e)
+        return False
+
+
 def remove_if_running(client, container_name):
     try:
         container = client.containers.get(container_name)
