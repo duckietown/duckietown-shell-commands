@@ -82,10 +82,13 @@ class DTCommand(DTCommandAbs):
                 cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t]
                 _run_cmd(cmd, env)
             except subprocess.CalledProcessError:
-                dtslogger.warning('Could not find %s on DockerHub, it probably doesn\'t exist'%t)
-
-        cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag]
-        _run_cmd(cmd, env)
+                dtslogger.warning('Could not find %s on DockerHub. It probably doesn\'t exist, which is okay.'%t)
+        try:
+            dtslogger.info("Pushing manifest to DockerHub...")
+            cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag]
+            _run_cmd(cmd, env)
+        except subprocess.CalledProcessError as e:
+            dtslogger.warning(e.message)   
 
     @staticmethod
     def complete(shell, word, line):
