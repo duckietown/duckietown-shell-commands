@@ -113,6 +113,8 @@ class DTCommand(DTCommandAbs):
             # configure docker for DT
             token = shell.get_dt1_token()
             add_token_to_docker_config(token)
+            # the given machine becomes now the destination machine
+            destination_machine = parsed.machine
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
         # show info about project
@@ -276,6 +278,7 @@ class DTCommand(DTCommandAbs):
                 ] + progress_monitor + [\
                 '|',
                 'docker',
+                    '-H=%s' % destination_machine,
                     'load'
             ], print_output=False, shell=True)
         # perform push (if needed)
