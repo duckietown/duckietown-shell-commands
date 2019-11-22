@@ -263,7 +263,7 @@ class DTCommand(DTCommandAbs):
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
-        # pull image if built on the cloud
+        # pull image (if built on the cloud)
         if parsed.cloud:
             monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
             dtslogger.info(f'Fetching image from the cloud{monitor_info}...')
