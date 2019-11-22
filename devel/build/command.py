@@ -5,6 +5,8 @@ import argparse
 import subprocess
 import io, sys
 import getpass
+import itertools
+from shutil import which
 from .image_analyzer import ImageAnalyzer
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -20,12 +22,12 @@ Docker Endpoint:
   Total Memory: {MemTotal}
   CPUs: {NCPU}
 """
-ARCH_MAP={
+ARCH_MAP = {
     'arm32v7' : ['arm', 'arm32v7', 'armv7l', 'armhf'],
     'amd64' : ['x64', 'x86_64', 'amd64', 'Intel 64'],
     'arm64v8' : ['arm64', 'arm64v8', 'armv8', 'aarch64']
 }
-CANONICAL_ARCH={
+CANONICAL_ARCH = {
     'arm' : 'arm32v7',
     'arm32v7' : 'arm32v7',
     'armv7l' : 'arm32v7',
@@ -39,8 +41,17 @@ CANONICAL_ARCH={
     'armv8' : 'arm64v8',
     'aarch64' : 'arm64v8'
 }
+BUILD_COMPATIBILITY_MAP = {
+    'arm32v7' : ['arm32v7'],
+    'arm64v8' : ['arm32v7', 'arm64v8'],
+    'amd64' : ['amd64']
+}
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
+CLOUD_BUILDERS = {
+    'arm32v7': 'ec2-54-174-175-117.compute-1.amazonaws.com',
+    'arm64v8': 'ec2-54-174-175-117.compute-1.amazonaws.com'
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -80,6 +91,8 @@ class DTCommand(DTCommandAbs):
                             help="Docker tag for the base image. Used when the base image is a development version")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
+        parser.add_argument('--cloud', default=False, action='store_true',
+                            help="Build the image on the cloud")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -92,6 +105,16 @@ class DTCommand(DTCommandAbs):
             parsed.pull = True
             parsed.no_multiarch = True
             buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.authoritative=1']
+        # cloud build
+        if parsed.cloud:
+            if parsed.arch not in CLOUD_BUILDERS:
+                dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. Aborting...')
+                exit(3)
+            # configure docker for DT
+            token = shell.get_dt1_token()
+            add_token_to_docker_config(token)
+            # update machine parameter
+            parsed.machine = CLOUD_BUILDERS[parsed.arch]
         # show info about project
         shell.include.devel.info.command(shell, args)
         project_info = shell.include.devel.info.get_project_info(code_dir)
@@ -136,7 +159,7 @@ class DTCommand(DTCommandAbs):
         epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # check if there is a watchtower instance running on the endpoint
-        if shell.include.devel.watchtower.is_running(parsed.machine):
+        if (not parsed.cloud) and (shell.include.devel.watchtower.is_running(parsed.machine)):
             w_machine = ''
             if parsed.machine != DEFAULT_MACHINE:
                 w_machine = ' -H {}'.format(parsed.machine)
@@ -153,7 +176,8 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(msg)
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
-            if epoint['Architecture'] not in ARCH_MAP[CANONICAL_ARCH[parsed.arch]]:
+            compatible_archs = BUILD_COMPATIBILITY_MAP[CANONICAL_ARCH[epoint['Architecture']]]
+            if parsed.arch not in compatible_archs:
                 dtslogger.info('Configuring machine for multiarch builds...')
                 try:
                     _run_cmd([
@@ -238,7 +262,21 @@ class DTCommand(DTCommandAbs):
         ], True)
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # run docker image analysis
-        ImageAnalyzer.process(buildlog, historylog, codens=100)
+        _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
+        # pull image if built on the cloud
+        monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
+        dtslogger.info(f'Fetching image from the cloud{monitor_info}...')
+        progress_monitor = ['|', 'pv', '-cN', 'image', '-s', final_image_size] if which('pv') else []
+        _run_cmd([
+            'docker',
+                '-H=%s' % parsed.machine,
+                'save',
+                    tag \
+            ] + progress_monitor + [\
+            '|',
+            'docker',
+                'load'
+        ], print_output=False, shell=True)
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
@@ -256,10 +294,12 @@ class DTCommand(DTCommandAbs):
         return []
 
 
-def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False):
+def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
     dtslogger.debug('$ %s' % cmd)
+    if shell:
+        cmd = ' '.join([str(s) for s in cmd])
     if get_output:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=shell)
         p = re.compile(CATKIN_REGEX, re.IGNORECASE)
         lines = []
         last_matched = False
@@ -282,7 +322,7 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False):
             raise RuntimeError(msg)
         return lines
     else:
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, shell=shell)
 
 def _sizeof_fmt(num, suffix='B'):
     for unit in ['','K','M','G','T','P','E','Z']:
@@ -290,3 +330,11 @@ def _sizeof_fmt(num, suffix='B'):
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.2f%s%s" % (num, 'Yi', suffix)
+
+def add_token_to_docker_config(token):
+    config_file = os.path.expanduser('~/.docker/config.json')
+    config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
+    if 'HttpHeaders' not in config:
+        config['HttpHeaders'] = {}
+    config['HttpHeaders']['X-Duckietown-Token'] = token
+    json.dump(config, open(config_file, 'w'), indent=2)

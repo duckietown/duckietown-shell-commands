@@ -139,6 +139,8 @@ class ImageAnalyzer(object):
         print()
         print(colored('IMPORTANT', 'white', 'on_blue') + ': Always ask yourself, can I do better than that? ;)')
         print()
+        # ---
+        return image, base_image_size, final_image_size
 
 
 if __name__ == '__main__':
