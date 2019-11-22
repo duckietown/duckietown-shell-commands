@@ -264,19 +264,20 @@ class DTCommand(DTCommandAbs):
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
         # pull image if built on the cloud
-        monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
-        dtslogger.info(f'Fetching image from the cloud{monitor_info}...')
-        progress_monitor = ['|', 'pv', '-cN', 'image', '-s', final_image_size] if which('pv') else []
-        _run_cmd([
-            'docker',
-                '-H=%s' % parsed.machine,
-                'save',
-                    tag \
-            ] + progress_monitor + [\
-            '|',
-            'docker',
-                'load'
-        ], print_output=False, shell=True)
+        if parsed.cloud:
+            monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
+            dtslogger.info(f'Fetching image from the cloud{monitor_info}...')
+            progress_monitor = ['|', 'pv', '-cN', 'image', '-s', final_image_size] if which('pv') else []
+            _run_cmd([
+                'docker',
+                    '-H=%s' % parsed.machine,
+                    'save',
+                        tag \
+                ] + progress_monitor + [\
+                '|',
+                'docker',
+                    'load'
+            ], print_output=False, shell=True)
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
