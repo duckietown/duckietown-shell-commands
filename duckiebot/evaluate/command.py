@@ -83,6 +83,12 @@ class DTCommand(DTCommandAbs):
             help="If true you will get a shell instead of executing",
         )
         group.add_argument(
+            "--native",
+            action="store_true",
+            default=False,
+            help="If you would like your submission to be run on the RasPI (natively)",
+        )
+        group.add_argument(
             "--max_vel", help="the max velocity for the duckiebot", default=0.7
         )
         group.add_argument("--challenge", help="Specific challenge to evaluate")
@@ -98,7 +104,12 @@ class DTCommand(DTCommandAbs):
             dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
         )
 
-        client = check_docker_environment()
+        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
+        if (parsed.native):
+            client = get_remote_client(duckiebot_ip)
+        else:
+            client = check_docker_environment()
+
         agent_container_name = "agent"
         glue_container_name = "aido_glue"
 
@@ -114,7 +125,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn("error creating volume: %s" % e)
             raise
 
-        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
 
         duckiebot_client = get_remote_client(duckiebot_ip)
         try:
