@@ -37,7 +37,7 @@ Calibrate:
             "--no_verification",
             action="store_true",
             default=False,
-            help="If you don't have a lane you can skip the verificaiton step",
+            help="If you don't have a lane you can skip the verification step",
         )
 
         parsed_args = parser.parse_args(args)
