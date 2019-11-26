@@ -3,7 +3,7 @@ from dt_shell.main import OtherVersions
 from duckietown_challenges import __version__
 
 version = tuple(map(int, __version__.split(".")))
-required = (4, 0, 18)
+required = (5, 1, 1)
 
 # dtslogger.info(f'Detected duckietown-challenges {__version__} ')
 
@@ -15,10 +15,12 @@ def v(x):
 
 
 if version < required:
-    msg = "Expected duckietown-challenges of at least %s, got %s" % (
+    msg = "Expected duckietown-challenges-daffy of at least %s, got %s" % (
         v(required),
         v(version),
     )
+    msg += '\n\nPlease update duckietown-challenges-daffy using pip.'
+    msg += '\n\n  pip install -U duckietown-challenges-daffy>=%s' % (v(required))
     raise UserError(msg)
 from .challenges_cmd_utils import *
 from .config import *

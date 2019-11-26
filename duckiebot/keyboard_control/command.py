@@ -8,7 +8,7 @@ import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running
+from utils.docker_utils import remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -103,6 +103,7 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
               }
 
 
+    pull_if_not_exist(client, params['image'])
     container = client.containers.run(**params)
     cmd = "docker attach %s" % container_name
     start_command_in_subprocess(cmd)
@@ -151,6 +152,7 @@ def run_cli_controller(hostname,image,duckiebot_ip, network_mode, sim):
               'detach':True
               }
 
+    pull_if_not_exist(duckiebot_client, params['image'])
     container = duckiebot_client.containers.run(**params)
 
     if sim:
