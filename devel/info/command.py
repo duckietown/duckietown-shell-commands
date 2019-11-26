@@ -1,5 +1,6 @@
-import argparse
 import os
+import re
+import argparse
 import subprocess
 
 from termcolor import colored
@@ -126,10 +127,17 @@ class DTCommand(DTCommandAbs):
             "REPOSITORY": repo,
             "BRANCH": branch,
             "ORIGIN.URL": origin_url,
+            "ORIGIN.HTTPS.URL": remote_url_to_https(origin_url),
             "INDEX_NUM_MODIFIED": nmodified,
             "INDEX_NUM_ADDED": nadded,
         }
 
+def remote_url_to_https(remote_url):
+    ssh_pattern = 'git@([^:]+):([^/]+)/(.+)'
+    res = re.search(ssh_pattern, remote_url, re.IGNORECASE)
+    if res:
+        return f'https://{res.group(1)}/{res.group(2)}/{res.group(3)}'
+    return remote_url
 
 def _run_cmd(cmd):
     return [l for l in subprocess.check_output(cmd).decode("utf-8").split("\n") if l]

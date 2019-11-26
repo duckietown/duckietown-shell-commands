@@ -14,6 +14,7 @@ from utils.docker_utils import (
     record_bag,
     remove_if_running,
     stop_container,
+    pull_if_not_exist
 )
 from utils.networking_utils import get_duckiebot_ip
 
@@ -167,6 +168,7 @@ class DTCommand(DTCommandAbs):
         }
 
         # run the glue container
+        pull_if_not_exist(client, params['image'])
         glue_container = client.containers.run(**params)
 
         if not parsed.debug:
@@ -223,6 +225,7 @@ class DTCommand(DTCommandAbs):
             "Running %s on localhost with environment vars: %s"
             % (image_name, agent_env)
         )
+        pull_if_not_exist(client, params['image'])
         agent_container = client.containers.run(**params)
 
         if parsed.debug:

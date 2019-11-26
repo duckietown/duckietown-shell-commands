@@ -1,4 +1,5 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.duckietown_utils import get_robot_types
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -192,7 +193,7 @@ class DTCommand(DTCommandAbs):
             '--type',
             dest='robot_type',
             default=None,
-            choices=['duckiebot', 'watchtower'],
+            choices=get_robot_types(),
             help='Which type of robot we are setting up'
         )
 
@@ -478,15 +479,17 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
     _run_cmd(cmd)
 
-    # get the disk identifier of the SD card.
-    # IMPORTANT: This must be executed before `parted`
-    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
-    cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    ret, err = pc.communicate()
-    m = p.search(ret.decode("utf-8"))
-    uuid = m.group(1)
+    # get the disk identifier of the SD card (experimental mode only)
+    uuid = None
+    if parsed.experimental:
+        # IMPORTANT: This must be executed before `parted`
+        p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+        cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ret, err = pc.communicate()
+        m = p.search(ret.decode("utf-8"))
+        uuid = m.group(1)
 
     cmd = ["sudo", "parted", "-s", SD_CARD_DEVICE, "resizepart", "2", "100%"]
     _run_cmd(cmd)
@@ -497,14 +500,15 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "resize2fs", DEVp2]
     _run_cmd(cmd)
 
-    # restore the original disk identifier
-    cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    p = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
-    )
-    ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
-    print(ret.decode("utf-8"))
+    # restore the original disk identifier (experimental mode only)
+    if parsed.experimental:
+        cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
+        )
+        ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
+        print(ret.decode("utf-8"))
 
     dtslogger.info("Updated status:")
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
@@ -747,8 +751,8 @@ dtparam=i2c_arm=on
 
 def configure_images(parsed, user_data, add_file_local, add_file):
     # read and validate docker-compose stacks
-    arg_stacks_to_load = parsed.stacks_to_load.split(",")
-    arg_stacks_to_run = parsed.stacks_to_run.split(",")
+    arg_stacks_to_load = list(filter(lambda s: len(s) > 0, parsed.stacks_to_load.split(",")))
+    arg_stacks_to_run = list(filter(lambda s: len(s) > 0, parsed.stacks_to_run.split(",")))
     dtslogger.info("Stacks to load: %s" % arg_stacks_to_load)
     dtslogger.info("Stacks to run: %s" % arg_stacks_to_run)
 
@@ -783,9 +787,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     stack2yaml = get_stack2yaml(
         stacks_for_images_to_load, get_resource("stacks")
     )
-    if not stack2yaml:
-        msg = "Not even one stack specified"
-        raise Exception(msg)
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
     # copy images to SD card
@@ -865,22 +866,10 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                     "-d",
                 ]
                 add_run_cmd(user_data, cmd)
-                # XXX
-                cmd = [
-                    "docker-compose",
-                    "-p",
-                    cf,
-                    "--file",
-                    "/data/loader/stacks_to_run/%s.yaml" % cf,
-                    "up",
-                    "-d",
-                ]
                 user_data["bootcmd"].append(cmd)  # every boot
 
-
-    # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
+    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
     # If modifying, make sure to adjust the blinking feedback
-    log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
 def configure_networks(parsed, add_file):

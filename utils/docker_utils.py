@@ -21,10 +21,11 @@ RPI_DUCKIEBOT_CALIBRATION = "duckietown/rpi-duckiebot-calibration:master18"
 RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
+DEFAULT_DOCKER_TCP_PORT = '2375'
 
 
-def get_remote_client(duckiebot_ip):
-    return docker.DockerClient(base_url="tcp://" + duckiebot_ip + ":2375")
+def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+    return docker.DockerClient(base_url=f'tcp://{duckiebot_ip}:{port}')
 
 
 def continuously_monitor(client, container_name):
@@ -212,9 +213,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     return duckiebot_client.containers.run(**parameters)
 
 
-def run_image_on_localhost(
-    image_name, duckiebot_name, container_name, env=None, volumes=None
-):
+def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
     local_client = check_docker_environment()
 
@@ -272,6 +271,16 @@ def start_picamera(duckiebot_name):
         detach=True,
         environment=env_vars,
     )
+
+
+def check_if_running(client, container_name):
+    try:
+        _ = client.containers.get(container_name)
+        dtslogger.info("%s is running." % container_name)
+        return True
+    except Exception as e:
+        dtslogger.error("%s is NOT running - Aborting" % e)
+        return False
 
 
 def remove_if_running(client, container_name):
@@ -406,3 +415,25 @@ def remove_container(container):
         container.remove()
     except Exception as e:
         dtslogger.warn("Container %s not found to remove! %s" % (container, e))
+
+def pull_if_not_exist(client, image_name):
+    from docker.errors import ImageNotFound
+
+    try:
+        client.images.get(image_name)
+    except ImageNotFound:
+        dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
+
+        repository = image_name.split(':')[0]
+        try:
+            tag = image_name.split(':')[1]
+        except IndexError:
+            tag = 'latest'
+
+        loader = 'Downloading .'
+        for _ in client.api.pull(repository, tag, stream=True, decode=True):
+            loader += '.'
+            if len(loader)>40:
+                print(' '*60, end='\r', flush=True)
+                loader = 'Downloading .'
+            print(loader, end='\r', flush=True)
