@@ -95,20 +95,25 @@ class DTCommand(DTCommandAbs):
         group.add_argument("--challenge", help="Specific challenge to evaluate")
         parsed = parser.parse_args(args)
 
-        tmpdir = "/tmp"
-        USERNAME = getpass.getuser()
-        dir_home_guest = os.path.expanduser("~")
-        dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
-        if not os.path.exists(dir_fake_home):
-            os.makedirs(dir_fake_home)
-        get_calibration_files(
-            dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
-        )
+        if not parsed.native:
+            # if we are running remotely then we need to copy over the calibration
+            # files from the robot and setup some tmp directories to mount
+            tmpdir = "/tmp"
+            USERNAME = getpass.getuser()
+            dir_home_guest = os.path.expanduser("~")
+            dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
+            if not os.path.exists(dir_fake_home):
+                os.makedirs(dir_fake_home)
+            get_calibration_files(
+                dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
+            )
 
         duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
         if (parsed.native):
+            dtslogger.info("Attempting to run natively on the robot")
             client = get_remote_client(duckiebot_ip)
         else:
+            dtslogger.info("Attempting to run remotely on this machine")
             client = check_docker_environment()
 
         agent_container_name = "agent"
@@ -152,12 +157,21 @@ class DTCommand(DTCommandAbs):
             "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
         }
 
+        if parsed.native:
+            arch = 'arm32v7'
+            machine = "%s.local" % parsed.duckiebot_name
+        else:
+            arch = 'amd64'
+            machine = "unix:///var/run/docker.sock"
+
+        glue_image = "%s-%s" %(parsed.glue_node_image, arch)
+
         dtslogger.info(
-            "Running %s on localhost with environment vars: %s"
-            % (parsed.glue_node_image, glue_env)
+            "Running %s on %s with environment vars: %s"
+            % (glue_image, machine, glue_env)
         )
         params = {
-            "image": parsed.glue_node_image,
+            "image": glue_image,
             "name": glue_container_name,
             "network_mode": "host",
             "privileged": True,
@@ -185,10 +199,19 @@ class DTCommand(DTCommandAbs):
                 msg = "No Dockerfile"
                 raise Exception(msg)
             tag = "myimage"
+
+            dtslogger.info("Building image for %s" % arch)
             if parsed.no_cache:
-                cmd = ["docker", "build", "--no-cache", "-t", tag, "-f", dockerfile]
+                no_cache = "--no-cache"
             else:
-                cmd = ["docker", "build", "-t", tag, "-f", dockerfile]
+                no_cache = ""
+            cmd = ["docker",
+                   "-H=%s" % machine,
+                   "build",
+                   "%s" % no_cache,
+                   "-t", tag,
+                   "ARCH=%s"% arch,
+                   "-f", dockerfile]
             dtslogger.info("Running command: %s" % cmd)
             cmd.append(path)
             subprocess.check_call(cmd)
