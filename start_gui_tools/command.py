@@ -22,7 +22,7 @@ Keyboard control:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
+            "hostname", default=None, help="Name of the Duckiebot"
         )
         parser.add_argument(
             "--network", default="host", help="Name of the network which to connect"
@@ -36,9 +36,16 @@ Keyboard control:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/rpi-duckiebot-base:master19-no-arm",
+            default="duckietown/dt-core:daffy-amd64",
             help="The base image, probably don't change the default",
         )
+        parser.add_argument(
+            "--novnc",
+            action="store_true",
+            default=True,
+            help="should we run the novnc server",
+        )
+            
         parsed_args = parser.parse_args(args)
 
         if parsed_args.sim:
@@ -100,7 +107,31 @@ Keyboard control:
             "command": cmd,
             "volumes": volumes,
         }
-
+        
         container = client.containers.run(**params)
+
+
+        
+        if parsed_args.novnc:
+            novnc_container_name = "novnc_%s" % hostname
+            remove_if_running(client, novnc_container_name)
+            vncenv = env
+            vncenv['VEHICLE_NAME'] = env['HOSTNAME']
+            vncparams = {
+                "image": "duckietown/docker-ros-vnc:daffy",
+                "name": novnc_container_name,
+                "network_mode": parsed_args.network,
+                "environment": vncenv,
+                "ports": {'5901/tcp': 5901, '6901/tcp': 6901},
+                "detach": True,
+                "privileged": True,
+                }
+            dtslogger.info(
+                "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
+                )
+            novnc_container = client.containers.run(**vncparams)
+            
+
+        
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)
