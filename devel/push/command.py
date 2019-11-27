@@ -73,18 +73,22 @@ class DTCommand(DTCommandAbs):
         tag = "%s/%s:%s-%s" % (user, repo, branch, parsed.arch)
         _run_cmd(["docker", "-H=%s" % parsed.machine, "push", tag])
         # add all supported images to manifest
+        env = {"DOCKER_CLI_EXPERIMENTAL": "enabled"}
         dtslogger.info("Creating manifest {}...".format(default_tag))
         for key in ARCH_MAP:
             t = "%s/%s:%s-%s" % (user, repo, branch, key)
             try:
                 dtslogger.info("Adding {} to manifest...".format(t))
-                env = {"DOCKER_CLI_EXPERIMENTAL": "enabled"}
-                cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t]
+                cmd = ["docker", "manifest", "create", default_tag, "--amend", t]
                 _run_cmd(cmd, env)
             except subprocess.CalledProcessError:
-                dtslogger.warning('Could not find %s on DockerHub, it probably doesn\'t exist'%t)
-
-        _run_cmd(["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag])
+                dtslogger.warning('Could not find %s on DockerHub. It probably doesn\'t exist, which is okay.'%t)
+        try:
+            dtslogger.info("Pushing manifest to DockerHub...")
+            cmd = ["docker", "manifest", "push", "-p", default_tag]
+            _run_cmd(cmd, env)
+        except subprocess.CalledProcessError as e:
+            dtslogger.warning(e.message)   
 
     @staticmethod
     def complete(shell, word, line):

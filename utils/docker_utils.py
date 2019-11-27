@@ -53,7 +53,7 @@ def continuously_monitor(client, container_name):
                 stdout=True, stderr=True, stream=True, since=last_log_timestamp
             ):
                 last_log_timestamp = datetime.datetime.now()
-                logs += c.decode()
+                logs += c
             dtslogger.error(msg)
 
             tf = "evaluator.log"
@@ -77,7 +77,6 @@ def continuously_monitor(client, container_name):
                     sys.stdout.write(c)
                 else:
                     sys.stdout.write(c.decode("utf-8"))
-
                 last_log_timestamp = datetime.datetime.now()
 
             time.sleep(3)
