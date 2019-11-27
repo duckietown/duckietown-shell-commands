@@ -79,13 +79,13 @@ class DTCommand(DTCommandAbs):
             t = "%s/%s:%s-%s" % (user, repo, branch, key)
             try:
                 dtslogger.info("Adding {} to manifest...".format(t))
-                cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "create", default_tag, "--amend", t]
+                cmd = ["docker", "manifest", "create", default_tag, "--amend", t]
                 _run_cmd(cmd, env)
             except subprocess.CalledProcessError:
                 dtslogger.warning('Could not find %s on DockerHub. It probably doesn\'t exist, which is okay.'%t)
         try:
             dtslogger.info("Pushing manifest to DockerHub...")
-            cmd = ["docker", "-H=%s" % parsed.machine, "manifest", "push", default_tag]
+            cmd = ["docker", "manifest", "push", "-p", default_tag]
             _run_cmd(cmd, env)
         except subprocess.CalledProcessError as e:
             dtslogger.warning(e.message)   
