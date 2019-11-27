@@ -66,12 +66,6 @@ class DTCommand(DTCommandAbs):
             help="If true run the image over network without pushing to Duckiebot",
         )
         group.add_argument(
-            "--no_cache",
-            help="disable cache on docker build",
-            action="store_true",
-            default=False,
-        )
-        group.add_argument(
             "--record_bag",
             action="store_true",
             default=False,
@@ -94,16 +88,16 @@ class DTCommand(DTCommandAbs):
         )
         group.add_argument("--challenge", help="Specific challenge to evaluate")
         parsed = parser.parse_args(args)
+        tmpdir = "/tmp"
+        USERNAME = getpass.getuser()
+        dir_home_guest = os.path.expanduser("~")
+        dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
+        if not os.path.exists(dir_fake_home):
+            os.makedirs(dir_fake_home)
 
         if not parsed.native:
             # if we are running remotely then we need to copy over the calibration
             # files from the robot and setup some tmp directories to mount
-            tmpdir = "/tmp"
-            USERNAME = getpass.getuser()
-            dir_home_guest = os.path.expanduser("~")
-            dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
-            if not os.path.exists(dir_fake_home):
-                os.makedirs(dir_fake_home)
             get_calibration_files(
                 dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
             )
@@ -201,15 +195,11 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info("Building image for %s" % arch)
-            if parsed.no_cache:
-                no_cache = "--no-cache"
-            else:
-                no_cache = ""
             cmd = ["docker",
-                   "-H=%s" % machine,
+                   "-H %s" % machine,
                    "build",
-                   "%s" % no_cache,
                    "-t", tag,
+                   "--build-arg",
                    "ARCH=%s"% arch,
                    "-f", dockerfile]
             dtslogger.info("Running command: %s" % cmd)
