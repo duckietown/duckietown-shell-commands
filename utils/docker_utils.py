@@ -73,7 +73,10 @@ def continuously_monitor(client, container_name):
                 follow=True,
                 since=last_log_timestamp,
             ):
-                sys.stdout.write(c)
+                if six.PY2:
+                    sys.stdout.write(c)
+                else:
+                    sys.stdout.write(c.decode("utf-8"))
                 last_log_timestamp = datetime.datetime.now()
 
             time.sleep(3)
