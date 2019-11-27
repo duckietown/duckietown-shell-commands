@@ -195,16 +195,14 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info("Building image for %s" % arch)
-            cmd = ["docker",
-                   "-H %s" % machine,
-                   "build",
-                   "-t", tag,
-                   "--build-arg",
-                   "ARCH=%s"% arch,
-                   "-f", dockerfile]
-            dtslogger.info("Running command: %s" % cmd)
-            cmd.append(path)
-            subprocess.check_call(cmd)
+            build_params = {
+                "tag": tag,
+                "buildargs": {"ARCH": arch},
+                "path": ".",
+            }
+            # TODO put back no_cache
+            dtslogger
+            client.images.build(**build_params)
             image_name = tag
         else:
             image_name = parsed.image_name
@@ -233,6 +231,11 @@ class DTCommand(DTCommandAbs):
         if parsed.debug:
             params["command"] = "/bin/bash"
             params["stdin_open"] = True
+
+        if parsed.native:
+            params["mem_limit"]="800m"
+            params["memswap_limit"]="2800m"
+
 
         dtslogger.info(
             "Running %s on localhost with environment vars: %s"
