@@ -97,7 +97,7 @@ class DTCommand(DTCommandAbs):
         )
         # ---
         parsed = parser.parse_args(args)
-        tmpdir = "/tmp"
+        tmpdir = "/tmp/aido_ws"
         USERNAME = getpass.getuser()
         dir_home_guest = os.path.expanduser("~")
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
