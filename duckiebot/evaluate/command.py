@@ -282,14 +282,24 @@ class DTCommand(DTCommandAbs):
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
     dtslogger.info("Getting calibration files")
-    cmd = [
-        "scp",
-        "-r",
-        "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
-        dir,
-    ]
-    dtslogger.debug(f"Running: '{' '.join(cmd)}'")
-    subprocess.check_output(cmd)
+    copied = False
+    for auth_info in [[], ['-i', os.path.expanduser('~/.ssh/DT18_key_00')]]:
+        if copied: break
+        try:
+            cmd = [
+                "scp",] + auth_info + [
+                "-r",
+                "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
+                dir,
+            ]
+            dtslogger.debug(f"Running: '{' '.join(cmd)}'")
+            subprocess.check_output(cmd)
+            copied = True
+        except Exception as e:
+            dtslogger.warning('An error was encountered while copying the calibration files: ' + str(e))
+    if not copied:
+        dtslogger.error('Could not copy calibration files. Aborting...')
+        exit(-1)
 
 
 # Runs everything on the Duckiebot
