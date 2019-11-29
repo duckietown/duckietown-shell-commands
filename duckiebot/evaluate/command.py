@@ -87,6 +87,15 @@ class DTCommand(DTCommandAbs):
             "--max_vel", help="the max velocity for the duckiebot", default=0.7
         )
         group.add_argument("--challenge", help="Specific challenge to evaluate")
+        # Advanced arguments
+        group = parser.add_argument_group("Advanced")
+        group.add_argument(
+            "--docker-runtime",
+            dest="docker_runtime",
+            default=None,
+            help="Specify the runtime to use in Docker",
+        )
+        # ---
         parsed = parser.parse_args(args)
         tmpdir = "/tmp"
         USERNAME = getpass.getuser()
@@ -174,6 +183,8 @@ class DTCommand(DTCommandAbs):
             "tty": True,
             "volumes": glue_volumes,
         }
+        if parsed.docker_runtime:
+            params["runtime"] = parsed.docker_runtime
 
         # run the glue container
         pull_if_not_exist(client, params['image'])
