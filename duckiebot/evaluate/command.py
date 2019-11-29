@@ -282,15 +282,14 @@ class DTCommand(DTCommandAbs):
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
     dtslogger.info("Getting calibration files")
-    p = subprocess.Popen(
-        [
-            "scp",
-            "-r",
-            "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
-            dir,
-        ]
-    )
-    sts = os.waitpid(p.pid, 0)
+    cmd = [
+        "scp",
+        "-r",
+        "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
+        dir,
+    ]
+    dtslogger.debug(f"Running: '{' '.join(cmd)}'")
+    subprocess.check_output(cmd)
 
 
 # Runs everything on the Duckiebot
