@@ -93,6 +93,8 @@ class DTCommand(DTCommandAbs):
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parser.add_argument('--cloud', default=False, action='store_true',
                             help="Build the image on the cloud")
+        parser.add_argument('-D', '--destination', default=DEFAULT_MACHINE,
+                            help="Docker socket or hostname where to deliver the image")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -110,11 +112,14 @@ class DTCommand(DTCommandAbs):
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. Aborting...')
                 exit(3)
+            if parsed.machine != DEFAULT_MACHINE:
+                dtslogger.error('The parameter --machine (-H) cannot be set together with ' \
+                    + '--cloud. Use --destionation (-D) if you want to specify ' \
+                    + 'a destination for the image. Aborting...')
+                exit(4)
             # configure docker for DT
             token = shell.get_dt1_token()
             add_token_to_docker_config(token)
-            # the given machine becomes now the destination machine
-            destination_machine = parsed.machine
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
         # show info about project
@@ -266,21 +271,13 @@ class DTCommand(DTCommandAbs):
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
         # pull image (if built on the cloud)
-        if parsed.cloud:
-            monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
-            dtslogger.info(f'Fetching image from the cloud{monitor_info}...')
-            progress_monitor = ['|', 'pv', '-cN', 'image', '-s', final_image_size] if which('pv') else []
-            _run_cmd([
-                'docker',
-                    '-H=%s' % parsed.machine,
-                    'save',
-                        tag \
-                ] + progress_monitor + [\
-                '|',
-                'docker',
-                    '-H=%s' % destination_machine,
-                    'load'
-            ], print_output=False, shell=True)
+        if parsed.cloud or (parsed.machine != parsed.destination):
+            _transfer_image(
+                origin=parsed.machine,
+                destination=parsed.destination,
+                image=tag,
+                image_size=final_image_size
+            )
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
@@ -296,6 +293,24 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def complete(shell, word, line):
         return []
+
+
+
+def _transfer_image(origin, destination, image, image_size):
+    monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
+    dtslogger.info(f'Transferring image "{image}": [{origin}] -> [{destination}]{monitor_info}...')
+    progress_monitor = ['|', 'pv', '-cN', 'image', '-s', image_size] if which('pv') else []
+    _run_cmd([
+        'docker',
+            '-H=%s' % origin,
+            'save',
+                image \
+        ] + progress_monitor + [\
+        '|',
+        'docker',
+            '-H=%s' % destination,
+            'load'
+    ], print_output=False, shell=True)
 
 
 def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
