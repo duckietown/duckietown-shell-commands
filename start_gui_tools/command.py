@@ -115,16 +115,18 @@ Keyboard control:
         if parsed_args.novnc:
             novnc_container_name = "novnc_%s" % hostname
             remove_if_running(client, novnc_container_name)
-            vncenv = env
-            vncenv['VEHICLE_NAME'] = env['HOSTNAME']
+            vncenv = {
+                'VEHICLE_NAME': env['HOSTNAME'],
+                'ROS_MASTER_URI': env['ROS_MASTER_URI'],
+                'HOSTNAME': env['HOSTNAME']
+            }
+            dtslogger.info('running vnc with environment %s' % vncenv)
             vncparams = {
                 "image": "duckietown/docker-ros-vnc:daffy",
                 "name": novnc_container_name,
-                "network_mode": parsed_args.network,
                 "environment": vncenv,
-                "ports": {'5901/tcp': 5901, '6901/tcp': 6901},
+                "ports": {'5901/tcp':('0.0.0.0',5901), '6901/tcp':('0.0.0.0',6901)},
                 "detach": True,
-                "privileged": True,
                 }
             dtslogger.info(
                 "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
