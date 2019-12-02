@@ -93,7 +93,7 @@ class DTCommand(DTCommandAbs):
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parser.add_argument('--cloud', default=False, action='store_true',
                             help="Build the image on the cloud")
-        parser.add_argument('-D', '--destination', default=DEFAULT_MACHINE,
+        parser.add_argument('-D', '--destination', default=None,
                             help="Docker socket or hostname where to deliver the image")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -122,6 +122,9 @@ class DTCommand(DTCommandAbs):
             add_token_to_docker_config(token)
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
+            # update destination parameter
+            if not parsed.destination:
+                parsed.destination = DEFAULT_MACHINE
         # show info about project
         shell.include.devel.info.command(shell, args)
         project_info = shell.include.devel.info.get_project_info(code_dir)
@@ -271,7 +274,7 @@ class DTCommand(DTCommandAbs):
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
         # pull image (if built on the cloud)
-        if parsed.cloud or (parsed.machine != parsed.destination):
+        if parsed.cloud or (parsed.destination and parsed.machine != parsed.destination):
             _transfer_image(
                 origin=parsed.machine,
                 destination=parsed.destination,
