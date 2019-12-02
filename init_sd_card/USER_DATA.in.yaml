@@ -49,6 +49,10 @@ write_files:
   - path: /etc/dphys-swapfile
     content: "CONF_SWAPSIZE=2048"
 
+  - path: /etc/environment
+    permissions: 0644
+    content: |
+      COMPOSE_HTTP_TIMEOUT=120
 
 
 # These commands will be run on every boot (before runcmd)

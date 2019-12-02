@@ -14,6 +14,7 @@ from utils.docker_utils import (
     record_bag,
     remove_if_running,
     stop_container,
+    pull_if_not_exist
 )
 from utils.networking_utils import get_duckiebot_ip
 
@@ -65,12 +66,6 @@ class DTCommand(DTCommandAbs):
             help="If true run the image over network without pushing to Duckiebot",
         )
         group.add_argument(
-            "--no_cache",
-            help="disable cache on docker build",
-            action="store_true",
-            default=False,
-        )
-        group.add_argument(
             "--record_bag",
             action="store_true",
             default=False,
@@ -83,22 +78,47 @@ class DTCommand(DTCommandAbs):
             help="If true you will get a shell instead of executing",
         )
         group.add_argument(
+            "--native",
+            action="store_true",
+            default=False,
+            help="If you would like your submission to be run on the RasPI (natively)",
+        )
+        group.add_argument(
             "--max_vel", help="the max velocity for the duckiebot", default=0.7
         )
         group.add_argument("--challenge", help="Specific challenge to evaluate")
+        # Advanced arguments
+        group = parser.add_argument_group("Advanced")
+        group.add_argument(
+            "--docker-runtime",
+            dest="docker_runtime",
+            default=None,
+            help="Specify the runtime to use in Docker",
+        )
+        # ---
         parsed = parser.parse_args(args)
-
         tmpdir = "/tmp"
         USERNAME = getpass.getuser()
         dir_home_guest = os.path.expanduser("~")
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
-        get_calibration_files(
-            dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
-        )
 
-        client = check_docker_environment()
+        if not parsed.native:
+            # if we are running remotely then we need to copy over the calibration
+            # files from the robot and setup some tmp directories to mount
+            get_calibration_files(
+                dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
+            )
+
+        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
+        if (parsed.native):
+            dtslogger.info("Attempting to run natively on the robot")
+            client = get_remote_client(duckiebot_ip)
+        else:
+            dtslogger.info("Attempting to run remotely on this machine")
+            client = check_docker_environment()
+
         agent_container_name = "agent"
         glue_container_name = "aido_glue"
 
@@ -114,7 +134,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn("error creating volume: %s" % e)
             raise
 
-        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
 
         duckiebot_client = get_remote_client(duckiebot_ip)
         try:
@@ -141,12 +160,21 @@ class DTCommand(DTCommandAbs):
             "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
         }
 
+        if parsed.native:
+            arch = 'arm32v7'
+            machine = "%s.local" % parsed.duckiebot_name
+        else:
+            arch = 'amd64'
+            machine = "unix:///var/run/docker.sock"
+
+        glue_image = "%s-%s" %(parsed.glue_node_image, arch)
+
         dtslogger.info(
-            "Running %s on localhost with environment vars: %s"
-            % (parsed.glue_node_image, glue_env)
+            "Running %s on %s with environment vars: %s"
+            % (glue_image, machine, glue_env)
         )
         params = {
-            "image": parsed.glue_node_image,
+            "image": glue_image,
             "name": glue_container_name,
             "network_mode": "host",
             "privileged": True,
@@ -155,8 +183,11 @@ class DTCommand(DTCommandAbs):
             "tty": True,
             "volumes": glue_volumes,
         }
+        if parsed.docker_runtime:
+            params["runtime"] = parsed.docker_runtime
 
         # run the glue container
+        pull_if_not_exist(client, params['image'])
         glue_container = client.containers.run(**params)
 
         if not parsed.debug:
@@ -173,10 +204,15 @@ class DTCommand(DTCommandAbs):
                 msg = "No Dockerfile"
                 raise Exception(msg)
             tag = "myimage"
-            if parsed.no_cache:
-                cmd = ["docker", "build", "--no-cache", "-t", tag, "-f", dockerfile]
-            else:
-                cmd = ["docker", "build", "-t", tag, "-f", dockerfile]
+
+            dtslogger.info("Building image for %s" % arch)
+            cmd = ["docker",
+                   "-H %s" % machine,
+                   "build",
+                   "-t", tag,
+                   "--build-arg",
+                   "ARCH=%s"% arch,
+                   "-f", dockerfile]
             dtslogger.info("Running command: %s" % cmd)
             cmd.append(path)
             subprocess.check_call(cmd)
@@ -213,6 +249,7 @@ class DTCommand(DTCommandAbs):
             "Running %s on localhost with environment vars: %s"
             % (image_name, agent_env)
         )
+        pull_if_not_exist(client, params['image'])
         agent_container = client.containers.run(**params)
 
         if parsed.debug:

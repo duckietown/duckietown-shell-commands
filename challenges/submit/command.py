@@ -124,7 +124,9 @@ Submission with an arbitrary JSON payload:
             if parsed.challenge:
                 sub_info.challenge_names = parsed.challenge.split(",")
             if sub_info.challenge_names is None:
-                sub_info.challenge_names = compat.compatible
+                msg = 'You did not specify a challenge. I will use the first compatible one.'
+                print(msg)
+                sub_info.challenge_names = [list(compat.compatible)[0]]
 
             print("I will submit to the challenges %s" % sub_info.challenge_names)
 
@@ -156,9 +158,10 @@ Submission with an arbitrary JSON payload:
                 "protocols": sub_info.protocols,
             }
 
+            submit_to_challenges = sub_info.challenge_names
             data = dtserver_submit2(
                 token=token,
-                challenges=sub_info.challenge_names,
+                challenges=submit_to_challenges,
                 data=data,
                 impersonate=impersonate,
             )
@@ -176,13 +179,14 @@ Submission with an arbitrary JSON payload:
     
             """
 
-            for challenge_name, sub_info in submissions.items():
-                submission_id = sub_info["submission_id"]
+
+            for challenge_name, sub_info2 in submissions.items():
+                submission_id = sub_info2["submission_id"]
                 url_submission = href(
                     get_duckietown_server_url()
                     + "/humans/submissions/%s" % submission_id
                 )
-                challenge_title = sub_info["challenge"]["title"]
+                challenge_title = sub_info2["challenge"]["title"]
                 submission_id_color = termcolor.colored(submission_id, "cyan")
                 P = dark("$")
                 head = bright(f"## Challenge {challenge_name} - {challenge_title}")
@@ -214,6 +218,15 @@ Submission with an arbitrary JSON payload:
 
             shell.sprint(msg)
 
+        extra = set(submissions) - set(submit_to_challenges)
+        def cute_list(x):
+            return ", ".join(x)
+        if extra:
+            msg = f"""
+Note that the additional {len(extra)} challenges ({cute_list(extra)}) are required checks 
+before running the code on the challenges you chose ({cute_list(submit_to_challenges)}).
+"""
+            shell.sprint(msg)
 
 def bright(x):
     return termcolor.colored(x, "blue")

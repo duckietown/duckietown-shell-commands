@@ -8,6 +8,7 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+    
     @staticmethod
     def command(shell: DTShell, args):
         if shell.local_commands_info.leave_alone:
