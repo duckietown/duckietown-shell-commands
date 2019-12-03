@@ -276,8 +276,6 @@ class DTCommand(DTCommandAbs):
         if bag_container is not None:
             stop_container(bag_container)
 
-        # TODO remotely vs. locally
-
 
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
@@ -307,19 +305,6 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
         if not os.path.isfile(f + '/%s.yaml' % duckiebot_name):
             dtslogger.warn("%s/%s.yaml does not exist (robot not calibrated) using default instead" % (f, duckiebot_name) )
         else:
-            copy2(f+'/%s.yaml' % duckiebot_name, f+'default.yaml')
+            copy2(f+'/%s.yaml' % duckiebot_name, f+'/default.yaml')
 
 
-# Runs everything on the Duckiebot
-
-# def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
-#    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
-#    push_image_to_duckiebot(image_name, duckiebot_name)
-#    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
-#    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-#    duckiebot_client = get_remote_client(duckiebot_ip)
-#    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
-#    monitor_thread.start()
-#    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
-#    time.sleep(duration)
-#    stop_container(evaluation_container)
