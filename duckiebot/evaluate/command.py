@@ -281,7 +281,11 @@ class DTCommand(DTCommandAbs):
 
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
-    dtslogger.info("Getting calibration files")
+    from shutil import copy2
+
+# step 1 - copy all the calibration files from the robot to the computer where the agent is being run
+
+    dtslogger.info("Getting all calibration files")
     p = subprocess.Popen(
         [
             "scp",
@@ -291,6 +295,19 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
         ]
     )
     sts = os.waitpid(p.pid, 0)
+
+# step 2 - all agent names in evaluations are "default" so need to copy the robot specific calibration
+# to default
+
+    calib_file = [dir+'/config/calibrations/camera_intrinsic',
+                  dir+'/config/calibrations/camera_extrinsic',
+                  dir+'/config/calibrations/kinematics']
+
+    for f in calib_file:
+        if not os.path.isfile(f + '/%s.yaml' % duckiebot_name):
+            dtslogger.warn("%s/%s.yaml does not exist (robot not calibrated) using default instead" % (f, duckiebot_name) )
+        else:
+            copy2(f+'/%s.yaml' % duckiebot_name, f+'default.yaml')
 
 
 # Runs everything on the Duckiebot
