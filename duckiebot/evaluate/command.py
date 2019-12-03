@@ -276,8 +276,6 @@ class DTCommand(DTCommandAbs):
         if bag_container is not None:
             stop_container(bag_container)
 
-        # TODO remotely vs. locally
-
 
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
@@ -292,17 +290,3 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
     )
     sts = os.waitpid(p.pid, 0)
 
-
-# Runs everything on the Duckiebot
-
-# def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
-#    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
-#    push_image_to_duckiebot(image_name, duckiebot_name)
-#    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
-#    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-#    duckiebot_client = get_remote_client(duckiebot_ip)
-#    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
-#    monitor_thread.start()
-#    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
-#    time.sleep(duration)
-#    stop_container(evaluation_container)
