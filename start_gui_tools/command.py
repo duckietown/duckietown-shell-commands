@@ -139,3 +139,7 @@ Keyboard control:
         
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)
+
+        dtslogger.info("Shutting down novnc...")
+        novnc_container.stop()
+        dtslogger.info("Done. Have a nice day")
