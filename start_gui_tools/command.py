@@ -129,10 +129,11 @@ Keyboard control:
                 "ports": {'5901/tcp':('0.0.0.0',5901), '6901/tcp':('0.0.0.0',6901)},
                 "detach": True,
                 }
+            pull_if_not_exist(client, vncparams['image'])
+            novnc_container = client.containers.run(**vncparams)
             dtslogger.info(
                 "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
                 )
-            novnc_container = client.containers.run(**vncparams)
             
 
         
