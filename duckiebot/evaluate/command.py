@@ -119,8 +119,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Attempting to run remotely on this machine")
             client = check_docker_environment()
 
-        agent_container_name = "agent_%s" % parsed.duckiebot_name
-        glue_container_name = "aido_glue_%s" % parsed.duckiebot_name
+        agent_container_name = "agent"
+        glue_container_name = "aido_glue"
 
         # remove the containers if they are already running
         remove_if_running(client, agent_container_name)
