@@ -71,8 +71,8 @@ Calibrate:
             if not raw_imagery_found:
                 dtslogger.error(
                     "The demo_camera is not running on the duckiebot - please run `dts duckiebot demo "
-                    "--demo_name camera  --package_name pi_camera --image "
-                    "duckietown/dt-core:daffy --duckiebot_name %s" % hostname
+                    "--demo_name camera --package_name pi_camera --image "
+                    "duckietown/dt-core:daffy-arm32v7 --duckiebot_name %s" % hostname
                 )
                 exit()
 
