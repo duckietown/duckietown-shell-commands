@@ -914,13 +914,14 @@ country={country}
 network={{
   id_str="{cname}"
   ssid="{WIFISSID}"
-  psk="{WIFIPASS}"
-  key_mgmt=WPA-PSK
+  {WIFIPASS}
+  key_mgmt={KEY_MGMT}
 }}
                 """.format(
-            WIFISSID=connection.ssid,
             cname=connection.name,
-            WIFIPASS=connection.password,
+            WIFISSID=connection.ssid,
+            WIFIPASS=f'psk="{connection.password}"' if connection.password else "",
+            KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
     if parsed.ethz_username:
@@ -1130,13 +1131,11 @@ def interpret_wifi_string(s):
     if len(s.strip()) == 0:
         return []
     for i, connection in enumerate(s.split(",")):
-        tokens = connection.split(":")
-        if len(tokens) != 2:
+        tokens = [s.strip() for s in connection.split(":")] + [None]
+        if len(tokens) not in [2, 3]:
             msg = "Invalid wifi string %r" % s
             raise Exception(msg)
-        wifissid, wifipass = tokens
-        wifissid = wifissid.strip()
-        wifipass = wifipass.strip()
+        wifissid, wifipass = tokens[0], tokens[1]
         name = "network%d" % (i + 1)
         results.append(Wifi(wifissid, wifipass, name))
     return results
