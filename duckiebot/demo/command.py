@@ -21,7 +21,11 @@ usage = """
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
 
 """
-
+BRANCH='daffy'
+DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH
+EXPERIMENTAL_IMAGE = 'duckietown/dt-experimental:'+BRANCH
+DEFAULT_PACKAGE = 'duckietown_demos'
+EXPERIMENTAL_PACKAGE = 'experimental_demos'
 
 class InvalidUserInput(Exception):
     pass
@@ -53,14 +57,14 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--package_name", '-p',
             dest="package_name",
-            default="duckietown_demos",
+            default=DEFAULT_PACKAGE,
             help="You can specify the package that you want to use to look for launch files",
         )
 
         parser.add_argument(
             "--image", '-i',
             dest="image_to_run",
-            default="duckietown/dt-core:daffy",
+            default=DEFAULT_IMAGE,
             help="Docker image to use, you probably don't need to change ",
         )
 
@@ -72,6 +76,16 @@ class DTCommand(DTCommandAbs):
             help="will enter you into the running container",
         )
 
+        parser.add_argument(
+            "--experimental", '-e',
+            dest="experimental",
+            action="store_true",
+            default=False,
+            help='you can use this if your demo is in the `experimental` repo. ' \
+            + 'It will pick the image from the experimental repo and it will' \
+            + 'default the package name to experimental_demos',
+        )
+
         parsed = parser.parse_args(args)
 
         check_docker_environment()
@@ -79,6 +93,16 @@ class DTCommand(DTCommandAbs):
         if demo_name is None:
             msg = "You must specify a demo_name"
             raise InvalidUserInput(msg)
+
+        # if we run in experimental mode - change the default
+        # image and package. Note: in experimental mode you cannot
+        # explicitly choose the default image and package because they will
+        # be overwritten here.
+        if parsed.experimental and parsed.image_to_run == DEFAULT_IMAGE:
+            parsed.image_to_run = EXPERIMENTAL_IMAGE
+
+        if parsed.experimental and parsed.package_name == DEFAULT_PACKAGE:
+            parsed.packge_name = EXPERIMENTAL_PACKAGE
 
         duckiebot_name = parsed.duckiebot_name
         if duckiebot_name is None:
