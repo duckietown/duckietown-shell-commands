@@ -9,7 +9,6 @@ from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
-dts duckiebot demo --demo_name camera  --package_name pi_camera --image duckietown/dt-core:daffy --duckiebot_name aidobot11
 
 class DTCommand(DTCommandAbs):
     @staticmethod
