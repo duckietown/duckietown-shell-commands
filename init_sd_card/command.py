@@ -801,7 +801,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     for stack_type, stacks_deck in {'load': stacks_to_load, 'run': stacks_to_run}.items():
         for cf in stacks_deck:
             # local path
-            lpath = get_resource(os.path.join("stacks", cf + ".yaml"))
+            lpath = os.path.join(stacks_location, cf + ".yaml")
             # path on PI
             rpath = "/data/loader/stacks_to_{}/{}.yaml".format(stack_type, cf)
 
