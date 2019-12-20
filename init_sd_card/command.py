@@ -77,6 +77,15 @@ from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
 USER = getpass.getuser()
+
+OS_MOUNTPOINT = "/media"
+ARCH=False
+os_release = os.uname().release
+# Arch Linux uses a different mount point
+if  "ARCH" in os_release:
+    OS_MOUNTPOINT="/run/media"
+    ARCH=True
+
 TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
 TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
 
@@ -289,6 +298,9 @@ You can use --steps to run only some of those:
             "unmount": step_unmount,
         }
 
+        if ARCH:
+            increase_tmp()
+
         for step_name in steps:
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
@@ -296,6 +308,11 @@ You can use --steps to run only some of those:
 
             step2function[step_name](shell, parsed)
 
+def increase_tmp():
+    """This function increases the tmp folder size if the OS is Arch Linux"""
+    print("Incresing the 'tmp' folder space since usually it is half of the RAM size and the Docker images most of the time are more than 8 Gb")
+    cmd = 'sudo mount -o remount,size=12G,noatime /tmp'
+    os.system(cmd)
 
 def step_mount(shell, parsed):
     def refresh():
