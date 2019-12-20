@@ -701,6 +701,12 @@ If they are not there, it means that the boot process was interrupted.
         get_resource(os.path.join('avahi_services', 'dt.device-init.service'))
     )
 
+    # flash utility scripts
+    add_file_local(
+        '/usr/local/bin/retry',
+        get_resource(os.path.join('scripts', 'retry'))
+    )
+
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
     copy_default_calibrations(add_file)
@@ -843,7 +849,6 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 image_id = str(image.id)
                 dtslogger.info("id for %s: %s" % (image_name, image_id))
                 cmd = ["docker", "tag", image_id, image_name]
-                print(cmd)
                 add_run_cmd(user_data, cmd)
 
             if cf in stacks_to_run:
@@ -854,13 +859,18 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                     user_data, PHASE_LOADING, "Stack %s: docker-compose up" % cf
                 )
                 cmd = [
-                    "docker-compose",
-                    "--file",
-                    "/data/loader/stacks_to_run/%s.yaml" % cf,
-                    "-p",
-                    cf,
-                    "up",
-                    "-d",
+                    "retry",
+                    "--min", "120",
+                    "--max", "1200",
+                    "--tries", "3",
+                    "--",
+                        "docker-compose",
+                        "--file",
+                        "/data/loader/stacks_to_run/%s.yaml" % cf,
+                        "-p",
+                        cf,
+                        "up",
+                        "-d"
                 ]
                 add_run_cmd(user_data, cmd)
                 user_data["bootcmd"].append(cmd)  # every boot
