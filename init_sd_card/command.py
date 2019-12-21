@@ -86,8 +86,8 @@ if  "ARCH" in os_release:
     OS_MOUNTPOINT="/run/media"
     ARCH=True
 
-TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
-TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
+TMP_ROOT_MOUNTPOINT = OS_MOUNTPOINT+"/{USER}/root".format(USER=USER)
+TMP_HYPRIOT_MOUNTPOINT = OS_MOUNTPOINT+"/{USER}/HypriotOS".format(USER=USER)
 
 DISK_HYPRIOTOS = "/dev/disk/by-label/HypriotOS"
 DISK_ROOT = "/dev/disk/by-label/root"
