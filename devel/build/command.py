@@ -328,12 +328,11 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
             line = line.rstrip()
             if print_output:
-                matches = p.match(line.strip()) is not None
-                if matches and last_matched:
+                if last_matched:
                     sys.stdout.write("\033[F")
                 sys.stdout.write(line + "\033[K" + "\n")
                 sys.stdout.flush()
-                last_matched = matches
+                last_matched = p.match(line.strip()) is not None
             if line:
                 lines.append(line)
         proc.wait()
