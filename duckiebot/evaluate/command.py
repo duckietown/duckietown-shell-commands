@@ -276,12 +276,14 @@ class DTCommand(DTCommandAbs):
         if bag_container is not None:
             stop_container(bag_container)
 
-        # TODO remotely vs. locally
-
 
 # get the calibration files off the robot
 def get_calibration_files(dir, duckiebot_username, duckiebot_name):
-    dtslogger.info("Getting calibration files")
+    from shutil import copy2
+
+# step 1 - copy all the calibration files from the robot to the computer where the agent is being run
+
+    dtslogger.info("Getting all calibration files")
     p = subprocess.Popen(
         [
             "scp",
@@ -292,17 +294,17 @@ def get_calibration_files(dir, duckiebot_username, duckiebot_name):
     )
     sts = os.waitpid(p.pid, 0)
 
+# step 2 - all agent names in evaluations are "default" so need to copy the robot specific calibration
+# to default
 
-# Runs everything on the Duckiebot
+    calib_file = [dir+'/config/calibrations/camera_intrinsic',
+                  dir+'/config/calibrations/camera_extrinsic',
+                  dir+'/config/calibrations/kinematics']
 
-# def evaluate_locally(duckiebot_name, image_name, duration, env, volumes):
-#    dtslogger.info("Running %s on %s" % (image_name, duckiebot_name))
-#    push_image_to_duckiebot(image_name, duckiebot_name)
-#    evaluation_container = run_image_on_duckiebot(image_name, duckiebot_name, env, volumes)
-#    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-#    duckiebot_client = get_remote_client(duckiebot_ip)
-#    monitor_thread = threading.Thread(target=continuously_monitor, args=(duckiebot_client, evaluation_container.name))
-#    monitor_thread.start()
-#    dtslogger.info("Letting %s run for %d s..." % (image_name, duration))
-#    time.sleep(duration)
-#    stop_container(evaluation_container)
+    for f in calib_file:
+        if not os.path.isfile(f + '/%s.yaml' % duckiebot_name):
+            dtslogger.warn("%s/%s.yaml does not exist (robot not calibrated) using default instead" % (f, duckiebot_name) )
+        else:
+            copy2(f+'/%s.yaml' % duckiebot_name, f+'/default.yaml')
+
+
