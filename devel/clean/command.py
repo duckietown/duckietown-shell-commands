@@ -21,7 +21,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-C",
             "--workdir",
-            default=None,
+            default=os.getcwd(),
             help="Directory containing the project to clean",
         )
         parser.add_argument(
@@ -38,12 +38,11 @@ class DTCommand(DTCommandAbs):
         )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
-        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
-        dtslogger.info("Project workspace: {}".format(code_dir))
+        dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
         shell.include.devel.info.command(shell, args)
         # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(code_dir)
+        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info["REPOSITORY"]
         branch = repo_info["BRANCH"]
         nmodified = repo_info["INDEX_NUM_MODIFIED"]
