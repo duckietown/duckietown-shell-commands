@@ -63,7 +63,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         # configure arguments
         parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=None,
+        parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to build")
         parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
@@ -97,8 +97,7 @@ class DTCommand(DTCommandAbs):
                             help="Docker socket or hostname where to deliver the image")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
-        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
-        dtslogger.info('Project workspace: {}'.format(code_dir))
+        dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # define labels / build-args
         buildlabels = []
         buildargs = []
@@ -127,9 +126,9 @@ class DTCommand(DTCommandAbs):
                 parsed.destination = DEFAULT_MACHINE
         # show info about project
         shell.include.devel.info.command(shell, args)
-        project_info = shell.include.devel.info.get_project_info(code_dir)
+        project_info = shell.include.devel.info.get_project_info(parsed.workdir)
         # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(code_dir)
+        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info['REPOSITORY']
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
@@ -258,7 +257,7 @@ class DTCommand(DTCommandAbs):
                     '-t', tag] + \
                     buildlabels + \
                     buildargs + [
-                    code_dir
+                    parsed.workdir
         ], True, True)
         # get image history
         historylog = _run_cmd([
