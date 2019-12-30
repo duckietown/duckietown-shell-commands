@@ -686,6 +686,9 @@ If they are not there, it means that the boot process was interrupted.
     """.strip(),
     )
 
+    # flash configuration
+    add_file(path='/data/config/robot_type', content=str(parsed.robot_type))
+
     # remove non-static services
     user_data['bootcmd'].append('find /etc/avahi/services -type f ! -name "dt.static.*.service" -exec rm -f {} \;')
 
