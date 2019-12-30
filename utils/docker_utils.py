@@ -77,7 +77,6 @@ def continuously_monitor(client, container_name):
                     sys.stdout.write(c)
                 else:
                     sys.stdout.write(c.decode("utf-8"))
-
                 last_log_timestamp = datetime.datetime.now()
 
             time.sleep(3)
@@ -271,6 +270,16 @@ def start_picamera(duckiebot_name):
         detach=True,
         environment=env_vars,
     )
+
+
+def check_if_running(client, container_name):
+    try:
+        _ = client.containers.get(container_name)
+        dtslogger.info("%s is running." % container_name)
+        return True
+    except Exception as e:
+        dtslogger.error("%s is NOT running - Aborting" % e)
+        return False
 
 
 def remove_if_running(client, container_name):
