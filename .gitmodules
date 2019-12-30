@@ -4,4 +4,4 @@
 [submodule "assets/dt-docker-stacks"]
 	path = assets/dt-docker-stacks
 	url = https://github.com/duckietown/dt-docker-stacks
-	branch = daffy
+	branch = ente
