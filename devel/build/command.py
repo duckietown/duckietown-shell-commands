@@ -49,8 +49,8 @@ BUILD_COMPATIBILITY_MAP = {
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 CLOUD_BUILDERS = {
-    'arm32v7': 'ec2-34-230-36-225.compute-1.amazonaws.com',
-    'arm64v8': 'ec2-34-230-36-225.compute-1.amazonaws.com'
+    'arm32v7': 'ec2-52-44-55-217.compute-1.amazonaws.com',
+    'arm64v8': 'ec2-52-44-55-217.compute-1.amazonaws.com'
 }
 
 
