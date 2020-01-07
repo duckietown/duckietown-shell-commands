@@ -3,11 +3,25 @@ import math
 from termcolor import colored
 
 
-def format_matrix(header, matrix, top_format, left_format, cell_format, row_delim, col_delim):
+class Format(object):
+    ALIGN_LEFT = "{:<{}}"
+    CENTER = "{:^{}}"
+    ALIGN_RIGHT = "{:>{}}"
+
+
+def format_matrix(header, matrix, top_format=Format.CENTER, left_format=Format.ALIGN_LEFT, cell_format=Format.ALIGN_LEFT, row_delim='\n', col_delim=' | '):
     table = [[''] + header] + matrix
     print_table = table
+    if isinstance(cell_format, str):
+        cell_format = len(header) * [cell_format]
+    elif isinstance(cell_format, (list, tuple)):
+        if len(cell_format) != len(header):
+            raise ValueError('Length of cell_format must be equal to length of header')
+    else:
+        raise ValueError(f'Type of cell_format {type(cell_format)} not supported.')
+    cell_format = len(header) * [cell_format] if isinstance(cell_format, str) else cell_format
     table_format = [['{:^{}}'] + len(header) * [top_format]] \
-                 + (len(matrix)+1) * [[left_format] + len(header) * [cell_format]]
+                 + (len(matrix)+1) * [[left_format] + cell_format]
 
     # fix spacing and string sizes when `termcolor` is used
     ln = lambda s: len(re.sub(rb'(\x1b|\[\d{1,2}m)*', b'', str(s).encode('utf-8')))
