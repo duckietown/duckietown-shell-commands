@@ -84,6 +84,8 @@ TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
 TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
 DOCKER_STACKS_REPO = "http://github.com/duckietown/dt-docker-stacks"
 
+LOGS_DIR = '/data/logs'
+
 DISK_HYPRIOTOS = "/dev/disk/by-label/HypriotOS"
 DISK_ROOT = "/dev/disk/by-label/root"
 
@@ -586,7 +588,8 @@ def step_setup(shell, parsed):
 
     # Start the blinking feedback: the RPi red and green LEDs will alternately flash
     # on and off until all Docker stacks are up
-    cmd = """/bin/bash -c "while ! cat /data/boot-log.txt | grep -q 'All stacks up'; """
+    logfile = os.path.join(LOGS_DIR, 'boot.log')
+    cmd = """/bin/bash -c "while ! cat {} | grep -q 'All stacks up'; """.format(logfile)
     cmd += """do echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
     cmd += (
         """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; """
@@ -694,19 +697,19 @@ If they are not there, it means that the boot process was interrupted.
     user_data['bootcmd'].append('find /etc/avahi/services -type f ! -name "dt.static.*.service" -exec rm -f {} \;')
 
     # flash static services
-    add_file_local(
-        '/etc/avahi/services/dt.static.presence.service',
-        get_resource(os.path.join('avahi_services', 'dt.presence.service'))
+    copy_file(
+        get_resource(os.path.join('avahi_services', 'dt.presence.service')),
+        '/etc/avahi/services/dt.static.presence.service'
     )
-    add_file_local(
-        '/etc/avahi/services/dt.static.robot_type.service',
-        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
+    copy_file(
+        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type))),
+        '/etc/avahi/services/dt.static.robot_type.service'
     )
 
     # flash temporary services
-    add_file_local(
-        '/etc/avahi/services/dt.device-init.service',
-        get_resource(os.path.join('avahi_services', 'dt.device-init.service'))
+    copy_file(
+        get_resource(os.path.join('avahi_services', 'dt.device-init.service')),
+        '/etc/avahi/services/dt.device-init.service'
     )
 
     # flash utility scripts
@@ -886,7 +889,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 add_run_cmd(user_data, cmd)
                 user_data["bootcmd"].append(cmd)  # every boot
 
-    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
+    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/logs/boot.log file.
     # If modifying, make sure to adjust the blinking feedback
 
 
@@ -938,7 +941,7 @@ network={{
                 """.format(
             cname=connection.name,
             WIFISSID=connection.ssid,
-            WIFIPASS=f'psk="{connection.password}"' if connection.password else "",
+            WIFIPASS='psk="{}"'.format(connection.password) if connection.password else "",
             KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
@@ -1227,21 +1230,23 @@ def save_images(stack2yaml, compress):
 
 def log_current_phase(user_data, phase, msg):
     # NOTE: double json.dumps to add escaped quotes
+    logfile = os.path.join(LOGS_DIR, 'boot.log')
     j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
-    cmd = "echo %s >> /data/boot-log.txt" % j
+    cmd = "echo {} >> {}".format(j, logfile)
     user_data["runcmd"].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
+    logfile = os.path.join(LOGS_DIR, 'init_sd_card.json')
     # PRE action (NOTE: double json.dumps to add escaped quotes)
     pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command', pos=len(user_data['runcmd']))))
-    cmd_pre = 'echo %s >> /data/command.json' % pre_json
+    cmd_pre = 'echo {} >> {}'.format(pre_json, logfile)
     user_data['runcmd'].append(cmd_pre)
     # COMMAND
     user_data['runcmd'].append(cmd)
     # POST action (NOTE: double json.dumps to add escaped quotes)
     post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command', pos=len(user_data['runcmd']))))
-    cmd_post = 'echo %s >> /data/command.json' % post_json
+    cmd_post = 'echo {} >> {}'.format(post_json, logfile)
     user_data['runcmd'].append(cmd_post)
 
 
@@ -1289,7 +1294,7 @@ def validate_user_data(user_data_yaml):
             line_no = x["line"]
             message = x["message"]
             line = user_data_yaml.split("\n")[line_no - 1]
-            m = f"Invalid at line {line_no}: {message}\n\tLine: [{line}]"
+            m = "Invalid at line {}: {}\n\tLine: [{}]".format(line_no, message, line)
 
             if kind == "error":
                 dtslogger.error(m)
