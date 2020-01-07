@@ -1,6 +1,7 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
 from utils.assets_utils import get_asset_dir
 from utils.duckietown_utils import get_robot_types
+from utils.docker_compose_utils import parse_compose_file
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -78,8 +79,10 @@ from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
 USER = getpass.getuser()
+ROBOT_ARCH = 'arm32v7'
 TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
 TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
+DOCKER_STACKS_REPO = "http://github.com/duckietown/dt-docker-stacks"
 
 DISK_HYPRIOTOS = "/dev/disk/by-label/HypriotOS"
 DISK_ROOT = "/dev/disk/by-label/root"
@@ -93,7 +96,7 @@ PHASE_DONE = "done"
 SD_CARD_DEVICE = ""
 DEFAULT_ROBOT_TYPE = "duckiebot"
 MINIMAL_STACKS_TO_LOAD = ['DT18_00_basic']
-DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_02_others,DT18_03_interface,DT18_05_core"
+DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_03_interface,DT18_05_core"
 DEFAULT_STACKS_TO_RUN = "DT18_00_basic,DT18_01_health,DT18_03_interface"
 AIDO_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_05_core"
 
@@ -544,9 +547,7 @@ def step_setup(shell, parsed):
 
     def add_file(path, content, permissions="0755"):
         d = dict(content=content, path=path, permissions=permissions)
-
         dtslogger.info("Adding file %s" % path)
-        # dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
         user_data["write_files"].append(d)
 
     def add_file_local(path, local, permissions="0755"):
@@ -709,10 +710,7 @@ If they are not there, it means that the boot process was interrupted.
     )
 
     # flash utility scripts
-    add_file_local(
-        '/usr/local/bin/retry',
-        get_resource(os.path.join('scripts', 'retry'))
-    )
+    copy_file(get_resource(os.path.join('scripts', 'retry')), '/usr/local/bin/retry')
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
@@ -720,6 +718,12 @@ If they are not there, it means that the boot process was interrupted.
 
     add_run_cmd(user_data, "cat /sys/class/net/eth0/address > /data/stats/MAC/eth0")
     add_run_cmd(user_data, "cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0")
+
+    # pull docker-stacks
+    rpath = os.path.join(TMP_ROOT_MOUNTPOINT, 'data', 'assets', 'dt-docker-stacks')
+    if not os.path.exists(rpath):
+        _run_cmd(['sudo', 'git', 'clone', '-b', shell.get_commands_version(), DOCKER_STACKS_REPO, rpath])
+        _run_cmd(['sudo', 'chown', '-R', '1000:1000', rpath])
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
@@ -1259,7 +1263,7 @@ def get_stack2yaml(stacks, base):
         if not os.path.exists(lpath):
             raise Exception(lpath)
 
-        stacks2yaml[sn] = yaml.load(open(lpath).read())
+        stacks2yaml[sn] = parse_compose_file(lpath, env={'ARCH': ROBOT_ARCH})
     return stacks2yaml
 
 
@@ -1282,10 +1286,10 @@ def validate_user_data(user_data_yaml):
         nerrors = 0
         for x in result:
             kind = x["kind"]
-            line = x["line"]
+            line_no = x["line"]
             message = x["message"]
-            m = "Invalid at line %s: %s" % (line, message)
-            m += "| %s" % user_data_yaml.split("\n")[line - 1]
+            line = user_data_yaml.split("\n")[line_no - 1]
+            m = f"Invalid at line {line_no}: {message}\n\tLine: [{line}]"
 
             if kind == "error":
                 dtslogger.error(m)
