@@ -107,7 +107,10 @@ class DTCommand(DTCommandAbs):
         remove_if_running(duckiebot_client, container_name)
         image_base = parsed.image_to_run
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({"VEHICLE_NAME": duckiebot_name})
+        env_vars.update({
+            "VEHICLE_NAME": duckiebot_name,
+            "VEHICLE_IP": duckiebot_ip
+        })
 
         if demo_name == "base":
             cmd = "/bin/bash"
