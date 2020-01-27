@@ -22,7 +22,7 @@ Keyboard control:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
+            "hostname", default=None, help="Name of the Duckiebot"
         )
         parser.add_argument(
             "--network", default="host", help="Name of the network which to connect"
@@ -36,9 +36,24 @@ Keyboard control:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/rpi-duckiebot-base:master19-no-arm",
+            default="duckietown/dt-core:daffy-amd64",
             help="The base image, probably don't change the default",
         )
+        parser.add_argument(
+            "--novnc",
+            action="store_true",
+            dest='novnc',
+            default=True,
+            help="Run the novnc server",
+        )
+
+        parser.add_argument(
+            "--no-novnc",
+            action="store_false",
+            dest='novnc',
+            help="Do not run the novnc server",
+        )
+            
         parsed_args = parser.parse_args(args)
 
         if parsed_args.sim:
@@ -103,5 +118,40 @@ Keyboard control:
 
         pull_if_not_exist(client, params['image'])
         container = client.containers.run(**params)
+
+
+        
+        if parsed_args.novnc:
+            novnc_container_name = "novnc_%s" % hostname
+            remove_if_running(client, novnc_container_name)
+            vncenv = {
+                'VEHICLE_NAME': env['HOSTNAME'],
+                'ROS_MASTER_URI': env['ROS_MASTER_URI'],
+                'HOSTNAME': env['HOSTNAME']
+            }
+            dtslogger.info('running vnc with environment %s' % vncenv)
+            vncparams = {
+                "image": "duckietown/docker-ros-vnc:daffy",
+                "name": novnc_container_name,
+                "environment": vncenv,
+                "ports": {'5901/tcp':('0.0.0.0',5901), '6901/tcp':('0.0.0.0',6901)},
+                "detach": True,
+                }
+            pull_if_not_exist(client, vncparams['image'])
+            novnc_container = client.containers.run(**vncparams)
+            dtslogger.info(
+                "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
+                )
+        else:
+            dtslogger.info(
+                "Not running novnc."
+            )
+
+        
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)
+
+        if parsed_args.novnc:
+            dtslogger.info("Shutting down novnc...")
+            novnc_container.stop()
+        dtslogger.info("Done. Have a nice day")

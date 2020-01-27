@@ -12,10 +12,10 @@ usage = """
 ## Basic usage
 
     Runs a demo on the Duckiebot. Effectively, this is a wrapper around roslaunch. You
-    can specify a docker image, ros package and launch file to be started. A demo is a 
-    launch file specified by `--demo_name`. The argument `--package_name` specifies 
+    can specify a docker image, ros package and launch file to be started. A demo is a
+    launch file specified by `--demo_name`. The argument `--package_name` specifies
     the package where the launch file should is located (by default assumes `duckietown`).
-    
+
     To find out more, use `dts duckiebot demo -h`.
 
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
@@ -72,6 +72,14 @@ class DTCommand(DTCommandAbs):
             help="will enter you into the running container",
         )
 
+        parser.add_argument(
+            "--local", '-l',
+            dest="local",
+            action="store_true",
+            default=False,
+            help="Run the demo on this machine",
+        )
+
         parsed = parser.parse_args(args)
 
         check_docker_environment()
@@ -89,14 +97,20 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Using package %s" % package_name)
 
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-        # noinspection PyUnresolvedReferences
-        duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
+        if parsed.local:
+            duckiebot_client = check_docker_environment()
+        else:
+            # noinspection PyUnresolvedReferences
+            duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
 
         container_name = "demo_%s" % demo_name
         remove_if_running(duckiebot_client, container_name)
         image_base = parsed.image_to_run
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({"VEHICLE_NAME": duckiebot_name})
+        env_vars.update({
+            "VEHICLE_NAME": duckiebot_name,
+            "VEHICLE_IP": duckiebot_ip
+        })
 
         if demo_name == "base":
             cmd = "/bin/bash"

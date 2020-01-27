@@ -1,4 +1,5 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
+from utils.duckietown_utils import get_robot_types
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -192,7 +193,7 @@ class DTCommand(DTCommandAbs):
             '--type',
             dest='robot_type',
             default=None,
-            choices=['duckiebot', 'watchtower', 'duckiedrone'],
+            choices=get_robot_types(),
             help='Which type of robot we are setting up'
         )
 
@@ -483,15 +484,17 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
     _run_cmd(cmd)
 
-    # get the disk identifier of the SD card.
-    # IMPORTANT: This must be executed before `parted`
-    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
-    cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    ret, err = pc.communicate()
-    m = p.search(ret.decode("utf-8"))
-    uuid = m.group(1)
+    # get the disk identifier of the SD card (experimental mode only)
+    uuid = None
+    if parsed.experimental:
+        # IMPORTANT: This must be executed before `parted`
+        p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+        cmd = ["sudo", "fdisk", "-l", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        pc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ret, err = pc.communicate()
+        m = p.search(ret.decode("utf-8"))
+        uuid = m.group(1)
 
     cmd = ["sudo", "parted", "-s", SD_CARD_DEVICE, "resizepart", "2", "100%"]
     _run_cmd(cmd)
@@ -502,14 +505,15 @@ def step_expand(shell, parsed):
     cmd = ["sudo", "resize2fs", DEVp2]
     _run_cmd(cmd)
 
-    # restore the original disk identifier
-    cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
-    dtslogger.debug("$ %s" % cmd)
-    p = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
-    )
-    ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
-    print(ret.decode("utf-8"))
+    # restore the original disk identifier (experimental mode only)
+    if parsed.experimental:
+        cmd = ["sudo", "fdisk", SD_CARD_DEVICE]
+        dtslogger.debug("$ %s" % cmd)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE
+        )
+        ret, err = p.communicate(input=("x\ni\n0x%s\nr\nw" % uuid).encode("ascii"))
+        print(ret.decode("utf-8"))
 
     dtslogger.info("Updated status:")
     cmd = ["sudo", "lsblk", SD_CARD_DEVICE]
@@ -869,10 +873,8 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 add_run_cmd(user_data, cmd)
                 user_data["bootcmd"].append(cmd)  # every boot
 
-
-    # The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
+    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
     # If modifying, make sure to adjust the blinking feedback
-    log_current_phase(user_data, PHASE_DONE, "All stacks up")
 
 
 def configure_networks(parsed, add_file):
@@ -917,13 +919,14 @@ country={country}
 network={{
   id_str="{cname}"
   ssid="{WIFISSID}"
-  psk="{WIFIPASS}"
-  key_mgmt=WPA-PSK
+  {WIFIPASS}
+  key_mgmt={KEY_MGMT}
 }}
                 """.format(
-            WIFISSID=connection.ssid,
             cname=connection.name,
-            WIFIPASS=connection.password,
+            WIFISSID=connection.ssid,
+            WIFIPASS=f'psk="{connection.password}"' if connection.password else "",
+            KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
     if parsed.ethz_username:
@@ -1133,13 +1136,11 @@ def interpret_wifi_string(s):
     if len(s.strip()) == 0:
         return []
     for i, connection in enumerate(s.split(",")):
-        tokens = connection.split(":")
-        if len(tokens) != 2:
+        tokens = [s.strip() for s in connection.split(":")] + [None]
+        if len(tokens) not in [2, 3]:
             msg = "Invalid wifi string %r" % s
             raise Exception(msg)
-        wifissid, wifipass = tokens
-        wifissid = wifissid.strip()
-        wifipass = wifipass.strip()
+        wifissid, wifipass = tokens[0], tokens[1]
         name = "network%d" % (i + 1)
         results.append(Wifi(wifissid, wifipass, name))
     return results

@@ -4,9 +4,9 @@ import json
 import time
 import argparse
 import math
-from termcolor import colored
 from collections import defaultdict
 from dt_shell import DTCommandAbs, dtslogger
+from utils.table_utils import format_matrix, fill_cell
 
 REFRESH_HZ = 1.0
 
@@ -89,7 +89,6 @@ class DiscoverListener:
         columns = list(map(lambda c: ' %s ' % c, columns))
         header = ['Type'] + columns + ['Hostname']
         data = []
-        data_plain = []
 
         for device_hostname in list(sorted(hostnames)):
             # filter by robot type
@@ -98,26 +97,20 @@ class DiscoverListener:
                 continue
             # prepare status list
             statuses = []
-            statuses_plain = []
-
             for column in columns:
                 text, color, bg_color = column_to_text_and_color(column, device_hostname, self.services)
                 column_txt = fill_cell(text, len(column), color, bg_color)
                 statuses.append(column_txt)
-                statuses_plain.append(text)
-
+            # prepare row
             row = [device_hostname, robot_type] + statuses + [device_hostname+'.local']
-            row_plain = [device_hostname, robot_type] + statuses_plain + [device_hostname+'.local']
             data.append(row)
-            data_plain.append(row_plain)
 
         # print table
         print("NOTE: Only devices flashed using duckietown-shell-commands v4.1.0+ are supported.\n")
         print(format_matrix(
             header,
             data,
-            '{:^{}}', '{:<{}}', '{:>{}}', '\n', ' | ',
-            matrix_plain=data_plain
+            '{:^{}}', '{:<{}}', '{:>{}}', '\n', ' | '
         ))
 
 
@@ -153,32 +146,6 @@ class DTCommand(DTCommandAbs):
             listener.print()
             time.sleep(1.0 / REFRESH_HZ)
 
-
-
-def format_matrix(header, matrix, top_format, left_format, cell_format, row_delim, col_delim, matrix_plain=None):
-    table = [[''] + header] + matrix
-    print_table = table
-    if matrix_plain is not None:
-        table = [[''] + header] + matrix_plain
-    table_format = [['{:^{}}'] + len(header) * [top_format]] \
-                 + (len(matrix)+1) * [[left_format] + len(header) * [cell_format]]
-    col_widths = [max(len(format.format(cell, 0)) for format, cell in zip(col_format, col))
-                  for col_format, col in zip(zip(*table_format), zip(*table))]
-    # add header separator
-    print_table = [print_table[0], ['-'*l for l in col_widths]] + print_table[1:]
-    # print table
-    return row_delim.join(
-               col_delim.join(
-                   format.format(cell, width)
-                   for format, cell, width in zip(row_format, row, col_widths))
-               for row_format, row in zip(table_format, print_table))
-
-
-def fill_cell(text, width, foreground, background):
-    s1 = math.floor((float(width)-len(text)) / 2.0)
-    s2 = math.ceil((float(width)-len(text)) / 2.0)
-    s = ' '*s1 + text + ' '*s2
-    return colored(s, foreground, 'on_'+background)
 
 
 def column_to_text_and_color(column, hostname, services):

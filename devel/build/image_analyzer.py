@@ -69,8 +69,7 @@ class ImageAnalyzer(object):
 
         # for each Step, find the layer ID
         first_layer = None
-        last_layer = None
-        for i,j in zip(steps_idx, steps_idx[1:]):
+        for i, j in zip(steps_idx, steps_idx[1:]):
             indent_str = '|'
             layerid_str = 'Layer ID:'
             size_str = 'Size:'
@@ -89,9 +88,8 @@ class ImageAnalyzer(object):
             fg_color = 'grey'
             if len(open_layers) > 0:
                 layerid = open_layers[0].group(1)
-                if first_layer is None:
+                if stepcmd.startswith('FROM'):
                     first_layer = layerid
-                last_layer = layerid
             # ---
             if layerid in layer_to_size_bytes:
                 layersize = sizeof_fmt(layer_to_size_bytes[layerid])
@@ -139,6 +137,8 @@ class ImageAnalyzer(object):
         print()
         print(colored('IMPORTANT', 'white', 'on_blue') + ': Always ask yourself, can I do better than that? ;)')
         print()
+        # ---
+        return image, base_image_size, final_image_size
 
 
 if __name__ == '__main__':
