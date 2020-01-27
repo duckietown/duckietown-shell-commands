@@ -223,6 +223,11 @@ class DTCommand(DTCommandAbs):
         if parsed.robot_type == 'watchtower':
             parsed.wifi = ""
 
+        # support drones
+        if parsed.robot_type == 'duckiedrone':
+            parsed.stacks_to_load = ""
+            parsed.stacks_to_run = ""
+
         if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
             msg = "The option --online cannot be used together with --stacks-load/--stacks-run."
             raise Exception(msg)
