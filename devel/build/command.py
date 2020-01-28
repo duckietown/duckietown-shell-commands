@@ -4,8 +4,6 @@ import json
 import argparse
 import subprocess
 import io, sys
-import getpass
-import itertools
 from shutil import which
 from .image_analyzer import ImageAnalyzer
 from dt_shell import DTCommandAbs, dtslogger
@@ -135,6 +133,7 @@ class DTCommand(DTCommandAbs):
         nadded = repo_info['INDEX_NUM_ADDED']
         # add code labels
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.vcs=git"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.version.major={repo_info['BRANCH']}"]
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.repository={repo_info['REPOSITORY']}"]
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.branch={repo_info['BRANCH']}"]
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.url={repo_info['ORIGIN.HTTPS.URL']}"]
