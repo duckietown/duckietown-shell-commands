@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import json
@@ -50,7 +51,8 @@ CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 CLOUD_BUILDERS = {
     'arm32v7': 'ec2-3-215-236-113.compute-1.amazonaws.com',
-    'arm64v8': 'ec2-3-215-236-113.compute-1.amazonaws.com'
+    'arm64v8': 'ec2-3-215-236-113.compute-1.amazonaws.com',
+    'amd64': 'ec2-3-210-65-73.compute-1.amazonaws.com'
 }
 
 
@@ -104,7 +106,19 @@ class DTCommand(DTCommandAbs):
         # CI builds
         if parsed.ci:
             parsed.pull = True
+            parsed.cloud = True
             parsed.no_multiarch = True
+            parsed.push = True
+            parsed.rm = True
+            # check that the env variables are set
+            for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN']:
+                if 'DUCKIETOWN_CI_'+key not in os.environ:
+                    dtslogger.error(
+                        'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
+                    )
+                    sys.exit(5)
+            # set configuration
+            parsed.arch = os.environ['DUCKIETOWN_CI_ARCH']
             buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.authoritative=1']
         # cloud build
         if parsed.cloud:
@@ -112,9 +126,9 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. Aborting...')
                 exit(3)
             if parsed.machine != DEFAULT_MACHINE:
-                dtslogger.error('The parameter --machine (-H) cannot be set together with ' \
-                    + '--cloud. Use --destionation (-D) if you want to specify ' \
-                    + 'a destination for the image. Aborting...')
+                dtslogger.error('The parameter --machine (-H) cannot be set together with '
+                                + '--cloud. Use --destionation (-D) if you want to specify '
+                                + 'a destination for the image. Aborting...')
                 exit(4)
             # configure docker for DT
             token = shell.get_dt1_token()
@@ -144,10 +158,19 @@ class DTCommand(DTCommandAbs):
         # check if the index is clean
         if nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
-            dtslogger.warning('If you know what you are doing, use --force (-f) to force the execution of the command.')
+            dtslogger.warning('If you know what you are doing, use --force (-f) to ' +
+                              'force the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
+        # in CI, we only build certain branches
+        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != branch:
+            dtslogger.info(
+                'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
+                    os.environ['DUCKIETOWN_CI_MAJOR'], branch
+                )
+            )
+            exit(0)
         # create defaults
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
@@ -280,10 +303,22 @@ class DTCommand(DTCommandAbs):
                 image=tag,
                 image_size=final_image_size
             )
+        # perform docker login if on CI
+        if parsed.ci:
+            _run_cmd([
+                'docker',
+                    '-H=%s' % parsed.destination,
+                    'login',
+                        '--username={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_USER']),
+                        '--password={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN'])
+            ])
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
-                shell.include.devel.push.command(shell, args)
+                push_args = copy.deepcopy(parsed)
+                # the image was transferred to this machine, so we push from here
+                push_args.machine = parsed.destination
+                shell.include.devel.push.command(shell, [], parsed=push_args)
             else:
                 msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
                 dtslogger.warn(msg)
