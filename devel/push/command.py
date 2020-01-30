@@ -15,7 +15,7 @@ class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
 
     @staticmethod
-    def command(shell: DTShell, args):
+    def _parse_args(args):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -43,10 +43,20 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Whether to force the push when the git index is not clean",
         )
-        parser.add_argument('-u','--username',default="duckietown",
-                            help="the docker registry username to tag the image with")
-
+        parser.add_argument(
+            '-u',
+            '--username',
+            default="duckietown",
+            help="the docker registry username to tag the image with"
+        )
         parsed, _ = parser.parse_known_args(args=args)
+        return parsed
+
+    @staticmethod
+    def command(shell: DTShell, args, **kwargs):
+        parsed = DTCommand._parse_args(args)
+        if 'parsed' in kwargs:
+            parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         dtslogger.info("Project workspace: {}".format(code_dir))
