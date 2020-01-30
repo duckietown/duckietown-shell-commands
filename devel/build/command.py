@@ -111,7 +111,7 @@ class DTCommand(DTCommandAbs):
             parsed.push = True
             parsed.rm = True
             # check that the env variables are set
-            for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN']:
+            for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
@@ -131,7 +131,10 @@ class DTCommand(DTCommandAbs):
                                 + 'a destination for the image. Aborting...')
                 exit(4)
             # configure docker for DT
-            token = shell.get_dt1_token()
+            if parsed.ci:
+                token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
+            else:
+                token = shell.get_dt1_token()
             add_token_to_docker_config(token)
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
