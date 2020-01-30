@@ -42,8 +42,16 @@ Keyboard control:
         parser.add_argument(
             "--novnc",
             action="store_true",
+            dest='novnc',
             default=True,
-            help="should we run the novnc server",
+            help="Run the novnc server",
+        )
+
+        parser.add_argument(
+            "--no-novnc",
+            action="store_false",
+            dest='novnc',
+            help="Do not run the novnc server",
         )
             
         parsed_args = parser.parse_args(args)
@@ -134,12 +142,16 @@ Keyboard control:
             dtslogger.info(
                 "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
                 )
-            
+        else:
+            dtslogger.info(
+                "Not running novnc."
+            )
 
         
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)
 
-        dtslogger.info("Shutting down novnc...")
-        novnc_container.stop()
+        if parsed_args.novnc:
+            dtslogger.info("Shutting down novnc...")
+            novnc_container.stop()
         dtslogger.info("Done. Have a nice day")
