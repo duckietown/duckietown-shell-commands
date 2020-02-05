@@ -298,7 +298,7 @@ class DTCommand(DTCommandAbs):
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
-        # pull image (if built on the cloud)
+        # pull image (if the destination is different from the builder machine)
         if parsed.cloud or (parsed.destination and parsed.machine != parsed.destination):
             _transfer_image(
                 origin=parsed.machine,
@@ -310,17 +310,20 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             _run_cmd([
                 'docker',
-                    '-H=%s' % parsed.destination,
-                    'login',
-                        '--username={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_USER']),
-                        '--password={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN'])
+                '-H=%s' % parsed.destination,
+                'login',
+                '--username={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_USER']),
+                '--password={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN'])
             ])
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
-                push_args = copy.deepcopy(parsed)
-                # the image was transferred to this machine, so we push from here
-                push_args.machine = parsed.destination
+                push_args = parsed
+                if parsed.cloud:
+                    # the image was transferred to this machine, so we push from here
+                    push_args = copy.deepcopy(parsed)
+                    push_args.machine = parsed.destination
+                # call devel/push
                 shell.include.devel.push.command(shell, [], parsed=push_args)
             else:
                 msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
