@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
         if parsed.app_secret is None:
             parsed.app_secret = LOG_DEFAULT_APP_SECRET
         # we can't get the type if we are running locally
-        if parsed.target == DOCKER_SOCKET and parsed.type == 'auto':
+        if parsed.target == DEFAULT_TARGET and parsed.type == 'auto':
             dtslogger.error('You have to specify a device type (--type) when the target ' +
                             'is the local Docker endpoint')
             sys.exit(1)
