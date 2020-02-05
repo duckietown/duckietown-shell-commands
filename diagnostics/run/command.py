@@ -1,4 +1,5 @@
 import sys
+import json
 import argparse
 import subprocess
 from utils.duckietown_utils import get_robot_types
@@ -19,7 +20,22 @@ LOG_API_PROTOCOL = 'https'
 LOG_API_HOSTNAME = 'dashboard.duckietown.org'
 LOG_API_VERSION = '1.0'
 
-DIAGNOSTICS_IMAGE = 'duckietown/dt-system-monitor:{version}'
+DIAGNOSTICS_IMAGE = 'duckietown/dt-system-monitor:{version}-{arch}'
+
+CANONICAL_ARCH = {
+    'arm': 'arm32v7',
+    'arm32v7': 'arm32v7',
+    'armv7l': 'arm32v7',
+    'armhf': 'arm32v7',
+    'x64': 'amd64',
+    'x86_64': 'amd64',
+    'amd64': 'amd64',
+    'Intel 64': 'amd64',
+    'arm64': 'arm64v8',
+    'arm64v8': 'arm64v8',
+    'armv8': 'arm64v8',
+    'aarch64': 'arm64v8'
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -101,15 +117,34 @@ class DTCommand(DTCommandAbs):
         if parsed.app_secret is None:
             parsed.app_secret = LOG_DEFAULT_APP_SECRET
         # we can't get the type if we are running locally
-        if parsed.target == DEFAULT_TARGET and parsed.type == 'auto':
+        fetch_type_from = None
+        if parsed.machine == DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET and parsed.type == 'auto':
             dtslogger.error('You have to specify a device type (--type) when the target ' +
                             'is the local Docker endpoint')
             sys.exit(1)
+        if parsed.machine == DEFAULT_MACHINE and parsed.target != DEFAULT_TARGET:
+            fetch_type_from = parsed.target
+        if parsed.machine != DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET:
+            fetch_type_from = parsed.machine
+        # get info about docker endpoint
+        dtslogger.info('Retrieving info about Docker endpoint...')
+        epoint = _run_cmd([
+            'docker',
+                '-H=%s' % parsed.machine,
+                    'info',
+                        '--format',
+                        '{{json .}}'
+        ], get_output=True)
+        epoint = json.loads(epoint)
+        if 'ServerErrors' in epoint:
+            dtslogger.error('\n'.join(epoint['ServerErrors']))
+            return
+        image_arch = CANONICAL_ARCH[epoint['Architecture']]
         # get robot_type
         if parsed.type == 'auto':
             # retrieve robot type from device
-            dtslogger.info(f'Waiting for device "{parsed.target}"...')
-            hostname = parsed.target.replace('.local', '')
+            dtslogger.info(f'Waiting for device "{fetch_type_from}"...')
+            hostname = fetch_type_from.replace('.local', '')
             _, _, data = wait_for_service('DT::ROBOT_TYPE', hostname)
             parsed.type = data['type']
             dtslogger.info(f'Detected device type is "{parsed.type}".')
@@ -118,7 +153,7 @@ class DTCommand(DTCommandAbs):
         # create options
         options = ['-it', '--rm', '--net=host']
         # create image name
-        image = DIAGNOSTICS_IMAGE.format(version=shell.get_commands_version())
+        image = DIAGNOSTICS_IMAGE.format(version=shell.get_commands_version(), arch=image_arch)
         # mount option
         if parsed.target == "unix://" + DOCKER_SOCKET:
             options += [
@@ -149,6 +184,7 @@ class DTCommand(DTCommandAbs):
         container_name = 'dts-run-diagnostics-system-monitor'
         options += ['--name', container_name]
         # run
+        dtslogger.info(f'Running system-monitor on "{parsed.machine}" monitoring "{parsed.target}".')
         _run_cmd([
             'docker',
                 '-H=%s' % parsed.machine,
@@ -158,15 +194,16 @@ class DTCommand(DTCommandAbs):
                     cli_args
         )
 
-
     @staticmethod
     def complete(shell, word, line):
         return []
 
 
-
-def _run_cmd(cmd, shell=False):
+def _run_cmd(cmd, shell=False, get_output=False):
     if shell:
         cmd = ' '.join([str(s) for s in cmd])
     dtslogger.debug('$ %s' % cmd)
-    subprocess.check_call(cmd, shell=shell)
+    if get_output:
+        return subprocess.check_output(cmd, shell=shell)
+    else:
+        subprocess.check_call(cmd, shell=shell)
