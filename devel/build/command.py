@@ -397,5 +397,6 @@ def add_token_to_docker_config(token):
     config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
     if 'HttpHeaders' not in config:
         config['HttpHeaders'] = {}
-    config['HttpHeaders']['X-Duckietown-Token'] = token
-    json.dump(config, open(config_file, 'w'), indent=2)
+    if 'X-Duckietown-Token' not in config['HttpHeaders']:
+        config['HttpHeaders']['X-Duckietown-Token'] = token
+        json.dump(config, open(config_file, 'w'), indent=2)
