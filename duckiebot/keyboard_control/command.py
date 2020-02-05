@@ -54,10 +54,7 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
     container_name = "joystick_gui_%s" % hostname
     remove_if_running(client, container_name)
 
-    env = { 'HOSTNAME':hostname,
-            'ROS_MASTER': hostname,
-           'VEHICLE_NAME': hostname,
-           'ROS_MASTER_URI': 'http://%s:11311' % duckiebot_ip}
+    env = set_default_env(hostname, duckiebot_ip)
 
     env["QT_X11_NO_MITSHM"] = 1
 
@@ -117,10 +114,7 @@ def run_cli_controller(hostname,image,duckiebot_ip, network_mode, sim):
         duckiebot_client = docker.DockerClient('tcp://' + duckiebot_ip + ':2375')
     container_name = "joystick_cli_%s" % hostname
     remove_if_running(duckiebot_client, container_name)
-    env = { 'HOSTNAME':hostname,
-            'ROS_MASTER':hostname,
-            'VEHICLE_NAME':hostname,
-            'ROS_MASTER_URI':'http://%s:11311' % duckiebot_ip}
+    env = set_default_env(hostname, duckiebot_ip)
 
     dtslogger.info("Running %s on localhost with environment vars: %s" %
                    (container_name, env))
@@ -160,3 +154,11 @@ def run_cli_controller(hostname,image,duckiebot_ip, network_mode, sim):
     else:
         cmd = 'docker -H %s.local attach %s' % (hostname, container_name)
     start_command_in_subprocess(cmd)
+
+def set_default_env(hostname, ip):
+    env = { 'HOSTNAME':hostname,
+            'ROS_MASTER':hostname,
+            'VEHICLE_NAME':hostname,
+            'VEHICLE_IP':ip,
+            'ROS_MASTER_URI':'http://%s:11311' % ip}
+    return env
