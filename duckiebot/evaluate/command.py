@@ -4,6 +4,7 @@ import os
 import subprocess
 import threading
 import time
+import requests
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -17,6 +18,7 @@ from utils.docker_utils import (
     pull_if_not_exist
 )
 from utils.networking_utils import get_duckiebot_ip
+from dt_shell import DTShell
 
 usage = """
 
@@ -28,7 +30,8 @@ usage = """
 
 """
 
-from dt_shell import DTShell
+FILES_API_PORT = 8082
+
 
 
 class DTCommand(DTCommandAbs):
@@ -41,9 +44,6 @@ class DTCommand(DTCommandAbs):
             "--duckiebot_name",
             default=None,
             help="Name of the Duckiebot on which to perform evaluation",
-        )
-        group.add_argument(
-            "--duckiebot_username", default="duckie", help="The duckiebot username"
         )
         group.add_argument(
             "--image",
@@ -107,9 +107,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.native:
             # if we are running remotely then we need to copy over the calibration
             # files from the robot and setup some tmp directories to mount
-            get_calibration_files(
-                dir_fake_home, parsed.duckiebot_username, parsed.duckiebot_name
-            )
+            get_calibration_files(dir_fake_home, parsed.duckiebot_name)
 
         duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
         if (parsed.native):
@@ -133,7 +131,6 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             dtslogger.warn("error creating volume: %s" % e)
             raise
-
 
         duckiebot_client = get_remote_client(duckiebot_ip)
         try:
@@ -278,33 +275,40 @@ class DTCommand(DTCommandAbs):
 
 
 # get the calibration files off the robot
-def get_calibration_files(dir, duckiebot_username, duckiebot_name):
-    from shutil import copy2
-
-# step 1 - copy all the calibration files from the robot to the computer where the agent is being run
-
+def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
-    p = subprocess.Popen(
-        [
-            "scp",
-            "-r",
-            "%s@%s.local:/data/config/" % (duckiebot_username, duckiebot_name),
-            dir,
-        ]
-    )
-    sts = os.waitpid(p.pid, 0)
 
-# step 2 - all agent names in evaluations are "default" so need to copy the robot specific calibration
-# to default
+    calib_files = [
+        'config/calibrations/camera_intrinsic/{duckiebot:s}.yaml',
+        'config/calibrations/camera_extrinsic/{duckiebot:s}.yaml',
+        'config/calibrations/kinematics/{duckiebot:s}.yaml'
+    ]
 
-    calib_file = [dir+'/config/calibrations/camera_intrinsic',
-                  dir+'/config/calibrations/camera_extrinsic',
-                  dir+'/config/calibrations/kinematics']
-
-    for f in calib_file:
-        if not os.path.isfile(f + '/%s.yaml' % duckiebot_name):
-            dtslogger.warn("%s/%s.yaml does not exist (robot not calibrated) using default instead" % (f, duckiebot_name) )
-        else:
-            copy2(f+'/%s.yaml' % duckiebot_name, f+'/default.yaml')
-
-
+    for calib_file in calib_files:
+        calib_file = calib_file.format(duckiebot=duckiebot_name)
+        url = 'http://{:s}.local:{:d}/{:s}'.format(
+            duckiebot_name, FILES_API_PORT, calib_file
+        )
+        # get calibration using the files API
+        dtslogger.debug('Fetching file "{:s}"'.format(url))
+        res = requests.get(url, timeout=10)
+        if res.status_code != 200:
+            dtslogger.error("Could not get the calibration file {:s} from the robot {:s}".format(
+                calib_file, duckiebot_name
+            ))
+            return
+        # make destination directory
+        dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
+        if not os.path.isdir(dirname):
+            dtslogger.debug('Creating directory "{:s}"'.format(dirname))
+            os.makedirs(dirname)
+        # save calibration file to disk
+        # NOTE: all agent names in evaluations are "default" so need to copy
+        #       the robot specific calibration to default
+        destination_file = os.path.join(dirname, 'default.yaml')
+        dtslogger.debug('Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
+            duckiebot_name, calib_file, destination_file
+        ))
+        with open(destination_file, 'wb') as fd:
+            for chunk in res.iter_content(chunk_size=128):
+                fd.write(chunk)
