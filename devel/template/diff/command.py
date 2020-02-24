@@ -1,8 +1,6 @@
 import os
-import shutil
 import argparse
 import subprocess
-from termcolor import colored
 from dt_shell import DTShell, DTCommandAbs, dtslogger
 
 
