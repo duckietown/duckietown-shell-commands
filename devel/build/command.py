@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from shutil import which
+from pathlib import Path
 
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -145,6 +146,10 @@ class DTCommand(DTCommandAbs):
         # show info about project
         shell.include.devel.info.command(shell, args)
         project_info = shell.include.devel.info.get_project_info(parsed.workdir)
+        try:
+            project_template_ver = int(project_info['TYPE_VERSION'])
+        except ValueError:
+            project_template_ver = -1
         # get info about current repo
         repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info['REPOSITORY']
@@ -180,6 +185,28 @@ class DTCommand(DTCommandAbs):
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
+        # search for launchers (template v2+)
+        if project_template_ver >= 2:
+            launch_dir = os.path.join(parsed.workdir, 'launch')
+            files = [
+                os.path.join(launch_dir, f)
+                for f in os.listdir(launch_dir)
+                if os.path.isfile(os.path.join(launch_dir, f))
+            ]
+
+            def _has_shebang(f):
+                with open(f, 'rt') as fin:
+                    return fin.readline().startswith('#!')
+
+            launchers = [
+                Path(f).stem for f in files
+                if os.access(f, os.X_OK) or _has_shebang(f)
+            ]
+            # add launchers to image labels
+            buildlabels += [
+                '--label',
+                f"{DOCKER_LABEL_DOMAIN}.launchers={','.join(sorted(launchers))}"
+            ]
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
         epoint = _run_cmd([
