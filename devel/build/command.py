@@ -192,7 +192,7 @@ class DTCommand(DTCommandAbs):
                 os.path.join(launch_dir, f)
                 for f in os.listdir(launch_dir)
                 if os.path.isfile(os.path.join(launch_dir, f))
-            ]
+            ] if os.path.isdir(launch_dir) else []
 
             def _has_shebang(f):
                 with open(f, 'rt') as fin:
