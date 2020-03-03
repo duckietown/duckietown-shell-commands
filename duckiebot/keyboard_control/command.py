@@ -24,7 +24,7 @@ Keyboard control:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument('hostname', default=None, help='Name of the Duckiebot to calibrate')
+        parser.add_argument('hostname', default=None, help='Name of the Duckiebot to control')
         parser.add_argument('--cli', dest='cli', default=False, action='store_true',
                             help='A flag, if set will run with CLI instead of with GUI')
         parser.add_argument('--network', default='host', help='Name of the network which to connect')
