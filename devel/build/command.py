@@ -359,7 +359,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warn(msg)
         # perform remove (if needed)
         if parsed.rm:
-            shell.include.devel.clean.command(shell, args)
+            shell.include.devel.clean.command(shell, [], parsed=copy.deepcopy(parsed))
 
 
     @staticmethod
