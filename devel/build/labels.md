@@ -51,6 +51,10 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
   - Type: `string`
   - Default: `undefined`
 
+- `org.duckietown.label.code.launchers`: Comma-separated list of launchers
+  - Type: `string`
+  - Default: `undefined`
+
 
 ## Template labels
 

@@ -205,7 +205,7 @@ class DTCommand(DTCommandAbs):
             # add launchers to image labels
             buildlabels += [
                 '--label',
-                f"{DOCKER_LABEL_DOMAIN}.launchers={','.join(sorted(launchers))}"
+                f"{DOCKER_LABEL_DOMAIN}.code.launchers={','.join(sorted(launchers))}"
             ]
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
