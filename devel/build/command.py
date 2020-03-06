@@ -355,11 +355,18 @@ class DTCommand(DTCommandAbs):
                 # call devel/push
                 shell.include.devel.push.command(shell, [], parsed=push_args)
             else:
-                msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
+                msg = "Forbidden: You cannot push an image when using the flag `--loop`."
                 dtslogger.warn(msg)
         # perform remove (if needed)
         if parsed.rm:
-            shell.include.devel.clean.command(shell, [], parsed=copy.deepcopy(parsed))
+            try:
+                shell.include.devel.clean.command(shell, [], parsed=copy.deepcopy(parsed))
+            except Exception:
+                dtslogger.warn(
+                    "We had some issues cleaning up the image on '{:s}'".format(
+                        parsed.machine
+                    ) + ". Just a heads up!"
+                )
 
 
     @staticmethod
