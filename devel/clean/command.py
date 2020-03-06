@@ -62,7 +62,14 @@ class DTCommand(DTCommandAbs):
             )
             if img:
                 dtslogger.info("Removing image {}...".format(t))
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", t])
+                try:
+                    _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", t])
+                except RuntimeError:
+                    dtslogger.warn(
+                        "We had some issues removing the image '{:s}' on '{:s}'".format(
+                            t, parsed.machine
+                        ) + ". Just a heads up!"
+                    )
 
     @staticmethod
     def complete(shell, word, line):
