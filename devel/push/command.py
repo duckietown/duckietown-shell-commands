@@ -98,7 +98,7 @@ class DTCommand(DTCommandAbs):
             cmd = ["docker", "manifest", "push", "-p", default_tag]
             _run_cmd(cmd, env)
         except subprocess.CalledProcessError as e:
-            dtslogger.warning(e.message)   
+            dtslogger.warning(str(e))
 
     @staticmethod
     def complete(shell, word, line):
