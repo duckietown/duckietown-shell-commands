@@ -42,6 +42,26 @@ ARCH_COMPATIBILITY_MAP = {
     'amd64': ['amd64']
 }
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
+TEMPLATE_TO_SRC = {
+    'template-basic': {
+        '1': lambda repo: ('code', '/packages/{:s}/'.format(repo)),
+        '2': lambda repo: ('packages', '/code/{:s}/'.format(repo))
+    },
+    'template-ros': {
+        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),
+        '2': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
+    }
+}
+TEMPLATE_TO_LAUNCHFILE = {
+    'template-basic': {
+        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
+        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+    },
+    'template-ros': {
+        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
+        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+    }
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -73,9 +93,11 @@ class DTCommand(DTCommandAbs):
                             help="Whether to disable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
                             help="Whether to force the run when the git index is not clean")
-        parser.add_argument('-M', '--mount', default=False, action='store_true',
-                            help="Whether to mount the current project into the container")
-        parser.add_argument('-u','--username',default="duckietown",
+        parser.add_argument('-M', '--mount', default=False, const=True, action='store',
+                            nargs='?', type=str,
+                            help="Whether to mount the current project into the container. "
+                                 "Pass a comma-separated list of paths to mount multiple projects")
+        parser.add_argument('-u', '--username', default="duckietown",
                             help="The docker registry username that owns the Docker image")
         parser.add_argument('--rm', default=True, action='store_true',
                             help="Whether to remove the container once done")
@@ -91,6 +113,58 @@ class DTCommand(DTCommandAbs):
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
         nadded = repo_info['INDEX_NUM_ADDED']
+        # parse arguments
+        mount_code = parsed.mount is True or isinstance(parsed.mount, str)
+        mount_option = []
+        if mount_code:
+            projects_to_mount = []
+            # (always) mount current project
+            projects_to_mount.append(parsed.workdir)
+            # mount secondary projects
+            if isinstance(parsed.mount, str):
+                projects_to_mount.extend([
+                    os.path.join(os.getcwd(), p.strip()) for p in parsed.mount.split(',')
+                ])
+            # create mount points definitions
+            for project_path in projects_to_mount:
+                # make sure that the project exists
+                if not os.path.isdir(project_path):
+                    dtslogger.error(
+                        'The path "{:s}" is not a Duckietown project'.format(project_path)
+                    )
+                # get project info
+                project = shell.include.devel.info.get_project_info(project_path)
+                template = project['TYPE']
+                template_v = project['TYPE_VERSION']
+                # make sure we support this project version
+                if template not in TEMPLATE_TO_SRC or \
+                        template_v not in TEMPLATE_TO_SRC[template] or \
+                        template not in TEMPLATE_TO_LAUNCHFILE or \
+                        template_v not in TEMPLATE_TO_LAUNCHFILE[template]:
+                    dtslogger.error(
+                        'Template {:s} v{:s} for project {:s} is not supported'.format(
+                            template, template_v, project_path
+                        )
+                    )
+                    exit(2)
+                # get project repo info
+                project_repo_info = shell.include.devel.info.get_repo_info(project_path)
+                project_repo = project_repo_info['REPOSITORY']
+                # create mountpoints
+                local_src, destination_src = \
+                    TEMPLATE_TO_SRC[template][template_v](project_repo)
+                local_launch, destination_launch = \
+                    TEMPLATE_TO_LAUNCHFILE[template][template_v](project_repo)
+                mount_option += [
+                    '-v', '{:s}:{:s}'.format(
+                        os.path.join(project_path, local_src),
+                        destination_src
+                    ),
+                    '-v', '{:s}:{:s}'.format(
+                        os.path.join(project_path, local_launch),
+                        destination_launch
+                    )
+                ]
         # check if the index is clean
         if parsed.mount and nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
@@ -171,19 +245,6 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info('Found an image with the same name. Using it. User --force-pull to force a new pull.')
         # cmd option
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
-        # mount option
-        mount_option = []
-        if parsed.mount:
-            mount_option = [
-                '-v', '{:s}:{:s}'.format(
-                    os.path.join(parsed.workdir, 'packages'),
-                    '/code/{:s}/'.format(repo)
-                ),
-                '-v', '{:s}:{:s}'.format(
-                    os.path.join(parsed.workdir, 'launch.sh'),
-                    '/launch/{:s}/launch.sh'.format(repo)
-                )
-            ]
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
@@ -206,11 +267,9 @@ class DTCommand(DTCommandAbs):
                     cmd_option
         )
 
-
     @staticmethod
     def complete(shell, word, line):
         return []
-
 
 
 def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
@@ -234,7 +293,7 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
 
 
 def _sizeof_fmt(num, suffix='B'):
-    for unit in ['','K','M','G','T','P','E','Z']:
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
