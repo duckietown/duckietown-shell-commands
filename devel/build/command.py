@@ -277,15 +277,15 @@ class DTCommand(DTCommandAbs):
             # check if the endpoint contains an image with the same name
             is_present = False
             try:
-                out = _run_cmd([
+                _run_cmd([
                     'docker',
                         '-H=%s' % parsed.machine,
-                        'images',
-                            '--format',
-                            "{{.Repository}}:{{.Tag}}"
-                ], get_output=True, print_output=False, suppress_errors=True)
-                is_present = tag in out
-            except:
+                        'image',
+                        'inspect',
+                            tag
+                ], get_output=True, suppress_errors=True)
+                is_present = True
+            except (RuntimeError, subprocess.CalledProcessError):
                 pass
             if not is_present:
                 # try to pull the same image so Docker can use it as cache source
@@ -413,8 +413,8 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
                 lines.append(line)
         proc.wait()
         if proc.returncode != 0:
+            msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
             if not suppress_errors:
-                msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
                 dtslogger.error(msg)
             raise RuntimeError(msg)
         return lines
