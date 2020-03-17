@@ -3,6 +3,7 @@ import json
 import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
+from .architecture_helper import get_module_configuration
 
 
 DEFAULT_ARCH = 'arm32v7'
@@ -68,7 +69,6 @@ class DTCommand(DTCommandAbs):
 
     help = 'Runs the current project'
 
-
     @staticmethod
     def command(shell, args):
         # configure arguments
@@ -89,6 +89,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force pull the image of the project")
         parser.add_argument('--build', default=False, action='store_true',
                             help="Whether to build the image of the project")
+        parser.add_argument('--plain', default=False, action='store_true',
+                            help="Whether to run the image without default module configuration")
         parser.add_argument('--no-multiarch', default=False, action='store_true',
                             help="Whether to disable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
@@ -113,6 +115,10 @@ class DTCommand(DTCommandAbs):
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
         nadded = repo_info['INDEX_NUM_ADDED']
+        # (try to) get the module configuration
+        module_configuration_args = []
+        if not parsed.plain:
+            module_configuration_args = get_module_configuration(repo, shell, parsed)
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
@@ -168,7 +174,8 @@ class DTCommand(DTCommandAbs):
         # check if the index is clean
         if parsed.mount and nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
-            dtslogger.warning('If you know what you are doing, use --force (-f) to force the execution of the command.')
+            dtslogger.warning('If you know what you are doing, use --force (-f) to force '
+                              'the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
@@ -261,10 +268,12 @@ class DTCommand(DTCommandAbs):
             'docker',
                 '-H=%s' % parsed.machine,
                 'run', '-it'] +
+                    module_configuration_args +
                     parsed.docker_args +
                     mount_option +
                     [image] +
                     cmd_option
+            , suppress_errors=True
         )
 
     @staticmethod
@@ -289,7 +298,13 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
             print(out)
         return out
     else:
-        subprocess.check_call(cmd, shell=shell)
+        try:
+            subprocess.check_call(cmd, shell=shell)
+        except subprocess.CalledProcessError as e:
+            if not suppress_errors:
+                raise e
+
+
 
 
 def _sizeof_fmt(num, suffix='B'):
