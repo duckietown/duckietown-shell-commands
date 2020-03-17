@@ -433,7 +433,7 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
 
 
 def _sizeof_fmt(num, suffix='B'):
-    for unit in ['','K','M','G','T','P','E','Z']:
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -441,8 +441,14 @@ def _sizeof_fmt(num, suffix='B'):
 
 
 def add_token_to_docker_config(token):
+    config = {}
     config_file = os.path.expanduser('~/.docker/config.json')
-    config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
+    if os.path.isfile(config_file):
+        config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
+    else:
+        docker_config_dir = os.path.dirname(config_file)
+        dtslogger.info('Creating directory "{:s}"'.format(docker_config_dir))
+        os.makedirs(docker_config_dir)
     if 'HttpHeaders' not in config:
         config['HttpHeaders'] = {}
     if 'X-Duckietown-Token' not in config['HttpHeaders']:
