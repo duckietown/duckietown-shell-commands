@@ -15,6 +15,7 @@ LOG_API_DEFAULT_DATABASE = "db_log_default"
 LOG_DEFAULT_SUBGROUP = "default"
 LOG_DEFAULT_APP_ID = "101741598378777739147_dtsentediagnosticswriteonly"
 LOG_DEFAULT_APP_SECRET = "McZWwqezyTuPvAn95Wn2YsgI3v1eZyVCALoW2tmqdH5z7jy2"
+AVAHI_SOCKET_FILE = "/var/run/avahi-daemon/socket"
 
 LOG_API_PROTOCOL = 'https'
 LOG_API_HOSTNAME = 'dashboard.duckietown.org'
@@ -151,7 +152,12 @@ class DTCommand(DTCommandAbs):
         else:
             dtslogger.info(f'Device type forced to "{parsed.type}".')
         # create options
-        options = ['-it', '--rm', '--net=host']
+        options = [
+            '-it',
+            '--rm',
+            '--net=host',
+            '--volume={avahi_socket:s}:{avahi_socket:s}'.format(avahi_socket=AVAHI_SOCKET_FILE)
+        ]
         # create image name
         image = DIAGNOSTICS_IMAGE.format(version=shell.get_commands_version(), arch=image_arch)
         # mount option
