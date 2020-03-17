@@ -6,8 +6,10 @@ import argparse
 import subprocess
 from termcolor import colored
 
-LAYER_SIZE_THR_YELLOW = 50 * 1024**2  # 50 MB
-LAYER_SIZE_THR_RED = 200 * 1024**2    # 200 MB
+LAYER_SIZE_THR_YELLOW = 20 * 1024**2  # 20 MB
+LAYER_SIZE_THR_RED = 75 * 1024**2    # 75 MB
+SEPARATORS_LENGTH = 50
+SEPARATORS_LENGTH_HALF = 25
 
 
 class ImageAnalyzer(object):
@@ -30,7 +32,7 @@ class ImageAnalyzer(object):
         return "%.2f%s%s" % (num, 'Yi', suffix)
 
     @staticmethod
-    def process(buildlog, historylog, codens=0):
+    def process(buildlog, historylog, codens=0, extra_info=None):
         lines = buildlog
         image_history = historylog
         sizeof_fmt = ImageAnalyzer.sizeof_fmt
@@ -46,6 +48,7 @@ class ImageAnalyzer(object):
         # define RegEx patterns
         step_pattern = re.compile("Step ([0-9]+)/([0-9]+) : (.*)")
         layer_pattern = re.compile(" ---> ([0-9a-z]{12})")
+        cache_string = ' ---> Using cache'
         final_layer_pattern = re.compile("Successfully tagged (.*)")
 
         # check if the build process succeded
@@ -61,22 +64,26 @@ class ImageAnalyzer(object):
 
         # create map {layerid: size_bytes}
         layer_to_size_bytes = dict()
-        for l in image_history:
-            layerid, layersize = l
+        for layerid, layersize in image_history:
             if layerid == 'missing':
                 continue
             layer_to_size_bytes[layerid] = int(layersize)
 
         # for each Step, find the layer ID
         first_layer = None
+        cached_layers = 0
         for i, j in zip(steps_idx, steps_idx[1:]):
             indent_str = '|'
             layerid_str = 'Layer ID:'
             size_str = 'Size:'
             cur_step_lines = lines[i:j]
             open_layers = [layer_pattern.match(l) for l in cur_step_lines if layer_pattern.match(l)]
+            # check for cached layers
+            if len(cur_step_lines) <= 2 or \
+               len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
+                cached_layers += 1
             # get Step info
-            print('-' * 22)
+            print('-' * SEPARATORS_LENGTH)
             stepline = lines[i]
             stepno = step_pattern.match(stepline).group(1)
             steptot = step_pattern.match(stepline).group(2)
@@ -104,12 +111,16 @@ class ImageAnalyzer(object):
             # print info about the current layer
             print(
                 '%s %s\n%sStep: %s/%s\n%sCommand: \n%s\t%s\n%s%s %s' % (
-                layerid_str, layerid,
-                indent_str, stepno, steptot,
-                indent_str, indent_str, stepcmd,
-                indent_str, size_str, layersize
-            ))
+                    layerid_str, layerid,
+                    indent_str, stepno, steptot,
+                    indent_str, indent_str, stepcmd,
+                    indent_str, size_str, layersize
+                )
+            )
             print()
+
+        # get info about layers
+        tot_layers = len(steps_idx) - 1
 
         # compute size of the base image
         first_layer_idx = [i for i in range(len(image_history)) if image_history[i][0] == first_layer][0]
@@ -120,20 +131,29 @@ class ImageAnalyzer(object):
 
         # print info about the whole image
         print()
-        print('Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t' % (
-            colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
-            colored(' '*2, 'white', 'on_blue'), 'BASE SIZE',
-            colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW),
-            colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED),
-            colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED)
-        ))
+        print(
+            'Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t' % (
+                colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
+                colored(' '*2, 'white', 'on_blue'), 'BASE SIZE',
+                colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW),
+                colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED),
+                colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED)
+            )
+        )
         print()
-        print('=' * 22)
+        print('=' * SEPARATORS_LENGTH)
         print('Final image name: %s' % image)
         print('Base image size: %s' % sizeof_fmt(base_image_size))
         print('Final image size: %s' % sizeof_fmt(final_image_size))
         print('Your image added %s to the base image.' % sizeof_fmt(final_image_size-base_image_size))
-        print('=' * 22)
+        print('-' * SEPARATORS_LENGTH_HALF)
+        print('Layers total: {:d}'.format(tot_layers))
+        print(' - Built: {:d}'.format(tot_layers - cached_layers))
+        print(' - Cached: {:d}'.format(cached_layers))
+        if extra_info is not None and len(extra_info) > 0:
+            print('-' * SEPARATORS_LENGTH_HALF)
+            print(extra_info)
+        print('=' * SEPARATORS_LENGTH)
         print()
         print(colored('IMPORTANT', 'white', 'on_blue') + ': Always ask yourself, can I do better than that? ;)')
         print()
@@ -147,7 +167,8 @@ if __name__ == '__main__':
     parsed = parser.parse_args()
 
     # put lines from the pipe in a list
-    lines = [l for l in sys.stdin if len(l.strip()) > 0]
+    final_layer_pattern = re.compile("Successfully tagged (.*)")
+    lines = [line for line in sys.stdin if len(line.strip()) > 0]
 
     # return if the log is empty
     if not lines:

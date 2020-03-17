@@ -186,6 +186,7 @@ class DTCommand(DTCommandAbs):
         default_tag = "%s/%s:%s" % (user, repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
         # search for launchers (template v2+)
+        launchers = []
         if project_template_ver >= 2:
             launch_dir = os.path.join(parsed.workdir, 'launch')
             files = [
@@ -325,8 +326,19 @@ class DTCommand(DTCommandAbs):
                     tag
         ], True)
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
+        # round up extra info
+        extra_info = []
+        # - launchers info
+        if len(launchers) > 0:
+            extra_info.append('Image launchers:')
+            for launcher in launchers:
+                extra_info.append('  - {:s}'.format(launcher))
+        # compile extra info
+        extra_info = '\n'.join(extra_info)
         # run docker image analysis
-        _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
+        _, _, final_image_size = ImageAnalyzer.process(
+            buildlog, historylog, codens=100, extra_info=extra_info
+        )
         # pull image (if the destination is different from the builder machine)
         if parsed.cloud or (parsed.destination and parsed.machine != parsed.destination):
             _transfer_image(
@@ -368,11 +380,9 @@ class DTCommand(DTCommandAbs):
                     ) + ". Just a heads up!"
                 )
 
-
     @staticmethod
     def complete(shell, word, line):
         return []
-
 
 
 def _transfer_image(origin, destination, image, image_size):
@@ -421,12 +431,14 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
     else:
         subprocess.check_call(cmd, shell=shell)
 
+
 def _sizeof_fmt(num, suffix='B'):
     for unit in ['','K','M','G','T','P','E','Z']:
         if abs(num) < 1024.0:
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.2f%s%s" % (num, 'Yi', suffix)
+
 
 def add_token_to_docker_config(token):
     config_file = os.path.expanduser('~/.docker/config.json')
