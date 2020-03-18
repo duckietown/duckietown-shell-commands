@@ -5,6 +5,7 @@ import subprocess
 from typing import List, Optional
 
 import yaml
+from docker import DockerClient
 
 from challenges.challenges_cmd_utils import wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -23,7 +24,8 @@ from duckietown_challenges.rest_methods import (
     get_registry_info,
     RegistryInfo,
 )
-from zuper_ipce import ipce_from_object, IESO
+from zuper_ipce import IESO, ipce_from_object
+from zuper_typing import debug_print
 
 
 class DTCommand(DTCommandAbs):
@@ -81,16 +83,21 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(msg)
 
         base = os.path.dirname(fn)
-
+        dtslogger.info(f'data {data}')
         challenge = ChallengeDescription.from_yaml(data)
+        assert challenge.date_close.tzinfo is not None, (challenge.date_close.tzinfo, challenge.date_open.tzinfo)
+        assert challenge.date_open.tzinfo is not None, (challenge.date_close.tzinfo, challenge.date_open.tzinfo)
 
+        dtslogger.info(debug_print(challenge))
         with wrap_server_operations():
-            go(token, impersonate, parsed, challenge, base, client, no_cache)
+            dts_define(token, impersonate, parsed, challenge, base, client, no_cache)
 
 
-def go(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescription, base, client, no_cache):
+def dts_define(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescription, base,
+               client: DockerClient,
+               no_cache: bool):
     ri = get_registry_info(token=token, impersonate=impersonate)
-
+    dtslogger.info(f'impersonate {impersonate}')
     if parsed.steps:
         use_steps = parsed.steps.split(",")
     else:
@@ -129,7 +136,7 @@ def go(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescr
                     dockerfile_abs,
                     no_cache,
                     registry_info=ri,
-                    dopull = parsed.pull,
+                    dopull=parsed.pull,
                 )
                 complete = get_complete_tag(br)
                 service.image = complete
@@ -140,13 +147,31 @@ def go(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescr
                 if service.image == ChallengesConstants.SUBMISSION_CONTAINER_TAG:
                     pass
                 else:
-                    msg = "Finding digest for image %s" % service.image
-                    dtslogger.info(msg)
-                    image = client.images.get(service.image)
-                    service.image_digest = image.id
-                    dtslogger.info("Found: %s" % image.id)
+                    vname = 'AIDO_REGISTRY'
+                    vref = f'${{{vname}}}'
+                    if vref in service.image:
+                        value = os.environ.get(vname)
+                        service.image = service.image.replace(vref, value)
+
+                    br = parse_complete_tag(service.image)
+                    if br.digest is None:
+                        msg = "Finding digest for image %s" % service.image
+                        dtslogger.warning(msg)
+
+                        # noinspection PyTypeChecker
+                        br_no_registry = replace(br,  tag=None)
+                        image_name = get_complete_tag(br_no_registry)
+                        image = client.images.pull(image_name, tag=br.tag)
+
+                        # service.image_digest = image.id
+                        br.digest = image.id
+
+                        service.image = get_complete_tag(br)
+                        dtslogger.warning("complete: %s" % service.image)
 
     ieso = IESO(with_schema=False)
+    assert challenge.date_close.tzinfo is not None, (challenge.date_close, challenge.date_open)
+    assert challenge.date_open.tzinfo is not None, (challenge.date_close, challenge.date_open)
     ipce = ipce_from_object(challenge, ChallengeDescription, ieso=ieso)
     data2 = yaml.dump(ipce)
     # data2 = yaml.dump(challenge.as_dict())
@@ -181,6 +206,10 @@ def build_image(
     username = get_dockerhub_username()
     from duckietown_challenges.utils import tag_from_date
 
+    # do we need the AIDO_REGISTRY arg?
+    with open(filename) as _:
+        dockerfile = _.read()
+
     if username.lower() != username:
         msg = f'Are you sure that the DockerHub username is not lowercase? You gave "{username}".'
         dtslogger.warning(msg)
@@ -198,7 +227,12 @@ def build_image(
     if dopull:
         cmd.append("--pull")
 
-    cmd.extend(["-t", complete, "-f", filename])
+    cmd.extend(["-t", complete])
+    cmd.extend(["-f", filename])
+    vname = 'AIDO_REGISTRY'
+    if vname in dockerfile:
+        value = os.environ.get(vname)
+        cmd.extend(['--build-arg', f'{vname}={value}'])
 
     if no_cache:
         cmd.append("--no-cache")
@@ -207,7 +241,7 @@ def build_image(
     dtslogger.debug("$ %s" % " ".join(cmd))
     subprocess.check_call(cmd)
 
-    use_repo_digests  = False
+    use_repo_digests = False
 
     if use_repo_digests:
         try:
@@ -226,35 +260,34 @@ def build_image(
     dtslogger.info("image id: %s" % image.id)
     dtslogger.info("complete: %s" % get_complete_tag(br))
 
-
-
     try:
         br0 = get_compatible_br(client, complete, registry_info.registry)
     except KeyError:
         msg = "Could not find any repo digests (push not succeeded?)"
         raise Exception(msg)
 
-
-
     br = parse_complete_tag(complete)
-    br.digest =br0.digest
-
+    br.digest = br0.digest
 
     dtslogger.info(f'using: {br}')
     return br
 
+
 from dataclasses import replace
+
 
 def fix_none(br: BuildResult) -> BuildResult:
     if br.registry is None:
         return replace(br, registry='docker.io')
     else:
         return br
+
+
 def compatible_br(rd: List[str], registry) -> List[BuildResult]:
     # dtslogger.info(rd)
     brs = [parse_complete_tag(_) for _ in rd]
     brs = list(map(fix_none, brs))
-    compatible = [_ for _ in brs if _.registry==registry]
+    compatible = [_ for _ in brs if _.registry == registry]
     return compatible
 
 

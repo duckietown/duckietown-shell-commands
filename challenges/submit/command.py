@@ -128,6 +128,9 @@ Submission with an arbitrary JSON payload:
                 print(msg)
                 sub_info.challenge_names = [list(compat.compatible)[0]]
 
+            if sub_info.challenge_names == ['all']:
+                sub_info.challenge_names = compat.compatible
+
             print("I will submit to the challenges %s" % sub_info.challenge_names)
 
             for c in sub_info.challenge_names:

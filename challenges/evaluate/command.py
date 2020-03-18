@@ -8,7 +8,7 @@ import socket
 
 import yaml
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import continuously_monitor, start_rqt_image_view
@@ -22,8 +22,6 @@ usage = """
         $ dts challenges evaluate
  
 """
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
