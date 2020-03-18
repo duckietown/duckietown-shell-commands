@@ -163,7 +163,8 @@ class DTCommand(DTCommandAbs):
 
         container_name = "local-evaluator"
         image = parsed.image
-        name, tag = image.split(":")
+        name, _, tag = image.rpartition(":")
+        
         if not parsed.no_pull:
             dtslogger.info("Updating container %s" % image)
 
