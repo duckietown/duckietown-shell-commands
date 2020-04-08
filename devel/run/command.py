@@ -63,6 +63,7 @@ TEMPLATE_TO_LAUNCHFILE = {
         '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
     }
 }
+LAUNCHER_FMT = 'dt-launcher-%s'
 
 
 class DTCommand(DTCommandAbs):
@@ -103,6 +104,10 @@ class DTCommand(DTCommandAbs):
                             help="The docker registry username that owns the Docker image")
         parser.add_argument('--rm', default=True, action='store_true',
                             help="Whether to remove the container once done")
+        parser.add_argument('--launcher', default=None,
+                            help="Launcher to invoke inside the container (template v2 or newer)")
+        parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
+                            help="Arguments for the container command")
         parser.add_argument('docker_args', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -251,7 +256,13 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info('Found an image with the same name. Using it. User --force-pull to force a new pull.')
         # cmd option
+        if parsed.cmd and parsed.launcher:
+            raise ValueError('You cannot use the option --launcher together with --cmd.')
+        if parsed.launcher:
+            parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
+        cmd_arguments = [] if not parsed.arguments else \
+            ['--'] + list(map(lambda s: '--%s' % s, parsed.arguments))
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
@@ -272,7 +283,8 @@ class DTCommand(DTCommandAbs):
                     parsed.docker_args +
                     mount_option +
                     [image] +
-                    cmd_option
+                    cmd_option +
+                    cmd_arguments
             , suppress_errors=True
         )
 
