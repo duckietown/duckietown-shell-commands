@@ -132,7 +132,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument('--type', dest="filter_type", default=None,
-                            choices=['duckiebot', 'watchtower'],
+                            choices=['duckiebot', 'watchtower', 'traffic_light'],
                             help="Filter devices by type")
 
         parsed = parser.parse_args(args)
