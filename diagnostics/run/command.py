@@ -80,12 +80,12 @@ class DTCommand(DTCommandAbs):
                             '--group',
                             required=True,
                             type=str,
-                            help="Name of the logging group within the database")
+                            help="Name of the experiment (e.g., new_fan)")
         parser.add_argument('-S',
                             '--subgroup',
                             default=LOG_DEFAULT_SUBGROUP,
                             type=str,
-                            help="Name of the logging subgroup within the database")
+                            help="Name of the test within the experiment (e.g., fan_model_X)")
         parser.add_argument('-d',
                             '--duration',
                             type=int,
