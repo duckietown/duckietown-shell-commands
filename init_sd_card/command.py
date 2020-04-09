@@ -224,9 +224,10 @@ class DTCommand(DTCommandAbs):
             parsed.stacks_to_load = AIDO_STACKS_TO_LOAD
             parsed.stacks_to_run = parsed.stacks_to_load
 
-        # turn off wifi for type watchtower
-        if parsed.robot_type == 'watchtower':
-            parsed.wifi = ""
+        # for watchtower and traffic light, default is empty but can be overwritten
+        if parsed.robot_type == 'watchtower' or parsed.robot_type == 'traffic_light':
+            if parsed.wifi is "duckietown:quackquack":
+                parsed.wifi = ""
 
         # support drones
         if parsed.robot_type == 'duckiedrone':
