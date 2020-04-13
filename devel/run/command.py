@@ -4,7 +4,6 @@ import shutil
 import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
-from .architecture_helper import get_module_configuration
 
 
 DEFAULT_ARCH = 'arm32v7'
@@ -46,25 +45,20 @@ ARCH_COMPATIBILITY_MAP = {
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 TEMPLATE_TO_SRC = {
     'template-basic': {
-        '1': lambda repo: ('code', '/packages/{:s}/'.format(repo)),
-        '2': lambda repo: ('packages', '/code/{:s}/'.format(repo))
+        '1': lambda repo: ('code', '/packages/{:s}/'.format(repo))
     },
     'template-ros': {
-        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),
-        '2': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
+        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
     }
 }
 TEMPLATE_TO_LAUNCHFILE = {
     'template-basic': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo))
     },
     'template-ros': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo))
     }
 }
-LAUNCHER_FMT = 'dt-launcher-%s'
 
 
 class DTCommand(DTCommandAbs):
@@ -91,8 +85,6 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force pull the image of the project")
         parser.add_argument('--build', default=False, action='store_true',
                             help="Whether to build the image of the project")
-        parser.add_argument('--plain', default=False, action='store_true',
-                            help="Whether to run the image without default module configuration")
         parser.add_argument('--no-multiarch', default=False, action='store_true',
                             help="Whether to disable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
@@ -105,8 +97,6 @@ class DTCommand(DTCommandAbs):
                             help="The docker registry username that owns the Docker image")
         parser.add_argument('--rm', default=True, action='store_true',
                             help="Whether to remove the container once done")
-        parser.add_argument('--launcher', default=None,
-                            help="Launcher to invoke inside the container (template v2 or newer)")
         parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
                             help="Arguments for the container command")
         parser.add_argument('--runtime', default='docker', type=str,
@@ -132,10 +122,6 @@ class DTCommand(DTCommandAbs):
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
         nadded = repo_info['INDEX_NUM_ADDED']
-        # (try to) get the module configuration
-        module_configuration_args = []
-        if not parsed.plain:
-            module_configuration_args = get_module_configuration(repo, shell, parsed)
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
@@ -268,10 +254,6 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info('Found an image with the same name. Using it. User --force-pull to force a new pull.')
         # cmd option
-        if parsed.cmd and parsed.launcher:
-            raise ValueError('You cannot use the option --launcher together with --cmd.')
-        if parsed.launcher:
-            parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = [] if not parsed.arguments else \
             ['--'] + list(map(lambda s: '--%s' % s, parsed.arguments))
@@ -291,7 +273,6 @@ class DTCommand(DTCommandAbs):
             parsed.runtime,
                 '-H=%s' % parsed.machine,
                 'run', '-it'] +
-                    module_configuration_args +
                     parsed.docker_args +
                     mount_option +
                     [image] +
@@ -327,8 +308,6 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         except subprocess.CalledProcessError as e:
             if not suppress_errors:
                 raise e
-
-
 
 
 def _sizeof_fmt(num, suffix='B'):
