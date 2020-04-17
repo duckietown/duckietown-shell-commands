@@ -185,8 +185,6 @@ class DTCommand(DTCommandAbs):
                                     """,
         )
 
-        parser.add_argument("--ethz-username", default=None)
-        parser.add_argument("--ethz-password", default=None)
 
         parser.add_argument(
             "--experimental",
@@ -683,10 +681,7 @@ The files in this directory:
         path="/data/stats/init_sd_card/parameters/country", content=str(parsed.country)
     )
     add_file(path="/data/stats/init_sd_card/parameters/wifi", content=str(parsed.wifi))
-    add_file(
-        path="/data/stats/init_sd_card/parameters/ethz_username",
-        content=str(parsed.ethz_username),
-    )
+
     add_file(path='/data/stats/init_sd_card/parameters/robot_type', content=str(parsed.robot_type))
 
     add_file(
@@ -956,31 +951,6 @@ network={{
             KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
-    if parsed.ethz_username:
-        if parsed.ethz_password is None:
-            msg = "You should provide a password for ETH account using --ethz-password."
-            raise Exception(msg)
-
-        wpa_supplicant += """
-
-network={{
-    id_str="eth_network"
-    ssid="eth"
-    key_mgmt=WPA-EAP
-    group=CCMP TKIP
-    pairwise=CCMP TKIP
-    eap=PEAP
-    proto=RSN
-    identity="{username}"
-    password="{password}"
-    phase1="peaplabel=0"
-    phase2="auth=MSCHAPV2"
-    priority=1
-}}
-
-    """.format(
-            username=parsed.ethz_username, password=parsed.ethz_password
-        )
 
     add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf", content=wpa_supplicant)
 
