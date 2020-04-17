@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
@@ -108,8 +109,20 @@ class DTCommand(DTCommandAbs):
                             help="Launcher to invoke inside the container (template v2 or newer)")
         parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
                             help="Arguments for the container command")
+        parser.add_argument('--runtime', default='docker', type=str,
+                            help="Docker runtime to use to run the container")
+        parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
+                            help="Use x-docker as runtime (needs to be installed separately)")
+
         parser.add_argument('docker_args', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
+        # ---
+        # x-docker runtime
+        if parsed.use_x_docker:
+            parsed.runtime = 'x-docker'
+        # check runtime
+        if shutil.which(parsed.runtime) is None:
+            raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
         # ---
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # show info about project
@@ -276,7 +289,7 @@ class DTCommand(DTCommandAbs):
         parsed.docker_args = [a.replace(' ', '\\ ') for a in parsed.docker_args]
         # run
         _run_cmd([
-            'docker',
+            parsed.runtime,
                 '-H=%s' % parsed.machine,
                 'run', '-it'] +
                     module_configuration_args +
@@ -315,8 +328,6 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         except subprocess.CalledProcessError as e:
             if not suppress_errors:
                 raise e
-
-
 
 
 def _sizeof_fmt(num, suffix='B'):

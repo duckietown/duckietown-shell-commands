@@ -1,15 +1,16 @@
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
+
 class DTCommand(DTCommandAbs):
 
     help = 'Brief description of the command'     # please redefine this help message
     # name = <read-only> a string with the name of the command
-    # level = <read-only> an integer indicating the level of this command. Follows the directory hierarchy
+    # level = <read-only> integer indicating the level of this command. Follows directory hierarchy
     # commands = <read-only> a dictionary of subcommands
 
     @staticmethod
     def command(shell: DTShell, args):
-        # this function will be invoked when the user presses the [Return] key and submits the command
+        # this function will be invoked when the user presses [Return] and runs the command
         #
         #   shell   is the instance of DTShell hosting this command
         #   args    is a list of arguments passed to the command
@@ -23,13 +24,13 @@ class DTCommand(DTCommandAbs):
             )
         )
 
-
     @staticmethod
     def complete(shell, word, line):
         # this function will be invoked when the user presses the [Tab] key for auto completion.
         #
         #   shell   is the instance of DTShell hosting this command
-        #   word    is the right-most word typed in the terminal (usually the string the user is trying to auto-complete)
+        #   word    is the right-most word typed in the terminal
+        #           (usually the string the user is trying to auto-complete)
         #
         #   return  a list of strings. Each string is a suggestion for the user
         #

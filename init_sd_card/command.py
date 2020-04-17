@@ -176,9 +176,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--wifi",
             dest="wifi",
-            default="duckietown:quackquack",
+            default="empty",
             help="""
         Can specify one or more networks: "network:password,network:password,..."
+        Default for watchtower and traffic_light is no wifi config. 
+        Default for other robot types is "duckietown:quackquack"
 
                                     """,
         )
@@ -225,9 +227,12 @@ class DTCommand(DTCommandAbs):
             parsed.stacks_to_run = parsed.stacks_to_load
 
         # for watchtower and traffic light, default is empty but can be overwritten
-        if parsed.robot_type == 'watchtower' or parsed.robot_type == 'traffic_light':
-            if parsed.wifi is "duckietown:quackquack":
+        # otherwise default is "duckietown:quackquack
+        if parsed.wifi is "empty":
+            if parsed.robot_type == 'watchtower' or parsed.robot_type == 'traffic_light':
                 parsed.wifi = ""
+            else:
+                parsed.wifi = "duckietown:quackquack"
 
         # support drones
         if parsed.robot_type == 'duckiedrone':
