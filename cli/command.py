@@ -1,3 +1,4 @@
+import os
 import json
 import shutil
 import argparse
@@ -7,7 +8,8 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DEFAULT_IMAGE = 'duckietown/dt-ros-commons:{major}-{arch}'
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:{major}-{arch}'
+DEFAULT_RUNTIME = 'docker'
 CANONICAL_ARCH = {
     'arm': 'arm32v7',
     'arm32v7': 'arm32v7',
@@ -22,6 +24,9 @@ CANONICAL_ARCH = {
     'armv8': 'arm64v8',
     'aarch64': 'arm64v8'
 }
+DEFAULT_VOLUMES = [
+    '/var/run/avahi-daemon/socket'
+]
 
 
 class DTCommand(DTCommandAbs):
@@ -39,9 +44,9 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to run the image")
-        parser.add_argument('-i', '--image', default=DEFAULT_IMAGE,
+        parser.add_argument('-i', '--image', default=None,
                             help="Docker image to run the command in")
-        parser.add_argument('--runtime', default='docker', type=str,
+        parser.add_argument('--runtime', default=DEFAULT_RUNTIME, type=str,
                             help="Docker runtime to use to run the container")
         parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
                             help="Use x-docker as runtime (needs to be installed separately)")
@@ -52,6 +57,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('command', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        # docker runtime and use_x_docker are mutually exclusive
+        if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:
+            raise ValueError('You cannot use --runtime and -X at the same time.')
         # x-docker runtime
         if parsed.use_x_docker:
             parsed.runtime = 'x-docker'
@@ -82,8 +90,14 @@ class DTCommand(DTCommandAbs):
         if epoint['Architecture'] not in CANONICAL_ARCH:
             raise ValueError('The architecture %s is not supported' % epoint['Architecture'])
         endpoint_arch = CANONICAL_ARCH[epoint['Architecture']]
+        # volumes
+        volumes = [
+            '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
+            if os.path.exists(v)
+        ]
         # compile image name
-        image = DEFAULT_IMAGE.format(major=shell.get_commands_version(), arch=endpoint_arch)
+        image = parsed.image if parsed.image \
+            else DEFAULT_IMAGE.format(major=shell.get_commands_version(), arch=endpoint_arch)
         # print info
         dtslogger.info('Running command [%s]...' % ' '.join(parsed.command))
         print('------>')
@@ -97,6 +111,7 @@ class DTCommand(DTCommandAbs):
                 '--net=host',
                 '--name', 'dts-cli-run-helper'] +
                 environ +
+                volumes +
                 docker_arguments +
                 [image] +
                 parsed.command
@@ -113,6 +128,8 @@ class DTCommand(DTCommandAbs):
             'rosrun', 'rosmsg', 'rostopic', 'rosnode', 'rosservice', 'rossrv', 'rosparam',
             # - rqt* cli
             'rqt', 'rqt_image_view', 'rqt_graph',
+            # - others
+            'rviz'
         ]
 
 
