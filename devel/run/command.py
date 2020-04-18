@@ -64,7 +64,6 @@ DEFAULT_VOLUMES = [
 ]
 
 
-
 class DTCommand(DTCommandAbs):
 
     help = 'Runs the current project'
