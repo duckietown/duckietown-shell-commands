@@ -59,6 +59,10 @@ TEMPLATE_TO_LAUNCHFILE = {
         '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo))
     }
 }
+DEFAULT_VOLUMES = [
+    '/var/run/avahi-daemon/socket'
+]
+
 
 
 class DTCommand(DTCommandAbs):
@@ -182,6 +186,11 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
+        # volumes
+        mount_option += [
+            '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
+            if os.path.exists(v)
+        ]
         # create image name
         image = "%s/%s:%s-%s" % (parsed.username, repo, branch, parsed.arch)
         # get info about docker endpoint
