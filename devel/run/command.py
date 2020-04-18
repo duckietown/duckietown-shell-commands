@@ -65,6 +65,9 @@ TEMPLATE_TO_LAUNCHFILE = {
     }
 }
 LAUNCHER_FMT = 'dt-launcher-%s'
+DEFAULT_VOLUMES = [
+    '/var/run/avahi-daemon/socket'
+]
 
 
 class DTCommand(DTCommandAbs):
@@ -113,7 +116,6 @@ class DTCommand(DTCommandAbs):
                             help="Docker runtime to use to run the container")
         parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
                             help="Use x-docker as runtime (needs to be installed separately)")
-
         parser.add_argument('docker_args', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -197,6 +199,11 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
+        # volumes
+        mount_option += [
+            '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
+            if os.path.exists(v)
+        ]
         # create image name
         image = "%s/%s:%s-%s" % (parsed.username, repo, branch, parsed.arch)
         # get info about docker endpoint
