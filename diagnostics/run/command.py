@@ -183,8 +183,16 @@ class DTCommand(DTCommandAbs):
         # container name
         container_name = 'dts-run-diagnostics-system-monitor'
         options += ['--name', container_name]
+        # update image
+        dtslogger.info(f'Attempting to update image "{image}"...')
+        _run_cmd([
+            'docker',
+                '-H=%s' % parsed.machine,
+                'pull',
+                    image
+        ])
         # run
-        dtslogger.info(f'Running system-monitor on "{parsed.machine}" monitoring "{parsed.target}".')
+        dtslogger.info(f'Running monitor on "{parsed.machine}", monitoring "{parsed.target}".')
         _run_cmd([
             'docker',
                 '-H=%s' % parsed.machine,
