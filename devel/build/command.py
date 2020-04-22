@@ -271,6 +271,7 @@ class DTCommand(DTCommandAbs):
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
             buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(branch, parsed.arch)]
             buildlabels += ['--label', 'LOOP=1']
+            tag = "%s-LOOP-%s" % (default_tag, parsed.arch)
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
