@@ -68,6 +68,9 @@ LAUNCHER_FMT = 'dt-launcher-%s'
 DEFAULT_VOLUMES = [
     '/var/run/avahi-daemon/socket'
 ]
+CONFIGURATION_TO_IGNORE = [
+    'restart'
+]
 
 
 class DTCommand(DTCommandAbs):
@@ -138,8 +141,12 @@ class DTCommand(DTCommandAbs):
         # (try to) get the module configuration
         module_configuration_args = []
         if not parsed.plain:
-            module_configuration_args = get_module_configuration(repo, shell, parsed)
-        # parse arguments
+            module_configuration_args = get_module_configuration(
+                repo, shell, parsed,
+                # remove options that do not align with the idea of dts/run
+                CONFIGURATION_TO_IGNORE
+            )
+            # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
         if mount_code:

@@ -8,7 +8,7 @@ ARCHITECTURE_DATA_MODULE_DESCRIPTOR = \
     'https://raw.githubusercontent.com/duckietown/dt-architecture-data/{ver}/modules/{module}.yaml'
 
 
-def get_module_configuration(module_name, shell, parsed):
+def get_module_configuration(module_name, shell, parsed, options_to_ignore):
     module_configuration = {}
     # 1. try to get the configuration from the architecture API running on the destination
     module_descriptor_api_url = ARCHITECTURE_API_MODULE_DESCRIPTOR_URL.format(
@@ -44,6 +44,12 @@ def get_module_configuration(module_name, shell, parsed):
             "We couldn't find a module configuration on the dt-architecture-data repository. "
             "Using default configuration instead."
         )
+    # filter configuration options
+    module_configuration = {
+        k: v
+        for k, v in module_configuration.items()
+        if k not in options_to_ignore
+    }
     # parse configuration
     return _parse_module_configuration(module_configuration)
 
