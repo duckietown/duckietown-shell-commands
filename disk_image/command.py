@@ -11,6 +11,7 @@ import time
 import glob
 import docker
 import sys
+import re
 
 
 PARTITION_MOUNTPOINT = lambda partition: f"/media/{getpass.getuser()}/{partition}"
@@ -25,6 +26,8 @@ DISK_IMAGE_PARTITION_TABLE = {
 }
 
 ROOT_PARTITION = 'root'
+
+DISK_IMAGE_SIZE_GB = 8
 
 FILE_PLACEHOLDER_SIGNATURE = "DT_DUCKIETOWN_PLACEHOLDER_"
 
@@ -73,10 +76,13 @@ MODULES_TO_LOAD = [
     }
 ]
 
-SUPPORTED_STEPS = ['create', 'mount', 'setup', 'docker', 'finalize', 'unmount']
+SUPPORTED_STEPS = [
+    'create', 'mount', 'resize', 'setup', 'docker', 'finalize', 'unmount', 'compress'
+]
 
 CLI_TOOLS_NEEDED = [
-    'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm', 'udisksctl', 'losetup'
+    'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm', 'udisksctl', 'losetup',
+    'parted', 'e2fsck', 'resize2fs'
 ]
 
 
@@ -141,10 +147,16 @@ class DTCommand(DTCommandAbs):
                 if r.strip() not in ['', 'y', 'Y', 'yes', 'YES', 'yup', 'YUP', 'yep', 'YEP']:
                     dtslogger.info('Aborting.')
                     return
+            # create empty disk image
+            dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
+            _run_cmd([
+                'dd', 'if=/dev/zero', f"of={out_file_path('img')}", 'bs=100M',
+                f'count={10 * DISK_IMAGE_SIZE_GB}'
+            ])
+            dtslogger.info("Empty disk image created!")
             # make copy
             dtslogger.info(f"Copying [{parsed.image}] -> [{out_file_path('img')}]")
-            shutil.copyfile(parsed.image, out_file_path('img'))
-            dtslogger.info('Disk image created.')
+            _run_cmd(['dd', f'if={parsed.image}', f"of={out_file_path('img')}", 'conv=notrunc'])
             dtslogger.info('Step END: create\n')
         # Step: create
         # <------
@@ -167,6 +179,38 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Disk {out_file_path('img')} successfully mounted on {loopdev}")
             dtslogger.info('Step END: mount\n')
         # Step: mount
+        # <------
+        #
+        # ------>
+        # Step: resize
+        if 'resize' in parsed.steps:
+            dtslogger.info('Step BEGIN: resize')
+            # make sure that the disk is mounted
+            if loopdev is None:
+                dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
+                return
+            # get root partition id
+            root_partition_id = DISK_IMAGE_PARTITION_TABLE[ROOT_PARTITION]
+            root_device = DISK_DEVICE(loopdev, root_partition_id)
+            # get original disk identifier
+            disk_identifier = _get_device_disk_identifier(loopdev)
+            # resize root partition to take the entire disk
+            cmd = ["sudo", "parted", "-s", loopdev, "resizepart", "2", "100%"]
+            _run_cmd(cmd)
+            # fix file system
+            cmd = ["sudo", "e2fsck", "-f", root_device]
+            _run_cmd(cmd)
+            # resize file system
+            cmd = ["sudo", "resize2fs", root_device]
+            _run_cmd(cmd)
+            # make sure that the changes had an effect
+            assert _get_device_disk_identifier(loopdev) != disk_identifier
+            # restore disk identifier
+            _set_device_disk_identifier(loopdev, disk_identifier)
+            assert _get_device_disk_identifier(loopdev) == disk_identifier
+            # ---
+            dtslogger.info('Step END: resize\n')
+        # Step: resize
         # <------
         #
         # ------>
@@ -233,6 +277,16 @@ class DTCommand(DTCommandAbs):
             except Exception as e:
                 _umount_virtual_sd_card(out_file_path('img'))
                 raise e
+            # finalize surgery plan
+            dtslogger.info('Locating files location in disk image...')
+            for i in range(len(surgery_plan)):
+                surgery_bit = surgery_plan[i]
+                # update surgery plan
+                surgery_bit['offset_bytes'] = _get_file_location_on_disk(
+                    out_file_path('img'), surgery_bit['placeholder']
+                )
+                surgery_plan[i] = surgery_bit
+            dtslogger.info('All files located successfully!')
             dtslogger.info('Step END: setup\n')
         # Step: setup
         # <------
@@ -318,16 +372,6 @@ class DTCommand(DTCommandAbs):
         # Step: finalize
         if 'finalize' in parsed.steps:
             dtslogger.info('Step BEGIN: finalize')
-            # finalize surgery plan
-            dtslogger.info('Locating files location in disk image...')
-            for i in range(len(surgery_plan)):
-                surgery_bit = surgery_plan[i]
-                # update surgery plan
-                surgery_bit['offset_bytes'] = _get_file_location_on_disk(
-                    out_file_path('img'), surgery_bit['placeholder']
-                )
-                surgery_plan[i] = surgery_bit
-            dtslogger.info('All files located successfully!')
             # compute image sha256
             dtslogger.info(f"Computing SHA256 checksum of {out_file_path('img')}...")
             disk_image_sha256 = _get_disk_image_sha(out_file_path('img'))
@@ -356,6 +400,19 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('Step BEGIN: unmount')
             _umount_virtual_sd_card(out_file_path('img'))
             dtslogger.info('Step END: unmount\n')
+        # Step: unmount
+        # <------
+        #
+        # ------>
+        # Step: compress
+        if 'compress' in parsed.steps:
+            dtslogger.info('Step BEGIN: compress')
+            dtslogger.info('Compressing disk image...')
+            _run_cmd(['zip', out_file_path('zip'), out_file_path('img'), out_file_path('json')])
+            dtslogger.info('Done!')
+            dtslogger.info('Step END: compress\n')
+        # Step: compress
+        # <------
 
     @staticmethod
     def complete(shell, word, line):
@@ -416,6 +473,25 @@ def _pull_docker_image(client, image):
             pbar.update(progress)
     pbar.update(100)
     dtslogger.info(f'Image pulled: {image}')
+
+
+def _get_device_disk_identifier(device):
+    dtslogger.info(f'Reading Disk Identifier for {device}...')
+    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+    fdisk_out = _run_cmd(["sudo", "fdisk", "-l", device], get_output=True)
+    m = p.search(fdisk_out)
+    disk_identifier = m.group(1)
+    dtslogger.info(f'Disk Identifier[{device}]: {disk_identifier}')
+    return disk_identifier
+
+
+def _set_device_disk_identifier(device, disk_identifier):
+    dtslogger.info(f'Re-applying disk identifier ({disk_identifier}) -> [{device}]')
+    cmd = ["sudo", "fdisk", device]
+    dtslogger.debug("$ %s" % cmd)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    p.communicate(("x\ni\n0x%s\nr\nw" % disk_identifier).encode("ascii"))
+    dtslogger.info('Done!')
 
 
 def _get_disk_image_sha(disk_image_file):
