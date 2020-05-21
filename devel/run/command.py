@@ -100,6 +100,8 @@ class DTCommand(DTCommandAbs):
                             help="The docker registry username that owns the Docker image")
         parser.add_argument('--rm', default=True, action='store_true',
                             help="Whether to remove the container once done")
+        parser.add_argument('--loop', default=False, action='store_true',
+                            help="(Experimental) Whether to run the LOOP image")
         parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
                             help="Arguments for the container command")
         parser.add_argument('--runtime', default='docker', type=str,
@@ -190,8 +192,10 @@ class DTCommand(DTCommandAbs):
             '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
             if os.path.exists(v)
         ]
+        # loop mode (Experimental)
+        loop_tag = '' if not parsed.loop else 'LOOP-'
         # create image name
-        image = "%s/%s:%s-%s" % (parsed.username, repo, branch, parsed.arch)
+        image = "%s/%s:%s-%s%s" % (parsed.username, repo, branch, loop_tag, parsed.arch)
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
         epoint = _run_cmd([
