@@ -6,7 +6,11 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
 
 ## Image labels
 
-- `org.duckietown.label.authoritative`: Whether the image contains official Duckietown code;
+- `org.duckietown.label.image.authoritative`: Whether the image contains official Duckietown code;
+  - Type: `boolean`
+  - Default: `False`
+
+- `org.duckietown.label.image.loop`: Whether the image is a LOOP image. Experimental only and for development only.
   - Type: `boolean`
   - Default: `False`
 

@@ -120,7 +120,7 @@ class DTCommand(DTCommandAbs):
                     sys.exit(5)
             # set configuration
             parsed.arch = os.environ['DUCKIETOWN_CI_ARCH']
-            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.authoritative=1']
+            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.image.authoritative=1']
         # cloud build
         if parsed.cloud:
             if parsed.arch not in CLOUD_BUILDERS:
@@ -241,7 +241,7 @@ class DTCommand(DTCommandAbs):
         if parsed.loop:
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
             buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(branch, parsed.arch)]
-            buildlabels += ['--label', 'LOOP=1']
+            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.image.loop=1']
             tag = "%s-LOOP-%s" % (default_tag, parsed.arch)
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
