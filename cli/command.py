@@ -50,6 +50,8 @@ class DTCommand(DTCommandAbs):
                             help="Docker runtime to use to run the container")
         parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
                             help="Use x-docker as runtime (needs to be installed separately)")
+        parser.add_argument('-M', '--master', default=None, type=str,
+                            help="Hostname of the ROS Master node")
         parser.add_argument('-e', '--env', dest='environ', default=[], action='append',
                             help="Environment variables to set inside the environment container")
         parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
@@ -66,8 +68,13 @@ class DTCommand(DTCommandAbs):
         # check runtime
         if shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
+        # environ
+        environ = []
+        # ROS master
+        if parsed.master:
+            environ += ['--env', 'ROS_MASTER_URI', 'http://%s:11311' % parsed.master]
         # environment variables
-        environ = list(map(lambda e: '--env=%s' % e, parsed.environ))
+        environ += list(map(lambda e: '--env=%s' % e, parsed.environ))
         # docker arguments
         docker_arguments = [] if not parsed.arguments else \
             list(map(lambda s: '--%s' % s, parsed.arguments))
