@@ -169,6 +169,10 @@ class DTCommand(DTCommandAbs):
                     TEMPLATE_TO_SRC[template][template_v](project_repo)
                 local_launch, destination_launch = \
                     TEMPLATE_TO_LAUNCHFILE[template][template_v](project_repo)
+                # (experimental): when we run remotely, use /code/<project> as base
+                if parsed.machine != DEFAULT_MACHINE:
+                    project_path = '/code/%s' % project_repo
+                # compile mounpoints
                 mount_option += [
                     '-v', '{:s}:{:s}'.format(
                         os.path.join(project_path, local_src),
