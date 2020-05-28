@@ -660,7 +660,7 @@ def _mount_partition(partition):
             time.sleep(2)
     # mount partition
     if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-        _run_cmd(["udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
+        _run_cmd(["sudo", "udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
     # ---
     assert os.path.exists(PARTITION_MOUNTPOINT(partition))
     dtslogger.info(f'Partition "{partition}" successfully mounted!')
@@ -677,7 +677,7 @@ def _umount_partition(partition):
             if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
                 break
             # request unmount
-            _run_cmd(["udisksctl", "unmount", "-b", DISK_BY_LABEL(partition)], get_output=True)
+            _run_cmd(["sudo", "udisksctl", "unmount", "-b", DISK_BY_LABEL(partition)], get_output=True)
             # wait for changes to take effect
             if i > 0:
                 dtslogger.info(f'Waiting for the device {DISK_BY_LABEL(partition)} to unmount')
