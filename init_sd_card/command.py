@@ -238,7 +238,7 @@ def step_flash(shell, parsed, data):
 
     # use dd to flash
     dtslogger.info('Flashing [{}] -> {}[{}]:'.format(data['disk_img'], sd_type, parsed.device))
-    dd_cmd = ['sudo'] if sd_type == 'SD' else [] + [
+    dd_cmd = (['sudo'] if sd_type == 'SD' else []) + [
         'dd', 'if={}'.format(data['disk_img']), 'of={}'.format(parsed.device),
         'bs={}'.format(DD_BLOCK_SIZE), 'status=progress'
     ]
@@ -353,7 +353,7 @@ def step_setup(shell, parsed, data):
         dtslogger.debug('Injecting {}/{} bytes ({}%) '.format(used_bytes, block_size, block_usage)
                         + 'into [{partition}]:{path}.'.format(**surgery_bit))
         # apply change
-        dd_cmd = ['sudo'] if data['sd_type'] == 'SD' else [] + [
+        dd_cmd = (['sudo'] if data['sd_type'] == 'SD' else []) + [
             'dd', 'of={}'.format(parsed.device), 'bs=1',
             'count={}'.format(block_size),
             'seek={}'.format(block_offset),
