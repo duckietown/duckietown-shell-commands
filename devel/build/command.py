@@ -11,6 +11,7 @@ from shutil import which
 from dt_shell import DTCommandAbs, dtslogger
 
 from .image_analyzer import ImageAnalyzer
+from .sphinx_builder import SphinxBuilder
 
 DEFAULT_ARCH = 'arm32v7'
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
@@ -98,6 +99,8 @@ class DTCommand(DTCommandAbs):
                             help="Build the image on the cloud")
         parser.add_argument('-D', '--destination', default=None,
                             help="Docker socket or hostname where to deliver the image")
+        parser.add_argument('--sphinx', default=False, action='store_true',
+                            help="Also build the Sphinx documentation if it is present")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
@@ -330,6 +333,80 @@ class DTCommand(DTCommandAbs):
             else:
                 msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
                 dtslogger.warn(msg)
+
+        # build the sphinx docs (if requested)
+        if parsed.sphinx:
+            msg = "Starting building the Sphinx documentation."
+            dtslogger.info(msg)
+            # We need to have the main image locally in order to use it as a base for the documentation image
+            if parsed.machine != DEFAULT_MACHINE:
+                msg = "You cannot build the Sphinx documentation if the image has been built on remote host! "
+                msg += "Don't use --sphinx and -H together! "
+                msg += "Sphinx docs will NOT be built!"
+                dtslogger.error(msg)
+                _cont = False
+            else:
+                _cont = True
+
+            if _cont:
+                sphinx_builder = SphinxBuilder(workspace=parsed.workdir)
+                # check if folders and files exist
+                msg = "Checking if the documentation files are in order..."
+                dtslogger.info(msg)
+                try:
+                    sphinx_builder.check_if_directory_and_files_exist()
+                    _cont = True
+                except RuntimeError as e:
+                    msg = "Error encountered during building the Sphinx documentation: "
+                    msg += str(e)
+                    msg += "Sphinx docs will NOT be built!"
+                    dtslogger.error(msg)
+                    _cont = False
+
+            # clone the core code
+            if _cont:
+                msg = "Cloning the core Sphinx code..."
+                dtslogger.info(msg)
+                try:
+                    sphinx_builder.clone_docs_sphinx()
+                    _cont=True
+                except Exception as e:
+                    msg = "Error encountered during cloning Sphinx documentation core: "
+                    msg += str(e)
+                    msg += "Sphinx docs will NOT be built!"
+                    dtslogger.error(msg)
+                    _cont=False
+
+            # build and run the docs container
+            if _cont:
+                msg = "Building the documentation...  (allow some time for this)"
+                dtslogger.info(msg)
+                success, logs = sphinx_builder.build_run_container(base_image=tag)
+                if success:
+                    msg = "Sphinx docs built successfully!\n"
+                    dtslogger.info(msg)
+                    print(logs)
+                    _cont=True
+                else:
+                    msg = "Sphinx docs building FAILED!\n"
+                    msg += logs
+                    dtslogger.error(msg)
+                    _cont=False
+
+            # copy the files back to the repo
+            if _cont:
+                msg = "Copying the HTML files..."
+                dtslogger.info(msg)
+                try:
+                    sphinx_builder.copy_files_back()
+                    msg = "New Sphinx docs available in docs_html!"
+                    dtslogger.info(msg)
+                except Exception as e:
+                    msg = "Exception encountered when copying the Sphinx docs: %s" % str(e)
+                    msg += "NO (new) Sphinx docs!"
+                    dtslogger.error(msg)
+
+
         # perform remove (if needed)
         if parsed.rm:
             shell.include.devel.clean.command(shell, args)
