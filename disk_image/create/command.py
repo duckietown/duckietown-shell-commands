@@ -664,6 +664,7 @@ def _mount_partition(partition):
             time.sleep(2)
     # mount partition
     if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
+        _wait_for_disk(DISK_BY_LABEL(partition), timeout=20)
         _run_cmd(["udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
         time.sleep(2)
     # ---
@@ -775,3 +776,9 @@ def _umount_virtual_sd_card(disk_file, quiet=False):
         dtslogger.info("Done!")
     # refresh devices module
     _run_cmd(['sudo', 'udevadm', 'trigger'])
+
+
+def _wait_for_disk(disk, timeout):
+    stime = time.time()
+    while (time.time() - stime < timeout) and (not os.path.exists(disk)):
+        time.sleep(1.0)
