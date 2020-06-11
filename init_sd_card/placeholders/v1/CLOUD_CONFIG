@@ -36,11 +36,10 @@ runcmd:
   - echo "/swap0 swap swap" >> /etc/fstab
   - chmod 0600 /swap0
   - swapon -a
-  - raspi-config nonint do_camera 0
-  - raspi-config nonint do_i2c 0
   - cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
   - cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 {files_sanitize}
+  - dt-autoboot
 
 # these commands will be run on every boot (before runcmd)
 bootcmd:
