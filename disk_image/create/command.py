@@ -55,6 +55,10 @@ MODULES_TO_LOAD = [
     },
     {
         'owner': 'duckietown',
+        'module': 'dt-device-proxy'
+    },
+    {
+        'owner': 'duckietown',
         'module': 'dt-files-api'
     },
     {
