@@ -15,8 +15,7 @@ class DTCommand(DTCommandAbs):
     help = "Removes the Docker images relative to the current project"
 
     @staticmethod
-    def command(shell: DTShell, args):
-        # configure arguments
+    def _parse_args(args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C",
@@ -37,6 +36,13 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to clean the image",
         )
         parsed, _ = parser.parse_known_args(args=args)
+        return parsed
+
+    @staticmethod
+    def command(shell: DTShell, args, **kwargs):
+        parsed = DTCommand._parse_args(args)
+        if 'parsed' in kwargs:
+            parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
@@ -45,8 +51,6 @@ class DTCommand(DTCommandAbs):
         repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info["REPOSITORY"]
         branch = repo_info["BRANCH"]
-        nmodified = repo_info["INDEX_NUM_MODIFIED"]
-        nadded = repo_info["INDEX_NUM_ADDED"]
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
@@ -58,7 +62,14 @@ class DTCommand(DTCommandAbs):
             )
             if img:
                 dtslogger.info("Removing image {}...".format(t))
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", t])
+                try:
+                    _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", t])
+                except RuntimeError:
+                    dtslogger.warn(
+                        "We had some issues removing the image '{:s}' on '{:s}'".format(
+                            t, parsed.machine
+                        ) + ". Just a heads up!"
+                    )
 
     @staticmethod
     def complete(shell, word, line):

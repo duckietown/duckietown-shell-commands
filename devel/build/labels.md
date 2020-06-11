@@ -55,20 +55,32 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
   - Type: `string`
   - Default: `undefined`
 
-
-## Template labels
-
-- `org.duckietown.label.template.name`
+- `org.duckietown.label.code.launchers`: Comma-separated list of launchers
   - Type: `string`
   - Default: `undefined`
 
-- `org.duckietown.label.template.version`
+
+## Template labels
+
+- `org.duckietown.label.template.name`: Name of the template
+  - Type: `string`
+  - Default: `undefined`
+
+- `org.duckietown.label.template.version`: Version of the template
   - Type: `string`
   - Default: `undefined`
 
 
 ## Base image labels
 
-- `org.duckietown.label.base.image`: Base Docker image;
+- `org.duckietown.label.base.major`: Base Docker image's code major version
+  - Type: `string`
+  - Default: `undefined`
+
+- `org.duckietown.label.base.image`: Base Docker image's image name
+  - Type: `string`
+  - Default: `undefined`
+
+- `org.duckietown.label.base.tag`: Base Docker image's tag name
   - Type: `string`
   - Default: `undefined`
