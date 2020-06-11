@@ -169,7 +169,7 @@ class DTCommand(DTCommandAbs):
 
 
 def step_download(shell, parsed, data):
-    # check dependencies
+    # check if dependencies are met
     check_program_dependency("wget")
     check_program_dependency("unzip")
 
@@ -208,9 +208,11 @@ def step_download(shell, parsed, data):
 
 
 def step_flash(shell, parsed, data):
-    # check if dd is available
+    # check if dependencies are met
     check_program_dependency("dd")
+    check_program_dependency("sudo")
     check_program_dependency("lsblk")
+    check_program_dependency("sync")
 
     # ask for a device  if not set already:
     if parsed.device is None:
@@ -277,13 +279,20 @@ def step_flash(shell, parsed, data):
         pbar.update(100)
 
     # flush I/O buffer
+    dtslogger.info('Flushing I/O buffer...')
     _run_cmd(['sync'])
+    dtslogger.info('Done!')
     # ---
     dtslogger.info('{}[{}] successfully flashed!'.format(sd_type, parsed.device))
     return {'sd_type': sd_type}
 
 
 def step_setup(shell, parsed, data):
+    # check if dependencies are met
+    check_program_dependency("dd")
+    check_program_dependency("sudo")
+    check_program_dependency("sync")
+
     # compile data used to format placeholders
     surgery_data = {
         'hostname': parsed.hostname,
@@ -374,7 +383,9 @@ def step_setup(shell, parsed, data):
         _run_cmd(['sync'])
     dtslogger.info('Surgery went OK!')
     # flush I/O buffer
+    dtslogger.info('Flushing I/O buffer...')
     _run_cmd(['sync'])
+    dtslogger.info('Done!')
     # ---
     return {}
 
