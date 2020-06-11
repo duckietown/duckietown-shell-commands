@@ -275,6 +275,9 @@ def step_flash(shell, parsed, data):
     # jump to 100% if success
     if dd.returncode == 0:
         pbar.update(100)
+
+    # flush I/O buffer
+    _run_cmd(['sync'])
     # ---
     dtslogger.info('{}[{}] successfully flashed!'.format(sd_type, parsed.device))
     return {'sd_type': sd_type}
@@ -367,7 +370,11 @@ def step_setup(shell, parsed, data):
         dd.stdin.flush()
         dd.stdin.close()
         dd.wait()
+        # flush I/O buffer
+        _run_cmd(['sync'])
     dtslogger.info('Surgery went OK!')
+    # flush I/O buffer
+    _run_cmd(['sync'])
     # ---
     return {}
 
