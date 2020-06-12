@@ -13,7 +13,7 @@ from dt_shell import DTCommandAbs, dtslogger
 
 from .image_analyzer import ImageAnalyzer
 
-DEFAULT_ARCH = 'arm32v7'
+
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
 DOCKER_INFO = """
 Docker Endpoint:
@@ -69,7 +69,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to build")
-        parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
+        parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to build the image")
@@ -181,6 +181,28 @@ class DTCommand(DTCommandAbs):
                 )
             )
             exit(0)
+        # get info about docker endpoint
+        dtslogger.info('Retrieving info about Docker endpoint...')
+        epoint = _run_cmd([
+            'docker',
+            '-H=%s' % parsed.machine,
+                'info',
+                    '--format',
+                    '{{json .}}'
+        ], get_output=True, print_output=False)
+        epoint = json.loads(epoint[0])
+        if 'ServerErrors' in epoint:
+            dtslogger.error('\n'.join(epoint['ServerErrors']))
+            return
+        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        print(DOCKER_INFO.format(**epoint))
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            epoint_arch = epoint['Architecture']
+            if epoint_arch not in CANONICAL_ARCH:
+                dtslogger.error(f'Architecture {epoint_arch} not supported!')
+                return
+            parsed.arch = CANONICAL_ARCH[epoint_arch]
         # create defaults
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
@@ -208,21 +230,6 @@ class DTCommand(DTCommandAbs):
                 '--label',
                 f"{DOCKER_LABEL_DOMAIN}.code.launchers={','.join(sorted(launchers))}"
             ]
-        # get info about docker endpoint
-        dtslogger.info('Retrieving info about Docker endpoint...')
-        epoint = _run_cmd([
-            'docker',
-                '-H=%s' % parsed.machine,
-                'info',
-                    '--format',
-                    '{{json .}}'
-        ], get_output=True, print_output=False)
-        epoint = json.loads(epoint[0])
-        if 'ServerErrors' in epoint:
-            dtslogger.error('\n'.join(epoint['ServerErrors']))
-            return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
-        print(DOCKER_INFO.format(**epoint))
         # check if there is a watchtower instance running on the endpoint
         if (not parsed.cloud) and (shell.include.devel.watchtower.is_running(parsed.machine)):
             w_machine = ''
