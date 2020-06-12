@@ -1,7 +1,5 @@
 from utils.cli_utils import get_clean_env, start_command_in_subprocess
-from utils.assets_utils import get_asset_dir
 from utils.duckietown_utils import get_robot_types
-from utils.docker_compose_utils import parse_compose_file
 
 INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 HYPRIOTOS_STABLE_VERSION = "1.9.0"
@@ -79,12 +77,8 @@ from dt_shell import dtslogger, DTCommandAbs
 from dt_shell.env_checks import check_docker_environment
 
 USER = getpass.getuser()
-ROBOT_ARCH = 'arm32v7'
 TMP_ROOT_MOUNTPOINT = "/media/{USER}/root".format(USER=USER)
 TMP_HYPRIOT_MOUNTPOINT = "/media/{USER}/HypriotOS".format(USER=USER)
-DOCKER_STACKS_REPO = "http://github.com/duckietown/dt-docker-stacks"
-
-LOGS_DIR = '/data/logs'
 
 DISK_HYPRIOTOS = "/dev/disk/by-label/HypriotOS"
 DISK_ROOT = "/dev/disk/by-label/root"
@@ -98,9 +92,10 @@ PHASE_DONE = "done"
 SD_CARD_DEVICE = ""
 DEFAULT_ROBOT_TYPE = "duckiebot"
 MINIMAL_STACKS_TO_LOAD = ['DT18_00_basic']
-DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_03_interface,DT18_05_core"
+DEFAULT_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_02_others,DT18_03_interface,DT18_05_core"
 DEFAULT_STACKS_TO_RUN = "DT18_00_basic,DT18_01_health,DT18_03_interface"
 AIDO_STACKS_TO_LOAD = "DT18_00_basic,DT18_01_health,DT18_05_core"
+
 
 # TODO: https://raw.githubusercontent.com/duckietown/Software/master18/misc/duckie.art
 
@@ -558,7 +553,9 @@ def step_setup(shell, parsed):
 
     def add_file(path, content, permissions="0755"):
         d = dict(content=content, path=path, permissions=permissions)
+
         dtslogger.info("Adding file %s" % path)
+        # dtslogger.info('Adding file %s with content:\n---------\n%s\n----------' % (path, content))
         user_data["write_files"].append(d)
 
     def add_file_local(path, local, permissions="0755"):
@@ -597,8 +594,7 @@ def step_setup(shell, parsed):
 
     # Start the blinking feedback: the RPi red and green LEDs will alternately flash
     # on and off until all Docker stacks are up
-    logfile = os.path.join(LOGS_DIR, 'boot.log')
-    cmd = """/bin/bash -c "while ! cat {} | grep -q 'All stacks up'; """.format(logfile)
+    cmd = """/bin/bash -c "while ! cat /data/boot-log.txt | grep -q 'All stacks up'; """
     cmd += """do echo 1 | sudo tee /sys/class/leds/led0/brightness > /dev/null; """
     cmd += (
         """echo 0 | sudo tee /sys/class/leds/led1/brightness > /dev/null; sleep 0.5; """
@@ -696,30 +692,24 @@ If they are not there, it means that the boot process was interrupted.
     """.strip(),
     )
 
-    # flash configuration
-    add_file(path='/data/config/robot_type', content=str(parsed.robot_type))
-
     # remove non-static services
     user_data['bootcmd'].append('find /etc/avahi/services -type f ! -name "dt.static.*.service" -exec rm -f {} \;')
 
     # flash static services
-    copy_file(
-        get_resource(os.path.join('avahi_services', 'dt.presence.service')),
-        '/etc/avahi/services/dt.static.presence.service'
+    add_file_local(
+        '/etc/avahi/services/dt.static.presence.service',
+        get_resource(os.path.join('avahi_services', 'dt.presence.service'))
     )
-    copy_file(
-        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type))),
-        '/etc/avahi/services/dt.static.robot_type.service'
+    add_file_local(
+        '/etc/avahi/services/dt.static.robot_type.service',
+        get_resource(os.path.join('avahi_services', 'dt.robot_type.{}.service'.format(parsed.robot_type)))
     )
 
     # flash temporary services
-    copy_file(
-        get_resource(os.path.join('avahi_services', 'dt.device-init.service')),
-        '/etc/avahi/services/dt.device-init.service'
+    add_file_local(
+        '/etc/avahi/services/dt.device-init.service',
+        get_resource(os.path.join('avahi_services', 'dt.device-init.service'))
     )
-
-    # flash utility scripts
-    copy_file(get_resource(os.path.join('scripts', 'retry')), '/usr/local/bin/retry')
 
     configure_ssh(parsed, ssh_key_pri, ssh_key_pub)
     configure_networks(parsed, add_file)
@@ -727,12 +717,6 @@ If they are not there, it means that the boot process was interrupted.
 
     add_run_cmd(user_data, "cat /sys/class/net/eth0/address > /data/stats/MAC/eth0")
     add_run_cmd(user_data, "cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0")
-
-    # pull docker-stacks
-    rpath = os.path.join(TMP_ROOT_MOUNTPOINT, 'data', 'assets', 'dt-docker-stacks')
-    if not os.path.exists(rpath):
-        _run_cmd(['sudo', 'git', 'clone', '-b', shell.get_commands_version(), DOCKER_STACKS_REPO, rpath])
-        _run_cmd(['sudo', 'chown', '-R', '1000:1000', rpath])
 
     configure_images(parsed, user_data, add_file_local, add_file)
 
@@ -806,9 +790,8 @@ def configure_images(parsed, user_data, add_file_local, add_file):
         stacks_to_load = []
 
     # export images to tar files
-    stacks_location = os.path.join(get_asset_dir('dt-docker-stacks'), 'stacks', parsed.robot_type)
     stack2yaml = get_stack2yaml(
-        stacks_for_images_to_load, stacks_location
+        stacks_for_images_to_load, get_resource("stacks")
     )
     stack2info = save_images(stack2yaml, compress=parsed.compress)
 
@@ -827,7 +810,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
     for stack_type, stacks_deck in {'load': stacks_to_load, 'run': stacks_to_run}.items():
         for cf in stacks_deck:
             # local path
-            lpath = os.path.join(stacks_location, cf + ".yaml")
+            lpath = get_resource(os.path.join("stacks", cf + ".yaml"))
             # path on PI
             rpath = "/data/loader/stacks_to_{}/{}.yaml".format(stack_type, cf)
 
@@ -869,6 +852,7 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                 image_id = str(image.id)
                 dtslogger.info("id for %s: %s" % (image_name, image_id))
                 cmd = ["docker", "tag", image_id, image_name]
+                print(cmd)
                 add_run_cmd(user_data, cmd)
 
             if cf in stacks_to_run:
@@ -879,23 +863,18 @@ def configure_images(parsed, user_data, add_file_local, add_file):
                     user_data, PHASE_LOADING, "Stack %s: docker-compose up" % cf
                 )
                 cmd = [
-                    "retry",
-                    "--min", "120",
-                    "--max", "1200",
-                    "--tries", "3",
-                    "--",
-                        "docker-compose",
-                        "--file",
-                        "/data/loader/stacks_to_run/%s.yaml" % cf,
-                        "-p",
-                        cf,
-                        "up",
-                        "-d"
+                    "docker-compose",
+                    "--file",
+                    "/data/loader/stacks_to_run/%s.yaml" % cf,
+                    "-p",
+                    cf,
+                    "up",
+                    "-d",
                 ]
                 add_run_cmd(user_data, cmd)
                 user_data["bootcmd"].append(cmd)  # every boot
 
-    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/logs/boot.log file.
+    # NOTE: The RPi blinking feedback expects that "All stacks up" will be written to the /data/boot-log.txt file.
     # If modifying, make sure to adjust the blinking feedback
 
 
@@ -947,7 +926,7 @@ network={{
                 """.format(
             cname=connection.name,
             WIFISSID=connection.ssid,
-            WIFIPASS='psk="{}"'.format(connection.password) if connection.password else "",
+            WIFIPASS=f'psk="{connection.password}"' if connection.password else "",
             KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
@@ -1211,23 +1190,21 @@ def save_images(stack2yaml, compress):
 
 def log_current_phase(user_data, phase, msg):
     # NOTE: double json.dumps to add escaped quotes
-    logfile = os.path.join(LOGS_DIR, 'boot.log')
     j = json.dumps(json.dumps(dict(phase=phase, msg=msg)))
-    cmd = "echo {} >> {}".format(j, logfile)
+    cmd = "echo %s >> /data/boot-log.txt" % j
     user_data["runcmd"].append(cmd)
 
 
 def add_run_cmd(user_data, cmd):
-    logfile = os.path.join(LOGS_DIR, 'init_sd_card.json')
     # PRE action (NOTE: double json.dumps to add escaped quotes)
     pre_json = json.dumps(json.dumps(dict(cmd=cmd, msg='running command', pos=len(user_data['runcmd']))))
-    cmd_pre = 'echo {} >> {}'.format(pre_json, logfile)
+    cmd_pre = 'echo %s >> /data/command.json' % pre_json
     user_data['runcmd'].append(cmd_pre)
     # COMMAND
     user_data['runcmd'].append(cmd)
     # POST action (NOTE: double json.dumps to add escaped quotes)
     post_json = json.dumps(json.dumps(dict(cmd=cmd, msg='finished command', pos=len(user_data['runcmd']))))
-    cmd_post = 'echo {} >> {}'.format(post_json, logfile)
+    cmd_post = 'echo %s >> /data/command.json' % post_json
     user_data['runcmd'].append(cmd_post)
 
 
@@ -1249,7 +1226,7 @@ def get_stack2yaml(stacks, base):
         if not os.path.exists(lpath):
             raise Exception(lpath)
 
-        stacks2yaml[sn] = parse_compose_file(lpath, env={'ARCH': ROBOT_ARCH})
+        stacks2yaml[sn] = yaml.load(open(lpath).read())
     return stacks2yaml
 
 
@@ -1272,10 +1249,10 @@ def validate_user_data(user_data_yaml):
         nerrors = 0
         for x in result:
             kind = x["kind"]
-            line_no = x["line"]
+            line = x["line"]
             message = x["message"]
-            line = user_data_yaml.split("\n")[line_no - 1]
-            m = "Invalid at line {}: {}\n\tLine: [{}]".format(line_no, message, line)
+            m = "Invalid at line %s: %s" % (line, message)
+            m += "| %s" % user_data_yaml.split("\n")[line - 1]
 
             if kind == "error":
                 dtslogger.error(m)
