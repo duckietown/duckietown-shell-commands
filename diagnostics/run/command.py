@@ -13,8 +13,8 @@ DEFAULT_TARGET = "unix:///var/run/docker.sock"
 DOCKER_SOCKET = "/var/run/docker.sock"
 LOG_API_DEFAULT_DATABASE = "db_log_default"
 LOG_DEFAULT_SUBGROUP = "default"
-LOG_DEFAULT_APP_ID = "101741598378777739147_dts_ente_diagnostics_run"
-LOG_DEFAULT_APP_SECRET = "L86VcpIIqDZPrae4ylRS3oEwoUfEn1xYZtK2JiA0LqF2rJXP"
+LOG_DEFAULT_APP_ID = "101741598378777739147_dts_daffy_diagnostics_run"
+LOG_DEFAULT_APP_SECRET = "VvXITEzPuaGwdXC03vCeHnYYjqUOoEc9ZZIJu8oO9UacID3B"
 AVAHI_SOCKET_FILE = "/var/run/avahi-daemon/socket"
 
 LOG_API_PROTOCOL = 'https'
