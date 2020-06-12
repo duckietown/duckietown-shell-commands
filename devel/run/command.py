@@ -57,11 +57,11 @@ TEMPLATE_TO_SRC = {
 TEMPLATE_TO_LAUNCHFILE = {
     'template-basic': {
         '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+        '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
     },
     'template-ros': {
         '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launch', '/launch/{:s}'.format(repo))
+        '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
     }
 }
 LAUNCHER_FMT = 'dt-launcher-%s'

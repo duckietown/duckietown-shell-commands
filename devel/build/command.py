@@ -188,12 +188,12 @@ class DTCommand(DTCommandAbs):
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
-            launch_dir = os.path.join(parsed.workdir, 'launch')
+            launchers_dir = os.path.join(parsed.workdir, 'launchers')
             files = [
-                os.path.join(launch_dir, f)
-                for f in os.listdir(launch_dir)
-                if os.path.isfile(os.path.join(launch_dir, f))
-            ] if os.path.isdir(launch_dir) else []
+                os.path.join(launchers_dir, f)
+                for f in os.listdir(launchers_dir)
+                if os.path.isfile(os.path.join(launchers_dir, f))
+            ] if os.path.isdir(launchers_dir) else []
 
             def _has_shebang(f):
                 with open(f, 'rt') as fin:
