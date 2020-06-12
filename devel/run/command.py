@@ -6,44 +6,9 @@ import subprocess
 from dt_shell import DTCommandAbs, dtslogger
 from .architecture_helper import get_module_configuration
 
+from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture
+from utils.dt_module_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP
 
-DEFAULT_ARCH = 'arm32v7'
-DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DOCKER_INFO = """
-Docker Endpoint:
-  Hostname: {Name}
-  Operating System: {OperatingSystem}
-  Kernel Version: {KernelVersion}
-  OSType: {OSType}
-  Architecture: {Architecture}
-  Total Memory: {MemTotal}
-  CPUs: {NCPU}
-"""
-ARCH_MAP = {
-    'arm32v7': ['arm', 'arm32v7', 'armv7l', 'armhf'],
-    'amd64': ['x64', 'x86_64', 'amd64', 'Intel 64'],
-    'arm64v8': ['arm64', 'arm64v8', 'armv8', 'aarch64']
-}
-CANONICAL_ARCH = {
-    'arm': 'arm32v7',
-    'arm32v7': 'arm32v7',
-    'armv7l': 'arm32v7',
-    'armhf': 'arm32v7',
-    'x64': 'amd64',
-    'x86_64': 'amd64',
-    'amd64': 'amd64',
-    'Intel 64': 'amd64',
-    'arm64': 'arm64v8',
-    'arm64v8': 'arm64v8',
-    'armv8': 'arm64v8',
-    'aarch64': 'arm64v8'
-}
-ARCH_COMPATIBILITY_MAP = {
-    'arm32v7': ['arm32v7'],
-    'arm64v8': ['arm32v7', 'arm64v8'],
-    'amd64': ['amd64']
-}
-DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 TEMPLATE_TO_SRC = {
     'template-basic': {
         '1': lambda repo: ('code', '/packages/{:s}/'.format(repo)),
@@ -83,7 +48,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to run")
-        parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
+        parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to run")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to run the image")
@@ -140,6 +105,10 @@ class DTCommand(DTCommandAbs):
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
         nadded = repo_info['INDEX_NUM_ADDED']
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            parsed.arch = get_endpoint_architecture(parsed.machine)
+            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # (try to) get the module configuration
         module_configuration_args = []
         if not parsed.plain:
@@ -148,7 +117,7 @@ class DTCommand(DTCommandAbs):
                 # remove options that do not align with the idea of dts/run
                 CONFIGURATION_TO_IGNORE
             )
-            # parse arguments
+        # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
         if mount_code:
@@ -241,7 +210,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(msg)
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
-            compatible_archs = ARCH_COMPATIBILITY_MAP[CANONICAL_ARCH[epoint['Architecture']]]
+            compatible_archs = BUILD_COMPATIBILITY_MAP[CANONICAL_ARCH[epoint['Architecture']]]
             if parsed.arch not in compatible_archs:
                 dtslogger.info('Configuring machine for multiarch...')
                 try:

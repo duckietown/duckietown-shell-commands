@@ -11,51 +11,16 @@ from pathlib import Path
 
 from dt_shell import DTCommandAbs, dtslogger
 
+from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture
+from utils.dt_module_utils import \
+    CANONICAL_ARCH, \
+    BUILD_COMPATIBILITY_MAP, \
+    DOCKER_LABEL_DOMAIN, \
+    CLOUD_BUILDERS
+
 from .image_analyzer import ImageAnalyzer
 
-
-DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DOCKER_INFO = """
-Docker Endpoint:
-  Hostname: {Name}
-  Operating System: {OperatingSystem}
-  Kernel Version: {KernelVersion}
-  OSType: {OSType}
-  Architecture: {Architecture}
-  Total Memory: {MemTotal}
-  CPUs: {NCPU}
-"""
-ARCH_MAP = {
-    'arm32v7': ['arm', 'arm32v7', 'armv7l', 'armhf'],
-    'amd64': ['x64', 'x86_64', 'amd64', 'Intel 64'],
-    'arm64v8': ['arm64', 'arm64v8', 'armv8', 'aarch64']
-}
-CANONICAL_ARCH = {
-    'arm': 'arm32v7',
-    'arm32v7': 'arm32v7',
-    'armv7l': 'arm32v7',
-    'armhf': 'arm32v7',
-    'x64': 'amd64',
-    'x86_64': 'amd64',
-    'amd64': 'amd64',
-    'Intel 64': 'amd64',
-    'arm64': 'arm64v8',
-    'arm64v8': 'arm64v8',
-    'armv8': 'arm64v8',
-    'aarch64': 'arm64v8'
-}
-BUILD_COMPATIBILITY_MAP = {
-    'arm32v7': ['arm32v7'],
-    'arm64v8': ['arm32v7', 'arm64v8'],
-    'amd64': ['amd64']
-}
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
-DOCKER_LABEL_DOMAIN = "org.duckietown.label"
-CLOUD_BUILDERS = {
-    'arm32v7': 'ec2-3-215-236-113.compute-1.amazonaws.com',
-    'arm64v8': 'ec2-3-215-236-113.compute-1.amazonaws.com',
-    'amd64': 'ec2-3-210-65-73.compute-1.amazonaws.com'
-}
 
 
 class DTCommand(DTCommandAbs):
@@ -198,11 +163,7 @@ class DTCommand(DTCommandAbs):
         print(DOCKER_INFO.format(**epoint))
         # pick the right architecture if not set
         if parsed.arch is None:
-            epoint_arch = epoint['Architecture']
-            if epoint_arch not in CANONICAL_ARCH:
-                dtslogger.error(f'Architecture {epoint_arch} not supported!')
-                return
-            parsed.arch = CANONICAL_ARCH[epoint_arch]
+            parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         user = parsed.username
