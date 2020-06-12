@@ -203,6 +203,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f'Architecture {epoint_arch} not supported!')
                 return
             parsed.arch = CANONICAL_ARCH[epoint_arch]
+            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
