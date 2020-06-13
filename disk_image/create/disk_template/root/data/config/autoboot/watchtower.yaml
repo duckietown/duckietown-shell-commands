@@ -12,18 +12,18 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   dashboard:
-    image: duckietown/dt-duckiebot-dashboard:daffy-arm32v7
-    container_name: duckiebot-dashboard
+    image: duckietown/dt-device-dashboard:daffy-arm32v7
+    container_name: dashboard
     restart: unless-stopped
     network_mode: host
+    environment:
+      HTTP_PORT: 8080
     volumes:
       - /data:/data
       # compose volume
       - compose-data:/var/www/html
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
   files-api:
     image: duckietown/dt-files-api:daffy-arm32v7
@@ -34,8 +34,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
 #  device-proxy:
 #    image: duckietown/dt-device-proxy:daffy-arm32v7
@@ -58,8 +56,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
   device-online:
     image: duckietown/dt-device-online:daffy-arm32v7
@@ -70,8 +66,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
   duckiebot-interface:
     image: duckietown/dt-duckiebot-interface:daffy-arm32v7
@@ -85,8 +79,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
   rosbridge-websocket:
     image: duckietown/dt-rosbridge-websocket:daffy-arm32v7
@@ -97,8 +89,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # dbus socket
-      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
 
 volumes:
   compose-data:
