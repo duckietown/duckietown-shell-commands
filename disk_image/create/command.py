@@ -13,6 +13,9 @@ import docker
 import collections
 import re
 import socket
+import yaml
+import fnmatch
+import itertools
 from datetime import datetime
 
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
@@ -38,6 +41,12 @@ HYPRIOTOS_VERSION = "1.11.1"
 HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
 INPUT_DISK_IMAGE_URL = f"https://github.com/hypriot/image-builder-rpi/releases/download/" \
                        f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
+TEMPLATE_FILE_VALIDATOR = {
+    'root:/data/config/autoboot/*.yaml':
+        lambda *a, **kwa: _validator_autoboot_stack(*a, **kwa),
+    'root:/data/config/calibrations/*/default.yaml':
+        lambda *a, **kwa: _validator_yaml_syntax(*a, **kwa),
+}
 
 MODULES_TO_LOAD = [
     {
@@ -344,6 +353,12 @@ class DTCommand(DTCommandAbs):
                             _run_cmd(['sudo', 'mkdir', '-p', update['destination']])
                         # apply changes from disk_template
                         for update in _get_disk_template_objects(partition, 'file'):
+                            # validate file
+                            validator = _get_validator_fcn(partition, update['relative'])
+                            if validator:
+                                dtslogger.debug(f"Validating file {update['relative']}...")
+                                validator(shell, update['origin'], update['relative'])
+                            # create or modify file
                             effect = 'MODIFY' if os.path.exists(update['destination']) else 'NEW'
                             dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
                             # copy new file
@@ -782,3 +797,50 @@ def _wait_for_disk(disk, timeout):
     stime = time.time()
     while (time.time() - stime < timeout) and (not os.path.exists(disk)):
         time.sleep(1.0)
+
+
+def _get_validator_fcn(partition, path):
+    key = f"{partition}:{path}"
+    for _k, _f in TEMPLATE_FILE_VALIDATOR.items():
+        if fnmatch.fnmatch(key, _k):
+            return _f
+    return None
+
+
+def _validator_autoboot_stack(shell, local_path, remote_path, data=None):
+    # get version
+    major_version = shell.get_commands_version().split('-')[0]
+    modules = {
+        DOCKER_IMAGE_TEMPLATE(
+            owner=module['owner'], module=module['module'], version=major_version,
+            tag=module['tag'] if 'tag' in module else None
+        ) for module in MODULES_TO_LOAD
+    }
+    # load stack content
+    content = yaml.load(open(local_path, 'rt'), yaml.SafeLoader)
+    for srv_name, srv_info in content['services'].items():
+        srv_image = srv_info['image']
+        p1, p2, *_ = srv_image.split('/') + [None]
+        owners = [p1] if p2 else ['', 'library/']
+        image_full = p2 or p1
+        image, tag, *_ = image_full.split(':') + [None]
+        images = [f"{image}:{tag}"] if tag else ['', ':latest']
+        candidates = set(map(lambda p: '/'.join(p), itertools.product(owners, images)))
+        if len(candidates.intersection(modules)) > 0:
+            continue
+        # no images found
+        msg = f"The autoboot stack '{remote_path}' requires the " \
+              f"Docker image '{srv_image}' for the service '{srv_name}' but " \
+              f"no candidates were found in the list of modules to load."
+        dtslogger.error(msg)
+        raise ValueError(msg)
+
+
+def _validator_yaml_syntax(shell, local_path, remote_path, data=None):
+    # simply load the YAML file
+    try:
+        yaml.load(open(local_path, 'rt'), yaml.SafeLoader)
+    except yaml.YAMLError as e:
+        msg = f"The file {remote_path} is not a valid YAML file. Reason: {str(e)}"
+        dtslogger.error(msg)
+        raise ValueError(msg)
