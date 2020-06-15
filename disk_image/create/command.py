@@ -125,6 +125,12 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
+            "--no-steps",
+            type=str,
+            default='',
+            help="List of steps to skip (comma-separated)",
+        )
+        parser.add_argument(
             "-o",
             "--output",
             type=str,
@@ -151,6 +157,17 @@ class DTCommand(DTCommandAbs):
         if len(non_supported_steps):
             dtslogger.error(f'These steps are not supported: {non_supported_steps}')
             return
+        # check given steps (to skip)
+        parsed.no_steps = parsed.no_steps.split(',')
+        non_supported_steps = set(parsed.no_steps).difference(set(SUPPORTED_STEPS))
+        if len(non_supported_steps):
+            dtslogger.error(f'These steps are not supported: {non_supported_steps}')
+            return
+        # remove skipped steps
+        if len(parsed.no_steps) > 0:
+            skipped = set(parsed.steps).intersection(set(parsed.no_steps))
+            parsed.steps = set(parsed.steps).difference(skipped)
+            dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check dependencies
         _check_cli_tools()
         # check if the output directory exists, create it if it does not
