@@ -171,15 +171,15 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--wifi",
             dest="wifi",
-            default="duckietown:quackquack",
+            default="empty",
             help="""
         Can specify one or more networks: "network:password,network:password,..."
+        Default for watchtower and traffic_light is no wifi config. 
+        Default for other robot types is "duckietown:quackquack"
 
                                     """,
         )
 
-        parser.add_argument("--ethz-username", default=None)
-        parser.add_argument("--ethz-password", default=None)
 
         parser.add_argument(
             "--experimental",
@@ -219,9 +219,18 @@ class DTCommand(DTCommandAbs):
             parsed.stacks_to_load = AIDO_STACKS_TO_LOAD
             parsed.stacks_to_run = parsed.stacks_to_load
 
-        # turn off wifi for type watchtower
-        if parsed.robot_type == 'watchtower':
-            parsed.wifi = ""
+        # for watchtower and traffic light, default is empty but can be overwritten
+        # otherwise default is "duckietown:quackquack
+        if parsed.wifi is "empty":
+            if parsed.robot_type == 'watchtower' or parsed.robot_type == 'traffic_light':
+                parsed.wifi = ""
+            else:
+                parsed.wifi = "duckietown:quackquack"
+
+        # support drones
+        if parsed.robot_type == 'duckiedrone':
+            parsed.stacks_to_load = ""
+            parsed.stacks_to_run = ""
 
         if ("--online" in args) and ("--stacks-load" in args or "--stacks-run" in args):
             msg = "The option --online cannot be used together with --stacks-load/--stacks-run."
@@ -668,10 +677,7 @@ The files in this directory:
         path="/data/stats/init_sd_card/parameters/country", content=str(parsed.country)
     )
     add_file(path="/data/stats/init_sd_card/parameters/wifi", content=str(parsed.wifi))
-    add_file(
-        path="/data/stats/init_sd_card/parameters/ethz_username",
-        content=str(parsed.ethz_username),
-    )
+
     add_file(path='/data/stats/init_sd_card/parameters/robot_type', content=str(parsed.robot_type))
 
     add_file(
@@ -914,40 +920,16 @@ country={country}
 network={{
   id_str="{cname}"
   ssid="{WIFISSID}"
-  psk="{WIFIPASS}"
-  key_mgmt=WPA-PSK
+  {WIFIPASS}
+  key_mgmt={KEY_MGMT}
 }}
                 """.format(
-            WIFISSID=connection.ssid,
             cname=connection.name,
-            WIFIPASS=connection.password,
+            WIFISSID=connection.ssid,
+            WIFIPASS=f'psk="{connection.password}"' if connection.password else "",
+            KEY_MGMT="WPA-PSK" if connection.password else "NONE",
         )
 
-    if parsed.ethz_username:
-        if parsed.ethz_password is None:
-            msg = "You should provide a password for ETH account using --ethz-password."
-            raise Exception(msg)
-
-        wpa_supplicant += """
-
-network={{
-    id_str="eth_network"
-    ssid="eth"
-    key_mgmt=WPA-EAP
-    group=CCMP TKIP
-    pairwise=CCMP TKIP
-    eap=PEAP
-    proto=RSN
-    identity="{username}"
-    password="{password}"
-    phase1="peaplabel=0"
-    phase2="auth=MSCHAPV2"
-    priority=1
-}}
-
-    """.format(
-            username=parsed.ethz_username, password=parsed.ethz_password
-        )
 
     add_file(path="/etc/wpa_supplicant/wpa_supplicant.conf", content=wpa_supplicant)
 
@@ -1130,13 +1112,11 @@ def interpret_wifi_string(s):
     if len(s.strip()) == 0:
         return []
     for i, connection in enumerate(s.split(",")):
-        tokens = connection.split(":")
-        if len(tokens) != 2:
+        tokens = [s.strip() for s in connection.split(":")] + [None]
+        if len(tokens) not in [2, 3]:
             msg = "Invalid wifi string %r" % s
             raise Exception(msg)
-        wifissid, wifipass = tokens
-        wifissid = wifissid.strip()
-        wifipass = wifipass.strip()
+        wifissid, wifipass = tokens[0], tokens[1]
         name = "network%d" % (i + 1)
         results.append(Wifi(wifissid, wifipass, name))
     return results

@@ -1,14 +1,16 @@
+import argparse
+import copy
+import io
+import json
 import os
 import re
-import json
-import argparse
 import subprocess
-import io, sys
-import getpass
-import itertools
+import sys
 from shutil import which
-from .image_analyzer import ImageAnalyzer
+
 from dt_shell import DTCommandAbs, dtslogger
+
+from .image_analyzer import ImageAnalyzer
 
 DEFAULT_ARCH = 'arm32v7'
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
@@ -23,34 +25,35 @@ Docker Endpoint:
   CPUs: {NCPU}
 """
 ARCH_MAP = {
-    'arm32v7' : ['arm', 'arm32v7', 'armv7l', 'armhf'],
-    'amd64' : ['x64', 'x86_64', 'amd64', 'Intel 64'],
-    'arm64v8' : ['arm64', 'arm64v8', 'armv8', 'aarch64']
+    'arm32v7': ['arm', 'arm32v7', 'armv7l', 'armhf'],
+    'amd64': ['x64', 'x86_64', 'amd64', 'Intel 64'],
+    'arm64v8': ['arm64', 'arm64v8', 'armv8', 'aarch64']
 }
 CANONICAL_ARCH = {
-    'arm' : 'arm32v7',
-    'arm32v7' : 'arm32v7',
-    'armv7l' : 'arm32v7',
-    'armhf' : 'arm32v7',
-    'x64' : 'amd64',
-    'x86_64' : 'amd64',
-    'amd64' : 'amd64',
-    'Intel 64' : 'amd64',
-    'arm64' : 'arm64v8',
-    'arm64v8' : 'arm64v8',
-    'armv8' : 'arm64v8',
-    'aarch64' : 'arm64v8'
+    'arm': 'arm32v7',
+    'arm32v7': 'arm32v7',
+    'armv7l': 'arm32v7',
+    'armhf': 'arm32v7',
+    'x64': 'amd64',
+    'x86_64': 'amd64',
+    'amd64': 'amd64',
+    'Intel 64': 'amd64',
+    'arm64': 'arm64v8',
+    'arm64v8': 'arm64v8',
+    'armv8': 'arm64v8',
+    'aarch64': 'arm64v8'
 }
 BUILD_COMPATIBILITY_MAP = {
-    'arm32v7' : ['arm32v7'],
-    'arm64v8' : ['arm32v7', 'arm64v8'],
-    'amd64' : ['amd64']
+    'arm32v7': ['arm32v7'],
+    'arm64v8': ['arm32v7', 'arm64v8'],
+    'amd64': ['amd64']
 }
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 CLOUD_BUILDERS = {
-    'arm32v7': 'ec2-54-174-175-117.compute-1.amazonaws.com',
-    'arm64v8': 'ec2-54-174-175-117.compute-1.amazonaws.com'
+    'arm32v7': 'ec2-3-215-236-113.compute-1.amazonaws.com',
+    'arm64v8': 'ec2-3-215-236-113.compute-1.amazonaws.com',
+    'amd64': 'ec2-3-210-65-73.compute-1.amazonaws.com'
 }
 
 
@@ -63,7 +66,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         # configure arguments
         parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=None,
+        parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to build")
         parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
@@ -97,15 +100,26 @@ class DTCommand(DTCommandAbs):
                             help="Docker socket or hostname where to deliver the image")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
-        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
-        dtslogger.info('Project workspace: {}'.format(code_dir))
+        dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # define labels / build-args
         buildlabels = []
         buildargs = []
         # CI builds
         if parsed.ci:
             parsed.pull = True
+            parsed.cloud = True
             parsed.no_multiarch = True
+            parsed.push = True
+            parsed.rm = True
+            # check that the env variables are set
+            for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
+                if 'DUCKIETOWN_CI_'+key not in os.environ:
+                    dtslogger.error(
+                        'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
+                    )
+                    sys.exit(5)
+            # set configuration
+            parsed.arch = os.environ['DUCKIETOWN_CI_ARCH']
             buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.authoritative=1']
         # cloud build
         if parsed.cloud:
@@ -113,12 +127,15 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. Aborting...')
                 exit(3)
             if parsed.machine != DEFAULT_MACHINE:
-                dtslogger.error('The parameter --machine (-H) cannot be set together with ' \
-                    + '--cloud. Use --destionation (-D) if you want to specify ' \
-                    + 'a destination for the image. Aborting...')
+                dtslogger.error('The parameter --machine (-H) cannot be set together with '
+                                + '--cloud. Use --destionation (-D) if you want to specify '
+                                + 'a destination for the image. Aborting...')
                 exit(4)
             # configure docker for DT
-            token = shell.get_dt1_token()
+            if parsed.ci:
+                token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
+            else:
+                token = shell.get_dt1_token()
             add_token_to_docker_config(token)
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
@@ -127,9 +144,9 @@ class DTCommand(DTCommandAbs):
                 parsed.destination = DEFAULT_MACHINE
         # show info about project
         shell.include.devel.info.command(shell, args)
-        project_info = shell.include.devel.info.get_project_info(code_dir)
+        project_info = shell.include.devel.info.get_project_info(parsed.workdir)
         # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(code_dir)
+        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info['REPOSITORY']
         branch = repo_info['BRANCH']
         nmodified = repo_info['INDEX_NUM_MODIFIED']
@@ -145,10 +162,19 @@ class DTCommand(DTCommandAbs):
         # check if the index is clean
         if nmodified + nadded > 0:
             dtslogger.warning('Your index is not clean (some files are not committed).')
-            dtslogger.warning('If you know what you are doing, use --force (-f) to force the execution of the command.')
+            dtslogger.warning('If you know what you are doing, use --force (-f) to ' +
+                              'force the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
+        # in CI, we only build certain branches
+        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != branch:
+            dtslogger.info(
+                'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
+                    os.environ['DUCKIETOWN_CI_MAJOR'], branch
+                )
+            )
+            exit(0)
         # create defaults
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
@@ -216,6 +242,7 @@ class DTCommand(DTCommandAbs):
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
             buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(branch, parsed.arch)]
             buildlabels += ['--label', 'LOOP=1']
+            tag = "%s-LOOP-%s" % (default_tag, parsed.arch)
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
@@ -258,7 +285,7 @@ class DTCommand(DTCommandAbs):
                     '-t', tag] + \
                     buildlabels + \
                     buildargs + [
-                    code_dir
+                    parsed.workdir
         ], True, True)
         # get image history
         historylog = _run_cmd([
@@ -273,7 +300,7 @@ class DTCommand(DTCommandAbs):
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(buildlog, historylog, codens=100)
-        # pull image (if built on the cloud)
+        # pull image (if the destination is different from the builder machine)
         if parsed.cloud or (parsed.destination and parsed.machine != parsed.destination):
             _transfer_image(
                 origin=parsed.machine,
@@ -281,10 +308,25 @@ class DTCommand(DTCommandAbs):
                 image=tag,
                 image_size=final_image_size
             )
+        # perform docker login if on CI
+        if parsed.ci:
+            _run_cmd([
+                'docker',
+                '-H=%s' % parsed.destination,
+                'login',
+                '--username={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_USER']),
+                '--password={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN'])
+            ])
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
-                shell.include.devel.push.command(shell, args)
+                push_args = parsed
+                if parsed.cloud:
+                    # the image was transferred to this machine, so we push from here
+                    push_args = copy.deepcopy(parsed)
+                    push_args.machine = parsed.destination
+                # call devel/push
+                shell.include.devel.push.command(shell, [], parsed=push_args)
             else:
                 msg = "Forbidden: You cannot push an image when using the experimental mode `--loop`."
                 dtslogger.warn(msg)
@@ -296,7 +338,6 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def complete(shell, word, line):
         return []
-
 
 
 def _transfer_image(origin, destination, image, image_size):
@@ -328,12 +369,11 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
             line = line.rstrip()
             if print_output:
-                matches = p.match(line.strip()) is not None
-                if matches and last_matched:
+                if last_matched:
                     sys.stdout.write("\033[F")
                 sys.stdout.write(line + "\033[K" + "\n")
                 sys.stdout.flush()
-                last_matched = matches
+                last_matched = p.match(line.strip()) is not None
             if line:
                 lines.append(line)
         proc.wait()
@@ -346,17 +386,26 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
     else:
         subprocess.check_call(cmd, shell=shell)
 
+
 def _sizeof_fmt(num, suffix='B'):
-    for unit in ['','K','M','G','T','P','E','Z']:
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.2f%s%s" % (num, 'Yi', suffix)
 
+
 def add_token_to_docker_config(token):
+    config = {}
     config_file = os.path.expanduser('~/.docker/config.json')
-    config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
+    if os.path.isfile(config_file):
+        config = json.load(open(config_file, 'r')) if os.path.exists(config_file) else {}
+    else:
+        docker_config_dir = os.path.dirname(config_file)
+        dtslogger.info('Creating directory "{:s}"'.format(docker_config_dir))
+        os.makedirs(docker_config_dir)
     if 'HttpHeaders' not in config:
         config['HttpHeaders'] = {}
-    config['HttpHeaders']['X-Duckietown-Token'] = token
-    json.dump(config, open(config_file, 'w'), indent=2)
+    if 'X-Duckietown-Token' not in config['HttpHeaders']:
+        config['HttpHeaders']['X-Duckietown-Token'] = token
+        json.dump(config, open(config_file, 'w'), indent=2)

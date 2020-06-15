@@ -1,5 +1,3 @@
-import os
-import sys
 import json
 import time
 from types import SimpleNamespace
@@ -15,15 +13,17 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
         hostname=target_hostname,
         data=None
     )
+
     def cb(service: str, hostname: str, data: dict):
         if target_service == service and target_hostname == hostname:
             workspace.data = data
             workspace.service = service
             workspace.hostname = hostname
+
     # perform discover
     zeroconf = Zeroconf()
     listener = DiscoverListener(service_in_callback=cb)
-    browser = ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
+    ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
     # wait
     stime = time.time()
     while workspace.data is None:
@@ -34,7 +34,7 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
             raise TimeoutError(msg)
     zeroconf.close()
     # ---
-    return (workspace.service, workspace.hostname, workspace.data)
+    return workspace.service, workspace.hostname, workspace.data
 
 
 class DiscoverListener:

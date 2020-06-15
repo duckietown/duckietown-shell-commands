@@ -1,2 +1,2 @@
 def get_robot_types():
-    return ['duckiebot', 'duckiedrone', 'watchtower', 'greenstation']
+    return ['duckiebot', 'duckiedrone', 'watchtower', 'greenstation', 'workstation', 'traffic_light']
