@@ -1,9 +1,8 @@
 import os
-import sys
 import json
 import time
 import argparse
-import math
+import logging
 from collections import defaultdict
 from dt_shell import DTCommandAbs, dtslogger
 from utils.table_utils import format_matrix, fill_cell
@@ -22,13 +21,13 @@ usage = """
 
 """
 
+
 class DiscoverListener:
 
     services = defaultdict(dict)
     supported_services = [
         'DT::ONLINE',
         'DT::PRESENCE',
-        'DT::DEVICE-INIT',
         'DT::DASHBOARD'
     ]
 
@@ -45,16 +44,22 @@ class DiscoverListener:
         return name, server
 
     def remove_service(self, zeroconf, type, name):
+        dtslogger.debug('SERVICE_REM: %s (%s)' % (str(name), str(type)))
         name, server = self.process_service_name(name)
         if not name:
             return
         del self.services[name][server]
 
     def add_service(self, zeroconf, type, sname):
+        dtslogger.debug('SERVICE_ADD: %s (%s)' % (str(sname), str(type)))
         name, server = self.process_service_name(sname)
         if not name:
             return
+        dtslogger.debug('SERVICE_ADD: %s (%s)' % (str(name), str(server)))
         info = zeroconf.get_service_info(type, sname)
+        if info is None:
+            return
+        dtslogger.debug('SERVICE_ADD: %s' % (str(info)))
         txt = json.loads(list(info.properties.keys())[0].decode('utf-8')) \
             if len(info.properties) \
             else dict()
@@ -143,7 +148,8 @@ class DTCommand(DTCommandAbs):
         browser = ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
 
         while True:
-            listener.print()
+            if dtslogger.level > logging.DEBUG:
+                listener.print()
             time.sleep(1.0 / REFRESH_HZ)
 
 
