@@ -76,6 +76,10 @@ MODULES_TO_LOAD = [
     },
     {
         'owner': 'duckietown',
+        'module': 'dt-ros-commons'
+    },
+    {
+        'owner': 'duckietown',
         'module': 'dt-duckiebot-interface'
     },
     {
@@ -89,6 +93,10 @@ MODULES_TO_LOAD = [
     {
         'owner': 'duckietown',
         'module': 'dt-core'
+    },
+    {
+        'owner': 'duckietown',
+        'module': 'dt-system-monitor'
     }
 ]
 
