@@ -21,7 +21,7 @@ services:
     volumes:
       - /data:/data
       # compose volume
-      - compose-data:/var/www/html
+      - compose-data:/user-data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
@@ -35,15 +35,15 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-#  device-proxy:
-#    image: duckietown/dt-device-proxy:daffy-arm32v7
-#    container_name: device-proxy
-#    restart: always
-#    network_mode: host
-#    volumes:
-#      - /data:/data
-#      # avahi socket
-#      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+  device-proxy:
+    image: duckietown/dt-device-proxy:daffy-arm32v7
+    container_name: device-proxy
+    restart: always
+    network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-health:
     image: duckietown/dt-device-health:daffy-arm32v7
