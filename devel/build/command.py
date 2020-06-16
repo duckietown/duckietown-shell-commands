@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from shutil import which
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from utils.dt_module_utils import \
     BUILD_COMPATIBILITY_MAP, \
     DOCKER_LABEL_DOMAIN, \
     CLOUD_BUILDERS
+from utils.misc_utils import human_time
 
 from .image_analyzer import ImageAnalyzer
 
@@ -66,6 +68,7 @@ class DTCommand(DTCommandAbs):
                             help="Docker socket or hostname where to deliver the image")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        stime = time.time()
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # define labels / build-args
         buildlabels = []
@@ -302,7 +305,9 @@ class DTCommand(DTCommandAbs):
         if len(launchers) > 0:
             extra_info.append('Image launchers:')
             for launcher in launchers:
-                extra_info.append('  - {:s}'.format(launcher))
+                extra_info.append(' - {:s}'.format(launcher))
+        # - timing
+        extra_info.append('Time: {}'.format(human_time(time.time() - stime)))
         # compile extra info
         extra_info = '\n'.join(extra_info)
         # run docker image analysis
