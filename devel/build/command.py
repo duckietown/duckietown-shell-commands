@@ -66,6 +66,8 @@ class DTCommand(DTCommandAbs):
                             help="Build the image on the cloud")
         parser.add_argument('-D', '--destination', default=None,
                             help="Docker socket or hostname where to deliver the image")
+        parser.add_argument('--docs', default=False, action='store_true',
+                            help="Build the code documentation as well")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
@@ -354,6 +356,10 @@ class DTCommand(DTCommandAbs):
                         parsed.machine
                     ) + ". Just a heads up!"
                 )
+        # build code docs
+        if parsed.docs:
+            # build docs
+            shell.include.devel.docs.build.command(shell, args)
 
     @staticmethod
     def complete(shell, word, line):

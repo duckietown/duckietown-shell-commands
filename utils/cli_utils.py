@@ -40,7 +40,6 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
             env=env,
         )
         if return_code == 0:
-            print("Done!")
             break
         else:
             if retry == 1 or retry == trial+1:

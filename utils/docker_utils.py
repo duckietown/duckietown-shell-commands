@@ -39,7 +39,7 @@ Docker Endpoint:
 
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     client = docker.DockerClient(base_url=f'tcp://{hostname}:{port}') \
-        if hostname != DEFAULT_MACHINE else docker.DockerClient(base_url=DEFAULT_MACHINE)
+        if (hostname is not None and hostname != DEFAULT_MACHINE) else docker.DockerClient()
     epoint_arch = client.info()['Architecture']
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f'Architecture {epoint_arch} not supported!')
