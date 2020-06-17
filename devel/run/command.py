@@ -4,6 +4,8 @@ import shutil
 import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
+from utils.networking_utils import get_duckiebot_ip
+from utils.docker_utils import default_env
 
 
 DEFAULT_ARCH = 'arm32v7'
@@ -86,6 +88,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to pull the image of the project")
         parser.add_argument('--force-pull', default=False, action='store_true',
                             help="Whether to force pull the image of the project")
+        parser.add_argument('--duckiebot', default=None,
+                            help="specify which duckiebot to interface to")
         parser.add_argument('--build', default=False, action='store_true',
                             help="Whether to build the image of the project")
         parser.add_argument('--no-multiarch', default=False, action='store_true',
@@ -222,7 +226,7 @@ class DTCommand(DTCommandAbs):
                 try:
                     _run_cmd([
                         'docker',
-                            '-H=%s' % parsed.machine,
+                        '-H=%s' % parsed.machine,
                             'run',
                                 '--rm',
                                 '--privileged',
@@ -274,6 +278,8 @@ class DTCommand(DTCommandAbs):
             parsed.docker_args = []
         if parsed.rm:
             parsed.docker_args += ['--rm']
+        if parsed.duckiebot is not None:
+            parsed.docker_args += setup_duckiebot_env_vars(parsed.duckiebot)
         # container name
         if not parsed.name:
             parsed.name = 'dts-run-{:s}'.format(repo)
@@ -328,3 +334,16 @@ def _sizeof_fmt(num, suffix='B'):
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.2f%s%s" % (num, 'Yi', suffix)
+
+def setup_duckiebot_env_vars(db_name):
+    db_ip = get_duckiebot_ip(db_name)
+    env_vars = default_env(db_name, db_ip)
+    env_vars.update({
+        "VEHICLE_NAME": db_name,
+        "VEHICLE_IP": db_ip
+    })
+    env_vars_string = []
+    for var in env_vars:
+        env_vars_string += ['--env']
+        env_vars_string += ['%s=%s' % (var, env_vars[var])]
+    return env_vars_string
