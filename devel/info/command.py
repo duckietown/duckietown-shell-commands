@@ -23,7 +23,11 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     help = "Shows information about the current project"
 
-    REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"]}
+    REQUIRED_METADATA_KEYS = {
+        "*": ["TYPE_VERSION"],
+        "1": ["TYPE", "VERSION"],
+        "2": ["TYPE", "VERSION"]
+    }
 
     @staticmethod
     def command(shell: DTShell, args):

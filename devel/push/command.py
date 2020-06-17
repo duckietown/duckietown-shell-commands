@@ -3,10 +3,10 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
-from devel.build import ARCH_MAP
 
-DEFAULT_ARCH = "arm32v7"
-DEFAULT_MACHINE = "unix:///var/run/docker.sock"
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture
+from utils.dt_module_utils import ARCH_MAP
+
 
 from dt_shell import DTShell
 
@@ -27,7 +27,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-a",
             "--arch",
-            default=DEFAULT_ARCH,
+            default=None,
             help="Target architecture for the image to push",
         )
         parser.add_argument(
@@ -77,6 +77,10 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning("Forced!")
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            parsed.arch = get_endpoint_architecture(parsed.machine)
+            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         user = parsed.username
         default_tag = "%s/%s:%s" % (user, repo, branch)
@@ -98,7 +102,7 @@ class DTCommand(DTCommandAbs):
             cmd = ["docker", "manifest", "push", "-p", default_tag]
             _run_cmd(cmd, env)
         except subprocess.CalledProcessError as e:
-            dtslogger.warning(e.message)   
+            dtslogger.warning(str(e))
 
     @staticmethod
     def complete(shell, word, line):

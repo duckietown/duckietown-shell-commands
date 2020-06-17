@@ -14,6 +14,7 @@ from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
+from utils.dt_module_utils import CANONICAL_ARCH
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -22,6 +23,28 @@ RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = '2375'
+
+DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
+DOCKER_INFO = """
+Docker Endpoint:
+  Hostname: {Name}
+  Operating System: {OperatingSystem}
+  Kernel Version: {KernelVersion}
+  OSType: {OSType}
+  Architecture: {Architecture}
+  Total Memory: {MemTotal}
+  CPUs: {NCPU}
+"""
+
+
+def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
+    client = docker.DockerClient(base_url=f'tcp://{hostname}:{port}') \
+        if hostname != DEFAULT_MACHINE else docker.DockerClient(base_url=DEFAULT_MACHINE)
+    epoint_arch = client.info()['Architecture']
+    if epoint_arch not in CANONICAL_ARCH:
+        dtslogger.error(f'Architecture {epoint_arch} not supported!')
+        exit(1)
+    return CANONICAL_ARCH[epoint_arch]
 
 
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
@@ -414,6 +437,7 @@ def remove_container(container):
         container.remove()
     except Exception as e:
         dtslogger.warn("Container %s not found to remove! %s" % (container, e))
+
 
 def pull_if_not_exist(client, image_name):
     from docker.errors import ImageNotFound

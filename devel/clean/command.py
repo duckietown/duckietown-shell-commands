@@ -3,20 +3,17 @@ import io
 import os
 import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, DTShell
 
-DEFAULT_ARCH = "arm32v7"
-DEFAULT_MACHINE = "unix:///var/run/docker.sock"
-
-from dt_shell import DTShell
+from utils.docker_utils import DEFAULT_MACHINE
+from utils.docker_utils import get_endpoint_architecture
 
 
 class DTCommand(DTCommandAbs):
     help = "Removes the Docker images relative to the current project"
 
     @staticmethod
-    def command(shell: DTShell, args):
-        # configure arguments
+    def _parse_args(args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C",
@@ -27,7 +24,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-a",
             "--arch",
-            default=DEFAULT_ARCH,
+            default=None,
             help="Target architecture for the image to clean",
         )
         parser.add_argument(
@@ -37,6 +34,13 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to clean the image",
         )
         parsed, _ = parser.parse_known_args(args=args)
+        return parsed
+
+    @staticmethod
+    def command(shell: DTShell, args, **kwargs):
+        parsed = DTCommand._parse_args(args)
+        if 'parsed' in kwargs:
+            parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
@@ -45,20 +49,27 @@ class DTCommand(DTCommandAbs):
         repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info["REPOSITORY"]
         branch = repo_info["BRANCH"]
-        nmodified = repo_info["INDEX_NUM_MODIFIED"]
-        nadded = repo_info["INDEX_NUM_ADDED"]
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            parsed.arch = get_endpoint_architecture(parsed.machine)
+            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         default_tag = "duckietown/%s:%s" % (repo, branch)
         tag = "%s-%s" % (default_tag, parsed.arch)
-        tags = [tag] + ([default_tag] if parsed.arch == DEFAULT_ARCH else [])
-        # remove images
-        for t in tags:
-            img = _run_cmd(
-                ["docker", "-H=%s" % parsed.machine, "images", "-q", t], get_output=True
-            )
-            if img:
-                dtslogger.info("Removing image {}...".format(t))
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", t])
+        # remove image
+        img = _run_cmd(
+            ["docker", "-H=%s" % parsed.machine, "images", "-q", tag], get_output=True
+        )
+        if img:
+            dtslogger.info("Removing image {}...".format(tag))
+            try:
+                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", tag])
+            except RuntimeError:
+                dtslogger.warn(
+                    "We had some issues removing the image '{:s}' on '{:s}'".format(
+                        tag, parsed.machine
+                    ) + ". Just a heads up!"
+                )
 
     @staticmethod
     def complete(shell, word, line):

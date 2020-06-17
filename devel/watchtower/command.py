@@ -3,16 +3,16 @@ import subprocess
 
 from termcolor import colored
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, DTShell
+
+from utils.docker_utils import DEFAULT_MACHINE
 
 WATCHTOWER_IMAGE = "v2tec/watchtower"
-DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 VALID_COMMANDS = ["stop", "start", "status"]
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
     help = "Manages a Docker watchtower instance"
 
     @staticmethod
