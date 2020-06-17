@@ -9,6 +9,7 @@ import sys
 import time
 from shutil import which
 from pathlib import Path
+from termcolor import colored
 
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -51,15 +52,16 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--push', default=False, action='store_true',
                             help="Whether to push the resulting image")
         parser.add_argument('--rm', default=False, action='store_true',
-                            help="Whether to remove the images once the build succeded (after pushing)")
+                            help="Remove the images once the build succeded (after pushing)")
         parser.add_argument('--loop', default=False, action='store_true',
-                            help="(Experimental) Whether to reuse the same base image to speed up the build process")
+                            help="(Developers only) Reuse the same base image, speed up the build")
         parser.add_argument('--ignore-watchtower', default=False, action='store_true',
                             help="Whether to ignore a running Docker watchtower")
         parser.add_argument('-u','--username',default="duckietown",
                             help="The docker registry username to tag the image with")
         parser.add_argument('-b', '--base-tag', default=None,
-                            help="Docker tag for the base image. Used when the base image is a development version")
+                            help="Docker tag for the base image. "
+                                 "Use when the base image is also a development version")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parser.add_argument('--cloud', default=False, action='store_true',
@@ -68,6 +70,8 @@ class DTCommand(DTCommandAbs):
                             help="Docker socket or hostname where to deliver the image")
         parser.add_argument('--docs', default=False, action='store_true',
                             help="Build the code documentation as well")
+        parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                            help="Be verbose")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
@@ -278,7 +282,7 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info('Found an image with the same name. Using it as cache source.')
 
-        # build
+        # build code
         buildlog = _run_cmd([
             'docker',
                 '-H=%s' % parsed.machine,
@@ -290,6 +294,13 @@ class DTCommand(DTCommandAbs):
                     buildargs + [
                     parsed.workdir
         ], True, True)
+
+        # build code docs
+        if parsed.docs:
+            docs_args = ['--quiet'] * int(not parsed.verbose)
+            # build docs
+            shell.include.devel.docs.build.command(shell, args + docs_args)
+
         # get image history
         historylog = _run_cmd([
             'docker',
@@ -310,6 +321,11 @@ class DTCommand(DTCommandAbs):
                 extra_info.append(' - {:s}'.format(launcher))
         # - timing
         extra_info.append('Time: {}'.format(human_time(time.time() - stime)))
+        # - documentation
+        extra_info.append('Documentation: {}'.format(
+            colored('Built', 'green') if parsed.docs else
+            colored('Skipped', 'yellow')
+        ))
         # compile extra info
         extra_info = '\n'.join(extra_info)
         # run docker image analysis
@@ -356,10 +372,6 @@ class DTCommand(DTCommandAbs):
                         parsed.machine
                     ) + ". Just a heads up!"
                 )
-        # build code docs
-        if parsed.docs:
-            # build docs
-            shell.include.devel.docs.build.command(shell, args)
 
     @staticmethod
     def complete(shell, word, line):
