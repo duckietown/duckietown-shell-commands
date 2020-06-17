@@ -72,7 +72,7 @@ MODULES_TO_LOAD = [
     },
     {
         'owner': 'duckietown',
-        'module': 'dt-duckiebot-dashboard'
+        'module': 'dt-device-dashboard'
     },
     {
         'owner': 'duckietown',
@@ -116,6 +116,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
+        global DISK_BY_LABEL
         parser = argparse.ArgumentParser()
         # define parser arguments
         parser.add_argument(
@@ -152,13 +153,14 @@ class DTCommand(DTCommandAbs):
         # parse arguments
         parsed = parser.parse_args(args=args)
         # check given steps
-        parsed.steps = parsed.steps.split(',')
+        f = lambda s: len(s) > 0
+        parsed.steps = list(filter(f, parsed.steps.split(',')))
         non_supported_steps = set(parsed.steps).difference(set(SUPPORTED_STEPS))
         if len(non_supported_steps):
             dtslogger.error(f'These steps are not supported: {non_supported_steps}')
             return
         # check given steps (to skip)
-        parsed.no_steps = parsed.no_steps.split(',')
+        parsed.no_steps = list(filter(f, parsed.no_steps.split(',')))
         non_supported_steps = set(parsed.no_steps).difference(set(SUPPORTED_STEPS))
         if len(non_supported_steps):
             dtslogger.error(f'These steps are not supported: {non_supported_steps}')
@@ -298,6 +300,9 @@ class DTCommand(DTCommandAbs):
                 loopdev = _mount_virtual_sd_card(out_file_path('img'))
                 dtslogger.info(f"Disk {out_file_path('img')} successfully mounted on {loopdev}")
             dtslogger.info('Step END: mount\n')
+        # now we now the hard link to the device, avoid /dev/disk/by-label, prefer /dev/loop
+        # it is more stable
+        DISK_BY_LABEL = lambda p: f"{loopdev}p{DISK_IMAGE_PARTITION_TABLE[p]}"
         # Step: mount
         # <------
         #
@@ -693,8 +698,9 @@ def _get_file_length(filepath):
 def _mount_partition(partition):
     dtslogger.info(f'Mounting partition "{partition}"...')
     # refresh devices module
-    for i in range(3):
-        if os.path.exists(DISK_BY_LABEL(partition)):
+    max_retries = 3
+    for i in range(max_retries):
+        if os.path.exists(PARTITION_MOUNTPOINT(partition)):
             break
         # refresh kernel module
         _run_cmd(['sudo', 'udevadm', 'trigger'])
@@ -702,11 +708,17 @@ def _mount_partition(partition):
         if i > 0:
             dtslogger.info('Waiting for the device module to pick up the changes')
             time.sleep(2)
-    # mount partition
-    if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-        _wait_for_disk(DISK_BY_LABEL(partition), timeout=20)
-        _run_cmd(["udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
-        time.sleep(2)
+        # mount partition
+        if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
+            _wait_for_disk(DISK_BY_LABEL(partition), timeout=20)
+            try:
+                _run_cmd(["udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
+                break
+            except BaseException as e:
+                if i == max_retries-1:
+                    raise e
+                dtslogger.info(f'We had issues mounting partition "{partition}". Retrying soon.')
+            time.sleep(2)
     # ---
     assert os.path.exists(PARTITION_MOUNTPOINT(partition))
     dtslogger.info(f'Partition "{partition}" successfully mounted!')
@@ -780,8 +792,8 @@ def _mount_virtual_sd_card(disk_file):
     # make sure there is not a conflict with other partitions
     if os.path.exists(DISK_BY_LABEL('HypriotOS')) or os.path.exists(DISK_BY_LABEL('root')):
         dtslogger.error(
-            'Another partition with the same names (HypriotOS, root) was found in the system. '
-            'Detach them before continuing.'
+            'At least one partition with a conflicting name (e.g., HypriotOS, root) was found '
+            'in the system. Detach them before continuing.'
         )
         exit(4)
     # mount loop device
