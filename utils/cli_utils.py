@@ -30,13 +30,13 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
         if trial > 0:
             msg = f"An error occurred while running r{run_cmd}, retrying (trial={trial+1})"
             dtslogger.warning(msg)
-        dtslogger.debug(run_cmd)
+        dtslogger.debug(' $ %r' % run_cmd)
         return_code = subprocess.call(
             run_cmd,
             shell=shell,
             stdin=sys.stdin,
-            stderr=None if nostderr else sys.stderr,
-            stdout=None if nostdout else sys.stdout,
+            stderr=subprocess.PIPE if nostderr else sys.stderr,
+            stdout=subprocess.PIPE if nostdout else sys.stdout,
             env=env,
         )
         if return_code == 0:
