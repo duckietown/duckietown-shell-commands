@@ -18,7 +18,7 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to build")
         parser.add_argument('-n', '--dry-run', default=False, action='store_true',
                             help="Don't write any files, just pretend.")
-        parser.add_argument('part', nargs='1',
+        parser.add_argument('part', nargs='?',
                             choices=['major', 'minor', 'patch'], default='patch',
                             help="Part of the version to bump")
         parsed, _ = parser.parse_known_args(args=args)
@@ -49,7 +49,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning('Please, commit your changes and try again.')
             exit(1)
         # prepare call
-        options = []
+        options = ['--verbose']
         if parsed.dry_run:
             options += ['--dry-run']
         cmd = ['bumpversion'] + options + [parsed.part]
