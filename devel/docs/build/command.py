@@ -20,12 +20,16 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to build")
         parser.add_argument('-f', '--force', default=False, action='store_true',
                             help="Whether to force the build when the git index is not clean")
-        parser.add_argument('-u','--username',default="duckietown",
+        parser.add_argument('-u', '--username',default="duckietown",
                             help="The docker registry username to tag the image with")
         parser.add_argument('--push', default=False, action='store_true',
-                            help="Whether to push the resulting image")
+                            help="Whether to push the resulting documentation")
+        parser.add_argument('--loop', default=False, action='store_true',
+                            help="(Developers only) Reuse the same base image, speed up the build")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
+        parser.add_argument('--quiet', default=False, action='store_true',
+                            help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
@@ -44,7 +48,8 @@ class DTCommand(DTCommandAbs):
                     )
                     sys.exit(5)
         # show info about project
-        shell.include.devel.info.command(shell, args)
+        if not parsed.quiet:
+            shell.include.devel.info.command(shell, args)
         # get info about current repo
         repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
         repo = repo_info['REPOSITORY']
@@ -72,8 +77,16 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
 
         # create defaults
-        tag = "%s/%s:%s-%s" % (parsed.username, repo, branch, arch)
-        docs_tag = "%s/%s:%s-docs-%s" % (parsed.username, repo, branch, arch)
+        image = "%s/%s" % (parsed.username, repo)
+        image_tag_components = [branch]
+        docs_tag_components = [branch, 'docs']
+        if parsed.loop:
+            image_tag_components += ['LOOP']
+            docs_tag_components += ['LOOP']
+        image_tag_components += [arch]
+        docs_tag_components += [arch]
+        tag = "%s:%s" % (image, '-'.join(image_tag_components))
+        docs_tag = "%s:%s" % (image, '-'.join(image_tag_components))
 
         # file locators
         repo_file = lambda *p: os.path.join(parsed.workdir, *p)
@@ -88,8 +101,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Done!")
 
         # build and run the docs container
-        dtslogger.info("Building the documentation...")
-
+        dtslogger.info("Building the documentation environment...")
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
         dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         start_command_in_subprocess([
@@ -99,15 +111,19 @@ class DTCommand(DTCommandAbs):
                     '-t', docs_tag,
                     '--build-arg', f'BASE_IMAGE={tag}',
                     cmd_dir
-        ], shell=False)
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        dtslogger.info("Done!")
 
         # clear output directory
         for f in os.listdir(repo_file('html')):
             if f.endswith('HTML_DOCS_WILL_BE_GENERATED_HERE'):
                 continue
-            start_command_in_subprocess(['rm', '-rf', repo_file('html', f)], shell=False)
+            start_command_in_subprocess([
+                'rm', '-rf', repo_file('html', f)
+            ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
         # build docs
+        dtslogger.info("Building the documentation environment...")
         start_command_in_subprocess([
             'docker',
                 'run',
@@ -117,7 +133,8 @@ class DTCommand(DTCommandAbs):
                     '--volume', f"{repo_file('docs')}:/docs/in",
                     '--volume', f"{repo_file('html')}:/docs/out",
                     docs_tag
-        ], shell=False)
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        dtslogger.info("Done!")
 
     @staticmethod
     def complete(shell, word, line):

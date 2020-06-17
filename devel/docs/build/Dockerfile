@@ -1,6 +1,9 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
+# environment
+ENV DISABLE_CONTRACTS 1
+
 # install apt dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
