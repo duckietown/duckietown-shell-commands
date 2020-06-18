@@ -11,6 +11,5 @@ def human_time(time_secs, compact=False):
         parts.append('{} {}'.format(hours, label('hours')))
     if days > 0 or hours > 0 or minutes > 0:
         parts.append('{} {}'.format(minutes, label('minutes')))
-    if seconds > 0:
-        parts.append('{} {}'.format(seconds, label('seconds')))
+    parts.append('{} {}'.format(seconds, label('seconds')))
     return ', '.join(parts)
