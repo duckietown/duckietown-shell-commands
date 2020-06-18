@@ -22,6 +22,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force the build when the git index is not clean")
         parser.add_argument('-u', '--username',default="duckietown",
                             help="The docker registry username to tag the image with")
+        parser.add_argument('--no-cache', default=False, action='store_true',
+                            help="Whether to use the Docker cache")
         parser.add_argument('--push', default=False, action='store_true',
                             help="Whether to push the resulting documentation")
         parser.add_argument('--loop', default=False, action='store_true',
@@ -32,6 +34,7 @@ class DTCommand(DTCommandAbs):
                             help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # CI builds
         if parsed.ci:
@@ -86,7 +89,7 @@ class DTCommand(DTCommandAbs):
         image_tag_components += [arch]
         docs_tag_components += [arch]
         tag = "%s:%s" % (image, '-'.join(image_tag_components))
-        docs_tag = "%s:%s" % (image, '-'.join(image_tag_components))
+        docs_tag = "%s:%s" % (image, '-'.join(docs_tag_components))
 
         # file locators
         repo_file = lambda *p: os.path.join(parsed.workdir, *p)
@@ -110,6 +113,7 @@ class DTCommand(DTCommandAbs):
                     '-f', dockerfile,
                     '-t', docs_tag,
                     '--build-arg', f'BASE_IMAGE={tag}',
+                    f'--no-cache={int(parsed.no_cache)}',
                     cmd_dir
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")

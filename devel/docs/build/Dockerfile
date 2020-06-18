@@ -14,6 +14,7 @@ RUN python -m pip install \
     sphinx==1.7.0 \
     sphinx-rtd-theme \
     sphinx-autobuild \
+    pygments==2.5.2 \
     mock
 
 COPY assets/docs /docs
