@@ -75,6 +75,7 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
+        parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # define labels / build-args
         buildlabels = []
