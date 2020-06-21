@@ -154,13 +154,15 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args=args)
         # check given steps
         f = lambda s: len(s) > 0
-        parsed.steps = list(filter(f, parsed.steps.split(',')))
+        parsed.steps = parsed.steps.split(',')
+        parsed.steps = list(filter(f, parsed.steps))
         non_supported_steps = set(parsed.steps).difference(set(SUPPORTED_STEPS))
         if len(non_supported_steps):
             dtslogger.error(f'These steps are not supported: {non_supported_steps}')
             return
         # check given steps (to skip)
-        parsed.no_steps = list(filter(f, parsed.no_steps.split(',')))
+        parsed.no_steps = parsed.no_steps.split(',')
+        parsed.no_steps = list(filter(f, parsed.no_steps))
         non_supported_steps = set(parsed.no_steps).difference(set(SUPPORTED_STEPS))
         if len(non_supported_steps):
             dtslogger.error(f'These steps are not supported: {non_supported_steps}')
