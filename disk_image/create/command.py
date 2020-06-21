@@ -101,12 +101,14 @@ MODULES_TO_LOAD = [
 ]
 
 SUPPORTED_STEPS = [
-    'download', 'create', 'mount', 'resize', 'setup', 'docker', 'finalize', 'unmount', 'compress'
+    'download', 'create', 'mount', 'resize', 'upgrade',
+    'setup', 'docker', 'finalize', 'unmount', 'compress'
 ]
 
 CLI_TOOLS_NEEDED = [
     'wget', 'unzip', 'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm', 'udisksctl',
-    'losetup', 'parted', 'e2fsck', 'resize2fs', 'truncate'
+    'losetup', 'parted', 'e2fsck', 'resize2fs', 'truncate', 'mount', 'umount', 'touch', 'chroot',
+    'chmod', 'rm', 'docker'
 ]
 
 
@@ -340,6 +342,95 @@ class DTCommand(DTCommandAbs):
             # ---
             dtslogger.info('Step END: resize\n')
         # Step: resize
+        # <------
+        #
+        # ------>
+        # Step: upgrade
+        if 'upgrade' in parsed.steps:
+            dtslogger.info('Step BEGIN: upgrade')
+            # from this point on, if anything weird happens, unmount the disk
+            try:
+                # make sure that the disk is mounted
+                if loopdev is None:
+                    dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
+                    return
+                # check if the `root` disk device exists
+                root_partition_disk = DISK_DEVICE(
+                    device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE['root']
+                )
+                if not os.path.exists(root_partition_disk):
+                    raise ValueError(f'Disk device {root_partition_disk} not found')
+                # check if the `HypriotOS` disk device exists
+                hypriotos_partition_disk = DISK_DEVICE(
+                    device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE['HypriotOS']
+                )
+                if not os.path.exists(hypriotos_partition_disk):
+                    raise ValueError(f'Disk device {hypriotos_partition_disk} not found')
+                # mount `root` partition
+                _mount_partition('root')
+                # from this point on, if anything weird happens, unmount the `root` disk
+                try:
+                    # create fake (temporary) /dev/null inside root and make it publicly writable
+                    _dev_null = os.path.join(PARTITION_MOUNTPOINT('root'), 'dev', 'null')
+                    _run_cmd(['sudo', 'touch', _dev_null])
+                    _run_cmd(['sudo', 'chmod', '777', _dev_null])
+                    # configure the kernel for QEMU
+                    _run_cmd([
+                        'docker',
+                            'run',
+                                '--rm',
+                                '--privileged',
+                                'multiarch/qemu-user-static:register',
+                                    '--reset'
+                    ])
+                    # try running a simple echo from the new chroot, if an error occurs, we need
+                    # to check the QEMU configuration
+                    try:
+                        output = _run_cmd([
+                            'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
+                            'echo "Hello from an ARM chroot!"'
+                        ], get_output=True, shell=True)
+                        if 'Exec format error' in output:
+                            raise Exception('Exec format error')
+                    except (BaseException, subprocess.CalledProcessError) as e:
+                        dtslogger.error("An error occurred while trying to run an ARM binary "
+                                        "from the temporary chroot.\n"
+                                        "This usually indicates a misconfiguration of QEMU "
+                                        "on the host.\n"
+                                        "Please, make sure that you have the packages "
+                                        "'qemu-user-static' and 'binfmt-support' installed "
+                                        "via APT.\n\n"
+                                        "The full error is:\n\t%s" % str(e))
+                        exit(2)
+                    # mount the partition HypriotOS as root:/boot
+                    _boot = os.path.join(PARTITION_MOUNTPOINT('root'), 'boot')
+                    _run_cmd(['sudo', 'mount', '-t', 'auto', hypriotos_partition_disk, _boot])
+                    # from this point on, if anything weird happens, unmount the `root` disk
+                    try:
+                        # run full-upgrade on the new root
+                        _run_cmd([
+                            'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
+                            '/bin/bash -c '
+                            '"apt update && apt full-upgrade -y --no-install-recommends"'
+                        ], shell=True)
+                    except Exception as e:
+                        _run_cmd(['sudo', 'umount', _boot])
+                        raise e
+                    # unmount 'HypriotOS'
+                    _run_cmd(['sudo', 'umount', _boot])
+                    # remove temporary /dev/null
+                    _run_cmd(['sudo', 'rm', '-f', _dev_null])
+                except Exception as e:
+                    _umount_partition('root')
+                    raise e
+                # unmount 'root'
+                _umount_partition('root')
+                # ---
+            except Exception as e:
+                _umount_virtual_sd_card(out_file_path('img'))
+                raise e
+            dtslogger.info('Step END: upgrade\n')
+        # Step: upgrade
         # <------
         #
         # ------>
