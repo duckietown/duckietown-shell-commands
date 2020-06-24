@@ -14,7 +14,7 @@ from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
-from utils.dt_module_utils import CANONICAL_ARCH
+from utils.dtproject_utils import CANONICAL_ARCH
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"

@@ -14,11 +14,12 @@ from termcolor import colored
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture
-from utils.dt_module_utils import \
+from utils.dtproject_utils import \
     CANONICAL_ARCH, \
     BUILD_COMPATIBILITY_MAP, \
     DOCKER_LABEL_DOMAIN, \
-    CLOUD_BUILDERS
+    CLOUD_BUILDERS, \
+    DTProject
 from utils.misc_utils import human_time
 
 from .image_analyzer import ImageAnalyzer
@@ -118,28 +119,22 @@ class DTCommand(DTCommandAbs):
                 parsed.destination = DEFAULT_MACHINE
         # show info about project
         shell.include.devel.info.command(shell, args)
-        project_info = shell.include.devel.info.get_project_info(parsed.workdir)
+        project = DTProject(parsed.workdir)
         try:
-            project_template_ver = int(project_info['TYPE_VERSION'])
+            project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        repo = repo_info['REPOSITORY']
-        branch = repo_info['BRANCH']
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
         # add code labels
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.vcs=git"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.version.major={repo_info['BRANCH']}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.repository={repo_info['REPOSITORY']}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.branch={repo_info['BRANCH']}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.url={repo_info['ORIGIN.HTTPS.URL']}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.version.major={project.repository.branch}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.repository={project.repository.name}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.branch={project.repository.branch}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.url={project.repository.repository_page}"]
         # add template labels
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.name={project_info['TYPE']}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.version={project_info['TYPE_VERSION']}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.name={project.type}"]
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.version={project.type_version}"]
         # check if the index is clean
-        if nmodified + nadded > 0:
+        if project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
             dtslogger.warning('If you know what you are doing, use --force (-f) to ' +
                               'force the execution of the command.')
@@ -147,10 +142,10 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning('Forced!')
         # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != branch:
+        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != project.repository.branch:
             dtslogger.info(
                 'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_MAJOR'], branch
+                    os.environ['DUCKIETOWN_CI_MAJOR'], project.repository.branch
                 )
             )
             exit(0)
@@ -174,9 +169,7 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
-        user = parsed.username
-        default_tag = "%s/%s:%s" % (user, repo, branch)
-        tag = "%s-%s" % (default_tag, parsed.arch)
+        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -232,10 +225,9 @@ class DTCommand(DTCommandAbs):
             buildargs += ['--build-arg', 'MAJOR={}'.format(parsed.base_tag)]
         # loop mode (Experimental)
         if parsed.loop:
-            buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(repo)]
-            buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(branch, parsed.arch)]
+            buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(project.repository.name)]
+            buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(project.repository.branch, parsed.arch)]
             buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.image.loop=1']
-            tag = "%s-LOOP-%s" % (default_tag, parsed.arch)
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
@@ -248,23 +240,23 @@ class DTCommand(DTCommandAbs):
                         '-H=%s' % parsed.machine,
                         'image',
                         'inspect',
-                            tag
+                            image
                 ], get_output=True, suppress_errors=True)
                 is_present = True
             except (RuntimeError, subprocess.CalledProcessError):
                 pass
             if not is_present:
                 # try to pull the same image so Docker can use it as cache source
-                dtslogger.info('Pulling image "%s" to use as cache...' % tag)
+                dtslogger.info('Pulling image "%s" to use as cache...' % image)
                 try:
                     _run_cmd([
                         'docker',
                             '-H=%s' % parsed.machine,
                             'pull',
-                                tag
+                                image
                     ], get_output=True, print_output=True, suppress_errors=True)
                 except:
-                    dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % tag)
+                    dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % image)
             else:
                 dtslogger.info('Found an image with the same name. Using it as cache source.')
 
@@ -275,7 +267,7 @@ class DTCommand(DTCommandAbs):
                 'build',
                     '--pull=%d' % int(parsed.pull),
                     '--no-cache=%d' % int(parsed.no_cache),
-                    '-t', tag] + \
+                    '-t', image] + \
                     buildlabels + \
                     buildargs + [
                     parsed.workdir
@@ -295,7 +287,7 @@ class DTCommand(DTCommandAbs):
                     '-H=false',
                     '--format',
                     '{{.ID}}:{{.Size}}',
-                    tag
+                    image
         ], True)
         historylog = [l.split(':') for l in historylog if len(l.strip()) > 0]
         # round up extra info
@@ -323,7 +315,7 @@ class DTCommand(DTCommandAbs):
             _transfer_image(
                 origin=parsed.machine,
                 destination=parsed.destination,
-                image=tag,
+                image=image,
                 image_size=final_image_size
             )
         # perform docker login if on CI

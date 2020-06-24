@@ -6,6 +6,7 @@ from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import get_endpoint_architecture
 from utils.cli_utils import start_command_in_subprocess
+from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
@@ -53,14 +54,9 @@ class DTCommand(DTCommandAbs):
         # show info about project
         if not parsed.quiet:
             shell.include.devel.info.command(shell, args)
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        repo = repo_info['REPOSITORY']
-        branch = repo_info['BRANCH']
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
+        project = DTProject(parsed.workdir)
         # check if the index is clean
-        if nmodified + nadded > 0:
+        if project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
             dtslogger.warning('If you know what you are doing, use --force (-f) to ' +
                               'force the build.')
@@ -68,10 +64,10 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning('Forced!')
         # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != branch:
+        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != project.repository.branch:
             dtslogger.info(
                 'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_MAJOR'], branch
+                    os.environ['DUCKIETOWN_CI_MAJOR'], project.repository.branch
                 )
             )
             exit(0)
@@ -80,16 +76,8 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
 
         # create defaults
-        image = "%s/%s" % (parsed.username, repo)
-        image_tag_components = [branch]
-        docs_tag_components = [branch, 'docs']
-        if parsed.loop:
-            image_tag_components += ['LOOP']
-            docs_tag_components += ['LOOP']
-        image_tag_components += [arch]
-        docs_tag_components += [arch]
-        tag = "%s:%s" % (image, '-'.join(image_tag_components))
-        docs_tag = "%s:%s" % (image, '-'.join(docs_tag_components))
+        image = project.image(arch, loop=parsed.loop, owner=parsed.username)
+        image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators
         repo_file = lambda *p: os.path.join(parsed.workdir, *p)
@@ -111,8 +99,8 @@ class DTCommand(DTCommandAbs):
             'docker',
                 'build',
                     '-f', dockerfile,
-                    '-t', docs_tag,
-                    '--build-arg', f'BASE_IMAGE={tag}',
+                    '-t', image_docs,
+                    '--build-arg', f'BASE_IMAGE={image}',
                     f'--no-cache={int(parsed.no_cache)}',
                     cmd_dir
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
@@ -136,7 +124,7 @@ class DTCommand(DTCommandAbs):
                     '--user', str(os.geteuid()),
                     '--volume', f"{repo_file('docs')}:/docs/in",
                     '--volume', f"{repo_file('html')}:/docs/out",
-                    docs_tag
+                    image_docs
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
 

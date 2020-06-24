@@ -5,8 +5,8 @@ import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
-from utils.docker_utils import DEFAULT_MACHINE
-from utils.docker_utils import get_endpoint_architecture
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture
+from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
@@ -45,29 +45,25 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
         shell.include.devel.info.command(shell, args)
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        repo = repo_info["REPOSITORY"]
-        branch = repo_info["BRANCH"]
+        project = DTProject(parsed.workdir)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
-        default_tag = "duckietown/%s:%s" % (repo, branch)
-        tag = "%s-%s" % (default_tag, parsed.arch)
+        image = project.image(parsed.arch)
         # remove image
         img = _run_cmd(
-            ["docker", "-H=%s" % parsed.machine, "images", "-q", tag], get_output=True
+            ["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True
         )
         if img:
-            dtslogger.info("Removing image {}...".format(tag))
+            dtslogger.info("Removing image {}...".format(image))
             try:
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", tag])
+                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", image])
             except RuntimeError:
                 dtslogger.warn(
                     "We had some issues removing the image '{:s}' on '{:s}'".format(
-                        tag, parsed.machine
+                        image, parsed.machine
                     ) + ". Just a heads up!"
                 )
 

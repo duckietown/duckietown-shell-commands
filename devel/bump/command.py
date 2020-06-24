@@ -4,6 +4,7 @@ import os
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.cli_utils import start_command_in_subprocess
+from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
@@ -33,17 +34,9 @@ class DTCommand(DTCommandAbs):
         # show info about project
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
-        project_info = shell.include.devel.info.get_project_info(parsed.workdir)
-        try:
-            project_template_ver = int(project_info['TYPE_VERSION'])
-        except ValueError:
-            project_template_ver = -1
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
+        project = DTProject(parsed.workdir)
         # check if the index is clean
-        if nmodified + nadded > 0:
+        if project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
             dtslogger.warning('You cannot bump the version while the index is not clean.')
             dtslogger.warning('Please, commit your changes and try again.')

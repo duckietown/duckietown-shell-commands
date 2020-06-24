@@ -4,38 +4,11 @@ import shutil
 import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
-from .architecture_helper import get_module_configuration
 
 from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture
-from utils.dt_module_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP
+from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 
-TEMPLATE_TO_SRC = {
-    'template-basic': {
-        '1': lambda repo: ('code', '/packages/{:s}/'.format(repo)),
-        '2': lambda repo: ('packages', '/code/{:s}/'.format(repo))
-    },
-    'template-ros': {
-        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),
-        '2': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
-    }
-}
-TEMPLATE_TO_LAUNCHFILE = {
-    'template-basic': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
-    },
-    'template-ros': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
-        '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
-    }
-}
 LAUNCHER_FMT = 'dt-launcher-%s'
-DEFAULT_VOLUMES = [
-    '/var/run/avahi-daemon/socket'
-]
-CONFIGURATION_TO_IGNORE = [
-    'restart'
-]
 
 
 class DTCommand(DTCommandAbs):
@@ -89,6 +62,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('docker_args', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        parsed.workdir = os.path.abspath(parsed.workdir)
         # x-docker runtime
         if parsed.use_x_docker:
             parsed.runtime = 'x-docker'
@@ -99,31 +73,20 @@ class DTCommand(DTCommandAbs):
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # show info about project
         shell.include.devel.info.command(shell, args)
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        repo = repo_info['REPOSITORY']
-        branch = repo_info['BRANCH']
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
+        # get info about project
+        project = DTProject(parsed.workdir)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
-        # (try to) get the module configuration
+        # get the module configuration
         module_configuration_args = []
-        if not parsed.plain:
-            module_configuration_args = get_module_configuration(
-                repo, shell, parsed,
-                # remove options that do not align with the idea of dts/run
-                CONFIGURATION_TO_IGNORE
-            )
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
         if mount_code:
-            projects_to_mount = []
+            projects_to_mount = [parsed.workdir] if parsed.mount is True else []
             # (always) mount current project
-            projects_to_mount.append(parsed.workdir)
             # mount secondary projects
             if isinstance(parsed.mount, str):
                 projects_to_mount.extend([
@@ -137,31 +100,13 @@ class DTCommand(DTCommandAbs):
                         'The path "{:s}" is not a Duckietown project'.format(project_path)
                     )
                 # get project info
-                project = shell.include.devel.info.get_project_info(project_path)
-                template = project['TYPE']
-                template_v = project['TYPE_VERSION']
-                # make sure we support this project version
-                if template not in TEMPLATE_TO_SRC or \
-                        template_v not in TEMPLATE_TO_SRC[template] or \
-                        template not in TEMPLATE_TO_LAUNCHFILE or \
-                        template_v not in TEMPLATE_TO_LAUNCHFILE[template]:
-                    dtslogger.error(
-                        'Template {:s} v{:s} for project {:s} is not supported'.format(
-                            template, template_v, project_path
-                        )
-                    )
-                    exit(2)
-                # get project repo info
-                project_repo_info = shell.include.devel.info.get_repo_info(project_path)
-                project_repo = project_repo_info['REPOSITORY']
-                # create mountpoints
-                local_src, destination_src = \
-                    TEMPLATE_TO_SRC[template][template_v](project_repo)
-                local_launch, destination_launch = \
-                    TEMPLATE_TO_LAUNCHFILE[template][template_v](project_repo)
+                proj = DTProject(project_path)
+                # get local and remote paths to code and launchfile
+                local_src, destination_src = proj.code_paths()
+                local_launch, destination_launch = proj.launch_paths()
                 # (experimental): when we run remotely, use /code/<project> as base
                 if parsed.machine != DEFAULT_MACHINE:
-                    project_path = '/code/%s' % project_repo
+                    project_path = '/code/%s' % proj.repository.name
                 # compile mounpoints
                 mount_option += [
                     '-v', '{:s}:{:s}'.format(
@@ -174,22 +119,15 @@ class DTCommand(DTCommandAbs):
                     )
                 ]
         # check if the index is clean
-        if parsed.mount and nmodified + nadded > 0:
+        if parsed.mount and project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
             dtslogger.warning('If you know what you are doing, use --force (-f) to force '
                               'the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
-        # volumes
-        mount_option += [
-            '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
-            if os.path.exists(v)
-        ]
-        # loop mode (Experimental)
-        loop_tag = '' if not parsed.loop else 'LOOP-'
         # create image name
-        image = "%s/%s:%s-%s%s" % (parsed.username, repo, branch, loop_tag, parsed.arch)
+        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
         epoint = _run_cmd([
@@ -274,7 +212,7 @@ class DTCommand(DTCommandAbs):
             parsed.docker_args += ['--rm']
         # container name
         if not parsed.name:
-            parsed.name = 'dts-run-{:s}'.format(repo)
+            parsed.name = 'dts-run-{:s}'.format(project.name)
         parsed.docker_args += ['--name', parsed.name]
         # escape spaces in arguments
         parsed.docker_args = [a.replace(' ', '\\ ') for a in parsed.docker_args]
