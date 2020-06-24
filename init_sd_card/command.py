@@ -218,7 +218,7 @@ def step_download(shell, parsed, data):
     if not os.path.isfile(out_file('zip')):
         dtslogger.info('Downloading ZIP image...')
         try:
-            _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
+            _run_cmd(['wget', '--no-verbose', '--show-progress',
                       '--output-document', out_file('zip'), DISK_IMAGE_URL])
         except KeyboardInterrupt:
             dtslogger.info('Deleting partial ZIP file...')
