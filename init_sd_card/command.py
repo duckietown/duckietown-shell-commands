@@ -12,7 +12,7 @@ from datetime import datetime
 
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-from utils.duckietown_utils import get_robot_types
+from utils.duckietown_utils import get_robot_types, get_robot_configurations
 
 from .constants import \
     TIPS_AND_TRICKS, \
@@ -32,7 +32,6 @@ BASE_DISK_IMAGE = "dt-hypriotos-rpi-v1.11.1"
 DISK_IMAGE_URL = \
     f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/{BASE_DISK_IMAGE}.zip"
 DEFAULT_ROBOT_TYPE = "duckiebot"
-DEFAULT_ROBOT_CONFIGURATION = '__NOTSET__'
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ['download', 'flash', 'setup']
@@ -113,6 +112,12 @@ class DTCommand(DTCommandAbs):
             help="Which type of robot we are setting up"
         )
         parser.add_argument(
+            '--configuration',
+            dest='robot_configuration',
+            default=None,
+            help="Which configuration your robot is in"
+        )
+        parser.add_argument(
             "--no-cache",
             default=False,
             action='store_true',
@@ -144,6 +149,28 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info('Please retry while specifying a robot type. Bye bye!')
                 exit(1)
+        dtslogger.info(f'Robot type: {parsed.robot_type}')
+        # get the robot configuration
+        allowed_configs = get_robot_configurations(parsed.robot_type)
+        if parsed.robot_configuration is None:
+            dtslogger.info(f"You did not specify a robot configuration.\n"
+                           f"Given that your robot is a {parsed.robot_type}, possible "
+                           f"configurations are: {', '.join(allowed_configs)}")
+            # ---
+            while True:
+                r = input("Insert your robot's configuration: ")
+                if r.strip() in allowed_configs:
+                    parsed.robot_configuration = r.strip()
+                    break
+                dtslogger.warning(f"Configuration '{r}' not recognized. Please, retry.")
+        # validate robot configuration
+        if parsed.robot_configuration not in allowed_configs:
+            dtslogger.error(f"Robot configuration {parsed.robot_configuration} not recognized "
+                            f"for robot type {parsed.robot_type}. Possible configurations "
+                            f"are: {', '.join(allowed_configs)}")
+            exit(2)
+        dtslogger.info(f'Robot configuration: {parsed.robot_configuration}')
+
         # fetch given steps
         steps = parsed.steps.split(",")
         step2function = {
@@ -190,8 +217,13 @@ def step_download(shell, parsed, data):
     dtslogger.info('Looking for ZIP image file...')
     if not os.path.isfile(out_file('zip')):
         dtslogger.info('Downloading ZIP image...')
-        _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
-                  '--output-document', out_file('zip'), DISK_IMAGE_URL])
+        try:
+            _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
+                      '--output-document', out_file('zip'), DISK_IMAGE_URL])
+        except KeyboardInterrupt:
+            dtslogger.info('Deleting partial ZIP file...')
+            _run_cmd(['rm', out_file('zip')])
+            exit(1)
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{out_file('zip')}].")
     # unzip (if necessary)
@@ -298,7 +330,7 @@ def step_setup(shell, parsed, data):
         'hostname': parsed.hostname,
         'robot_type': parsed.robot_type,
         'token': shell.get_dt1_token(),
-        'robot_configuration': DEFAULT_ROBOT_CONFIGURATION,
+        'robot_configuration': parsed.robot_configuration,
         'wpa_networks': _get_wpa_networks(parsed),
         'wpa_country': parsed.country,
         'files_sanitize': None,
