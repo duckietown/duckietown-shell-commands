@@ -55,8 +55,6 @@ class DTCommand(DTCommandAbs):
                             help="Remove the images once the build succeded (after pushing)")
         parser.add_argument('--loop', default=False, action='store_true',
                             help="(Developers only) Reuse the same base image, speed up the build")
-        parser.add_argument('--ignore-watchtower', default=False, action='store_true',
-                            help="Whether to ignore a running Docker watchtower")
         parser.add_argument('-u','--username',default="duckietown",
                             help="The docker registry username to tag the image with")
         parser.add_argument('-b', '--base-tag', default=None,
@@ -202,19 +200,6 @@ class DTCommand(DTCommandAbs):
                 '--label',
                 f"{DOCKER_LABEL_DOMAIN}.code.launchers={','.join(sorted(launchers))}"
             ]
-        # check if there is a watchtower instance running on the endpoint
-        if (not parsed.cloud) and (shell.include.devel.watchtower.is_running(parsed.machine)):
-            w_machine = ''
-            if parsed.machine != DEFAULT_MACHINE:
-                w_machine = ' -H {}'.format(parsed.machine)
-            dtslogger.warning('An instance of a Docker watchtower was found running on the Docker endpoint.')
-            dtslogger.warning('Building new images next to an active watchtower might (sure it will) create race conditions.')
-            dtslogger.warning('Solutions:')
-            dtslogger.warning('  - Recommended: Use the command `dts devel watchtower stop{}` to stop the watchtower.'.format(w_machine))
-            dtslogger.warning('  - NOT Recommended: Use the flag `--ignore-watchtower` to ignore this warning and continue.')
-            if not parsed.ignore_watchtower:
-                exit(2)
-            dtslogger.warning('Ignored!')
         # print info about multiarch
         msg = 'Building an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
         dtslogger.info(msg)
