@@ -105,7 +105,7 @@ class DiscoverListener:
             'Busy',         # No [grey], Yes [green]
         ]
         columns = list(map(lambda c: ' %s ' % c, columns))
-        header = ['Type', 'Config.'] + columns + ['Hostname']
+        header = ['Type', 'Model'] + columns + ['Hostname']
         data = []
 
         for device_hostname in list(sorted(hostnames)):
