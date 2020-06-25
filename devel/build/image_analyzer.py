@@ -8,8 +8,10 @@ from termcolor import colored
 
 LAYER_SIZE_THR_YELLOW = 20 * 1024**2  # 20 MB
 LAYER_SIZE_THR_RED = 75 * 1024**2    # 75 MB
-SEPARATORS_LENGTH = 50
+SEPARATORS_LENGTH = 84
 SEPARATORS_LENGTH_HALF = 25
+
+EXTRA_INFO_SEPARATOR = '-' * SEPARATORS_LENGTH_HALF
 
 
 class ImageAnalyzer(object):
@@ -24,12 +26,12 @@ class ImageAnalyzer(object):
         print()
 
     @staticmethod
-    def sizeof_fmt(num, suffix='B'):
-        for unit in ['','K','M','G','T','P','E','Z']:
+    def sizeof_fmt(num, suffix='B', precision=2):
+        for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
             if abs(num) < 1024.0:
-                return "%3.2f %s%s" % (num, unit, suffix)
+                return f"%3.{precision}f %s%s" % (num, unit, suffix)
             num /= 1024.0
-        return "%.2f%s%s" % (num, 'Yi', suffix)
+        return f"%.{precision}f%s%s".format(num, 'Yi', suffix)
 
     @staticmethod
     def process(buildlog, historylog, codens=0, extra_info=None):
@@ -134,10 +136,10 @@ class ImageAnalyzer(object):
         print(
             'Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t' % (
                 colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
-                colored(' '*2, 'white', 'on_blue'), 'BASE SIZE',
-                colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW),
-                colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED),
-                colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED)
+                colored(' '*2, 'white', 'on_blue'), 'BASE LAYER',
+                colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW, precision=1),
+                colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1),
+                colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1)
             )
         )
         print()
@@ -146,12 +148,12 @@ class ImageAnalyzer(object):
         print('Base image size: %s' % sizeof_fmt(base_image_size))
         print('Final image size: %s' % sizeof_fmt(final_image_size))
         print('Your image added %s to the base image.' % sizeof_fmt(final_image_size-base_image_size))
-        print('-' * SEPARATORS_LENGTH_HALF)
+        print(EXTRA_INFO_SEPARATOR)
         print('Layers total: {:d}'.format(tot_layers))
         print(' - Built: {:d}'.format(tot_layers - cached_layers))
         print(' - Cached: {:d}'.format(cached_layers))
         if extra_info is not None and len(extra_info) > 0:
-            print('-' * SEPARATORS_LENGTH_HALF)
+            print(EXTRA_INFO_SEPARATOR)
             print(extra_info)
         print('=' * SEPARATORS_LENGTH)
         print()

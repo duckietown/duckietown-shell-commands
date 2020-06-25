@@ -22,7 +22,7 @@ from utils.dtproject_utils import \
     DTProject
 from utils.misc_utils import human_time
 
-from .image_analyzer import ImageAnalyzer
+from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
 
 CATKIN_REGEX = "^\[build (\d+\:)?\d+\.\d+ s\] \[\d+\/\d+ complete\] .*$"
 
@@ -297,6 +297,7 @@ class DTCommand(DTCommandAbs):
             extra_info.append('Image launchers:')
             for launcher in launchers:
                 extra_info.append(' - {:s}'.format(launcher))
+            extra_info.append(EXTRA_INFO_SEPARATOR)
         # - timing
         extra_info.append('Time: {}'.format(human_time(time.time() - stime)))
         # - documentation
