@@ -73,8 +73,6 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
-    environment:
-      DISABLE_CONTRACTS: 1
     volumes:
       - /data:/data
       # avahi socket
