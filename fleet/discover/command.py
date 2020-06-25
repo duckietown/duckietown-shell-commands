@@ -5,7 +5,9 @@ import argparse
 import logging
 from collections import defaultdict
 from dt_shell import DTCommandAbs, dtslogger
+
 from utils.table_utils import format_matrix, fill_cell
+from utils.duckietown_utils import get_robot_types
 
 REFRESH_HZ = 1.0
 
@@ -15,9 +17,9 @@ usage = """
 
     Discovers Duckietown robots in the local network.
 
-    To find out more, use `dts duckiebot discover -h`.
+    To find out more, use `dts fleet discover -h`.
 
-        $ dts duckiebot discover [options]
+        $ dts fleet discover [options]
 
 """
 
@@ -28,6 +30,8 @@ class DiscoverListener:
     supported_services = [
         'DT::ONLINE',
         'DT::PRESENCE',
+        'DT::ROBOT_TYPE',
+        'DT::ROBOT_CONFIGURATION',
         'DT::DASHBOARD'
     ]
 
@@ -84,6 +88,15 @@ class DiscoverListener:
                     hostname_to_type[device_hostname] = dev['txt']['type']
                 except:
                     pass
+        # create hostname -> robot_configuration map
+        hostname_to_config = defaultdict(lambda: 'ND')
+        for device_hostname in self.services['DT::ROBOT_CONFIGURATION']:
+            dev = self.services['DT::ROBOT_CONFIGURATION'][device_hostname]
+            if len(dev['txt']) and 'configuration' in dev['txt']:
+                try:
+                    hostname_to_config[device_hostname] = dev['txt']['configuration']
+                except:
+                    pass
         # prepare table
         columns = [
             'Status',       # Loading [yellow], Ready [green]
@@ -92,12 +105,13 @@ class DiscoverListener:
             'Busy',         # No [grey], Yes [green]
         ]
         columns = list(map(lambda c: ' %s ' % c, columns))
-        header = ['Type'] + columns + ['Hostname']
+        header = ['Type', 'Config.'] + columns + ['Hostname']
         data = []
 
         for device_hostname in list(sorted(hostnames)):
             # filter by robot type
             robot_type = hostname_to_type[device_hostname]
+            robot_configuration = hostname_to_config[device_hostname]
             if self.args.filter_type and robot_type != self.args.filter_type:
                 continue
             # prepare status list
@@ -107,7 +121,7 @@ class DiscoverListener:
                 column_txt = fill_cell(text, len(column), color, bg_color)
                 statuses.append(column_txt)
             # prepare row
-            row = [device_hostname, robot_type] + statuses + [device_hostname+'.local']
+            row = [device_hostname, robot_type, robot_configuration] + statuses + [str(device_hostname) + '.local']
             data.append(row)
 
         # print table
@@ -119,12 +133,11 @@ class DiscoverListener:
         ))
 
 
-
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args):
-        prog = 'dts duckiebot discover'
+        prog = 'dts fleet discover'
 
         # try to import zeroconf
         try:
@@ -137,7 +150,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument('--type', dest="filter_type", default=None,
-                            choices=['duckiebot', 'watchtower', 'traffic_light'],
+                            choices=get_robot_types(),
                             help="Filter devices by type")
 
         parsed = parser.parse_args(args)
@@ -145,13 +158,12 @@ class DTCommand(DTCommandAbs):
         # perform discover
         zeroconf = Zeroconf()
         listener = DiscoverListener(args=parsed)
-        browser = ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
+        ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
 
         while True:
             if dtslogger.level > logging.DEBUG:
                 listener.print()
             time.sleep(1.0 / REFRESH_HZ)
-
 
 
 def column_to_text_and_color(column, hostname, services):
