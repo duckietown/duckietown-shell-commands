@@ -29,8 +29,7 @@ runcmd:
   - systemctl enable docker-tcp.socket
   - systemctl start --no-block docker-tcp.socket
   - systemctl start --no-block docker
-  - chown -R 1000:1000 /data
-  - chown -R 1000:1000 /home/{linux_username}/
+  - chown -R 1000:1000 /data /code /home/{linux_username}/
   - dd if=/dev/zero of=/swap0 bs=1M count=2048
   - mkswap /swap0
   - echo "/swap0 swap swap" >> /etc/fstab
