@@ -1,0 +1,2 @@
+APP_ID = '101741598378777739147_dts_daffy_diagnostics_run'
+APP_SECRET = 'VvXITEzPuaGwdXC03vCeHnYYjqUOoEc9ZZIJu8oO9UacID3B'
