@@ -1,8 +1,8 @@
 
-from utils.ssh import SSHUtils
-from utils.command import command
-from secrets import APP_ID, APP_SECRET
-from config import API_URL
+from .utils.ssh import SSHUtils
+from .utils.local_command import command
+from .secrets import APP_ID, APP_SECRET
+from .config import API_URL
 import time
 import re
 import uuid
