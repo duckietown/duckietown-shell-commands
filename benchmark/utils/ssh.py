@@ -10,8 +10,13 @@ import time
 def line_buffered(pseudo_fs):
     """splits chars from a pseudo filesystem into line, whis is yealded as iterable"""
     channel = pseudo_fs.channel
+    first = True
     line_buf = ""
-    while not channel.closed or channel.recv_ready() or channel.recv_stderr_ready():
+    #while not channel.closed or channel.recv_ready() or channel.recv_stderr_ready():
+    while not channel.closed or channel.recv_ready():
+        # first = False
+        # print("kjkj" + str(channel.recv_ready()))
+        # print(channel.closed)
         c = pseudo_fs.read(1).decode("utf-8") 
         line_buf += c
         if line_buf.endswith('\n'):
@@ -64,6 +69,8 @@ class SSHUtils:
 
         sin,sout,serr = ssh.exec_command(command)
 
+        print(command)
+
         if detect_input:
             for line in line_buffered(sout):
                 sys.stdout.write(line)
@@ -77,6 +84,4 @@ class SSHUtils:
 
         for l in line_buffered(serr):
             sys.stdout.write(l)
-        while int(sout.channel.recv_exit_status()) != 0:
-            time.sleep(1)
     

@@ -71,17 +71,17 @@ async def _async_docker_command(command, regex, callback, detect_input, onlyOnce
 
 def command(command, regex=None, callback=None, detect_input=True, onlyOnce=None, forceDocker=False, afterCommand=None, afterLineRegex=None):
     """function to be called, which in turn calls the corresponding command functions
-
+        TODO: execute callbacks in different threads
 
     Args:
         command (string): command to be executed on the client
         regex (list, optional): if the regex is detected, the corresponding callback function is called. Defaults to [].
-        callback (list, optional): list of fuctions to be executed , triggered ba regex. Defaults to [].
-        detect_input (bool, optional): Wheter to analyze the command output (stdout) or not. Defaults to True.
-        onlyOnce (list, optional): list wheter the resp. callback should only be called once. Defaults to [].
+        callback (list, optional): list of functions to be executed , triggered ba regex. Defaults to [].
+        detect_input (bool, optional): Whether to analyze the command output (stdout) or not. Defaults to True.
+        onlyOnce (list, optional): list whether the resp. callback should only be called once. Defaults to [].
         forceDocker (bool, optional): manually trigger the use of the docker optimized version. Defaults to False.
         afterCommand (string, optional): command to be executed after the afterLineRegex is found. Defaults to None.
-        afterLineRegex (regex, optional): decides when to execute the after Vommanbd. Defaults to None.
+        afterLineRegex (regex, optional): decides when to execute the after command. Defaults to None.
     """
 
     if regex is None:
