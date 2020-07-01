@@ -1,7 +1,7 @@
 
-from utils.ssh import SSHUtils
-from utils.command import command
-from secrets import APP_ID, APP_SECRET
+from .utils.ssh import SSHUtils
+from .utils.command import command
+from .secrets import APP_ID, APP_SECRET
 import time
 import re
 import uuid
@@ -47,9 +47,9 @@ class Benchmark:
     @staticmethod
     def _collect_meta():
         meta = {}
-        meta['bot_type'] = input('bot type, e.g. DB18p4:\n')
-        meta['battery_type'] = input('battery type e.g. Old Alu:\n')
-        meta['release'] = input('software version (master19 or daffy):\n')
+        meta['bot_type'] = input('bot type, e.g. DB18p4:\n\t> ')
+        meta['battery_type'] = input('battery type e.g. Old Alu:\n\t> ')
+        meta['release'] = input('software version (master19 or daffy):\n\t> ')
         assert meta['release'] in ['master19', 'daffy'], 'wrong software release'
 
         return meta
