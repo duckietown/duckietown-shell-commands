@@ -4,6 +4,8 @@ import shutil
 import argparse
 import subprocess
 
+from utils.duckietown_utils import get_major_version
+
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 
@@ -104,7 +106,7 @@ class DTCommand(DTCommandAbs):
         ]
         # compile image name
         image = parsed.image if parsed.image \
-            else DEFAULT_IMAGE.format(major=shell.get_commands_version(), arch=endpoint_arch)
+            else DEFAULT_IMAGE.format(major=get_major_version(shell), arch=endpoint_arch)
         # print info
         dtslogger.info('Running command [%s]...' % ' '.join(parsed.command))
         print('------>')

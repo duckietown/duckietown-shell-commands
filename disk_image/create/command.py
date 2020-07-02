@@ -19,7 +19,7 @@ import itertools
 from datetime import datetime
 
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-
+from utils.duckietown_utils import get_major_version
 
 PARTITION_MOUNTPOINT = lambda partition: f"/media/{getpass.getuser()}/{partition}"
 DISK_DEVICE = lambda device, partition_id: f"{device}p{partition_id}"
@@ -186,7 +186,7 @@ class DTCommand(DTCommandAbs):
         input_image_name = pathlib.Path(in_file_path('img')).stem
         out_file_path = lambda ex: os.path.join(parsed.output, f'dt-{input_image_name}.{ex}')
         # get version
-        major_version = shell.get_commands_version().split('-')[0]
+        major_version = get_major_version(shell)
         # this will hold the link to the loop device
         loopdev = None
         # this is the surgey plan that will be performed by the init_sd_card command
@@ -939,7 +939,7 @@ def _get_validator_fcn(partition, path):
 
 def _validator_autoboot_stack(shell, local_path, remote_path, data=None):
     # get version
-    major_version = shell.get_commands_version().split('-')[0]
+    major_version = get_major_version(shell)
     modules = {
         DOCKER_IMAGE_TEMPLATE(
             owner=module['owner'], module=module['module'], version=major_version,

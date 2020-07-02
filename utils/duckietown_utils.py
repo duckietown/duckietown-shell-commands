@@ -1,3 +1,5 @@
+import re
+
 def get_robot_types():
     return ['duckiebot', 'duckiedrone', 'watchtower', 'greenstation', 'workstation', 'traffic_light']
 
@@ -26,3 +28,7 @@ def get_robot_configurations(robot_type):
     if robot_type not in configurations:
         raise ValueError(f'Robot type {robot_type} not recognized!')
     return configurations[robot_type]
+
+
+def get_major_version(shell):
+    return next(re.finditer('([a-zA-Z]+)', shell.get_commands_version())).group(1)

@@ -2,7 +2,8 @@ import sys
 import json
 import argparse
 import subprocess
-from utils.duckietown_utils import get_robot_types
+
+from utils.duckietown_utils import get_robot_types, get_major_version
 from utils.avahi_utils import wait_for_service
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -159,7 +160,7 @@ class DTCommand(DTCommandAbs):
             '--volume={avahi_socket:s}:{avahi_socket:s}'.format(avahi_socket=AVAHI_SOCKET_FILE)
         ]
         # create image name
-        image = DIAGNOSTICS_IMAGE.format(version=shell.get_commands_version(), arch=image_arch)
+        image = DIAGNOSTICS_IMAGE.format(version=get_major_version(shell), arch=image_arch)
         # mount option
         if parsed.target == "unix://" + DOCKER_SOCKET:
             options += [
