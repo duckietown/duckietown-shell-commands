@@ -174,36 +174,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
-        # stamp image
-        build_time = 'ND'
-        if parsed.stamp:
-            if project.is_dirty():
-                dtslogger.warning('Your git index is not clean. You can\'t stamp an image built '
-                                  'from a dirty index. The image will not be stamped.')
-            else:
-                # project is clean
-                build_time = None
-                local_sha = project.repository.sha
-                # get remote image metadata
-                try:
-                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
-                    time_label = f"{DOCKER_LABEL_DOMAIN}.time"
-                    sha_label = f"{DOCKER_LABEL_DOMAIN}.code.sha"
-                    if time_label in labels and sha_label in labels:
-                        remote_time = labels[time_label]
-                        remote_sha = labels[sha_label]
-                        if remote_sha == local_sha:
-                            # local and remote SHA match, reuse time
-                            build_time = remote_time
-                except BaseException:
-                    dtslogger.warning('Cannot fetch image metadata from remote registry.')
-        # default build_time
-        build_time = build_time or datetime.datetime.utcnow().isoformat()
-        # add timestamp label
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.time={build_time}"]
-        # add code SHA label (CI only)
-        code_sha = project.repository.sha # if (parsed.ci and project.is_clean()) else 'ND'
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.sha={code_sha}"]
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -293,6 +263,37 @@ class DTCommand(DTCommandAbs):
                     dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % image)
             else:
                 dtslogger.info('Found an image with the same name. Using it as cache source.')
+
+        # stamp image
+        build_time = 'ND'
+        if parsed.stamp:
+            if project.is_dirty():
+                dtslogger.warning('Your git index is not clean. You can\'t stamp an image built '
+                                  'from a dirty index. The image will not be stamped.')
+            else:
+                # project is clean
+                build_time = None
+                local_sha = project.repository.sha
+                # get remote image metadata
+                try:
+                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
+                    time_label = f"{DOCKER_LABEL_DOMAIN}.time"
+                    sha_label = f"{DOCKER_LABEL_DOMAIN}.code.sha"
+                    if time_label in labels and sha_label in labels:
+                        remote_time = labels[time_label]
+                        remote_sha = labels[sha_label]
+                        if remote_sha == local_sha:
+                            # local and remote SHA match, reuse time
+                            build_time = remote_time
+                except BaseException:
+                    dtslogger.warning('Cannot fetch image metadata.')
+        # default build_time
+        build_time = build_time or datetime.datetime.utcnow().isoformat()
+        # add timestamp label
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.time={build_time}"]
+        # add code SHA label (CI only)
+        code_sha = project.repository.sha # if (parsed.ci and project.is_clean()) else 'ND'
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.sha={code_sha}"]
 
         # build code
         buildlog = _run_cmd([
