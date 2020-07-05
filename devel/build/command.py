@@ -311,6 +311,7 @@ class DTCommand(DTCommandAbs):
         if parsed.docs:
             docs_args = ['--quiet'] * int(not parsed.verbose)
             # build docs
+            dtslogger.info('Building documentation...')
             shell.include.devel.docs.build.command(shell, args + docs_args)
 
         # get image history
