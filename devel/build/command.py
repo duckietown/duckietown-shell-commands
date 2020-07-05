@@ -292,7 +292,7 @@ class DTCommand(DTCommandAbs):
         # add timestamp label
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.time={build_time}"]
         # add code SHA label (CI only)
-        code_sha = project.repository.sha if (parsed.ci and project.is_clean()) else 'ND'
+        code_sha = project.repository.sha if project.is_clean() else 'ND'
         buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.sha={code_sha}"]
 
         # build code

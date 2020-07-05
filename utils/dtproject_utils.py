@@ -180,7 +180,7 @@ class DTProject:
 
     def image_metadata(self, endpoint, arch: str, owner: str = 'duckietown'):
         client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=endpoint)
+            docker.DockerClient(base_url=_sanitize_docker_baseurl(endpoint))
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -190,7 +190,7 @@ class DTProject:
 
     def image_labels(self, endpoint, arch: str, owner: str = 'duckietown'):
         client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=endpoint)
+            docker.DockerClient(base_url=_sanitize_docker_baseurl(endpoint))
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -332,3 +332,7 @@ def _parse_configurations(config_file: str) -> dict:
         raise ValueError("The configurations file must have a root key 'version'.")
     if configurations_content['version'] == '1.0':
         return configurations_content['configurations']
+
+
+def _sanitize_docker_baseurl(baseurl: str):
+    return baseurl if baseurl.startswith('unix:') else f'{baseurl}:2375'
