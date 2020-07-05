@@ -1,9 +1,13 @@
 import os
 import re
 import copy
+import json
 import yaml
 import subprocess
+import requests
+import docker
 
+from docker.errors import APIError, ImageNotFound
 from types import SimpleNamespace
 
 REQUIRED_METADATA_KEYS = {
@@ -69,6 +73,15 @@ TEMPLATE_TO_LAUNCHFILE = {
     }
 }
 
+DOCKER_HUB_API_URL = {
+    'token':
+        'https://auth.docker.io/token?scope=repository:{image}:pull&service=registry.docker.io',
+    'digest':
+        'https://registry-1.docker.io/v2/{image}/manifests/{tag}',
+    'inspect':
+        'https://registry-1.docker.io/v2/{image}/blobs/{digest}'
+}
+
 
 class DTProject:
 
@@ -82,6 +95,7 @@ class DTProject:
         repo_info = self._get_repo_info(self._path)
         self._repository = SimpleNamespace(
             name=repo_info['REPOSITORY'],
+            sha=repo_info['SHA'],
             branch=repo_info['BRANCH'],
             repository_url=repo_info['ORIGIN.URL'],
             repository_page=repo_info['ORIGIN.HTTPS.URL'],
@@ -164,6 +178,32 @@ class DTProject:
     def is_dirty(self):
         return not self.is_clean()
 
+    def image_metadata(self, endpoint, arch: str, owner: str = 'duckietown'):
+        client = endpoint if isinstance(endpoint, docker.DockerClient) else \
+            docker.DockerClient(base_url=endpoint)
+        image_name = self.image(arch, owner=owner)
+        try:
+            image = client.images.get(image_name)
+            return image.attrs
+        except (APIError, ImageNotFound):
+            return None
+
+    def image_labels(self, endpoint, arch: str, owner: str = 'duckietown'):
+        client = endpoint if isinstance(endpoint, docker.DockerClient) else \
+            docker.DockerClient(base_url=endpoint)
+        image_name = self.image(arch, owner=owner)
+        try:
+            image = client.images.get(image_name)
+            return image.labels
+        except (APIError, ImageNotFound):
+            return None
+
+    def remote_image_metadata(self, arch: str, owner: str = 'duckietown'):
+        arch = canonical_arch(arch)
+        image = f"{owner}/{self.repository.name}"
+        tag = f"{self.repository.branch}-{arch}"
+        return self.inspect_remore_image(image, tag)
+
     @staticmethod
     def _get_project_info(path):
         project_name = os.path.basename(path)
@@ -214,6 +254,7 @@ class DTProject:
 
     @staticmethod
     def _get_repo_info(path):
+        sha = _run_cmd(["git", "-C", path, "rev-parse", "HEAD"])[0]
         branch = _run_cmd(["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"])[0]
         origin_url = _run_cmd(
             ["git", "-C", path, "config", "--get", "remote.origin.url"]
@@ -223,7 +264,6 @@ class DTProject:
         if origin_url.endswith("/"):
             origin_url = origin_url[:-1]
         repo = origin_url.split('/')[-1]
-
         # get info about current git INDEX
         nmodified = len(
             _run_cmd(
@@ -234,12 +274,35 @@ class DTProject:
         # return info
         return {
             "REPOSITORY": repo,
+            "SHA": sha,
             "BRANCH": branch,
             "ORIGIN.URL": origin_url,
             "ORIGIN.HTTPS.URL": _remote_url_to_https(origin_url),
             "INDEX_NUM_MODIFIED": nmodified,
             "INDEX_NUM_ADDED": nadded,
         }
+
+    @staticmethod
+    def inspect_remore_image(image, tag):
+        res = requests.get(DOCKER_HUB_API_URL['token'].format(image=image)).json()
+        token = res['token']
+        # ---
+        res = requests.get(
+            DOCKER_HUB_API_URL['digest'].format(image=image, tag=tag),
+            headers={
+                "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                "Authorization": "Bearer {0}".format(token)
+            }
+        ).text
+        digest = json.loads(res)['config']['digest']
+        # ---
+        res = requests.get(
+            DOCKER_HUB_API_URL['inspect'].format(image=image, tag=tag, digest=digest),
+            headers={
+                "Authorization": "Bearer {0}".format(token)
+            }
+        ).json()
+        return res
 
 
 def canonical_arch(arch):
