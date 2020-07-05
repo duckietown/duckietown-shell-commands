@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+import datetime
 from shutil import which
 from pathlib import Path
 from termcolor import colored
@@ -65,6 +66,8 @@ class DTCommand(DTCommandAbs):
                             help="Overwrites configuration for CI (Continuous Integration) builds")
         parser.add_argument('--cloud', default=False, action='store_true',
                             help="Build the image on the cloud")
+        parser.add_argument('--stamp', default=False, action='store_true',
+                            help="Stamp image with the build time")
         parser.add_argument('-D', '--destination', default=None,
                             help="Docker socket or hostname where to deliver the image")
         parser.add_argument('--docs', default=False, action='store_true',
@@ -86,6 +89,7 @@ class DTCommand(DTCommandAbs):
             parsed.no_multiarch = True
             parsed.push = True
             parsed.rm = True
+            parsed.stamp = True
             # check that the env variables are set
             for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
@@ -170,6 +174,36 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        # stamp image
+        build_time = 'ND'
+        if parsed.stamp:
+            if project.is_dirty():
+                dtslogger.warning('Your git index is not clean. You can\'t stamp an image built '
+                                  'from a dirty index. The image will not be stamped.')
+            else:
+                # project is clean
+                build_time = None
+                local_sha = project.repository.sha
+                # get remote image metadata
+                try:
+                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
+                    time_label = f"{DOCKER_LABEL_DOMAIN}.time"
+                    sha_label = f"{DOCKER_LABEL_DOMAIN}.code.sha"
+                    if time_label in labels and sha_label in labels:
+                        remote_time = labels[time_label]
+                        remote_sha = labels[sha_label]
+                        if remote_sha == local_sha:
+                            # local and remote SHA match, reuse time
+                            build_time = remote_time
+                except BaseException:
+                    dtslogger.warning('Cannot fetch image metadata from remote registry.')
+        # default build_time
+        build_time = build_time or datetime.datetime.utcnow().isoformat()
+        # add timestamp label
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.time={build_time}"]
+        # add code SHA label (CI only)
+        code_sha = project.repository.sha # if (parsed.ci and project.is_clean()) else 'ND'
+        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.sha={code_sha}"]
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:

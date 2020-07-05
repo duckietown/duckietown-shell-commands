@@ -21,6 +21,10 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
   - Type: `string`
   - Default: `undefined`
 
+- `org.duckietown.label.time`: Build time (UTC in ISO format)
+  - Type: `string`
+  - Default: `ND`
+
 
 ## System labels
 
@@ -46,6 +50,10 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
 - `org.duckietown.label.code.repository`: Repository name
   - Type: `string`
   - Default: `undefined`
+
+- `org.duckietown.label.code.sha`: Hash of the commit from which the image was generated
+  - Type: `string`
+  - Default: `ND`
 
 - `org.duckietown.label.code.branch`: Repository branch
   - Type: `string`
