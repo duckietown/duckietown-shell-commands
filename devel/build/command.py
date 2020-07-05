@@ -285,8 +285,8 @@ class DTCommand(DTCommandAbs):
                         if remote_sha == local_sha:
                             # local and remote SHA match, reuse time
                             build_time = remote_time
-                except BaseException:
-                    dtslogger.warning('Cannot fetch image metadata.')
+                except BaseException as e:
+                    dtslogger.warning(f'Cannot fetch image metadata. Reason: {str(e)}')
         # default build_time
         build_time = build_time or datetime.datetime.utcnow().isoformat()
         # add timestamp label

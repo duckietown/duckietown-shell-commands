@@ -335,4 +335,4 @@ def _parse_configurations(config_file: str) -> dict:
 
 
 def _sanitize_docker_baseurl(baseurl: str):
-    return baseurl if baseurl.startswith('unix:') else f'{baseurl}:2375'
+    return baseurl if baseurl.startswith('unix:') else f'tcp://{baseurl}:2375'
