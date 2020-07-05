@@ -88,7 +88,7 @@ class DTCommand(DTCommandAbs):
         for f in ['', 'config.yaml', 'index.rst']:
             if not os.path.exists(docs_file(f)):
                 dtslogger.error(f"File {docs_file(f)} not found. Aborting.")
-                return
+                exit(1)
         dtslogger.info("Done!")
 
         # build and run the docs container
