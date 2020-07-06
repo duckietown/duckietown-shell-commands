@@ -79,11 +79,15 @@ class ImageAnalyzer(object):
             layerid_str = 'Layer ID:'
             size_str = 'Size:'
             cur_step_lines = lines[i:j]
-            open_layers = [layer_pattern.match(l) for l in cur_step_lines if layer_pattern.match(l)]
+            open_layers = [
+                layer_pattern.match(line) for line in cur_step_lines if layer_pattern.match(line)
+            ]
             # check for cached layers
+            step_cache = colored('No', 'red')
             if len(cur_step_lines) <= 2 or \
                len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
                 cached_layers += 1
+                step_cache = colored('Yes', 'green')
             # get Step info
             print('-' * SEPARATORS_LENGTH)
             stepline = lines[i]
@@ -99,11 +103,13 @@ class ImageAnalyzer(object):
                 layerid = open_layers[0].group(1)
                 if stepcmd.startswith('FROM'):
                     first_layer = layerid
+                    cached_layers += 1
             # ---
             if layerid in layer_to_size_bytes:
                 layersize = sizeof_fmt(layer_to_size_bytes[layerid])
                 fg_color = 'white'
-                bg_color = 'yellow' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_YELLOW else 'green'
+                bg_color = 'yellow' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_YELLOW \
+                    else 'green'
                 bg_color = 'red' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_RED else bg_color
                 bg_color = 'blue' if stepcmd.startswith('FROM') else bg_color
 
@@ -112,9 +118,10 @@ class ImageAnalyzer(object):
             layerid_str = colored(layerid_str, fg_color, 'on_'+bg_color)
             # print info about the current layer
             print(
-                '%s %s\n%sStep: %s/%s\n%sCommand: \n%s\t%s\n%s%s %s' % (
+                '%s %s\n%sStep: %s/%s\n%sCached: %s\n%sCommand: \n%s\t%s\n%s%s %s' % (
                     layerid_str, layerid,
                     indent_str, stepno, steptot,
+                    indent_str, step_cache,
                     indent_str, indent_str, stepcmd,
                     indent_str, size_str, layersize
                 )
@@ -123,13 +130,16 @@ class ImageAnalyzer(object):
 
         # get info about layers
         tot_layers = len(steps_idx) - 1
+        cached_layers = min(tot_layers, cached_layers)
 
         # compute size of the base image
-        first_layer_idx = [i for i in range(len(image_history)) if image_history[i][0] == first_layer][0]
-        base_image_size = sum([int(l[1]) for l in image_history[first_layer_idx:]])
+        first_layer_idx = [
+            i for i in range(len(image_history)) if image_history[i][0] == first_layer
+        ][0]
+        base_image_size = sum([int(line[1]) for line in image_history[first_layer_idx:]])
 
         # compute size of the final image
-        final_image_size = sum([int(l[1]) for l in image_history])
+        final_image_size = sum([int(line[1]) for line in image_history])
 
         # print info about the whole image
         print()
