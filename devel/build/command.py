@@ -102,6 +102,10 @@ class DTCommand(DTCommandAbs):
             buildlabels += ['--label', dtlabel('image.authoritative', '1')]
         # cloud build
         if parsed.cloud:
+            if parsed.arch is None:
+                dtslogger.error('When building on the cloud you need to explicitly specify '
+                                'an architecture. Aborting...')
+                exit(6)
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. Aborting...')
                 exit(3)
@@ -110,14 +114,15 @@ class DTCommand(DTCommandAbs):
                                 + '--cloud. Use --destionation (-D) if you want to specify '
                                 + 'a destination for the image. Aborting...')
                 exit(4)
+            # update machine parameter
+            parsed.machine = CLOUD_BUILDERS[parsed.arch]
             # configure docker for DT
             if parsed.ci:
                 token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
+                parsed.destination = parsed.machine
             else:
                 token = shell.get_dt1_token()
             add_token_to_docker_config(token)
-            # update machine parameter
-            parsed.machine = CLOUD_BUILDERS[parsed.arch]
             # update destination parameter
             if not parsed.destination:
                 parsed.destination = DEFAULT_MACHINE
@@ -351,7 +356,7 @@ class DTCommand(DTCommandAbs):
             buildlog, historylog, codens=100, extra_info=extra_info
         )
         # pull image (if the destination is different from the builder machine)
-        if parsed.cloud or (parsed.destination and parsed.machine != parsed.destination):
+        if parsed.destination and parsed.machine != parsed.destination:
             _transfer_image(
                 origin=parsed.machine,
                 destination=parsed.destination,
@@ -362,7 +367,6 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             _run_cmd([
                 'docker',
-                '-H=%s' % parsed.destination,
                 'login',
                 '--username={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_USER']),
                 '--password={:s}'.format(os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN'])
@@ -370,13 +374,8 @@ class DTCommand(DTCommandAbs):
         # perform push (if needed)
         if parsed.push:
             if not parsed.loop:
-                push_args = parsed
-                if parsed.cloud:
-                    # the image was transferred to this machine, so we push from here
-                    push_args = copy.deepcopy(parsed)
-                    push_args.machine = parsed.destination
                 # call devel/push
-                shell.include.devel.push.command(shell, [], parsed=push_args)
+                shell.include.devel.push.command(shell, [], parsed=copy.deepcopy(parsed))
             else:
                 msg = "Forbidden: You cannot push an image when using the flag `--loop`."
                 dtslogger.warn(msg)
