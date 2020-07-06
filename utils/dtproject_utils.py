@@ -261,17 +261,17 @@ class DTProject:
 
     @staticmethod
     def _get_repo_info(path):
-        sha = _run_cmd(["git", "-C", path, "rev-parse", "HEAD"])[0]
-        branch = _run_cmd(["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"])[0]
+        sha = _run_cmd(["git", "-C", f'"{path}"', "rev-parse", "HEAD"])[0]
+        branch = _run_cmd(["git", "-C", f'"{path}"', "rev-parse", "--abbrev-ref", "HEAD"])[0]
         head_tag = _run_cmd([
-            "git", "-C", path, "describe", "--exact-match", "--tags", "HEAD", "2>/dev/null",
+            "git", "-C", f'"{path}"', "describe", "--exact-match", "--tags", "HEAD", "2>/dev/null",
             "||", ":"
         ])
         head_tag = head_tag[0] if head_tag else 'ND'
-        closest_tag = _run_cmd(["git", "-C", path, "tag"])
+        closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
         closest_tag = head_tag[-1] if closest_tag else 'ND'
         origin_url = _run_cmd(
-            ["git", "-C", path, "config", "--get", "remote.origin.url"]
+            ["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"]
         )[0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
@@ -281,10 +281,10 @@ class DTProject:
         # get info about current git INDEX
         nmodified = len(
             _run_cmd(
-                ["git", "-C", path, "status", "--porcelain", "--untracked-files=no"]
+                ["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]
             )
         )
-        nadded = len(_run_cmd(["git", "-C", path, "status", "--porcelain"]))
+        nadded = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain"]))
         # return info
         return {
             "REPOSITORY": repo,
