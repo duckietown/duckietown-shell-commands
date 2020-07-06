@@ -1,7 +1,6 @@
 import os
 import argparse
-
-from termcolor import colored
+import termcolor as tc
 
 from utils.dtproject_utils import DTProject
 
@@ -20,6 +19,8 @@ PROJECT_INFO = """
 {end}
 """
 
+nocolor = lambda s, *_: s
+
 
 class DTCommand(DTCommandAbs):
 
@@ -35,23 +36,32 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Directory containing the project to show",
         )
+        parser.add_argument(
+            '--ci',
+            default=False,
+            action='store_true',
+            help="Overwrites configuration for CI (Continuous Integration)"
+        )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        if parsed.ci:
+            # disable coloring
+            tc.colored = nocolor
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         project = DTProject(code_dir)
         info = {
             "name": project.name,
             "branch": project.repository.branch,
             "distro": project.distro,
-            "index": colored("Clean", "green") if project.is_clean() else colored("Dirty",
-                                                                                  "yellow"),
+            "index": tc.colored("Clean", "green") if project.is_clean() else tc.colored("Dirty",
+                                                                                        "yellow"),
             "path": project.path,
             "type": project.type,
             "type_version": project.type_version,
             "version": project.version,
-            "project": colored("Project:", "grey", "on_white"),
-            "space": colored("  ", "grey", "on_white"),
-            "end": colored("________", "grey", "on_white"),
+            "project": tc.colored("Project:", "grey", "on_white"),
+            "space": tc.colored("  ", "grey", "on_white"),
+            "end": tc.colored("________", "grey", "on_white"),
         }
         print(PROJECT_INFO.format(**info))
 

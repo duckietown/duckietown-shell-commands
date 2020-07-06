@@ -367,7 +367,7 @@ class DTCommand(DTCommandAbs):
         extra_info = '\n'.join(extra_info)
         # run docker image analysis
         _, _, final_image_size = ImageAnalyzer.process(
-            buildlog, historylog, codens=100, extra_info=extra_info
+            buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci
         )
         # pull image (if the destination is different from the builder machine)
         if parsed.destination and parsed.machine != parsed.destination:

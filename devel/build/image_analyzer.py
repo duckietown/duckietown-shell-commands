@@ -4,7 +4,7 @@ import re
 import sys
 import argparse
 import subprocess
-from termcolor import colored
+import termcolor as tc
 
 LAYER_SIZE_THR_YELLOW = 20 * 1024**2  # 20 MB
 LAYER_SIZE_THR_RED = 75 * 1024**2    # 75 MB
@@ -20,7 +20,7 @@ class ImageAnalyzer(object):
     def about():
         print()
         print('='*30)
-        print(colored('Docker Build Analyzer', 'white', 'on_blue'))
+        print(tc.colored('Docker Build Analyzer', 'white', 'on_blue'))
         print('Maintainer: Andrea F. Daniele (afdaniele@ttic.edu)')
         print('='*30)
         print()
@@ -34,7 +34,7 @@ class ImageAnalyzer(object):
         return f"%.{precision}f%s%s".format(num, 'Yi', suffix)
 
     @staticmethod
-    def process(buildlog, historylog, codens=0, extra_info=None):
+    def process(buildlog, historylog, codens=0, extra_info=None, nocolor=False):
         lines = buildlog
         image_history = historylog
         sizeof_fmt = ImageAnalyzer.sizeof_fmt
@@ -46,6 +46,9 @@ class ImageAnalyzer(object):
         # return if the image history is empty
         if not image_history:
             raise ValueError('The image history is empty')
+
+        if nocolor:
+            tc.colored = lambda s, *_: s
 
         # define RegEx patterns
         step_pattern = re.compile("Step ([0-9]+)/([0-9]+) : (.*)")
@@ -83,11 +86,11 @@ class ImageAnalyzer(object):
                 layer_pattern.match(line) for line in cur_step_lines if layer_pattern.match(line)
             ]
             # check for cached layers
-            step_cache = colored('No', 'red')
+            step_cache = tc.colored('No', 'red')
             if len(cur_step_lines) <= 2 or \
                len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
                 cached_layers += 1
-                step_cache = colored('Yes', 'green')
+                step_cache = tc.colored('Yes', 'green')
             # get Step info
             print('-' * SEPARATORS_LENGTH)
             stepline = lines[i]
@@ -113,9 +116,9 @@ class ImageAnalyzer(object):
                 bg_color = 'red' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_RED else bg_color
                 bg_color = 'blue' if stepcmd.startswith('FROM') else bg_color
 
-            indent_str = colored(indent_str, fg_color, 'on_'+bg_color)
-            size_str = colored(size_str, fg_color, 'on_'+bg_color)
-            layerid_str = colored(layerid_str, fg_color, 'on_'+bg_color)
+            indent_str = tc.colored(indent_str, fg_color, 'on_'+bg_color)
+            size_str = tc.colored(size_str, fg_color, 'on_'+bg_color)
+            layerid_str = tc.colored(layerid_str, fg_color, 'on_'+bg_color)
             # print info about the current layer
             print(
                 '%s %s\n%sStep: %s/%s\n%sCached: %s\n%sCommand: \n%s\t%s\n%s%s %s' % (
@@ -145,11 +148,11 @@ class ImageAnalyzer(object):
         print()
         print(
             'Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t' % (
-                colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
-                colored(' '*2, 'white', 'on_blue'), 'BASE LAYER',
-                colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW, precision=1),
-                colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1),
-                colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1)
+                tc.colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
+                tc.colored(' '*2, 'white', 'on_blue'), 'BASE LAYER',
+                tc.colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW, precision=1),
+                tc.colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1),
+                tc.colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1)
             )
         )
         print()
@@ -167,7 +170,8 @@ class ImageAnalyzer(object):
             print(extra_info)
         print('=' * SEPARATORS_LENGTH)
         print()
-        print(colored('IMPORTANT', 'white', 'on_blue') + ': Always ask yourself, can I do better than that? ;)')
+        print(tc.colored('IMPORTANT', 'white', 'on_blue') +
+              ': Always ask yourself, can I do better than that? ;)')
         print()
         # ---
         return image, base_image_size, final_image_size
