@@ -56,6 +56,10 @@ MODULES_TO_LOAD = [
     },
     {
         'owner': 'duckietown',
+        'module': 'dt-commons'
+    },
+    {
+        'owner': 'duckietown',
         'module': 'dt-device-health'
     },
     {
