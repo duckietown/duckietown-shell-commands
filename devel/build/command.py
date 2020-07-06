@@ -47,6 +47,9 @@ class DTCommand(DTCommandAbs):
                             help="Whether to pull the latest base image used by the Dockerfile")
         parser.add_argument('--no-cache', default=False, action='store_true',
                             help="Whether to use the Docker cache")
+        parser.add_argument('--force-cache', default=False, action='store_true',
+                            help="Whether to force Docker to use an old version of the same "
+                                 "image as cache")
         parser.add_argument('--no-multiarch', default=False, action='store_true',
                             help="Whether to disable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
@@ -82,6 +85,7 @@ class DTCommand(DTCommandAbs):
         # define labels / build-args
         buildlabels = []
         buildargs = []
+        buildopts = []
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -90,6 +94,7 @@ class DTCommand(DTCommandAbs):
             parsed.push = True
             parsed.rm = True
             parsed.stamp = True
+            parsed.force_cache = True
             # check that the env variables are set
             for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
@@ -241,6 +246,8 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
+
+        # cache
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
             is_present = False
@@ -255,6 +262,7 @@ class DTCommand(DTCommandAbs):
                 is_present = True
             except (RuntimeError, subprocess.CalledProcessError):
                 pass
+            # ---
             if not is_present:
                 # try to pull the same image so Docker can use it as cache source
                 dtslogger.info('Pulling image "%s" to use as cache...' % image)
@@ -266,9 +274,13 @@ class DTCommand(DTCommandAbs):
                                 image
                     ], get_output=True, print_output=True, suppress_errors=True)
                 except:
-                    dtslogger.warning('An error occurred while pulling the image "%s", maybe the image does not exist' % image)
+                    dtslogger.warning('An error occurred while pulling the image "%s", maybe the '
+                                      'image does not exist' % image)
             else:
                 dtslogger.info('Found an image with the same name. Using it as cache source.')
+            # configure cache
+            if parsed.force_cache and is_present:
+                buildopts += ['--cache-from=%s' % image]
 
         # stamp image
         build_time = 'ND'
@@ -311,6 +323,7 @@ class DTCommand(DTCommandAbs):
                     '--pull=%d' % int(parsed.pull),
                     '--no-cache=%d' % int(parsed.no_cache),
                     '-t', image] + \
+                    buildopts + \
                     buildlabels + \
                     buildargs + [
                     parsed.workdir
