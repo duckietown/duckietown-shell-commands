@@ -194,6 +194,7 @@ if __name__ == '__main__':
     # check if the build process succeded
     if not final_layer_pattern.match(lines[-1]):
         exit(2)
+    image = re.match(final_layer_pattern, lines[-1]).group(1)
 
     # get layers size from docker
     image_history = subprocess.check_output(
