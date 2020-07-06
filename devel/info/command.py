@@ -10,6 +10,7 @@ from dt_shell import DTShell, DTCommandAbs
 PROJECT_INFO = """
 {project}
 {space}Name: {name}
+{space}Distro: {distro}
 {space}Branch: {branch}
 {space}Index: {index}
 {space}Version: {version}
@@ -41,7 +42,9 @@ class DTCommand(DTCommandAbs):
         info = {
             "name": project.name,
             "branch": project.repository.branch,
-            "index": colored("Clean", "green") if project.is_clean() else colored("Dirty", "yellow"),
+            "distro": project.distro,
+            "index": colored("Clean", "green") if project.is_clean() else colored("Dirty",
+                                                                                  "yellow"),
             "path": project.path,
             "type": project.type,
             "type_version": project.type_version,

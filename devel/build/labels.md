@@ -39,9 +39,17 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
   - Type: `string`
   - Default: `undefined`
 
-- `org.duckietown.label.code.version.major`: Version of this image's code
+- `org.duckietown.label.code.distro`: Distribution this image belongs to (e.g., daffy)
   - Type: `string`
   - Default: `undefined`
+
+- `org.duckietown.label.code.version.head`: Only set when the project is clean and the repository HEAD is tagged 
+  - Type: `string`
+  - Default: `ND`
+
+- `org.duckietown.label.code.version.closest`: Closest version in the code's versioning history
+  - Type: `string`
+  - Default: `ND`
 
 - `org.duckietown.label.code.vcs`: Version control system
   - Type: `string`

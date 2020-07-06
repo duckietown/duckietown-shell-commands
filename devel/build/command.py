@@ -99,7 +99,7 @@ class DTCommand(DTCommandAbs):
                     sys.exit(5)
             # set configuration
             parsed.arch = os.environ['DUCKIETOWN_CI_ARCH']
-            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.image.authoritative=1']
+            buildlabels += ['--label', dtlabel('image.authoritative', '1')]
         # cloud build
         if parsed.cloud:
             if parsed.arch not in CLOUD_BUILDERS:
@@ -129,14 +129,18 @@ class DTCommand(DTCommandAbs):
         except ValueError:
             project_template_ver = -1
         # add code labels
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.vcs=git"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.version.major={project.repository.branch}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.repository={project.repository.name}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.branch={project.repository.branch}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.url={project.repository.repository_page}"]
+        project_head_version = project.repository.head_version if project.is_clean() else 'ND'
+        project_closest_version = project.repository.closest_version
+        buildlabels += ['--label', dtlabel('code.vcs', 'git')]
+        buildlabels += ['--label', dtlabel('code.distro', project.distro)]
+        buildlabels += ['--label', dtlabel('code.version.head', project_head_version)]
+        buildlabels += ['--label', dtlabel('code.version.closest', project_closest_version)]
+        buildlabels += ['--label', dtlabel('code.repository', project.repository.name)]
+        buildlabels += ['--label', dtlabel('code.branch', project.repository.branch)]
+        buildlabels += ['--label', dtlabel('code.url', project.repository.repository_page)]
         # add template labels
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.name={project.type}"]
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.template.version={project.type_version}"]
+        buildlabels += ['--label', dtlabel('template.name', project.type)]
+        buildlabels += ['--label', dtlabel('template.version', project.type_version)]
         # check if the index is clean
         if project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
@@ -193,10 +197,7 @@ class DTCommand(DTCommandAbs):
                 if os.access(f, os.X_OK) or _has_shebang(f)
             ]
             # add launchers to image labels
-            buildlabels += [
-                '--label',
-                f"{DOCKER_LABEL_DOMAIN}.code.launchers={','.join(sorted(launchers))}"
-            ]
+            buildlabels += ['--label', dtlabel('code.launchers', ','.join(sorted(launchers)))]
         # print info about multiarch
         msg = 'Building an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
         dtslogger.info(msg)
@@ -231,7 +232,7 @@ class DTCommand(DTCommandAbs):
         if parsed.loop:
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(project.repository.name)]
             buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(project.repository.branch, parsed.arch)]
-            buildlabels += ['--label', f'{DOCKER_LABEL_DOMAIN}.image.loop=1']
+            buildlabels += ['--label', dtlabel('image.loop', '1')]
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
             dtslogger.warn(msg)
@@ -277,23 +278,25 @@ class DTCommand(DTCommandAbs):
                 # get remote image metadata
                 try:
                     labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
-                    time_label = f"{DOCKER_LABEL_DOMAIN}.time"
-                    sha_label = f"{DOCKER_LABEL_DOMAIN}.code.sha"
+                    time_label = dtlabel('time')
+                    sha_label = dtlabel('code.sha')
                     if time_label in labels and sha_label in labels:
                         remote_time = labels[time_label]
                         remote_sha = labels[sha_label]
-                        if remote_sha == local_sha:
+                        if remote_sha == local_sha and remote_time != 'ND':
+                            dtslogger.debug('Identical image found. Reusing cache.')
                             # local and remote SHA match, reuse time
                             build_time = remote_time
                 except BaseException as e:
                     dtslogger.warning(f'Cannot fetch image metadata. Reason: {str(e)}')
         # default build_time
         build_time = build_time or datetime.datetime.utcnow().isoformat()
+        dtslogger.debug(f'Image timestamp: {build_time}')
         # add timestamp label
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.time={build_time}"]
+        buildlabels += ['--label', dtlabel('time', build_time)]
         # add code SHA label (CI only)
         code_sha = project.repository.sha if project.is_clean() else 'ND'
-        buildlabels += ['--label', f"{DOCKER_LABEL_DOMAIN}.code.sha={code_sha}"]
+        buildlabels += ['--label', dtlabel('code.sha', code_sha)]
 
         # build code
         buildlog = _run_cmd([
@@ -462,3 +465,11 @@ def add_token_to_docker_config(token):
     if 'X-Duckietown-Token' not in config['HttpHeaders']:
         config['HttpHeaders']['X-Duckietown-Token'] = token
         json.dump(config, open(config_file, 'w'), indent=2)
+
+
+def dtlabel(key, value=None):
+    label = f"{DOCKER_LABEL_DOMAIN}.{key.lstrip('.')}"
+    if value is not None:
+        label = f"{label}={value}"
+    return label
+

@@ -97,11 +97,14 @@ class DTProject:
             name=repo_info['REPOSITORY'],
             sha=repo_info['SHA'],
             branch=repo_info['BRANCH'],
+            head_version=repo_info['VERSION.HEAD'],
+            closest_version=repo_info['VERSION.CLOSEST'],
             repository_url=repo_info['ORIGIN.URL'],
             repository_page=repo_info['ORIGIN.HTTPS.URL'],
             index_nmodified=repo_info['INDEX_NUM_MODIFIED'],
             index_nadded=repo_info['INDEX_NUM_ADDED']
         )
+        self._distro, *_ = self._repository.branch.split('-')
 
     @property
     def path(self):
@@ -118,6 +121,10 @@ class DTProject:
     @property
     def type_version(self):
         return self._type_version
+
+    @property
+    def distro(self):
+        return self._distro
 
     @property
     def version(self):
@@ -256,6 +263,13 @@ class DTProject:
     def _get_repo_info(path):
         sha = _run_cmd(["git", "-C", path, "rev-parse", "HEAD"])[0]
         branch = _run_cmd(["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"])[0]
+        head_tag = _run_cmd([
+            "git", "-C", path, "describe", "--exact-match", "--tags", "HEAD", "2>/dev/null",
+            "||", ":"
+        ])
+        head_tag = head_tag[0] if head_tag else 'ND'
+        closest_tag = _run_cmd(["git", "-C", path, "tag"])
+        closest_tag = head_tag[-1] if closest_tag else 'ND'
         origin_url = _run_cmd(
             ["git", "-C", path, "config", "--get", "remote.origin.url"]
         )[0]
@@ -276,6 +290,8 @@ class DTProject:
             "REPOSITORY": repo,
             "SHA": sha,
             "BRANCH": branch,
+            "VERSION.HEAD": head_tag,
+            "VERSION.CLOSEST": closest_tag,
             "ORIGIN.URL": origin_url,
             "ORIGIN.HTTPS.URL": _remote_url_to_https(origin_url),
             "INDEX_NUM_MODIFIED": nmodified,
@@ -322,7 +338,9 @@ def _remote_url_to_https(remote_url):
 
 
 def _run_cmd(cmd):
-    return [line for line in subprocess.check_output(cmd).decode("utf-8").split("\n") if line]
+    cmd = ' '.join(cmd)
+    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n")
+            if line]
 
 
 def _parse_configurations(config_file: str) -> dict:
