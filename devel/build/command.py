@@ -273,6 +273,7 @@ class DTCommand(DTCommandAbs):
                             'pull',
                                 image
                     ], get_output=True, print_output=True, suppress_errors=True)
+                    is_present = True
                 except:
                     dtslogger.warning('An error occurred while pulling the image "%s", maybe the '
                                       'image does not exist' % image)
