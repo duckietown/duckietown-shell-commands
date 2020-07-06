@@ -23,7 +23,7 @@ if _exists(_join(_this_dir, _command_file)):
 _modules = [m for m in _glob.glob(_join(_this_dir, "*")) if _isdir(m)]
 # this is important to avoid name clashing with commands at lower levels
 print(_modules)
-_modules.sort(key=lambda p: int(_isfile(_join(p, _command_file))))
+_modules.sort(key=lambda p: int(not _isfile(_join(p, _command_file))))
 print(_modules)
 
 # load submodules
