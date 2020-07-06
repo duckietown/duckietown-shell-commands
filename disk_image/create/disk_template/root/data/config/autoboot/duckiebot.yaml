@@ -67,6 +67,16 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+  ros:
+    image: duckietown/dt-ros-commons:daffy-arm32v7
+    container_name: ros
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
   duckiebot-interface:
     image: duckietown/dt-duckiebot-interface:daffy-arm32v7
     container_name: duckiebot-interface
