@@ -7,7 +7,7 @@ from os.path import \
     dirname as _dirname, \
     basename as _basename, \
     isdir as _isdir, \
-    isdir as _isfile, \
+    isfile as _isfile, \
     join as _join
 import glob as _glob
 
