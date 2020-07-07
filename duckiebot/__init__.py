@@ -7,6 +7,7 @@ from os.path import \
     dirname as _dirname, \
     basename as _basename, \
     isdir as _isdir, \
+    isfile as _isfile, \
     join as _join
 import glob as _glob
 
@@ -20,6 +21,8 @@ if _exists(_join(_this_dir, _command_file)):
 
 # find all modules
 _modules = [m for m in _glob.glob(_join(_this_dir, "*")) if _isdir(m)]
+# this is important to avoid name clashing with commands at lower levels
+_modules.sort(key=lambda p: int(_isfile(_join(p, _command_file))))
 
 # load submodules
 for _mod in _modules:
