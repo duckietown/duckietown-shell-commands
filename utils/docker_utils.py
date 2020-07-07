@@ -14,7 +14,6 @@ from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
-from utils.dtproject_utils import CANONICAL_ARCH
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -38,6 +37,7 @@ Docker Endpoint:
 
 
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
+    from utils.dtproject_utils import CANONICAL_ARCH
     client = docker.DockerClient(base_url=f'tcp://{hostname}:{port}') \
         if (hostname is not None and hostname != DEFAULT_MACHINE) else docker.DockerClient()
     epoint_arch = client.info()['Architecture']
@@ -45,6 +45,16 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
         dtslogger.error(f'Architecture {epoint_arch} not supported!')
         exit(1)
     return CANONICAL_ARCH[epoint_arch]
+
+
+def sanitize_docker_baseurl(baseurl: str):
+    return baseurl if baseurl.startswith('unix:') else f'tcp://{baseurl}:{DEFAULT_DOCKER_TCP_PORT}'
+
+
+def get_client(endpoint=None):
+    endpoint = endpoint or DEFAULT_MACHINE
+    return endpoint if isinstance(endpoint, docker.DockerClient) else \
+        docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
 
 
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):

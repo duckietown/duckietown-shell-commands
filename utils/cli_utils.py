@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import subprocess
 from shutil import which
 
@@ -49,30 +50,35 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
 
 class ProgressBar:
 
-    def __init__(self):
+    def __init__(self, scale=1.0, buf=sys.stdout):
         self._finished = False
+        self._buffer = buf
+        self._scale = max(0.0, min(1.0, scale))
+        self._max = int(math.ceil(100 * self._scale))
 
     def update(self, percentage):
+        percentage_txt = percentage
+        percentage = int(math.ceil(percentage * self._scale))
         if self._finished:
             return
         # compile progress bar
-        pbar = "Progress: ["
+        pbar = "Progress: [" if self._scale > 0.5 else "["
         # progress
         pbar += "=" * percentage
-        if percentage < 100:
+        if percentage < self._max:
             pbar += ">"
-        pbar += " " * (100 - percentage - 1)
+        pbar += " " * (self._max - percentage - 1)
         # this ends the progress bar
-        pbar += f"] {percentage}%"
+        pbar += f"] {percentage_txt}%"
         # print
-        sys.stdout.write(pbar)
-        sys.stdout.flush()
+        self._buffer.write(pbar)
+        self._buffer.flush()
         # return to start of line
-        sys.stdout.write("\b" * len(pbar))
+        self._buffer.write("\b" * len(pbar))
         # end progress bar
-        if percentage >= 100:
-            sys.stdout.write("\n")
-            sys.stdout.flush()
+        if percentage >= self._max:
+            self._buffer.write("\n")
+            self._buffer.flush()
             self._finished = True
 
 

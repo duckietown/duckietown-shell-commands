@@ -10,6 +10,9 @@ import docker
 from docker.errors import APIError, ImageNotFound
 from types import SimpleNamespace
 
+from utils.docker_utils import sanitize_docker_baseurl
+
+
 REQUIRED_METADATA_KEYS = {
     "*": ["TYPE_VERSION"],
     "1": ["TYPE", "VERSION"],
@@ -187,7 +190,7 @@ class DTProject:
 
     def image_metadata(self, endpoint, arch: str, owner: str = 'duckietown'):
         client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=_sanitize_docker_baseurl(endpoint))
+            docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -197,7 +200,7 @@ class DTProject:
 
     def image_labels(self, endpoint, arch: str, owner: str = 'duckietown'):
         client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=_sanitize_docker_baseurl(endpoint))
+            docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -352,5 +355,8 @@ def _parse_configurations(config_file: str) -> dict:
         return configurations_content['configurations']
 
 
-def _sanitize_docker_baseurl(baseurl: str):
-    return baseurl if baseurl.startswith('unix:') else f'tcp://{baseurl}:2375'
+def dtlabel(key, value=None):
+    label = f"{DOCKER_LABEL_DOMAIN}.{key.lstrip('.')}"
+    if value is not None:
+        label = f"{label}={value}"
+    return label

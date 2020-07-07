@@ -18,9 +18,9 @@ from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_archit
 from utils.dtproject_utils import \
     CANONICAL_ARCH, \
     BUILD_COMPATIBILITY_MAP, \
-    DOCKER_LABEL_DOMAIN, \
     CLOUD_BUILDERS, \
-    DTProject
+    DTProject, \
+    dtlabel
 from utils.misc_utils import human_time
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -478,11 +478,3 @@ def add_token_to_docker_config(token):
     if 'X-Duckietown-Token' not in config['HttpHeaders']:
         config['HttpHeaders']['X-Duckietown-Token'] = token
         json.dump(config, open(config_file, 'w'), indent=2)
-
-
-def dtlabel(key, value=None):
-    label = f"{DOCKER_LABEL_DOMAIN}.{key.lstrip('.')}"
-    if value is not None:
-        label = f"{label}={value}"
-    return label
-
