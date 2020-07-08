@@ -100,12 +100,14 @@ class DTCommand(DTCommandAbs):
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
         dtslogger.info(f'Pushing image {image}...')
-        push_image(image, docker, **push_args)
+        push_image(image, docker, progress=not parsed.ci, **push_args)
+        dtslogger.info('Image successfully pushed!')
         # push release version
         if project.is_release():
             image = project.image_release(parsed.arch, owner=parsed.username)
             dtslogger.info(f'Pushing image {image}...')
-            push_image(image, docker, **push_args)
+            push_image(image, docker, progress=not parsed.ci, **push_args)
+            dtslogger.info('Image successfully pushed!')
 
     @staticmethod
     def complete(shell, word, line):

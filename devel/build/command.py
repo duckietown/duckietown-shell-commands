@@ -260,7 +260,7 @@ class DTCommand(DTCommandAbs):
                 # try to pull the same image so Docker can use it as cache source
                 dtslogger.info('Pulling image "%s" to use as cache...' % image)
                 try:
-                    pull_image(image, endpoint=docker)
+                    pull_image(image, endpoint=docker, progress=not parsed.ci)
                     is_present = True
                 except KeyboardInterrupt:
                     dtslogger.info('Aborting.')
