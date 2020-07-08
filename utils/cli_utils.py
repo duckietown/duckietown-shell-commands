@@ -57,7 +57,7 @@ class ProgressBar:
         self._max = int(math.ceil(100 * self._scale))
 
     def update(self, percentage):
-        percentage_txt = percentage
+        percentage_txt = int(max(0, min(100, percentage)))
         percentage = int(math.ceil(percentage * self._scale))
         if self._finished:
             return
@@ -69,7 +69,7 @@ class ProgressBar:
             pbar += ">"
         pbar += " " * (self._max - percentage - 1)
         # this ends the progress bar
-        pbar += f"] {percentage_txt}%"
+        pbar += "] {:d}%".format(percentage_txt)
         # print
         self._buffer.write(pbar)
         self._buffer.flush()
