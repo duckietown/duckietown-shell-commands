@@ -147,7 +147,8 @@ class DTProject:
         arch = canonical_arch(arch)
         loop = '-LOOP' if loop else ''
         docs = '-docs' if docs else ''
-        return f"{owner}/{self.repository.name}:{self.repository.branch}{loop}{docs}-{arch}"
+        version = re.sub(r'[^\w\-.]', '-', self.repository.branch)
+        return f"{owner}/{self.repository.name}:{version}{loop}{docs}-{arch}"
 
     def is_release(self):
         return self.repository.head_version != 'ND'
@@ -157,7 +158,7 @@ class DTProject:
             raise ValueError('The project repository is not in a release state')
         arch = canonical_arch(arch)
         docs = '-docs' if docs else ''
-        version = self.repository.head_version
+        version = re.sub(r'[^\w\-.]', '-', self.repository.head_version)
         return f"{owner}/{self.repository.name}:{version}{docs}-{arch}"
 
     def configurations(self) -> dict:
