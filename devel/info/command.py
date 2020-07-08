@@ -27,13 +27,13 @@ class DTCommand(DTCommandAbs):
     help = "Shows information about the current project"
 
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C",
             "--workdir",
-            default=None,
+            default=os.getcwd(),
             help="Directory containing the project to show",
         )
         parser.add_argument(
@@ -43,12 +43,14 @@ class DTCommand(DTCommandAbs):
             help="Overwrites configuration for CI (Continuous Integration)"
         )
         parsed, _ = parser.parse_known_args(args=args)
+        if 'parsed' in kwargs:
+            parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---
         if parsed.ci:
             # disable coloring
             tc.colored = nocolor
-        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
-        project = DTProject(code_dir)
+        parsed.workdir = os.path.abspath(parsed.workdir)
+        project = DTProject(parsed.workdir)
         info = {
             "name": project.name,
             "branch": project.repository.branch,
