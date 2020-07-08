@@ -45,7 +45,7 @@ class DTCommand(DTCommandAbs):
             parsed.push = True
             parsed.rm = True
             # check that the env variables are set
-            for key in ['MAJOR', 'DT_TOKEN']:
+            for key in ['DISTRO', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
@@ -64,10 +64,10 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning('Forced!')
         # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != project.repository.branch:
+        if parsed.ci and os.environ['DUCKIETOWN_CI_DISTRO'] != project.repository.branch:
             dtslogger.info(
                 'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_MAJOR'], project.repository.branch
+                    os.environ['DUCKIETOWN_CI_DISTRO'], project.repository.branch
                 )
             )
             exit(0)

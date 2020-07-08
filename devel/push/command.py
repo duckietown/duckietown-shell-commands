@@ -78,6 +78,10 @@ class DTCommand(DTCommandAbs):
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
         _run_cmd(["docker", "-H=%s" % parsed.machine, "push", image])
+        # push release version
+        if project.is_release():
+            image = project.image_release(parsed.arch, owner=parsed.username)
+            _run_cmd(["docker", "-H=%s" % parsed.machine, "push", image])
 
     @staticmethod
     def complete(shell, word, line):

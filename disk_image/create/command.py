@@ -19,7 +19,7 @@ import itertools
 from datetime import datetime
 
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-from utils.duckietown_utils import get_major_version
+from utils.duckietown_utils import get_distro_version
 
 PARTITION_MOUNTPOINT = lambda partition: f"/media/{getpass.getuser()}/{partition}"
 DISK_DEVICE = lambda device, partition_id: f"{device}p{partition_id}"
@@ -53,6 +53,10 @@ MODULES_TO_LOAD = [
         'owner': 'portainer',
         'module': 'portainer',
         'tag': 'linux-arm'
+    },
+    {
+        'owner': 'duckietown',
+        'module': 'dt-base-environment'
     },
     {
         'owner': 'duckietown',
@@ -190,7 +194,7 @@ class DTCommand(DTCommandAbs):
         input_image_name = pathlib.Path(in_file_path('img')).stem
         out_file_path = lambda ex: os.path.join(parsed.output, f'dt-{input_image_name}.{ex}')
         # get version
-        major_version = get_major_version(shell)
+        distro = get_distro_version(shell)
         # this will hold the link to the loop device
         loopdev = None
         # this is the surgey plan that will be performed by the init_sd_card command
@@ -213,7 +217,7 @@ class DTCommand(DTCommandAbs):
             },
             'modules': [
                 DOCKER_IMAGE_TEMPLATE(
-                    owner=module['owner'], module=module['module'], version=major_version,
+                    owner=module['owner'], module=module['module'], version=distro,
                     tag=module['tag'] if 'tag' in module else None
                 )
                 for module in MODULES_TO_LOAD
@@ -599,7 +603,7 @@ class DTCommand(DTCommandAbs):
                     # pull images inside the disk image
                     for module in MODULES_TO_LOAD:
                         image = DOCKER_IMAGE_TEMPLATE(
-                            owner=module['owner'], module=module['module'], version=major_version,
+                            owner=module['owner'], module=module['module'], version=distro,
                             tag=module['tag'] if 'tag' in module else None
                         )
                         _pull_docker_image(remote_docker, image)
@@ -943,10 +947,10 @@ def _get_validator_fcn(partition, path):
 
 def _validator_autoboot_stack(shell, local_path, remote_path, data=None):
     # get version
-    major_version = get_major_version(shell)
+    distro = get_distro_version(shell)
     modules = {
         DOCKER_IMAGE_TEMPLATE(
-            owner=module['owner'], module=module['module'], version=major_version,
+            owner=module['owner'], module=module['module'], version=distro,
             tag=module['tag'] if 'tag' in module else None
         ) for module in MODULES_TO_LOAD
     }

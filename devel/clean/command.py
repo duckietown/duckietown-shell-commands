@@ -51,21 +51,25 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
-        image = project.image(parsed.arch)
-        # remove image
-        img = _run_cmd(
-            ["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True
-        )
-        if img:
-            dtslogger.info("Removing image {}...".format(image))
-            try:
-                _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", image])
-            except RuntimeError:
-                dtslogger.warn(
-                    "We had some issues removing the image '{:s}' on '{:s}'".format(
-                        image, parsed.machine
-                    ) + ". Just a heads up!"
-                )
+        images = [project.image(parsed.arch)]
+        # clean release version
+        if project.is_release():
+            images.append(project.image_release(parsed.arch))
+        # remove images
+        for image in images:
+            img = _run_cmd(
+                ["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True
+            )
+            if img:
+                dtslogger.info("Removing image {}...".format(image))
+                try:
+                    _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", image])
+                except RuntimeError:
+                    dtslogger.warn(
+                        "We had some issues removing the image '{:s}' on '{:s}'".format(
+                            image, parsed.machine
+                        ) + ". Just a heads up!"
+                    )
 
     @staticmethod
     def complete(shell, word, line):

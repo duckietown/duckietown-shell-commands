@@ -20,7 +20,8 @@ from utils.dtproject_utils import \
     BUILD_COMPATIBILITY_MAP, \
     CLOUD_BUILDERS, \
     DTProject, \
-    dtlabel
+    dtlabel, \
+    DISTRO_KEY
 from utils.misc_utils import human_time
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -82,6 +83,13 @@ class DTCommand(DTCommandAbs):
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
+        # show info about project
+        shell.include.devel.info.command(shell, args)
+        project = DTProject(parsed.workdir)
+        try:
+            project_template_ver = int(project.type_version)
+        except ValueError:
+            project_template_ver = -1
         # define labels / build-args
         buildlabels = []
         buildargs = []
@@ -96,7 +104,7 @@ class DTCommand(DTCommandAbs):
             parsed.stamp = True
             parsed.force_cache = True
             # check that the env variables are set
-            for key in ['ARCH', 'MAJOR', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
+            for key in ['ARCH', 'DISTRO', 'DOCKERHUB_USER', 'DOCKERHUB_TOKEN', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
@@ -131,13 +139,6 @@ class DTCommand(DTCommandAbs):
             # update destination parameter
             if not parsed.destination:
                 parsed.destination = DEFAULT_MACHINE
-        # show info about project
-        shell.include.devel.info.command(shell, args)
-        project = DTProject(parsed.workdir)
-        try:
-            project_template_ver = int(project.type_version)
-        except ValueError:
-            project_template_ver = -1
         # add code labels
         project_head_version = project.repository.head_version if project.is_clean() else 'ND'
         project_closest_version = project.repository.closest_version
@@ -160,10 +161,10 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning('Forced!')
         # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_MAJOR'] != project.repository.branch:
+        if parsed.ci and os.environ['DUCKIETOWN_CI_DISTRO'] != project.repository.branch:
             dtslogger.info(
                 'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_MAJOR'], project.repository.branch
+                    os.environ['DUCKIETOWN_CI_DISTRO'], project.repository.branch
                 )
             )
             exit(0)
@@ -188,6 +189,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # create defaults
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        if project.is_release():
+            buildopts += ['--tag', project.image_release(parsed.arch, owner=parsed.username)]
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -228,23 +231,28 @@ class DTCommand(DTCommandAbs):
                     ], True)
                     dtslogger.info('Multiarch Enabled!')
                 except:
-                    msg = 'Multiarch cannot be enabled on the target machine. This might create issues.'
+                    msg = 'Multiarch cannot be enabled on the target machine. ' \
+                          'This might create issues.'
                     dtslogger.warning(msg)
             else:
-                msg = 'Building an image for {} on {}. Multiarch not needed!'.format(parsed.arch, epoint['Architecture'])
+                msg = 'Building an image for {} on {}. Multiarch not needed!'.format(
+                    parsed.arch, epoint['Architecture'])
                 dtslogger.info(msg)
         # architecture target
         buildargs += ['--build-arg', 'ARCH={}'.format(parsed.arch)]
         # development base images
         if parsed.base_tag is not None:
-            buildargs += ['--build-arg', 'MAJOR={}'.format(parsed.base_tag)]
+            buildargs += [
+                '--build-arg', '{}={}'.format(
+                    DISTRO_KEY[str(project_template_ver)], parsed.base_tag)
+            ]
         # loop mode (Experimental)
         if parsed.loop:
             buildargs += ['--build-arg', 'BASE_IMAGE={}'.format(project.repository.name)]
             buildargs += ['--build-arg', 'BASE_TAG={}-{}'.format(project.repository.branch, parsed.arch)]
             buildlabels += ['--label', dtlabel('image.loop', '1')]
             # ---
-            msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution"
+            msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
             dtslogger.warn(msg)
 
         # cache

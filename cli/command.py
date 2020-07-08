@@ -4,13 +4,13 @@ import shutil
 import argparse
 import subprocess
 
-from utils.duckietown_utils import get_major_version
+from utils.duckietown_utils import get_distro_version
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DEFAULT_IMAGE = 'duckietown/dt-gui-tools:{major}-{arch}'
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:{distro}-{arch}'
 DEFAULT_RUNTIME = 'docker'
 CANONICAL_ARCH = {
     'arm': 'arm32v7',
@@ -106,7 +106,7 @@ class DTCommand(DTCommandAbs):
         ]
         # compile image name
         image = parsed.image if parsed.image \
-            else DEFAULT_IMAGE.format(major=get_major_version(shell), arch=endpoint_arch)
+            else DEFAULT_IMAGE.format(distro=get_distro_version(shell), arch=endpoint_arch)
         # print info
         dtslogger.info('Running command [%s]...' % ' '.join(parsed.command))
         print('------>')

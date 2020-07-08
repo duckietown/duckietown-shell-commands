@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 
 import re
-import sys
-import argparse
-import subprocess
 import termcolor as tc
 
 LAYER_SIZE_THR_YELLOW = 20 * 1024**2  # 20 MB
@@ -59,7 +56,13 @@ class ImageAnalyzer(object):
         # check if the build process succeded
         if not final_layer_pattern.match(lines[-1]):
             exit(codens+2)
-        image = final_layer_pattern.match(lines[-1]).group(1)
+        image_names = []
+        for line in reversed(lines):
+            match = final_layer_pattern.match(line)
+            if match:
+                image_names.append(match.group(1))
+            else:
+                break
 
         print()
         ImageAnalyzer.about()
@@ -157,10 +160,11 @@ class ImageAnalyzer(object):
         )
         print()
         print('=' * SEPARATORS_LENGTH)
-        print('Final image name: %s' % image)
+        print('Final image name: %s' % ('\n' + ' ' * 18).join(image_names))
         print('Base image size: %s' % sizeof_fmt(base_image_size))
         print('Final image size: %s' % sizeof_fmt(final_image_size))
-        print('Your image added %s to the base image.' % sizeof_fmt(final_image_size-base_image_size))
+        print('Your image added %s to the base image.' % sizeof_fmt(
+            final_image_size-base_image_size))
         print(EXTRA_INFO_SEPARATOR)
         print('Layers total: {:d}'.format(tot_layers))
         print(' - Built: {:d}'.format(tot_layers - cached_layers))
@@ -174,37 +178,4 @@ class ImageAnalyzer(object):
               ': Always ask yourself, can I do better than that? ;)')
         print()
         # ---
-        return image, base_image_size, final_image_size
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--machine', default="", help="Hostname of the machine running the build")
-    parsed = parser.parse_args()
-
-    # put lines from the pipe in a list
-    final_layer_pattern = re.compile("Successfully tagged (.*)")
-    lines = [line for line in sys.stdin if len(line.strip()) > 0]
-
-    # return if the log is empty
-    if not lines:
-        exit(1)
-
-    # handle remote build
-    docker_H = []
-    if len(parsed.machine) > 0:
-        docker_H = ['-H', parsed.machine]
-
-    # check if the build process succeded
-    if not final_layer_pattern.match(lines[-1]):
-        exit(2)
-    image = re.match(final_layer_pattern, lines[-1]).group(1)
-
-    # get layers size from docker
-    image_history = subprocess.check_output(
-        ['docker'] + docker_H + ['history', '-H=false', '--format', '{{.ID}}:{{.Size}}', image],
-    ).decode('utf-8')
-    image_history = [l.split(':') for l in image_history.split('\n') if len(l.strip()) > 0]
-
-    # run image analysis
-    ImageAnalyzer.process(lines, image_history)
+        return image_names, base_image_size, final_image_size

@@ -13,7 +13,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import get_client, get_endpoint_architecture
 from utils.dtproject_utils import dtlabel, DTProject
 from utils.cli_utils import ProgressBar, ask_confirmation
-from utils.duckietown_utils import get_major_version
+from utils.duckietown_utils import get_distro_version
 
 
 class DTCommand(DTCommandAbs):
@@ -31,7 +31,7 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument(
             '-D', '--distro',
-            default=get_major_version(shell),
+            default=get_distro_version(shell),
             help='Only update images of this Duckietown distro'
         )
         parser.add_argument(
@@ -46,7 +46,7 @@ class DTCommand(DTCommandAbs):
         # open Docker client
         docker = get_client(hostname)
         arch = get_endpoint_architecture(hostname)
-        image_pattern = re.compile(f'^duckietown/.+:{get_major_version(shell)}-{arch}$')
+        image_pattern = re.compile(f'^duckietown/.+:{get_distro_version(shell)}-{arch}$')
 
         # fetch list of images at the Docker endpoint
         dtslogger.info('Fetching software status from your Duckiebot...')

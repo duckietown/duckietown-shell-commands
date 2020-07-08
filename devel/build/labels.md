@@ -89,7 +89,7 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
 
 ## Base image labels
 
-- `org.duckietown.label.base.major`: Base Docker image's code major version
+- `org.duckietown.label.base.distro`: Base Docker image's code distro version
   - Type: `string`
   - Default: `undefined`
 

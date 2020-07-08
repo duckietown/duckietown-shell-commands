@@ -30,5 +30,5 @@ def get_robot_configurations(robot_type):
     return configurations[robot_type]
 
 
-def get_major_version(shell):
+def get_distro_version(shell):
     return next(re.finditer('([a-zA-Z]+)', shell.get_commands_version())).group(1)

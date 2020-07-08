@@ -76,6 +76,11 @@ TEMPLATE_TO_LAUNCHFILE = {
     }
 }
 
+DISTRO_KEY = {
+    '1': 'MAJOR',
+    '2': 'DISTRO'
+}
+
 DOCKER_HUB_API_URL = {
     'token':
         'https://auth.docker.io/token?scope=repository:{image}:pull&service=registry.docker.io',
@@ -143,6 +148,17 @@ class DTProject:
         loop = '-LOOP' if loop else ''
         docs = '-docs' if docs else ''
         return f"{owner}/{self.repository.name}:{self.repository.branch}{loop}{docs}-{arch}"
+
+    def is_release(self):
+        return self.repository.head_version != 'ND'
+
+    def image_release(self, arch: str, docs: bool = False, owner: str = 'duckietown') -> str:
+        if not self.is_release():
+            raise ValueError('The project repository is not in a release state')
+        arch = canonical_arch(arch)
+        docs = '-docs' if docs else ''
+        version = self.repository.head_version
+        return f"{owner}/{self.repository.name}:{version}{docs}-{arch}"
 
     def configurations(self) -> dict:
         if int(self._type_version) < 2:
@@ -272,7 +288,7 @@ class DTProject:
         ])
         head_tag = head_tag[0] if head_tag else 'ND'
         closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
-        closest_tag = head_tag[-1] if closest_tag else 'ND'
+        closest_tag = closest_tag[-1] if closest_tag else 'ND'
         origin_url = _run_cmd(
             ["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"]
         )[0]
