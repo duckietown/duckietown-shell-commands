@@ -1,10 +1,12 @@
 
 from .utils.ssh import SSHUtils
-from .utils.command import command
+from .utils.local_command import command
 from .secrets import APP_ID, APP_SECRET
 import time
 import re
 import uuid
+import requests
+import json
 
 
 class Benchmark:
@@ -44,14 +46,29 @@ class Benchmark:
                                 ' && ls -la /mnt && exit').
                                 format(duckiename=self.botname, bag_name=bagname, duration=self.duration-60),
                 afterLineRegex=r'Set PYTHONPATH to: /home/software/catkin_ws/src:/opt/ros/kinetic/lib/python2.7/dist-packages:/home/software/catkin_ws/src')
-    @staticmethod
-    def _collect_meta():
+    def _collect_meta(self):
+        meta_req = requests.get('{}/hw_benchmark/meta'.format(self.api_url))
+        if meta_req.status_code != 200:
+            print('Benchmark API not reachable')
+            exit(1)
+        content = json.loads(meta_req.content)
         meta = {}
-        meta['bot_type'] = input('bot type, e.g. DB18p4:\n\t> ')
-        meta['battery_type'] = input('battery type e.g. Old Alu:\n\t> ')
-        meta['release'] = input('software version (master19 or daffy):\n\t> ')
-        assert meta['release'] in ['master19', 'daffy'], 'wrong software release'
-
+        for d in content['dropdowns']:
+            msg = d['name'] + ': Please select '
+            for i, c in enumerate(d['content']):
+                msg += '[{}]=>{}, '.format(i+1, c)
+            msg = msg[0:-2] + '\n\t> '
+            index = int(input(msg)) - 1 
+            if 0 > index or index > len(d['content']):
+                print('Index doesn\'t exist')
+                exit(1)
+            meta[d['key']] = d['content'][index]
+        
+        for t in content['textfields']:
+            meta[t['key']] = t['default']
+            ipt = input('Please enter {}, default is {} \n\t> '.format(t['name'], t ['default']))
+            if ipt != '':
+                meta[t['key']] = ipt
         return meta
 
     def _start_lane_following(self):
