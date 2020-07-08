@@ -12,7 +12,7 @@ import six
 import docker
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import start_command_in_subprocess
+from utils.cli_utils import start_command_in_subprocess, ProgressBar
 from utils.networking_utils import get_duckiebot_ip
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
@@ -60,6 +60,45 @@ def get_client(endpoint=None):
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     return docker.DockerClient(base_url=f'tcp://{duckiebot_ip}:{port}')
 
+
+def pull_image(image, endpoint=None, progress=True):
+    client = get_client(endpoint)
+    layers = set()
+    pulled = set()
+    pbar = ProgressBar() if progress else None
+    for line in client.api.pull(image, stream=True, decode=True):
+        if 'id' not in line or 'status' not in line:
+            continue
+        layer_id = line['id']
+        layers.add(layer_id)
+        if line['status'] in ['Already exists', 'Pull complete']:
+            pulled.add(layer_id)
+        # update progress bar
+        if progress:
+            percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
+            pbar.update(percentage)
+
+
+def push_image(image, endpoint=None, progress=True, **kwargs):
+    client = get_client(endpoint)
+    layers = set()
+    pushed = set()
+    pbar = ProgressBar() if progress else None
+    for line in client.api.push(*image.split(':'), stream=True, decode=True, **kwargs):
+        if 'id' not in line or 'status' not in line:
+            continue
+        layer_id = line['id']
+        layers.add(layer_id)
+        if line['status'] in ['Layer already exists', 'Pushed']:
+            pushed.add(layer_id)
+        # update progress bar
+        if progress:
+            percentage = max(0.0, min(1.0, len(pushed) / max(1.0, len(layers)))) * 100.0
+            pbar.update(percentage)
+
+
+
+# Everything after this point needs to be checked
 
 def continuously_monitor(client, container_name):
     from docker.errors import NotFound, APIError
