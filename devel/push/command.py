@@ -1,11 +1,9 @@
 import argparse
 import os
-import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture
-from utils.dtproject_utils import ARCH_MAP
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_client, push_image
 from utils.dtproject_utils import DTProject
 
 from dt_shell import DTShell
@@ -21,7 +19,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-C",
             "--workdir",
-            default=None,
+            default=os.getcwd(),
             help="Directory containing the project to push",
         )
         parser.add_argument(
@@ -35,6 +33,12 @@ class DTCommand(DTCommandAbs):
             "--machine",
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname from where to push the image",
+        )
+        parser.add_argument(
+            '--ci',
+            default=False,
+            action='store_true',
+            help="Overwrites configuration for CI (Continuous Integration) push"
         )
         parser.add_argument(
             "-f",
@@ -58,11 +62,20 @@ class DTCommand(DTCommandAbs):
         if 'parsed' in kwargs:
             parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---
-        code_dir = parsed.workdir if parsed.workdir else os.getcwd()
-        dtslogger.info("Project workspace: {}".format(code_dir))
+        parsed.workdir = os.path.abspath(parsed.workdir)
+        dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
-        shell.include.devel.info.command(shell, args)
-        project = DTProject(code_dir)
+        shell.include.devel.info.command(shell, [], parsed=parsed)
+        project = DTProject(parsed.workdir)
+        # CI builds
+        if parsed.ci:
+            # check that the env variables are set
+            for key in ['DOCKERHUB_USER', 'DOCKERHUB_TOKEN']:
+                if 'DUCKIETOWN_CI_' + key not in os.environ:
+                    dtslogger.error(
+                        'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
+                    )
+                    exit(2)
         # check if the index is clean
         if project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
@@ -75,22 +88,25 @@ class DTCommand(DTCommandAbs):
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
+        # login (CI only)
+        push_args = {}
+        if parsed.ci:
+            push_args['auth_config'] = {
+                'username': os.environ['DUCKIETOWN_CI_DOCKERHUB_USER'],
+                'password': os.environ['DUCKIETOWN_CI_DOCKERHUB_TOKEN']
+            }
+        # spin up docker client
+        docker = get_client(parsed.machine)
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
-        _run_cmd(["docker", "-H=%s" % parsed.machine, "push", image])
+        dtslogger.info(f'Pushing image {image}...')
+        push_image(image, docker, **push_args)
         # push release version
         if project.is_release():
             image = project.image_release(parsed.arch, owner=parsed.username)
-            _run_cmd(["docker", "-H=%s" % parsed.machine, "push", image])
+            dtslogger.info(f'Pushing image {image}...')
+            push_image(image, docker, **push_args)
 
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-def _run_cmd(cmd, env=None):
-    dtslogger.debug("$ %s" % cmd)
-    environ = os.environ
-    if env:
-      environ.update(env)
-    subprocess.check_call(cmd, env=environ)

@@ -3,8 +3,8 @@
 import re
 import termcolor as tc
 
-LAYER_SIZE_THR_YELLOW = 20 * 1024**2  # 20 MB
-LAYER_SIZE_THR_RED = 75 * 1024**2    # 75 MB
+LAYER_SIZE_YELLOW = 20 * 1024 ** 2  # 20 MB
+LAYER_SIZE_RED = 75 * 1024 ** 2  # 75 MB
 SEPARATORS_LENGTH = 84
 SEPARATORS_LENGTH_HALF = 25
 
@@ -16,14 +16,14 @@ class ImageAnalyzer(object):
     @staticmethod
     def about():
         print()
-        print('='*30)
+        print('=' * 30)
         print(tc.colored('Docker Build Analyzer', 'white', 'on_blue'))
         print('Maintainer: Andrea F. Daniele (afdaniele@ttic.edu)')
-        print('='*30)
+        print('=' * 30)
         print()
 
     @staticmethod
-    def sizeof_fmt(num, suffix='B', precision=2):
+    def size_fmt(num, suffix='B', precision=2):
         for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
             if abs(num) < 1024.0:
                 return f"%3.{precision}f %s%s" % (num, unit, suffix)
@@ -33,15 +33,14 @@ class ImageAnalyzer(object):
     @staticmethod
     def process(buildlog, historylog, codens=0, extra_info=None, nocolor=False):
         lines = buildlog
-        image_history = historylog
-        sizeof_fmt = ImageAnalyzer.sizeof_fmt
+        size_fmt = ImageAnalyzer.size_fmt
 
         # return if the log is empty
         if not lines:
             raise ValueError('The build log is empty')
 
         # return if the image history is empty
-        if not image_history:
+        if not historylog:
             raise ValueError('The image history is empty')
 
         if nocolor:
@@ -53,9 +52,12 @@ class ImageAnalyzer(object):
         cache_string = ' ---> Using cache'
         final_layer_pattern = re.compile("Successfully tagged (.*)")
 
+        # sanitize log
+        lines = list(map(lambda s: s.strip('\n'), lines))
+
         # check if the build process succeded
         if not final_layer_pattern.match(lines[-1]):
-            exit(codens+2)
+            exit(codens + 2)
         image_names = []
         for line in reversed(lines):
             match = final_layer_pattern.match(line)
@@ -70,10 +72,15 @@ class ImageAnalyzer(object):
         # find "Step XY/TOT" lines
         steps_idx = [i for i in range(len(lines)) if step_pattern.match(lines[i])] + [len(lines)]
 
+        # sanitize history log
+        historylog = [
+            (lid[7:19] if lid.startswith('sha256:') else lid, size) for (lid, size) in historylog
+        ]
+
         # create map {layerid: size_bytes}
         layer_to_size_bytes = dict()
-        for layerid, layersize in image_history:
-            if layerid == 'missing':
+        for layerid, layersize in historylog:
+            if 'missing' in layerid:
                 continue
             layer_to_size_bytes[layerid] = int(layersize)
 
@@ -91,7 +98,7 @@ class ImageAnalyzer(object):
             # check for cached layers
             step_cache = tc.colored('No', 'red')
             if len(cur_step_lines) <= 2 or \
-               len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
+                    len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
                 cached_layers += 1
                 step_cache = tc.colored('Yes', 'green')
             # get Step info
@@ -112,16 +119,16 @@ class ImageAnalyzer(object):
                     cached_layers += 1
             # ---
             if layerid in layer_to_size_bytes:
-                layersize = sizeof_fmt(layer_to_size_bytes[layerid])
+                layersize = size_fmt(layer_to_size_bytes[layerid])
                 fg_color = 'white'
-                bg_color = 'yellow' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_YELLOW \
+                bg_color = 'yellow' if layer_to_size_bytes[layerid] > LAYER_SIZE_YELLOW \
                     else 'green'
-                bg_color = 'red' if layer_to_size_bytes[layerid] > LAYER_SIZE_THR_RED else bg_color
+                bg_color = 'red' if layer_to_size_bytes[layerid] > LAYER_SIZE_RED else bg_color
                 bg_color = 'blue' if stepcmd.startswith('FROM') else bg_color
 
-            indent_str = tc.colored(indent_str, fg_color, 'on_'+bg_color)
-            size_str = tc.colored(size_str, fg_color, 'on_'+bg_color)
-            layerid_str = tc.colored(layerid_str, fg_color, 'on_'+bg_color)
+            indent_str = tc.colored(indent_str, fg_color, 'on_' + bg_color)
+            size_str = tc.colored(size_str, fg_color, 'on_' + bg_color)
+            layerid_str = tc.colored(layerid_str, fg_color, 'on_' + bg_color)
             # print info about the current layer
             print(
                 '%s %s\n%sStep: %s/%s\n%sCached: %s\n%sCommand: \n%s\t%s\n%s%s %s' % (
@@ -138,33 +145,31 @@ class ImageAnalyzer(object):
         tot_layers = len(steps_idx) - 1
         cached_layers = min(tot_layers, cached_layers)
 
-        # compute size of the base image
+        # compute size of base and final image
         first_layer_idx = [
-            i for i in range(len(image_history)) if image_history[i][0] == first_layer
+            i for i in range(len(historylog)) if historylog[i][0] == first_layer
         ][0]
-        base_image_size = sum([int(line[1]) for line in image_history[first_layer_idx:]])
-
-        # compute size of the final image
-        final_image_size = sum([int(line[1]) for line in image_history])
+        base_image_size = sum([int(line[1]) for line in historylog[first_layer_idx:]])
+        final_image_size = sum([int(line[1]) for line in historylog])
 
         # print info about the whole image
         print()
         print(
             'Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t' % (
-                tc.colored(' '*2, 'white', 'on_white'), 'EMPTY LAYER',
-                tc.colored(' '*2, 'white', 'on_blue'), 'BASE LAYER',
-                tc.colored(' '*2, 'white', 'on_green'), sizeof_fmt(LAYER_SIZE_THR_YELLOW, precision=1),
-                tc.colored(' '*2, 'white', 'on_yellow'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1),
-                tc.colored(' '*2, 'white', 'on_red'), sizeof_fmt(LAYER_SIZE_THR_RED, precision=1)
+                tc.colored(' ' * 2, 'white', 'on_white'), 'EMPTY LAYER',
+                tc.colored(' ' * 2, 'white', 'on_blue'), 'BASE LAYER',
+                tc.colored(' ' * 2, 'white', 'on_green'), size_fmt(LAYER_SIZE_YELLOW, precision=1),
+                tc.colored(' ' * 2, 'white', 'on_yellow'), size_fmt(LAYER_SIZE_RED, precision=1),
+                tc.colored(' ' * 2, 'white', 'on_red'), size_fmt(LAYER_SIZE_RED, precision=1)
             )
         )
         print()
         print('=' * SEPARATORS_LENGTH)
         print('Final image name: %s' % ('\n' + ' ' * 18).join(image_names))
-        print('Base image size: %s' % sizeof_fmt(base_image_size))
-        print('Final image size: %s' % sizeof_fmt(final_image_size))
-        print('Your image added %s to the base image.' % sizeof_fmt(
-            final_image_size-base_image_size))
+        print('Base image size: %s' % size_fmt(base_image_size))
+        print('Final image size: %s' % size_fmt(final_image_size))
+        print('Your image added %s to the base image.' % size_fmt(
+            final_image_size - base_image_size))
         print(EXTRA_INFO_SEPARATOR)
         print('Layers total: {:d}'.format(tot_layers))
         print(' - Built: {:d}'.format(tot_layers - cached_layers))
