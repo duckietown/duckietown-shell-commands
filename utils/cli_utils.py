@@ -53,11 +53,14 @@ class ProgressBar:
     def __init__(self, scale=1.0, buf=sys.stdout):
         self._finished = False
         self._buffer = buf
+        self._last_value = -1
         self._scale = max(0.0, min(1.0, scale))
         self._max = int(math.ceil(100 * self._scale))
 
     def update(self, percentage):
-        percentage_txt = int(max(0, min(100, percentage)))
+        percentage_int = int(max(0, min(100, percentage)))
+        if percentage_int == self._last_value:
+            return
         percentage = int(math.ceil(percentage * self._scale))
         if self._finished:
             return
@@ -69,7 +72,7 @@ class ProgressBar:
             pbar += ">"
         pbar += " " * (self._max - percentage - 1)
         # this ends the progress bar
-        pbar += "] {:d}%".format(percentage_txt)
+        pbar += "] {:d}%".format(percentage_int)
         # print
         self._buffer.write(pbar)
         self._buffer.flush()
@@ -80,6 +83,7 @@ class ProgressBar:
             self._buffer.write("\n")
             self._buffer.flush()
             self._finished = True
+        self._last_value = percentage_int
 
 
 def ask_confirmation(message, default='y'):
