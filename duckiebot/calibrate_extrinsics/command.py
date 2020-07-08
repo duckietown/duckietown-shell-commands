@@ -33,7 +33,7 @@ Calibrate:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/dt-core:daffy",
+            default="duckietown/dt-core:daffy-arm32v7",
         )
         parser.add_argument(
             "--no_verification",
