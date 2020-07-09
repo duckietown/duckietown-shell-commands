@@ -406,6 +406,10 @@ class DTCommand(DTCommandAbs):
         return []
 
 
+class ProjectBuildError(Exception):
+    pass
+
+
 def _transfer_image(origin, destination, image, image_size):
     monitor_info = '' if which('pv') else ' (install `pv` to see the progress)'
     dtslogger.info(f'Transferring image "{image}": [{origin}] -> [{destination}]{monitor_info}...')
@@ -417,6 +421,10 @@ def _transfer_image(origin, destination, image, image_size):
 
 
 def _build_line(line):
+    if 'error' in line and 'errorDetail' in line:
+        msg = line['errorDetail']['message']
+        dtslogger.error(msg)
+        raise ProjectBuildError(msg)
     if 'stream' not in line:
         return None
     line = line['stream'].strip('\n')
