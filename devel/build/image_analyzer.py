@@ -97,7 +97,7 @@ class ImageAnalyzer(object):
             ]
             # check for cached layers
             step_cache = tc.colored('No', 'red')
-            if len(cur_step_lines) <= 2 or \
+            if first_layer is None or \
                     len(list(filter(lambda s: s == cache_string, cur_step_lines))) == 1:
                 cached_layers += 1
                 step_cache = tc.colored('Yes', 'green')
