@@ -35,7 +35,6 @@ if [ "${APPLY_DIFF}" != "1" ]; then
         . \
         ':!assets' \
         ':!code' \
-        ':!docs' \
         ':!html' \
         ':!packages' \
         ':!.github' \
@@ -45,14 +44,8 @@ fi
 # run git diff
 if [ "${APPLY_DIFF}" = "1" ]; then
   if [ -z "$(git status --porcelain)" ]; then
-    # Working directory clean
-    # create branch
+    # Working directory clean\
     set -e
-    current_branch=`git -C "${CODE_DIR}" rev-parse --abbrev-ref HEAD`
-    git \
-      -C "${CODE_DIR}" \
-      checkout \
-        -b "${current_branch}-template"
     # apply the diff
     git \
       -C "${CODE_DIR}" \
@@ -62,7 +55,6 @@ if [ "${APPLY_DIFF}" = "1" ]; then
           . \
           ':!assets' \
           ':!code' \
-          ':!docs' \
           ':!html' \
           ':!packages' \
           ':!.github' \
