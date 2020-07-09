@@ -332,6 +332,9 @@ class DTCommand(DTCommandAbs):
         except APIError:
             dtslogger.error('An error occurred while building the project image. Aborting.')
             exit(1)
+        except ProjectBuildError:
+            dtslogger.error('An error occurred while building the project image. Aborting.')
+            exit(2)
         dimage = docker.images.get(image)
 
         # tag release images
