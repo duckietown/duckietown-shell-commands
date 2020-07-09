@@ -39,19 +39,20 @@ code_path = lambda *p: os.path.abspath(os.path.join(code_dir, *p))
 # Find all the nodes and move them to the temp module folder
 print(" - Searching for code documentation...")
 node_source_files = []
-for pkg in os.listdir(code_path('packages')):
-    if '%s.rst' % pkg not in os.listdir(os.path.abspath('packages/')):
-        print("   WARNING: Package %s doesn't have a corresponding file in docs/packages! "
-              "Skipping it." % pkg)
-        continue
-    # Add the include paths such that all the include modules can also be used with autodocs
-    sys.path.insert(0, code_path('packages', pkg, 'include'))
-    if os.path.isdir(code_path('packages', pkg, 'src')):
-        for node_source_file in os.listdir(code_path('packages', pkg, 'src')):
-            if node_source_file[-3:] == '.py' and node_source_file != '__init__.py':
-                node_source_files.append(code_path('packages', pkg, 'src', node_source_file))
-                copyfile(code_path('packages', pkg, 'src', node_source_file),
-                         os.path.join(module_dir, node_source_file))
+if os.path.isdir(code_path('packages')):
+    for pkg in os.listdir(code_path('packages')):
+        if '%s.rst' % pkg not in os.listdir(os.path.abspath('packages/')):
+            print("   WARNING: Package %s doesn't have a corresponding file in docs/packages! "
+                  "Skipping it." % pkg)
+            continue
+        # Add the include paths such that all the include modules can also be used with autodocs
+        sys.path.insert(0, code_path('packages', pkg, 'include'))
+        if os.path.isdir(code_path('packages', pkg, 'src')):
+            for node_source_file in os.listdir(code_path('packages', pkg, 'src')):
+                if node_source_file[-3:] == '.py' and node_source_file != '__init__.py':
+                    node_source_files.append(code_path('packages', pkg, 'src', node_source_file))
+                    copyfile(code_path('packages', pkg, 'src', node_source_file),
+                             os.path.join(module_dir, node_source_file))
 
 # Create an __init__.py file for the temporary module
 with open(os.path.join(module_dir, '__init__.py'), 'w') as init_file:
