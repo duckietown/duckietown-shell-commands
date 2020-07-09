@@ -33,13 +33,13 @@ if [ "${APPLY_DIFF}" != "1" ]; then
     diff template/${TEMPLATE_VERSION} HEAD \
       -- \
         . \
-        ':!code' \
         ':!assets' \
+        ':!code' \
         ':!docs' \
+        ':!html' \
         ':!packages' \
         ':!.github' \
-        ':!README.md' \
-        ':!dependencies-*.txt'
+        ':!README.md'
 fi
 
 # run git diff
@@ -60,13 +60,13 @@ if [ "${APPLY_DIFF}" = "1" ]; then
         --binary \
         -- \
           . \
-          ':!code' \
           ':!assets' \
+          ':!code' \
           ':!docs' \
+          ':!html' \
           ':!packages' \
           ':!.github' \
           ':!README.md' \
-          ':!dependencies-*.txt' \
     | git \
       -C "${CODE_DIR}" \
       apply

@@ -24,6 +24,7 @@ class DTCommand(DTCommandAbs):
                             help="Part of the version to bump")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        parsed.workdir = os.path.abspath(parsed.workdir)
         # make sure that bumpversion is available
         try:
             import bumpversion
@@ -45,5 +46,6 @@ class DTCommand(DTCommandAbs):
         options = ['--verbose']
         if parsed.dry_run:
             options += ['--dry-run']
-        cmd = ['bumpversion'] + options + [parsed.part]
-        start_command_in_subprocess(cmd, shell=False)
+        cmd = ['cd', '"{}"'.format(parsed.workdir), ';', 'bumpversion'] + options + [parsed.part]
+        print(cmd)
+        start_command_in_subprocess(cmd, shell=True)

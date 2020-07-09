@@ -26,7 +26,8 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
     retry = max(retry, 1)
     if env is None:
         env = get_clean_env()
-
+    if shell:
+        run_cmd = ' '.join(run_cmd)
     for trial in range(retry):
         if trial > 0:
             msg = f"An error occurred while running r{run_cmd}, retrying (trial={trial+1})"
@@ -44,7 +45,8 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
             break
         else:
             if retry == 1 or retry == trial+1:
-                msg = f"Error occurred while running {run_cmd}, please check and retry ({return_code})"
+                msg = f"Error occurred while running {run_cmd}, " \
+                      f"please check and retry ({return_code})"
                 raise Exception(msg)
 
 

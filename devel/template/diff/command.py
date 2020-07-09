@@ -76,7 +76,7 @@ class DTCommand(DTCommandAbs):
             'CODE_DIR': code_dir,
             'TEMPLATE_TYPE': template,
             'TEMPLATE_VERSION': template_version,
-            'APPLY_DIFF': "{}".format(int(parsed.apply))
+            'APPLY_DIFF': str(int(parsed.apply))
         }
         p = subprocess.Popen(script_path, env=env, shell=True)
         p.communicate()

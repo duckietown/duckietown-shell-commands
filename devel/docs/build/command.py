@@ -115,7 +115,7 @@ class DTCommand(DTCommandAbs):
             ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
         # build docs
-        dtslogger.info("Building the documentation environment...")
+        dtslogger.info("Building the documentation...")
         start_command_in_subprocess([
             'docker',
                 'run',
