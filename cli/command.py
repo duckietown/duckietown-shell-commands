@@ -74,7 +74,8 @@ class DTCommand(DTCommandAbs):
         environ = []
         # ROS master
         if parsed.master:
-            environ += ['--env', 'ROS_MASTER_URI', 'http://%s:11311' % parsed.master]
+            master = parsed.master if parsed.master.endswith('local') else f'{parsed.master}.local'
+            environ += ['--env', f'ROS_MASTER_URI=http://{master}:11311']
         # environment variables
         environ += list(map(lambda e: '--env=%s' % e, parsed.environ))
         # docker arguments
