@@ -72,7 +72,7 @@ class DTCommand(DTCommandAbs):
         if not cloneRepo(exercise_path):
             raise Exception("Error in cloning the repo")
 
-        repo_path = exercise_path +"/MOOCexercisesBones"
+        repo_path = exercise_path +"/mooc-exercises"
 
         # convert the notebook to py and copy into the Image
         if not convertNotebook(exercise_path+"/1_develop/notebooks/exercise.ipynb",repo_path+"/packages/mooc/src/exercise.py"):
@@ -122,8 +122,9 @@ class DTCommand(DTCommandAbs):
     
 
 def cloneRepo(full_path) -> bool:
-    name = "MOOCexercisesBones"
-    team = "viciopoli01"
+    name = "mooc-exercises"
+    team = "duckietown"
+    
     clone_path = os.path.abspath(os.path.join(full_path, name))
 
     if os.path.exists(clone_path):
@@ -133,7 +134,7 @@ def cloneRepo(full_path) -> bool:
         print('Cloning repo {}'.format(name))
         try:
             git_repo = 'https://github.com/{}/{}.git'.format(team, name)
-            Repo.clone_from(git_repo, git, branch="image")
+            Repo.clone_from(git_repo, clone_path, branch="duckiebot-test-image")
             dtslogger.info('Cloning complete for repo {}'.format(name))
             return True
         except Exception as e:
