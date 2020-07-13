@@ -10,11 +10,8 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, get_dockerhub_username
 from duckietown_challenges import get_duckietown_server_url
 from duckietown_challenges.cmd_submit_build import submission_build
-from duckietown_challenges.rest_methods import (
-    dtserver_get_compatible_challenges,
-    dtserver_submit2,
-    get_registry_info,
-)
+from duckietown_challenges.rest_methods import (dtserver_get_compatible_challenges, dtserver_retire_same_label,
+                                                dtserver_submit2, get_registry_info)
 from duckietown_challenges.submission_read import read_submission_info
 
 
@@ -82,6 +79,9 @@ Submission with an arbitrary JSON payload:
             "--no-cache", dest="no_cache", action="store_true", default=False
         )
         group.add_argument("--impersonate", type=int, default=None)
+
+        group.add_argument("--retire-same-label", action="store_true", default=False,
+                           help='Retire my submissions with the same label.')
 
         group.add_argument("-C", dest="cwd", default=None, help="Base directory")
 
@@ -162,6 +162,15 @@ Submission with an arbitrary JSON payload:
             }
 
             submit_to_challenges = sub_info.challenge_names
+
+            if parsed.retire_same_label and sub_info.user_label:
+
+                retired = dtserver_retire_same_label(token=token, impersonate=impersonate, label=sub_info.user_label)
+                if retired:
+                    print(f'I retired the following submissions with the same label: {retired}')
+                else:
+                    print(f'No submissions with the same label available.')
+
             data = dtserver_submit2(
                 token=token,
                 challenges=submit_to_challenges,
@@ -181,7 +190,6 @@ Submission with an arbitrary JSON payload:
     This component has been entered in {len(submissions)} challenge(s).
     
             """
-
 
             for challenge_name, sub_info2 in submissions.items():
                 submission_id = sub_info2["submission_id"]
@@ -222,14 +230,17 @@ Submission with an arbitrary JSON payload:
             shell.sprint(msg)
 
         extra = set(submissions) - set(submit_to_challenges)
+
         def cute_list(x):
             return ", ".join(x)
+
         if extra:
             msg = f"""
 Note that the additional {len(extra)} challenges ({cute_list(extra)}) are required checks 
 before running the code on the challenges you chose ({cute_list(submit_to_challenges)}).
 """
             shell.sprint(msg)
+
 
 def bright(x):
     return termcolor.colored(x, "blue")
@@ -241,7 +252,6 @@ def dark(x):
 
 def href(x):
     return termcolor.colored(x, "blue", attrs=["underline"])
-
 
 # class CouldNotReadInfo(Exception):
 #     pass
