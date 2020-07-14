@@ -99,10 +99,10 @@ Where <visibility> can be one of [public, private].
         # request authorized
         signed_url = answer['data']['url']
         dtslogger.info('Uploading file...')
-        start_command_in_subprocess(' '.join([
+        start_command_in_subprocess([
             'curl', '--progress-bar',
             '--request', 'PUT',
             '--upload-file', parsed.file,
             f'"{signed_url}"',
             '|', 'tee'
-        ]))
+        ])
