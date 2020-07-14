@@ -128,6 +128,9 @@ extensions = ['sphinxcontrib.napoleon']
 # Autodocs
 extensions += ['sphinx.ext.autodoc']
 
+# Docs to ReST files
+extensions += ['sphinxcontrib.restbuilder']
+
 # Load all the necesary mock imports
 print(" - Reading mock_imports...")
 if os.path.isfile('mock_imports'):
@@ -164,6 +167,12 @@ napoleon_use_rtype = config.get('napoleon_use_rtype', True)
 napoleon_use_keyword = config.get('napoleon_use_keyword', True)
 
 napoleon_custom_section = [(sec_name, 'Parameters') for sec_name in config.get('custom_sections', [])]
+
+# Configure restbuildier
+rst_file_suffix = '.rst'
+rst_link_suffix = ''
+rst_line_width = 78
+rst_indent = 4
 
 
 ######################################################################################################################

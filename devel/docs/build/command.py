@@ -10,7 +10,6 @@ from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
-
     help = 'Builds the current project\'s documentation'
 
     @staticmethod
@@ -21,7 +20,7 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to build")
         parser.add_argument('-f', '--force', default=False, action='store_true',
                             help="Whether to force the build when the git index is not clean")
-        parser.add_argument('-u', '--username',default="duckietown",
+        parser.add_argument('-u', '--username', default="duckietown",
                             help="The docker registry username to tag the image with")
         parser.add_argument('--no-cache', default=False, action='store_true',
                             help="Whether to use the Docker cache")
@@ -46,7 +45,7 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             # check that the env variables are set
             for key in ['DISTRO', 'DT_TOKEN']:
-                if 'DUCKIETOWN_CI_'+key not in os.environ:
+                if 'DUCKIETOWN_CI_' + key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
                     )
@@ -97,34 +96,36 @@ class DTCommand(DTCommandAbs):
         dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         start_command_in_subprocess([
             'docker',
-                'build',
-                    '-f', dockerfile,
-                    '-t', image_docs,
-                    '--build-arg', f'BASE_IMAGE={image}',
-                    f'--no-cache={int(parsed.no_cache)}',
-                    cmd_dir
+            'build',
+            '-f', dockerfile,
+            '-t', image_docs,
+            '--build-arg', f'BASE_IMAGE={image}',
+            f'--no-cache={int(parsed.no_cache)}',
+            cmd_dir
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
 
-        # clear output directory
-        for f in os.listdir(repo_file('html')):
-            if f.endswith('HTML_DOCS_WILL_BE_GENERATED_HERE'):
-                continue
-            start_command_in_subprocess([
-                'rm', '-rf', repo_file('html', f)
-            ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        # clear output directories
+        for dir in [repo_file('html'), repo_file('rst')]:
+            for f in os.listdir(repo_file(dir)):
+                if f.endswith('DOCS_WILL_BE_GENERATED_HERE'):
+                    continue
+                start_command_in_subprocess([
+                    'rm', '-rf', repo_file(dir, f)
+                ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
         # build docs
         dtslogger.info("Building the documentation...")
         start_command_in_subprocess([
             'docker',
-                'run',
-                    '-it',
-                    '--rm',
-                    '--user', str(os.geteuid()),
-                    '--volume', f"{repo_file('docs')}:/docs/in",
-                    '--volume', f"{repo_file('html')}:/docs/out",
-                    image_docs
+            'run',
+            '-it',
+            '--rm',
+            '--user', str(os.geteuid()),
+            '--volume', f"{repo_file('docs')}:/docs/in",
+            '--volume', f"{repo_file('html')}:/docs/out",
+            '--volume', f"{repo_file('rst')}:/docs/rst",
+            image_docs
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
 

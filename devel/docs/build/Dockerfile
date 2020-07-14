@@ -24,12 +24,21 @@ RUN cd "/" \
     && cd /napoleon \
     && python setup.py install -f
 
+RUN cd "/" \
+    && git clone https://github.com/sphinx-contrib/restbuilder.git \
+    && cd /restbuilder \
+    && git checkout 8728a23fff9e841e2c2bdf72eedea14003c7169a \
+    && python setup.py install -f
+
 RUN mkdir /docs/in
 RUN mkdir /docs/out
+RUN mkdir /docs/rst
 
 RUN chmod -R 777 /docs
 
 CMD cp -r /docs/in/* /docs/source/ \
     && cd /docs \
-    && make html \
-    && cp -r /docs/build/html/* /docs/out
+    && sphinx-build -b html source build/html \
+    && cp -r /docs/build/html/* /docs/out \
+    && sphinx-build -b rst source build/rst \
+    && cp -r /docs/build/rst/* /docs/rst
