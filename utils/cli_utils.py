@@ -26,7 +26,7 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
     retry = max(retry, 1)
     if env is None:
         env = get_clean_env()
-    if shell:
+    if shell and not isinstance(run_cmd, str):
         run_cmd = ' '.join(run_cmd)
     for trial in range(retry):
         if trial > 0:
