@@ -181,9 +181,12 @@ rst_indent = 4
 intersphinx_mapping_default = {'python': ('https://docs.python.org/2.7',
                                           (None, 'objects.inv'))}
 intersphinx_mapping = config.get('intersphinx_mapping', intersphinx_mapping_default)
-intersphinx_mapping = { key: (value[0], tuple(value[1])) for key, value in intersphinx_mapping.iteritems() }
+parsed = dict()
+for package, v in intersphinx_mapping.iteritems():
+    parsed[package] = (v['url'], tuple([None]+v['inventories']))
+intersphinx_mapping = parsed
 
-# TODO: The parsing from a config file still doesn't work
+print(' - Intersphinx map: %s' % str(intersphinx_mapping))
 
 ######################################################################################################################
 #
