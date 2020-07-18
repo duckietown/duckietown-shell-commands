@@ -9,8 +9,8 @@
 import os
 import os.path
 import sys
-import yaml
 import tempfile
+import yaml
 from shutil import copyfile
 
 ######################################################################################################################
@@ -22,7 +22,9 @@ from shutil import copyfile
 ######################################################################################################################
 
 print('Configuring Sphinx:')
-module_name = 'nodes'
+
+# The module name should be repo name if it is defined (but dashes become underscores)
+module_name = os.environ.get('DT_MODULE_NAME', 'nodes').replace('-', '_')
 
 # Create the temporary module dir
 dirpath = tempfile.mkdtemp()
@@ -65,7 +67,6 @@ if os.environ.get('DEBUG', '0') == '1':
     print("Final system path directories:")
     print(sys.path)
 sys.setrecursionlimit(1500)
-
 
 ######################################################################################################################
 #
@@ -128,6 +129,12 @@ extensions = ['sphinxcontrib.napoleon']
 # Autodocs
 extensions += ['sphinx.ext.autodoc']
 
+# Docs to ReST files
+extensions += ['sphinxcontrib.restbuilder']
+
+# Intersphinx: create hyperlinks to other repos and packages
+extensions += ['sphinx.ext.intersphinx']
+
 # Load all the necesary mock imports
 print(" - Reading mock_imports...")
 if os.path.isfile('mock_imports'):
@@ -137,7 +144,6 @@ if os.path.isfile('mock_imports'):
         autodoc_mock_imports[idx] = autodoc_mock_imports[idx].strip(' ').strip('\n')
 else:
     print("   WARNING: The mock_imports file was not found. No mocking done!")
-
 
 # Appearance settings
 print(" - Setting up Sphinx...")
@@ -165,6 +171,22 @@ napoleon_use_keyword = config.get('napoleon_use_keyword', True)
 
 napoleon_custom_section = [(sec_name, 'Parameters') for sec_name in config.get('custom_sections', [])]
 
+# Configure restbuildier
+rst_file_suffix = '.rst'
+rst_link_suffix = ''
+rst_line_width = 78
+rst_indent = 4
+
+# Intersphinx config
+intersphinx_mapping_default = {'python': ('https://docs.python.org/2.7',
+                                          (None, 'objects.inv'))}
+intersphinx_mapping = config.get('intersphinx_mapping', intersphinx_mapping_default)
+parsed = dict()
+for package, v in intersphinx_mapping.iteritems():
+    parsed[package] = (v['url'], tuple([None]+v['inventories']))
+intersphinx_mapping = parsed
+
+print(' - Intersphinx map: %s' % str(intersphinx_mapping))
 
 ######################################################################################################################
 #
