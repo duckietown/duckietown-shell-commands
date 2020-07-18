@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from dt_shell import DTCommandAbs, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # image = 'andreacensi/mcdp_books:duckuments@sha256:5e149f33837f999e0aa5233a77f8610baf3c3fc1a2f1bfb500756b427cf52dbe'
@@ -18,7 +18,6 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 # IMAGE = 'andreacensi/mcdp_books:duckuments-master19'
 IMAGE = 'andreacensi/mcdp_books:daffy'
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
@@ -128,6 +127,13 @@ class DTCommand(DTCommandAbs):
             resources,
             pwd1
         ]
+        cmd = ['docker', 'run',
+               '-e', 'USER=%s' % user,
+               '-e', 'USERID=%s' % uid1,
+               '-m', '4GB',
+               '--user', '%s' % uid1,
+               '-e', 'COMPMAKE_COMMAND=rparmake',
+               '-it', '-v', f'{pwd1}:/pwd:delegated', '--workdir', '/pwd', 'duckietown/docs-build:daffy']
 
         dtslogger.info('executing:\nls ' + " ".join(cmd))
         # res = system_cmd_result(pwd, cmd, raise_on_error=True)
