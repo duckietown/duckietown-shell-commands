@@ -24,9 +24,10 @@ class Benchmark:
     def _do_pre_bm(self):
         """executes the pre_bm file on the bot"""
         self.ssh.command('ls -la')
-        #self.ssh.command('rm ' + self.pre_bm_file)
-        self.ssh.put('./' + self.pre_bm_file)
-        self.ssh.command('python ' + self.pre_bm_file.split('/')[1])
+        self.ssh.command('rm ' + self.pre_bm_file.split('/')[-1])
+        self.ssh.put(self.pre_bm_file)
+        self.ssh.command('sudo pip install picamera')
+        self.ssh.command('python ' + self.pre_bm_file.split('/')[-1])
 
     def _set_version(self, version='daffy'):
         """sets local dts version"""
@@ -137,12 +138,18 @@ class Benchmark:
                 
     def run(self):
         """starts the whole benchmark in correct order"""
+        #meta = self._collect_meta()
+        meta = {'release':  'master19'}
+        in_cmd = 'dts --set-version {}'.format(meta['release'])
+        demo_cmd = 'dts duckiebot demo --demo_name base --duckiebot_name {}'.format(self.botname)
+        out_cmd = 'dts --set-version daffy'
+        input("\n\nPrepare the setup by using the command in a separate terminal:\n\t$ {}\n\t$ {}\n\t$ {}\n\n\
+        enter exit and THEN Press Enter to continue...".format(in_cmd, demo_cmd, out_cmd))
         latencies_bag_name = uuid.uuid1()
-        meta = self._collect_meta()
-        self._sync_time()
+        #self._sync_time()
         self._do_pre_bm()
         start_cmd = 'dts duckiebot keyboard_control {}'.format(self.botname)
-        input("Prepare an open keyboard-control using the command:\n\t{}\n\nTHEN Press Enter to continue...".format(start_cmd))
+        input("\n\nPrepare an open keyboard-control using the command in a separate terminal:\n\t$ {}\n\nTHEN Press Enter to continue...".format(start_cmd))
         id = self._do_diagnostics(latencies_bag_name, meta)
         id = "v1__atags3__python3__watchtower01__1584492001"
         self._upload_to_api(id, latencies_bag_name, meta)

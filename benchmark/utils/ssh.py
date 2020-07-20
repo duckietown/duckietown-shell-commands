@@ -8,12 +8,12 @@ import time
 
 
 def line_buffered(pseudo_fs):
-    """splits chars from a pseudo filesystem into line, whis is yealded as iterable"""
+    """splits chars from a pseudo filesystem into line, which is yielded as iterable"""
     channel = pseudo_fs.channel
     first = True
     line_buf = ""
     #while not channel.closed or channel.recv_ready() or channel.recv_stderr_ready():
-    while not channel.closed or channel.recv_ready():
+    while not channel.exit_status_ready():
         # first = False
         # print("kjkj" + str(channel.recv_ready()))
         # print(channel.closed)

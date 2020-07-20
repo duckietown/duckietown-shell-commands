@@ -38,7 +38,7 @@ class DTCommand(DTCommandAbs):
                             help='hostname of the bot without .local')
         parser.add_argument('-d','--duration', dest='duration', default=150, type=int,
                             help='benchmark duration, (at least 150)')
-        parser.add_argument('-f','--bm_file', dest='bm_file', default='assets/pre_bm.py',
+        parser.add_argument('-f','--bm_file', dest='bm_file', default='benchmark/assets/pre_bm.py',
                             help='benchmark file to be executed on the bot')
         parser.add_argument('-g','--group', dest='group', default='test',
                             help='benchmark subgroup (default test)')
