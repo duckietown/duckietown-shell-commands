@@ -153,7 +153,7 @@ class Benchmark:
         self._sync_time()
         self._do_pre_bm()
         start_cmd = 'dts duckiebot keyboard_control {}'.format(self.botname)
-        input("\n\nPrepare an open keyboard-control using the command in a separate terminal:\n\t$ {}\n\nTHEN Press Enter to continue...".format(start_cmd))
+        input("\n\nPrepare an open keyboard-control using the command in a separate terminal:\n\t$ {}\n\t$ {}\n\nTHEN Press Enter to continue...".format(in_cmd, start_cmd))
         id = self._do_diagnostics(latencies_bag_name, meta)
         id = "v1__atags3__python3__watchtower01__1584492001"
         self._upload_to_api(id, latencies_bag_name, meta)
