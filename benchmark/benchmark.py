@@ -138,15 +138,14 @@ class Benchmark:
                 
     def run(self):
         """starts the whole benchmark in correct order"""
-        #meta = self._collect_meta()
-        meta = {'release':  'master19'}
+        meta = self._collect_meta()
         in_cmd = 'dts --set-version {}'.format(meta['release'])
         demo_cmd = 'dts duckiebot demo --demo_name base --duckiebot_name {}'.format(self.botname)
         out_cmd = 'dts --set-version daffy'
         input("\n\nPrepare the setup by using the command in a separate terminal:\n\t$ {}\n\t$ {}\n\t$ {}\n\n\
         enter exit and THEN Press Enter to continue...".format(in_cmd, demo_cmd, out_cmd))
         latencies_bag_name = uuid.uuid1()
-        #self._sync_time()
+        self._sync_time()
         self._do_pre_bm()
         start_cmd = 'dts duckiebot keyboard_control {}'.format(self.botname)
         input("\n\nPrepare an open keyboard-control using the command in a separate terminal:\n\t$ {}\n\nTHEN Press Enter to continue...".format(start_cmd))
