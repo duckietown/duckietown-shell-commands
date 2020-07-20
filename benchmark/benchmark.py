@@ -23,7 +23,6 @@ class Benchmark:
 
     def _do_pre_bm(self):
         """executes the pre_bm file on the bot"""
-        self.ssh.command('ls -la')
         self.ssh.command('rm ' + self.pre_bm_file.split('/')[-1])
         self.ssh.put(self.pre_bm_file)
         self.ssh.command('sudo pip install picamera')
@@ -135,6 +134,12 @@ class Benchmark:
                 callback=[update_id, lambda _: self._start_lane_following(), lambda _: self._record_bags(latencies_bag_name, meta['release'])], 
                 onlyOnce=[True, True, True])
         return diagnostic_id
+
+    def _stop():
+        CRED = '\033[4;35m'
+        CEND = '\033[0m'
+        print(CRED + "\n\n\n\n\n Benchmark ist over, stop lanefollowing \n\n\n\n\n" +CEND)
+        
                 
     def run(self):
         """starts the whole benchmark in correct order"""
@@ -152,3 +157,4 @@ class Benchmark:
         id = self._do_diagnostics(latencies_bag_name, meta)
         id = "v1__atags3__python3__watchtower01__1584492001"
         self._upload_to_api(id, latencies_bag_name, meta)
+        self._stop()
