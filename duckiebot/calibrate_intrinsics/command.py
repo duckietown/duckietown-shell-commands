@@ -10,6 +10,12 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
+
+ARCH='amd64'
+BRANCH='daffy'
+DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH+'-'+ARCH
+
+
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
@@ -28,7 +34,7 @@ Calibrate:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/dt-core:daffy-amd64",
+            default=DEFAULT_IMAGE,
         )
         parser.add_argument(
             "--debug",
@@ -65,13 +71,12 @@ Calibrate:
             duckiebot_containers = duckiebot_client.containers.list()
             raw_imagery_found = False
             for c in duckiebot_containers:
-                if "demo_camera" in c.name:
+                if "demo_image_decoding" in c.name:
                     raw_imagery_found = True
             if not raw_imagery_found:
                 dtslogger.error(
-                    "The demo_camera is not running on the duckiebot - please run `dts duckiebot demo "
-                    "--demo_name camera --package_name pi_camera --image "
-                    "duckietown/dt-core:daffy-arm32v7 --duckiebot_name %s`" % hostname
+                    "The demo_image_decoding is not running on the duckiebot - please run `dts duckiebot demo "
+                    "--demo_name image_decoding --package_name image_processing --duckiebot_name %s`" % hostname
                 )
                 exit()
 
@@ -108,7 +113,7 @@ Calibrate:
         dtslogger.info(
             "When the window opens you will need to move the checkerboard around in front of the Duckiebot camera"
         )
-        cmd = "roslaunch pi_camera intrinsic_calibration.launch veh:=%s" % hostname
+        cmd = "roslaunch image_processing intrinsic_calibration.launch veh:=%s" % hostname
 
         params = {
             "image": image,

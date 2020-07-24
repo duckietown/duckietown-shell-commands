@@ -13,6 +13,12 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 JOYSTICK_COMMAND = "roslaunch virtual_joystick virtual_joystick_{mode}.launch veh:={veh}"
+BRANCH = 'daffy'
+GUI_ARCH = 'amd64'
+ARCH = 'arm32v7'
+GUI_DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+GUI_ARCH
+CLI_DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
+
 
 
 class DTCommand(DTCommandAbs):
@@ -32,8 +38,11 @@ Keyboard control:
         parser.add_argument('--network', default='host', help='Name of the network to connect to')
         parser.add_argument('--sim', action='store_true', default=False,
                             help='are we running in simulator?')
-        parser.add_argument('--image', default="duckietown/dt-core:daffy-amd64",
-                            help="The base image, probably don't change the default")
+        parser.add_argument('--gui_image', default=GUI_DEFAULT_IMAGE,
+                            help="The base image for running the GUI, probably don't change the default")
+        parser.add_argument('--cli_image', default=CLI_DEFAULT_IMAGE,
+                            help="The base image for running the GUI, probably don't change the default")
+
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to control')
 
         parsed_args = parser.parse_args(args)
@@ -48,14 +57,14 @@ Keyboard control:
         if not parsed_args.cli:
             run_gui_controller(
                 parsed_args.hostname,
-                parsed_args.image,
+                parsed_args.gui_image,
                 duckiebot_ip,
                 network_mode
             )
         else:
             run_cli_controller(
                 parsed_args.hostname,
-                parsed_args.image,
+                parsed_args.cli_image,
                 duckiebot_ip,
                 network_mode,
                 parsed_args.sim
