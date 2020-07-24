@@ -88,6 +88,9 @@ class ProgressBar:
             self._finished = True
         self._last_value = percentage_int
 
+    def done(self):
+        self.update(100)
+
 
 def ask_confirmation(message, default='y'):
     default_str = f" [{default}]" if default else ""
