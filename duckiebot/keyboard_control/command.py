@@ -13,6 +13,12 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 JOYSTICK_COMMAND = "roslaunch virtual_joystick virtual_joystick_{mode}.launch veh:={veh}"
+BRANCH = 'daffy'
+GUI_ARCH = 'amd64'
+ARCH = 'arm32v7'
+GUI_DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+GUI_ARCH
+CLI_DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
+
 
 
 class DTCommand(DTCommandAbs):
@@ -24,10 +30,7 @@ Keyboard control:
 
     %(prog)s
 """
-BRANCH = 'daffy'
-ARCH = amd64
-CLI_ARCH = arm32v7
-DEFAULT_IMAGE = 'duckietown/:'+BRANCH
+
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument('--cli', dest='cli', default=False, action='store_true',
@@ -35,8 +38,11 @@ DEFAULT_IMAGE = 'duckietown/:'+BRANCH
         parser.add_argument('--network', default='host', help='Name of the network to connect to')
         parser.add_argument('--sim', action='store_true', default=False,
                             help='are we running in simulator?')
-        parser.add_argument('--image', default=DEFAULT_IMAGE,
-                            help="The base image, probably don't change the default")
+        parser.add_argument('--gui_image', default=GUI_DEFAULT_IMAGE,
+                            help="The base image for running the GUI, probably don't change the default")
+        parser.add_argument('--cli_image', default=CLI_DEFAULT_IMAGE,
+                            help="The base image for running the GUI, probably don't change the default")
+
         parser.add_argument('hostname', default=None, help='Name of the Duckiebot to control')
 
         parsed_args = parser.parse_args(args)
@@ -49,18 +55,16 @@ DEFAULT_IMAGE = 'duckietown/:'+BRANCH
         network_mode = parsed_args.network
 
         if not parsed_args.cli:
-            image = parsed_args.image+CLI_ARCH
             run_gui_controller(
                 parsed_args.hostname,
-                parsed_args.image,
+                parsed_args.gui_image,
                 duckiebot_ip,
                 network_mode
             )
         else:
-            image = parsed_args.image+ARCH
             run_cli_controller(
                 parsed_args.hostname,
-                parsed_args.image,
+                parsed_args.cli_image,
                 duckiebot_ip,
                 network_mode,
                 parsed_args.sim
