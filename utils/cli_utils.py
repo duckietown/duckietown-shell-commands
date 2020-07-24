@@ -37,8 +37,8 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
             run_cmd,
             shell=shell,
             stdin=sys.stdin,
-            stderr=subprocess.PIPE if not nostderr else sys.stderr,
-            stdout=subprocess.PIPE if not nostdout else sys.stdout,
+            stderr=subprocess.PIPE if nostderr else sys.stderr,
+            stdout=subprocess.PIPE if nostdout else sys.stdout,
             env=env,
         )
 
