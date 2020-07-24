@@ -20,14 +20,14 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts duckiebot keyboard_control DUCKIEBOT_NAME"
         usage = """
-Keyboard control:
+                Keyboard control:
 
-    %(prog)s
-"""
-BRANCH = 'daffy'
-ARCH = amd64
-CLI_ARCH = arm32v7
-DEFAULT_IMAGE = 'duckietown/:'+BRANCH
+                    %(prog)s
+                """
+        BRANCH = 'daffy'
+        ARCH = amd64
+        CLI_ARCH = arm32v7
+        DEFAULT_IMAGE = 'duckietown/:'+BRANCH
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument('--cli', dest='cli', default=False, action='store_true',
