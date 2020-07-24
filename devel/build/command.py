@@ -330,10 +330,10 @@ class DTCommand(DTCommandAbs):
                 buildlog.append(line)
 
         except APIError as e:
-            dtslogger.error(f'An error occurred while building the project image:\n{e.explanation}')
+            dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
             exit(1)
         except ProjectBuildError as e:
-            dtslogger.error(f'An error occurred while building the project image:\n{e.explanation}')
+            dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
             exit(2)
         dimage = docker.images.get(image)
 
