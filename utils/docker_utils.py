@@ -77,7 +77,8 @@ def pull_image(image, endpoint=None, progress=True):
         if progress:
             percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
             pbar.update(percentage)
-    pbar.done()
+    if progress:
+        pbar.done()
 
 
 def push_image(image, endpoint=None, progress=True, **kwargs):
@@ -96,7 +97,8 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
         if progress:
             percentage = max(0.0, min(1.0, len(pushed) / max(1.0, len(layers)))) * 100.0
             pbar.update(percentage)
-    pbar.done()
+    if progress:
+        pbar.done()
 
 
 
