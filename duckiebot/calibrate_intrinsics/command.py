@@ -113,7 +113,7 @@ Calibrate:
         dtslogger.info(
             "When the window opens you will need to move the checkerboard around in front of the Duckiebot camera"
         )
-        cmd = "roslaunch camera_calibration intrinsic_calibration.launch veh:=%s" % hostname
+        cmd = "roslaunch intrinsic_calibration intrinsic_calibration.launch veh:=%s" % hostname
 
         params = {
             "image": image,
