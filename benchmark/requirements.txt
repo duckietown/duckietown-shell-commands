@@ -1,0 +1,6 @@
+paramiko
+scp
+asyncio
+ptyprocess
+nest_asyncio
+argparse
