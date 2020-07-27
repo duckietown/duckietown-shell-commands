@@ -13,7 +13,7 @@ from utils.networking_utils import get_duckiebot_ip
 
 ARCH='amd64'
 BRANCH='daffy'
-DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH+'-'+ARCH
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
 
 
 class DTCommand(DTCommandAbs):
@@ -113,7 +113,7 @@ Calibrate:
         dtslogger.info(
             "When the window opens you will need to move the checkerboard around in front of the Duckiebot camera"
         )
-        cmd = "roslaunch image_processing intrinsic_calibration.launch veh:=%s" % hostname
+        cmd = "roslaunch camera_calibration intrinsic_calibration.launch veh:=%s" % hostname
 
         params = {
             "image": image,
