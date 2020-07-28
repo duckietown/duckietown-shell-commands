@@ -94,7 +94,7 @@ class DTCommand(DTCommandAbs):
         cmd = ['docker', 'run',
                '-e', 'USER=%s' % user,
                '-e', 'USERID=%s' % uid1,
-               '-m', '4GB',
+               # '-m', '4GB',
                '--user', '%s' % uid1,
                '-e', 'COMPMAKE_COMMAND=rparmake',
                '-it', '-v', f'{pwd1}:/pwd{flag}', '--workdir', '/pwd', image]
