@@ -76,10 +76,10 @@ Calibrate:
             if not raw_imagery_found:
                 dtslogger.warn(
                     "The demo_intrinsic_calibration is not running on the duckiebot running `dts duckiebot demo "
-                    "--demo_name image_decoding --package_name image_processing --duckiebot_name %s`" % hostname
+                    "--demo_name intrinsic_calibration --package_name image_processing --duckiebot_name %s`" % hostname
                 )
-                start_command_in_subprocess(" dts duckiebot demo 
-                --demo_name intrinsic_calibration --package_name image_processing --duckiebot_name %s`" % hostname
+                subprocess.call(["dts", "duckiebot demo", "--demo_name", "intrinsic_calibration",
+                                 "--package_name", "image_processing", "--duckiebot_name", "%s`" % hostname])
 
         except Exception as e:
             dtslogger.warn("%s" % e)
