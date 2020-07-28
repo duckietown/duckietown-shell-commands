@@ -71,14 +71,15 @@ Calibrate:
             duckiebot_containers = duckiebot_client.containers.list()
             raw_imagery_found = False
             for c in duckiebot_containers:
-                if "demo_image_decoding" in c.name:
+                if "demo_intrinsic_calibration" in c.name:
                     raw_imagery_found = True
             if not raw_imagery_found:
-                dtslogger.error(
-                    "The demo_image_decoding is not running on the duckiebot - please run `dts duckiebot demo "
+                dtslogger.warn(
+                    "The demo_intrinsic_calibration is not running on the duckiebot running `dts duckiebot demo "
                     "--demo_name image_decoding --package_name image_processing --duckiebot_name %s`" % hostname
                 )
-                exit()
+                start_command_in_subprocess(" dts duckiebot demo 
+                --demo_name intrinsic_calibration --package_name image_processing --duckiebot_name %s`" % hostname
 
         except Exception as e:
             dtslogger.warn("%s" % e)
