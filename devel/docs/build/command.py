@@ -106,13 +106,12 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Done!")
 
         # clear output directories
-        for dir in [repo_file('html'), repo_file('rst')]:
-            for f in os.listdir(repo_file(dir)):
-                if f.endswith('DOCS_WILL_BE_GENERATED_HERE'):
-                    continue
-                start_command_in_subprocess([
-                    'rm', '-rf', repo_file(dir, f)
-                ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        for f in os.listdir(repo_file(repo_file('html'))):
+            if f.endswith('DOCS_WILL_BE_GENERATED_HERE'):
+                continue
+            start_command_in_subprocess([
+                'rm', '-rf', repo_file(repo_file('html'), f)
+            ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
         # build docs
         dtslogger.info("Building the documentation...")
@@ -124,7 +123,6 @@ class DTCommand(DTCommandAbs):
             '--user', str(os.geteuid()),
             '--volume', f"{repo_file('docs')}:/docs/in",
             '--volume', f"{repo_file('html')}:/docs/out",
-            '--volume', f"{repo_file('rst')}:/docs/rst",
             image_docs
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
