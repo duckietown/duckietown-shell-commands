@@ -66,6 +66,23 @@ Calibrate:
                 % e
             )
 
+        # is the raw imagery being published?
+        try:
+            duckiebot_containers = duckiebot_client.containers.list()
+            raw_imagery_found = False
+            for c in duckiebot_containers:
+                if "demo_image_decoding" in c.name:
+                    raw_imagery_found = True
+            if not raw_imagery_found:
+                dtslogger.error(
+                    "The demo_image_decoding is not running on the duckiebot - please run `dts duckiebot demo "
+                    "--demo_name image_decoding --package_name image_processing --duckiebot_name %s`" % hostname
+                )
+                exit()
+
+        except Exception as e:
+            dtslogger.warn("%s" % e)
+
         image = parsed_args.image
 
         client = check_docker_environment()
