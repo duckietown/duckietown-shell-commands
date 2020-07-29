@@ -43,7 +43,7 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to build")
         parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
-        parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
+        parser.add_argument('-H', '--machine', default=None,
                             help="Docker socket or hostname where to build the image")
         parser.add_argument('--pull', default=False, action='store_true',
                             help="Whether to pull the latest base image used by the Dockerfile")
@@ -125,7 +125,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. '
                                 f'Aborting...')
                 exit(3)
-            if parsed.machine != DEFAULT_MACHINE:
+            if parsed.machine is not None:
                 dtslogger.error('The parameter --machine (-H) cannot be set together with '
                                 + '--cloud. Use --destionation (-D) if you want to specify '
                                 + 'a destination for the image. Aborting...')
