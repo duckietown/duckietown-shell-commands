@@ -1,6 +1,8 @@
 import argparse
 import os
 import sys
+import string
+import random
 
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -114,18 +116,55 @@ class DTCommand(DTCommandAbs):
             ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
         # build docs
+        # dtslogger.info("Building the documentation...")
+        # start_command_in_subprocess([
+        #     'docker',
+        #     'run',
+        #     '-it',
+        #     '--rm',
+        #     '--user', str(os.geteuid()),
+        #     '--volume', f"{repo_file('docs')}:/docs/in",
+        #     '--volume', f"{repo_file('html')}:/docs/out",
+        #     image_docs
+        # ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        # dtslogger.info("Done!")
+
+        # build docs (without mounting to work well in CircleCI)
         dtslogger.info("Building the documentation...")
+        random_string = ''.join(random.choice(string.ascii_letters) for x in range(10))
+        start_command_in_subprocess([
+            'docker',
+            'create',
+            '--volume', "/docs/in",
+            '--name', f"docs_mounting_{random_string}",
+            image_docs
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        start_command_in_subprocess([
+            'docker',
+            'cp',
+            f"{repo_file('docs')}/.", f"docs_mounting_{random_string}:/docs/in"
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         start_command_in_subprocess([
             'docker',
             'run',
             '-it',
-            '--rm',
             '--user', str(os.geteuid()),
-            '--volume', f"{repo_file('docs')}:/docs/in",
-            '--volume', f"{repo_file('html')}:/docs/out",
+            '--volumes-from', f"docs_mounting_{random_string}",
+            '--name', f"docs_building_{random_string}",
             image_docs
         ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        start_command_in_subprocess([
+            'docker',
+            'cp',
+            f"docs_building_{random_string}:/docs/out/.", repo_file('html')
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        start_command_in_subprocess([
+            'docker',
+            'rm',
+            f"docs_building_{random_string}", f"docs_mounting_{random_string}"
+        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
+
 
     @staticmethod
     def complete(shell, word, line):
