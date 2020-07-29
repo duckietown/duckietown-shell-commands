@@ -151,7 +151,7 @@ def continuously_monitor(client, container_name):
                 follow=True,
                 since=last_log_timestamp,
             ):
-                if six.PY2:
+                if six.PY2 or (type(c) is str):
                     sys.stdout.write(c)
                 else:
                     sys.stdout.write(c.decode("utf-8"))
