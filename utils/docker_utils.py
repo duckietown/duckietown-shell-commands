@@ -48,7 +48,12 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
 
 
 def sanitize_docker_baseurl(baseurl: str):
-    return baseurl if baseurl.startswith('unix:') else f'tcp://{baseurl}:{DEFAULT_DOCKER_TCP_PORT}'
+    if baseurl.startswith('unix:'):
+        return baseurl
+    elif baseurl.startswith('tcp://'):
+        return baseurl
+    else:
+        return f'tcp://{baseurl}:{DEFAULT_DOCKER_TCP_PORT}'
 
 
 def get_client(endpoint=None):
