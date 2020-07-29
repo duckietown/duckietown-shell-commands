@@ -80,6 +80,10 @@ MODULES_TO_LOAD = [
     },
     {
         'owner': 'duckietown',
+        'module': 'dt-code-api'
+    },
+    {
+        'owner': 'duckietown',
         'module': 'dt-device-dashboard'
     },
     {

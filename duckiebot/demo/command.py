@@ -21,9 +21,10 @@ usage = """
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
 
 """
+ARCH='arm32v7'
 BRANCH='daffy'
-DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH
-EXPERIMENTAL_IMAGE = 'duckietown/dt-experimental:'+BRANCH
+DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH+'-'+ARCH
+EXPERIMENTAL_IMAGE = 'duckietown/dt-experimental:'+BRANCH+'-'+ARCH
 DEFAULT_PACKAGE = 'duckietown_demos'
 EXPERIMENTAL_PACKAGE = 'experimental_demos'
 

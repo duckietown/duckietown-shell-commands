@@ -3,6 +3,7 @@ import json
 import shutil
 import argparse
 import subprocess
+import uuid
 
 from utils.duckietown_utils import get_distro_version
 
@@ -119,7 +120,7 @@ class DTCommand(DTCommandAbs):
                 '-it',
                 '--rm',
                 '--net=host',
-                '--name', 'dts-cli-run-helper'] +
+                '--name', str(uuid.uuid4())[:8]] +
                 environ +
                 volumes +
                 docker_arguments +

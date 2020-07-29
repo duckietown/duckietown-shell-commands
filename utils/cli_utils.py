@@ -37,8 +37,8 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
             run_cmd,
             shell=shell,
             stdin=sys.stdin,
-            stderr=subprocess.PIPE if not nostderr else sys.stderr,
-            stdout=subprocess.PIPE if not nostdout else sys.stdout,
+            stderr=subprocess.PIPE if nostderr else sys.stderr,
+            stdout=subprocess.PIPE if nostdout else sys.stdout,
             env=env,
         )
 
@@ -87,6 +87,9 @@ class ProgressBar:
             self._buffer.flush()
             self._finished = True
         self._last_value = percentage_int
+
+    def done(self):
+        self.update(100)
 
 
 def ask_confirmation(message, default='y'):

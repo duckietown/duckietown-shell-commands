@@ -9,6 +9,9 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
+BRANCH = 'daffy'
+ARCH = 'amd64'
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -36,7 +39,7 @@ Keyboard control:
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/dt-core:daffy-amd64",
+            default=DEFAULT_IMAGE,
             help="The base image, probably don't change the default",
         )
         parser.add_argument(

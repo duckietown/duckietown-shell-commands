@@ -35,6 +35,19 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+  code-api:
+    image: duckietown/dt-code-api:daffy-arm32v7
+    container_name: code-api
+    restart: always
+    network_mode: host
+    volumes:
+      - /data:/data
+      - /code:/user_code
+      # docker socket
+      - /var/run/docker.sock:/var/run/docker.sock
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
   device-proxy:
     image: duckietown/dt-device-proxy:daffy-arm32v7
     container_name: device-proxy
