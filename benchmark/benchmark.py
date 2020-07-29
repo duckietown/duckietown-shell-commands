@@ -7,6 +7,7 @@ import re
 import uuid
 import requests
 import json
+import os
 
 
 class Benchmark:
@@ -24,7 +25,8 @@ class Benchmark:
     def _do_pre_bm(self):
         """executes the pre_bm file on the bot"""
         self.ssh.command('rm ' + self.pre_bm_file.split('/')[-1])
-        self.ssh.put(self.pre_bm_file)
+        file = os.path.abspath(os.path.join(os.path.dirname(__file__), self.pre_bm_file))
+        self.ssh.put(file)
         self.ssh.command('sudo pip install picamera')
         self.ssh.command('python ' + self.pre_bm_file.split('/')[-1])
 
