@@ -19,6 +19,7 @@ def get_clean_env():
         )
         dtslogger.info(msg)
         env.pop(V)
+
     return env
 
 

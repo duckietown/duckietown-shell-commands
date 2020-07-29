@@ -38,8 +38,9 @@ Docker Endpoint:
 
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     from utils.dtproject_utils import CANONICAL_ARCH
-    client = docker.DockerClient(base_url=f'tcp://{hostname}:{port}') \
-        if (hostname is not None and hostname != DEFAULT_MACHINE) else docker.DockerClient()
+    if hostname is None:
+        return docker.from_env()
+    client = docker.DockerClient(base_url=sanitize_docker_baseurl(hostname, port))
     epoint_arch = client.info()['Architecture']
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f'Architecture {epoint_arch} not supported!')
@@ -47,17 +48,18 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     return CANONICAL_ARCH[epoint_arch]
 
 
-def sanitize_docker_baseurl(baseurl: str):
+def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
     if baseurl.startswith('unix:'):
         return baseurl
     elif baseurl.startswith('tcp://'):
         return baseurl
     else:
-        return f'tcp://{baseurl}:{DEFAULT_DOCKER_TCP_PORT}'
+        return f'tcp://{baseurl}:{port}'
 
 
 def get_client(endpoint=None):
-    endpoint = endpoint or DEFAULT_MACHINE
+    if endpoint is None:
+        return docker.from_env()
     return endpoint if isinstance(endpoint, docker.DockerClient) else \
         docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
 
