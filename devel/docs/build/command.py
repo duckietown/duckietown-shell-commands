@@ -104,7 +104,7 @@ class DTCommand(DTCommandAbs):
             '--build-arg', f'BASE_IMAGE={image}',
             f'--no-cache={int(parsed.no_cache)}',
             cmd_dir
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
 
         # clear output directories
@@ -138,12 +138,12 @@ class DTCommand(DTCommandAbs):
             '--volume', "/docs/in",
             '--name', f"docs_mounting_{random_string}",
             image_docs
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         start_command_in_subprocess([
             'docker',
             'cp',
             f"{repo_file('docs')}/.", f"docs_mounting_{random_string}:/docs/in"
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         start_command_in_subprocess([
             'docker',
             'run',
@@ -152,17 +152,17 @@ class DTCommand(DTCommandAbs):
             '--volumes-from', f"docs_mounting_{random_string}",
             '--name', f"docs_building_{random_string}",
             image_docs
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         start_command_in_subprocess([
             'docker',
             'cp',
             f"docs_building_{random_string}:/docs/out/.", repo_file('html')
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         start_command_in_subprocess([
             'docker',
             'rm',
             f"docs_building_{random_string}", f"docs_mounting_{random_string}"
-        ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
         dtslogger.info("Done!")
 
 
