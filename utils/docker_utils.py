@@ -73,7 +73,7 @@ def continuously_monitor(client, container_name):
                 follow=True,
                 since=last_log_timestamp,
             ):
-                if six.PY2:
+                if six.PY2 or (type(c) is str):
                     sys.stdout.write(c)
                 else:
                     sys.stdout.write(c.decode("utf-8"))
@@ -443,20 +443,34 @@ def build_if_not_exist(client, image_path, tag):
     import json
 
     try:
-        client.images.get("mooc")
-        dtslogger.error("Image already exists.")
-    except ImageNotFound:
-        dtslogger.info("Building the mooc image ...")
-        try:
-            #loader = 'Building .'
-            for line in client.api.build(
-                path = image_path, nocache=True, 
-                rm=True,
-                tag=tag, 
-                dockerfile=image_path+"/Dockerfile"):
-                try :
-                    sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
-                except Exception:
-                    pass
-        except BuildError as e:
-            print('Unable to build, reason: {} '.format(str(e)))
+        #loader = 'Building .'
+        for line in client.api.build(
+            path = image_path, nocache=True, 
+            rm=True,
+            tag=tag, 
+            dockerfile=image_path+"/Dockerfile"):
+            try :
+                sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
+            except Exception:
+                pass
+    except BuildError as e:
+        print('Unable to build, reason: {} '.format(str(e)))
+
+    #try:
+    #    client.images.get(tag)
+    #    dtslogger.error("Image already exists.")
+    #except ImageNotFound:
+    #    dtslogger.info("Building the {} image ...".format(tag))
+    #    try:
+    #        #loader = 'Building .'
+    #        for line in client.api.build(
+    #            path = image_path, nocache=True, 
+    #            rm=True,
+    #            tag=tag, 
+    #            dockerfile=image_path+"/Dockerfile"):
+    #            try :
+    #                sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
+    #            except Exception:
+    #                pass
+    #    except BuildError as e:
+    #        print('Unable to build, reason: {} '.format(str(e)))

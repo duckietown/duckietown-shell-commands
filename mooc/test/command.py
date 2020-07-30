@@ -77,7 +77,9 @@ class DTCommand(DTCommandAbs):
         #   Use information in the mooc-exe file
         #
         packages_path=""
+        image_tag=""
         cmd = ""
+
         with open(working_dir+"/mooc-exe.yaml") as f:
             try:
                 config_file = yaml.load(f, Loader=yaml.FullLoader)
@@ -88,6 +90,7 @@ class DTCommand(DTCommandAbs):
                 cmd = config_file['exercise']['docker_cmd_exe']+" veh:=%s" % (
                     duckiebot_name,
                 )
+                image_tag = config_file['exercise']['image_tag']
 
                 dtslogger.info('Running exercise {} v.{} on {} ...'.format(config_file['exercise']['name'],config_file['exercise']['version'],duckiebot_name))
             except:
@@ -114,7 +117,7 @@ class DTCommand(DTCommandAbs):
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
 
-        remove_if_running(duckiebot_client, "mooc")
+        remove_if_running(duckiebot_client, image_tag)
         
         env_vars = default_env(duckiebot_name, duckiebot_ip)
         env_vars.update({
@@ -122,17 +125,17 @@ class DTCommand(DTCommandAbs):
             "VEHICLE_IP": duckiebot_ip
         })
 
-        build_if_not_exist(duckiebot_client,working_dir+"/mooc-image",'duckietown/mooc')
+        build_if_not_exist(duckiebot_client,working_dir+"/mooc-image",'duckietown/'+image_tag)
 
         
         dtslogger.info("Running command %s" % cmd)
         demo_container = duckiebot_client.containers.run(
-            image="duckietown/mooc",
+            volumes={'/data': {'bind': '/data', 'mode': 'rw'}},
+            image="duckietown/"+image_tag,
             command=cmd,
             network_mode="host",
-            volumes=bind_duckiebot_data_dir(),
             privileged=True,
-            name="mooc",
+            name=image_tag,
             mem_limit="800m",
             memswap_limit="2800m",
             stdin_open=True,
