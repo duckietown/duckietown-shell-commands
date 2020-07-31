@@ -91,10 +91,15 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(cache):
             os.makedirs(cache)
 
+        total_mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')  # e.g. 4015976448
+        total_mem_gib = int(total_mem_bytes/(1024.**3))  # e.g. 3.74
+        constrain_memory = (total_mem_gib-2) if (total_mem_gib-2)>4 else 4
+        memory_set = ""+str(constrain_memory)+"GB"
+
         cmd = ['docker', 'run',
                '-e', 'USER=%s' % user,
                '-e', 'USERID=%s' % uid1,
-               # '-m', '4GB',
+               '-m', memory_set,
                '--user', '%s' % uid1,
                '-e', 'COMPMAKE_COMMAND=rparmake',
                '-it', '-v', f'{pwd1}:/pwd{flag}', '--workdir', '/pwd', image]
