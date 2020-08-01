@@ -102,6 +102,11 @@ class DTCommand(DTCommandAbs):
                             default='(empty)',
                             type=str,
                             help="Custom notes to attach to the log")
+        parser.add_argument('--no-pull',
+                            action='store_true',
+                            default=False,
+                            help="Whether we do not try to pull the diagnostics image before "
+                                 "running the experiment")
         parser.add_argument('--debug',
                             action='store_true',
                             default=False,
@@ -191,13 +196,14 @@ class DTCommand(DTCommandAbs):
         container_name = 'dts-run-diagnostics-system-monitor'
         options += ['--name', container_name]
         # update image
-        dtslogger.info(f'Attempting to update image "{image}"...')
-        _run_cmd([
-            'docker',
-                '-H=%s' % parsed.machine,
-                'pull',
-                    image
-        ])
+        if not parsed.no_pull:
+            dtslogger.info(f'Attempting to update image "{image}"...')
+            _run_cmd([
+                'docker',
+                    '-H=%s' % parsed.machine,
+                    'pull',
+                        image
+            ])
         # run
         dtslogger.info(f'Running monitor on "{parsed.machine}", monitoring "{parsed.target}".')
         _run_cmd([
