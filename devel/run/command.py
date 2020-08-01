@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture
+from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 
 LAUNCHER_FMT = 'dt-launcher-%s'
@@ -23,7 +23,7 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to run")
         parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to run")
-        parser.add_argument('-H', '--machine', default=None,
+        parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to run the image")
         parser.add_argument('-n', '--name', default=None,
                             help="Name of the container")
@@ -105,7 +105,7 @@ class DTCommand(DTCommandAbs):
                 local_src, destination_src = proj.code_paths()
                 local_launch, destination_launch = proj.launch_paths()
                 # (experimental): when we run remotely, use /code/<project> as base
-                if parsed.machine is not None:
+                if parsed.machine != DEFAULT_MACHINE:
                     project_path = '/code/%s' % proj.repository.name
                 # compile mounpoints
                 mount_option += [
