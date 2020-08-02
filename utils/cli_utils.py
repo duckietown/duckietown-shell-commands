@@ -31,23 +31,23 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
         run_cmd = ' '.join(run_cmd)
     for trial in range(retry):
         if trial > 0:
-            msg = f"An error occurred while running r{run_cmd}, retrying (trial={trial+1})"
+            msg = f"An error occurred while running {str(run_cmd)}, retrying (trial={trial+1})"
             dtslogger.warning(msg)
-        dtslogger.debug(' $ %r' % run_cmd)
+        dtslogger.debug(' $ %s' % str(run_cmd))
         ret = subprocess.run(
             run_cmd,
             shell=shell,
             stdin=sys.stdin,
             stderr=subprocess.PIPE if nostderr else sys.stderr,
             stdout=subprocess.PIPE if nostdout else sys.stdout,
-            env=env,
+            env=env
         )
-
-        if ret.returncode == 0:
+        # exit codes: 0 (ok), 130 (ctrl-c)
+        if ret.returncode in [0, 130]:
             break
         else:
             if retry == 1 or retry == trial+1:
-                msg = f"Error occurred while running \"{' '.join(run_cmd)}\", " \
+                msg = f"Error occurred while running \"{str(run_cmd)}\", " \
                       f"please check and retry ({ret.returncode})"
                 raise Exception(msg)
 
