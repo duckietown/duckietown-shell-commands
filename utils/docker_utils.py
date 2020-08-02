@@ -521,3 +521,23 @@ def pull_if_not_exist(client, image_name):
                 print(' '*60, end='\r', flush=True)
                 loader = 'Downloading .'
             print(loader, end='\r', flush=True)
+
+
+def build_logs_to_string(build_logs):
+    """
+    Converts the docker build logs `JSON object <https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build>`_
+    to a simple printable string.
+
+    Args:
+        build_logs: build logs as JSON-decoded objects
+
+    Returns:
+        a string with the logs
+
+    """
+    s = ""
+    for l in build_logs:
+        for k, v in l.items():
+            if k == 'stream':
+                s+=str(v)
+    return s
