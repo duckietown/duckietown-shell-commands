@@ -11,6 +11,7 @@ from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoin
 from utils.duckietown_utils import get_distro_version
 
 DEFAULT_IMAGE_FMT = 'duckietown/dt-gui-tools:{}-{}'
+AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 USAGE = """
 GUI Tools: 
 
@@ -80,6 +81,15 @@ class DTCommand(DTCommandAbs):
             "HOSTNAME": "default" if parsed.sim else parsed.hostname
         }
         volumes = {}
+        # configure mDNS
+        if os.path.exists(AVAHI_SOCKET):
+            volumes[AVAHI_SOCKET] = {
+                'bind': AVAHI_SOCKET,
+                'mode': 'rw'
+            }
+        else:
+            dtslogger.warning('Avahi socket not found ({}). The container might not be able '
+                              'to resolve *.local hostnames.'.format(AVAHI_SOCKET))
         # configure X11 forwarding
         if not parsed.vnc:
             env["QT_X11_NO_MITSHM"] = 1
