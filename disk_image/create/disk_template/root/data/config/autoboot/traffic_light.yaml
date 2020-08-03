@@ -63,8 +63,7 @@ services:
     container_name: device-health
     restart: always
     network_mode: host
-    devices:
-      - /dev/vchiq:/dev/vchiq
+    privileged: true
     volumes:
       - /data:/data
       # avahi socket

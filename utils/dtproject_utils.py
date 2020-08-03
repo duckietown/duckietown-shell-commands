@@ -57,7 +57,7 @@ CLOUD_BUILDERS = {
 TEMPLATE_TO_SRC = {
     'template-basic': {
         '1': lambda repo: ('code', '/packages/{:s}/'.format(repo)),
-        '2': lambda repo: ('packages', '/code/{:s}/'.format(repo))
+        '2': lambda repo: ('', '/code/{:s}/'.format(repo))
     },
     'template-ros': {
         '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),

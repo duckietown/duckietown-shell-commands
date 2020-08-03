@@ -3,10 +3,14 @@ import os
 import sys
 import string
 import random
+import docker
+import tarfile
+import io
+import pathlib
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import get_endpoint_architecture
+from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
 from utils.cli_utils import start_command_in_subprocess
 from utils.dtproject_utils import DTProject
 
@@ -78,7 +82,7 @@ class DTCommand(DTCommandAbs):
 
         # create defaults
         image = project.image(arch, loop=parsed.loop, owner=parsed.username)
-        image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
+        # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators
         repo_file = lambda *p: os.path.join(parsed.workdir, *p)
@@ -92,19 +96,18 @@ class DTCommand(DTCommandAbs):
                 exit(1)
         dtslogger.info("Done!")
 
+        # Get a docker client
+        dclient = docker.from_env()
+
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
-        dockerfile = os.path.join(cmd_dir, 'Dockerfile')
-        start_command_in_subprocess([
-            'docker',
-            'build',
-            '-f', dockerfile,
-            '-t', image_docs,
-            '--build-arg', f'BASE_IMAGE={image}',
-            f'--no-cache={int(parsed.no_cache)}',
-            cmd_dir
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        # dockerfile = os.path.join(cmd_dir, 'Dockerfile')
+        docs_image, logs = dclient.images.build(
+            path=cmd_dir,
+            buildargs={'BASE_IMAGE': image},
+            nocache=parsed.no_cache )
+        print(build_logs_to_string(logs))
         dtslogger.info("Done!")
 
         # clear output directories
@@ -115,57 +118,46 @@ class DTCommand(DTCommandAbs):
                 'rm', '-rf', repo_file(repo_file('html'), f)
             ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
 
-        # build docs
-        # dtslogger.info("Building the documentation...")
-        # start_command_in_subprocess([
-        #     'docker',
-        #     'run',
-        #     '-it',
-        #     '--rm',
-        #     '--user', str(os.geteuid()),
-        #     '--volume', f"{repo_file('docs')}:/docs/in",
-        #     '--volume', f"{repo_file('html')}:/docs/out",
-        #     image_docs
-        # ], shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
-        # dtslogger.info("Done!")
-
         # build docs (without mounting to work well in CircleCI)
         dtslogger.info("Building the documentation...")
-        random_string = ''.join(random.choice(string.ascii_letters) for x in range(10))
-        start_command_in_subprocess([
-            'docker',
-            'create',
-            '--volume', "/docs/in",
-            '--name', f"docs_mounting_{random_string}",
-            image_docs
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
-        start_command_in_subprocess([
-            'docker',
-            'cp',
-            f"{repo_file('docs')}/.", f"docs_mounting_{random_string}:/docs/in"
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
-        start_command_in_subprocess([
-            'docker',
-            'run',
-            '-it',
-            '--user', str(os.geteuid()),
-            '--volumes-from', f"docs_mounting_{random_string}",
-            '--name', f"docs_building_{random_string}",
-            image_docs
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
-        start_command_in_subprocess([
-            'docker',
-            'cp',
-            f"docs_building_{random_string}:/docs/out/.", repo_file('html')
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
-        start_command_in_subprocess([
-            'docker',
-            'rm',
-            f"docs_building_{random_string}", f"docs_mounting_{random_string}"
-        ], env=os.environ, shell=False, nostdout=parsed.quiet, nostderr=parsed.quiet)
+        container = dclient.containers.create(image=docs_image.id)
+
+        # archive the input files:
+        in_files_buf = io.BytesIO()
+        in_files = tarfile.open(fileobj=in_files_buf, mode='w')
+        for obj in os.listdir(repo_file('docs')):
+            in_files.add(os.path.join(repo_file('docs'), obj), arcname=obj)
+        in_files_buf.seek(0)
+
+        # put them in the container
+        container.put_archive(path='/docs/in/', data=in_files_buf)
+
+        # run the container
+        container.start()
+
+        # attach and print output
+        logs = container.attach(stdout=True, stderr=True, stream=True, logs=True)
+        for log_line in logs:
+            print(log_line.decode('utf-8'), end='')
+        container.wait()
+
+        # copy the results back to the host
+        bits, stat = container.get_archive(path='/docs/out/')
+        out_files_buf = io.BytesIO()
+        for b in bits:
+            out_files_buf.write(b)
+        out_files_buf.seek(0)
+        t = tarfile.open(fileobj=out_files_buf , mode='r')
+        t.extractall(pathlib.Path(repo_file('html')))
+
+        # delete container
+        container.remove()
+
         dtslogger.info("Done!")
 
 
     @staticmethod
     def complete(shell, word, line):
         return []
+
+
