@@ -369,12 +369,12 @@ def check_if_running(client, container_name):
 def remove_if_running(client, container_name):
     try:
         container = client.containers.get(container_name)
-        dtslogger.info("%s already running - stopping it first.." % container_name)
+        dtslogger.info("Container %s already running - stopping it first.." % container_name)
         stop_container(container)
-        dtslogger.info("removing %s" % container_name)
+        dtslogger.info("Removing container %s" % container_name)
         remove_container(container)
     except Exception as e:
-        dtslogger.warn("couldn't remove existing container: %s" % e)
+        dtslogger.warn("Could not remove existing container: %s" % e)
 
 
 def start_rqt_image_view(duckiebot_name=None):
