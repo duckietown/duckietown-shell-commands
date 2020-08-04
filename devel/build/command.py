@@ -236,9 +236,11 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info('Configuring machine for multiarch builds...')
                 try:
                     docker.containers.run(
-                        'multiarch/qemu-user-static:register', '--reset',
+                        'multiarch/qemu-user-static:register',
                         remove=True,
-                        privileged=True
+                        auto_remove=True,
+                        privileged=True,
+                        command='--reset'
                     )
                     dtslogger.info('Multiarch Enabled!')
                 except (ContainerError, ImageNotFound, APIError):
