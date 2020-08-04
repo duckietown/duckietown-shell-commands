@@ -5,7 +5,6 @@ import os
 import sys
 import time
 import datetime
-import traceback
 from shutil import which
 from pathlib import Path
 from termcolor import colored
@@ -243,11 +242,11 @@ class DTCommand(DTCommandAbs):
                         command='--reset'
                     )
                     dtslogger.info('Multiarch Enabled!')
-                except (ContainerError, ImageNotFound, APIError):
+                except (ContainerError, ImageNotFound, APIError) as e:
                     msg = 'Multiarch cannot be enabled on the target machine. ' \
                           'This might create issues.'
                     dtslogger.warning(msg)
-                    dtslogger.debug(traceback.format_exc())
+                    dtslogger.debug(f'The error reads:\n\t{str(e)}\n')
             else:
                 msg = 'Building an image for {} on {}. Multiarch not needed!'.format(
                     parsed.arch, epoint['Architecture'])
