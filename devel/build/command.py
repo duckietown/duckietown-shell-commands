@@ -69,6 +69,9 @@ class DTCommand(DTCommandAbs):
                                  "Use when the base image is also a development version")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
+        parser.add_argument('--ci-force-builder-arch', dest='ci_force_builder_arch', default=None,
+                            choices=set(CANONICAL_ARCH.values()),
+                            help="Forces CI to build on a specific architecture node")
         parser.add_argument('--cloud', default=False, action='store_true',
                             help="Build the image on the cloud")
         parser.add_argument('--stamp', default=False, action='store_true',
@@ -100,7 +103,11 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             parsed.pull = True
             parsed.cloud = True
-            parsed.no_multiarch = True
+
+            # TODO: test
+            # parsed.no_multiarch = True
+            # TODO: test
+
             parsed.push = True
             parsed.rm = True
             parsed.stamp = True
@@ -119,19 +126,29 @@ class DTCommand(DTCommandAbs):
         if parsed.cloud:
             if parsed.arch is None:
                 dtslogger.error('When building on the cloud you need to explicitly specify '
-                                'an architecture. Aborting...')
+                                'a target architecture. Aborting...')
                 exit(6)
-            if parsed.arch not in CLOUD_BUILDERS:
-                dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. '
-                                f'Aborting...')
-                exit(3)
             if parsed.machine is not None:
                 dtslogger.error('The parameter --machine (-H) cannot be set together with '
                                 + '--cloud. Use --destionation (-D) if you want to specify '
                                 + 'a destination for the image. Aborting...')
                 exit(4)
+            # route the build to the native node
+            if parsed.arch not in CLOUD_BUILDERS:
+                dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. '
+                                f'Aborting...')
+                exit(3)
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
+            # in CI we can force builds on specific architectures
+            if parsed.ci_force_builder_arch is not None:
+                # force routing to the given architecture node
+                if parsed.ci_force_builder_arch not in CLOUD_BUILDERS:
+                    dtslogger.error(f'No cloud machines found for (forced) architecture '
+                                    f'{parsed.ci_force_builder_arch}. Aborting...')
+                    exit(7)
+                # update machine parameter
+                parsed.machine = CLOUD_BUILDERS[parsed.ci_force_builder_arch]
             # configure docker for DT
             if parsed.ci:
                 token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
@@ -315,8 +332,7 @@ class DTCommand(DTCommandAbs):
             'nocache': parsed.no_cache,
             'tag': image
         })
-        dtslogger.debug('Build arguments:')
-        dtslogger.debug('\n' + json.dumps(buildargs, sort_keys=True, indent=4))
+        dtslogger.debug('Build arguments:\n%s\n' % json.dumps(buildargs, sort_keys=True, indent=4))
 
         # build image
         buildlog = []
