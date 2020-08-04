@@ -103,11 +103,6 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             parsed.pull = True
             parsed.cloud = True
-
-            # TODO: test
-            # parsed.no_multiarch = True
-            # TODO: test
-
             parsed.push = True
             parsed.rm = True
             parsed.stamp = True
