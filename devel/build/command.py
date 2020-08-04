@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import datetime
+import traceback
 from shutil import which
 from pathlib import Path
 from termcolor import colored
@@ -130,7 +131,7 @@ class DTCommand(DTCommandAbs):
                 exit(6)
             if parsed.machine is not None:
                 dtslogger.error('The parameter --machine (-H) cannot be set together with '
-                                + '--cloud. Use --destionation (-D) if you want to specify '
+                                + '--cloud. Use --destination (-D) if you want to specify '
                                 + 'a destination for the image. Aborting...')
                 exit(4)
             # route the build to the native node
@@ -149,6 +150,7 @@ class DTCommand(DTCommandAbs):
                     exit(7)
                 # update machine parameter
                 parsed.machine = CLOUD_BUILDERS[parsed.ci_force_builder_arch]
+                dtslogger.info(f'Build forced to happen on {parsed.ci_force_builder_arch} CI node')
             # configure docker for DT
             if parsed.ci:
                 token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
@@ -243,6 +245,7 @@ class DTCommand(DTCommandAbs):
                     msg = 'Multiarch cannot be enabled on the target machine. ' \
                           'This might create issues.'
                     dtslogger.warning(msg)
+                    dtslogger.debug(traceback.format_exc())
             else:
                 msg = 'Building an image for {} on {}. Multiarch not needed!'.format(
                     parsed.arch, epoint['Architecture'])
