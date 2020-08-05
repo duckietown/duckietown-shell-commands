@@ -441,9 +441,10 @@ class DTCommand(DTCommandAbs):
                         _run_cmd([
                             'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
                             '/bin/bash -c '
-                            '"apt update && '
-                            'DEBIAN_FRONTEND=noninteractive '
-                            'apt full-upgrade -y --no-install-recommends"'
+                            '"apt update && apt --yes --force-yes --no-install-recommends'
+                            ' -o Dpkg::Options::=\"--force-confdef\" '
+                            ' -o Dpkg::Options::=\"--force-confold\" '
+                            'full-upgrade"'
                         ], shell=True)
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
@@ -451,9 +452,8 @@ class DTCommand(DTCommandAbs):
                             _run_cmd([
                                 'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
                                 '/bin/bash -c '
-                                f'"apt update && '
-                                f'DEBIAN_FRONTEND=noninteractive '
-                                f'apt install -y --no-install-recommends {pkgs}"'
+                                f'"DEBIAN_FRONTEND=noninteractive '
+                                f'apt install --yes --force-yes --no-install-recommends {pkgs}"'
                             ], shell=True)
                     except Exception as e:
                         _run_cmd(['sudo', 'umount', _boot])
