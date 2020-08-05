@@ -11,7 +11,7 @@ import os.path
 import sys
 import tempfile
 import yaml
-from shutil import copyfile, rmtree
+from shutil import copyfile
 
 ######################################################################################################################
 #
@@ -172,12 +172,17 @@ napoleon_custom_section = [(sec_name, 'Parameters') for sec_name in config.get('
 
 
 # Intersphinx config
-intersphinx_mapping_default = {'python': ('https://docs.python.org/2.7',
-                                          (None, 'objects.inv'))}
+intersphinx_mapping_default = {
+    'python': {
+        'url': 'https://docs.python.org/2.7',
+        'inventories': ['objects.inv']
+    }
+}
+
 intersphinx_mapping = config.get('intersphinx_mapping', intersphinx_mapping_default)
 parsed = dict()
 for package, v in intersphinx_mapping.iteritems():
-    parsed[package] = (v['url'], tuple([None]+v['inventories']))
+    parsed[package] = (v['url'], tuple([None] + v['inventories']))
 intersphinx_mapping = parsed
 
 print(' - Intersphinx map: %s' % str(intersphinx_mapping))
