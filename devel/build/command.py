@@ -184,6 +184,9 @@ class DTCommand(DTCommandAbs):
                 )
             )
             exit(0)
+        # add configuration labels
+        for cfg_name, cfg_data in project.configurations().items():
+            buildargs['labels'][dtlabel(f'image.configuration.{cfg_name}')] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
         # get info about docker endpoint

@@ -13,13 +13,28 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
 - `org.duckietown.label.image.loop`: Whether the image is a LOOP image. Experimental only and for development only.
   - Type: `boolean`
   - Default: `False`
+  
+- `org.duckietown.label.image.configuration.X`: Image configuration `X` encoded as a JSON string;
+  - Type: `json`
+  - Default: `undefined`
 
 
-## Build labels
+## Module labels
 
 - `org.duckietown.label.module.type`: Module contained in the image;
   - Type: `string`
   - Default: `undefined`
+
+- `org.duckietown.label.module.description`: Description of the module contained in the image;
+  - Type: `string`
+  - Default: `undefined`
+
+- `org.duckietown.label.module.icon`: Name of an icon for this module, pick one from https://fontawesome.com/v4.7.0/icons;
+  - Type: `string`
+  - Default: `box`
+
+
+## Build labels
 
 - `org.duckietown.label.time`: Build time (UTC in ISO format)
   - Type: `string`
