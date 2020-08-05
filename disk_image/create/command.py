@@ -48,6 +48,10 @@ TEMPLATE_FILE_VALIDATOR = {
         lambda *a, **kwa: _validator_yaml_syntax(*a, **kwa),
 }
 
+APT_PACKAGES_TO_INSTALL = [
+    'rsync'
+]
+
 MODULES_TO_LOAD = [
     {
         'owner': 'portainer',
@@ -109,6 +113,10 @@ MODULES_TO_LOAD = [
     {
         'owner': 'duckietown',
         'module': 'dt-system-monitor'
+    },
+    {
+        'owner': 'duckietown',
+        'module': 'dt-gui-tools'
     }
 ]
 
@@ -255,14 +263,24 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('Looking for ZIP image file...')
             if not os.path.isfile(in_file_path('zip')):
                 dtslogger.info('Downloading ZIP image...')
-                _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
-                          '--output-document', in_file_path('zip'), INPUT_DISK_IMAGE_URL])
+                try:
+                    _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
+                              '--output-document', in_file_path('zip'), INPUT_DISK_IMAGE_URL])
+                except KeyboardInterrupt as e:
+                    dtslogger.info('Cleaning up...')
+                    _run_cmd(['rm', '-rf', in_file_path('zip')])
+                    raise e
             else:
                 dtslogger.info(f"Reusing cached ZIP image file [{in_file_path('zip')}].")
             # unzip (if necessary)
             if not os.path.isfile(in_file_path('img')):
                 dtslogger.info('Extracting ZIP image...')
-                _run_cmd(['unzip', in_file_path('zip'), '-d', parsed.workdir])
+                try:
+                    _run_cmd(['unzip', in_file_path('zip'), '-d', parsed.workdir])
+                except KeyboardInterrupt as e:
+                    dtslogger.info('Cleaning up...')
+                    _run_cmd(['rm', '-rf', in_file_path('img')])
+                    raise e
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
             # ---
@@ -424,7 +442,15 @@ class DTCommand(DTCommandAbs):
                             'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
                             '/bin/bash -c '
                             '"apt update && apt full-upgrade -y --no-install-recommends"'
-                        ], shell=True)
+                        ], shell=True, env={'DEBIAN_FRONTEND': 'noninteractive'})
+                        # install packages
+                        if APT_PACKAGES_TO_INSTALL:
+                            pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
+                            _run_cmd([
+                                'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
+                                '/bin/bash -c '
+                                f'"apt update && apt install -y --no-install-recommends {pkgs}"'
+                            ], shell=True, env={'DEBIAN_FRONTEND': 'noninteractive'})
                     except Exception as e:
                         _run_cmd(['sudo', 'umount', _boot])
                         raise e
@@ -526,6 +552,9 @@ class DTCommand(DTCommandAbs):
                             with open(out_file_path('stats'), 'wt') as fout:
                                 json.dump(stats, fout, indent=4, sort_keys=True)
                             _run_cmd(['sudo', 'cp', out_file_path('stats'), stats_filepath])
+                        # flush I/O buffer
+                        dtslogger.info('Flushing I/O buffer...')
+                        _run_cmd(['sync'])
                         # ---
                         dtslogger.info(f'Partition {partition} updated!')
                     except Exception as e:
@@ -849,16 +878,16 @@ def _umount_partition(partition):
     dtslogger.info(f'Partition "{partition}" successfully unmounted!')
 
 
-def _run_cmd(cmd, get_output=False, shell=False):
+def _run_cmd(cmd, get_output=False, shell=False, env=None):
     dtslogger.debug("$ %s" % cmd)
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = ' '.join(cmd)
     # ---
     if get_output:
-        return subprocess.check_output(cmd, shell=shell).decode('utf-8')
+        return subprocess.check_output(cmd, shell=shell, env=env).decode('utf-8')
     else:
-        subprocess.check_call(cmd, shell=shell)
+        subprocess.check_call(cmd, shell=shell, env=env)
 
 
 def _find_virtual_sd_card(disk_file, quiet=False):
