@@ -72,6 +72,9 @@ class DiscoverListener:
             'txt': txt
         }
 
+    def update_service(self, *args, **kwargs):
+        pass
+
     def print(self):
         # clear terminal
         os.system('cls' if os.name == 'nt' else 'clear')
