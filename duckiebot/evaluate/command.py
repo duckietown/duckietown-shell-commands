@@ -32,7 +32,8 @@ usage = """
 
 FILES_API_PORT = 8082
 
-
+BRANCH='daffy'
+DEFAULT_IMAGE = 'duckietown/dt-duckiebot-fifos-bridge:'+BRANCH
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -52,18 +53,14 @@ class DTCommand(DTCommandAbs):
             default=None,
         )
         group.add_argument(
-            "--glue_node_image",
-            default="duckietown/challenge-aido_lf-duckiebot:daffy",
-            help="The node that glues your submission with ROS on the duckiebot. Probably don't change",
+            "--bridge_image",
+            default=DEFAULT_IMAGE,
+            help="The node that bridges your submission with ROS on the duckiebot. Probably don't change",
         )
         group.add_argument(
-            "--duration", help="Number of seconds to run evaluation", default=15
-        )
-        group.add_argument(
-            "--remotely",
-            action="store_true",
-            default=True,
-            help="If true run the image over network without pushing to Duckiebot",
+            "--duration",
+            help="Number of seconds to run evaluation",
+            default=60
         )
         group.add_argument(
             "--record_bag",
@@ -78,15 +75,25 @@ class DTCommand(DTCommandAbs):
             help="If true you will get a shell instead of executing",
         )
         group.add_argument(
-            "--native",
+            "--raspberrypi",
             action="store_true",
             default=False,
-            help="If you would like your submission to be run on the RasPI (natively)",
+            help="If you would like your submission to be run a RasPI computer. Default is False.",
         )
         group.add_argument(
-            "--max_vel", help="the max velocity for the duckiebot", default=0.7
+            "--jetsonnano",
+            action="store_true",
+            default=False,
+            help="If you would like your submission to be run a Jetson Nano computer. Default is False. (Not Tested)",
         )
-        group.add_argument("--challenge", help="Specific challenge to evaluate")
+        group.add_argument(
+            "--max_vel",
+            help="the max velocity for the duckiebot",
+            default=0.7
+        )
+        group.add_argument("--challenge",
+                           help="Specific challenge to evaluate")
+
         # Advanced arguments
         group = parser.add_argument_group("Advanced")
         group.add_argument(
@@ -97,36 +104,50 @@ class DTCommand(DTCommandAbs):
         )
         # ---
         parsed = parser.parse_args(args)
-        tmpdir = "/tmp"
+        tmpdir = "/tmp/%s/" % parsed.duckiebot_name
         USERNAME = getpass.getuser()
         dir_home_guest = os.path.expanduser("~")
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
 
-        if not parsed.native:
+        if not parsed.raspberrypi and not parsed.jetsonnano:
             # if we are running remotely then we need to copy over the calibration
             # files from the robot and setup some tmp directories to mount
             get_calibration_files(dir_fake_home, parsed.duckiebot_name)
 
         duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
-        if (parsed.native):
-            dtslogger.info("Attempting to run natively on the robot")
+        if (parsed.raspberrypi):
+            dtslogger.info("Attempting to run natively on the raspberry Pi")
+            arch='arm32v7'
+            machine = "%s.local" % parsed.duckiebot_name
+            client = get_remote_client(duckiebot_ip)
+        elif (parsed.jetsonnano):
+            dtslogger.info("Attempting to run natively on the Jetson Nano")
+            arch='arm64v8'
+            machine = "%s.local" % parsed.duckiebot_name
             client = get_remote_client(duckiebot_ip)
         else:
             dtslogger.info("Attempting to run remotely on this machine")
+            arch='amd64'
+            machine = "unix:///var/run/docker.sock"
             client = check_docker_environment()
 
+        bridge_image = "{}-{}".format(parsed.bridge_image,arch)
         agent_container_name = "agent"
-        glue_container_name = "aido_glue"
+        bridge_container_name = "duckiebot-fifos-bridge"
 
         # remove the containers if they are already running
         remove_if_running(client, agent_container_name)
-        remove_if_running(client, glue_container_name)
+        remove_if_running(client, bridge_container_name)
 
         # setup the fifos2 volume (requires pruning it if it's still hanging around from last time)
         try:
-            client.volumes.prune()
+            dict = client.volumes.prune()
+            dtslogger.info("Successfully removed volume %s" % dict)
+        except Exception as e:
+            dtslogger.warn("error removing volume: %s" % e)
+        try:
             fifo2_volume = client.volumes.create(name="fifos2")
         except Exception as e:
             dtslogger.warn("error creating volume: %s" % e)
@@ -149,47 +170,38 @@ class DTCommand(DTCommandAbs):
                 % e
             )
 
-        # let's start building stuff for the "glue" node
-        glue_volumes = {fifo2_volume.name: {"bind": "/fifos", "mode": "rw"}}
-        glue_env = {
+        # let's start building stuff for the "bridge" node
+        bridge_volumes = {fifo2_volume.name: {"bind": "/fifos", "mode": "rw"}}
+        bridge_env = {
             "HOSTNAME": parsed.duckiebot_name,
-            "DUCKIEBOT_NAME": parsed.duckiebot_name,
+            "VEHICLE_NAME": parsed.duckiebot_name,
             "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
         }
 
-        if parsed.native:
-            arch = 'arm32v7'
-            machine = "%s.local" % parsed.duckiebot_name
-        else:
-            arch = 'amd64'
-            machine = "unix:///var/run/docker.sock"
-
-        glue_image = "%s-%s" %(parsed.glue_node_image, arch)
-
         dtslogger.info(
             "Running %s on %s with environment vars: %s"
-            % (glue_image, machine, glue_env)
+            % (bridge_image, machine, bridge_env)
         )
         params = {
-            "image": glue_image,
-            "name": glue_container_name,
+            "image": bridge_image,
+            "name": bridge_container_name,
             "network_mode": "host",
             "privileged": True,
-            "environment": glue_env,
+            "environment": bridge_env,
             "detach": True,
             "tty": True,
-            "volumes": glue_volumes,
+            "volumes": bridge_volumes,
         }
         if parsed.docker_runtime:
             params["runtime"] = parsed.docker_runtime
 
-        # run the glue container
+        # run the brdige container
         pull_if_not_exist(client, params['image'])
-        glue_container = client.containers.run(**params)
+        bridge_container = client.containers.run(**params)
 
         if not parsed.debug:
             monitor_thread = threading.Thread(
-                target=continuously_monitor, args=(client, glue_container.name)
+                target=continuously_monitor, args=(client, bridge_container.name)
             )
             monitor_thread.start()
 
@@ -267,7 +279,7 @@ class DTCommand(DTCommandAbs):
             bag_container = None
         dtslogger.info("Running for %d s" % duration)
         time.sleep(duration)
-        stop_container(glue_container)
+        stop_container(bridge_container)
         stop_container(agent_container)
 
         if bag_container is not None:
@@ -279,6 +291,9 @@ def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
 
     calib_files = [
+        'config/calibrations/camera_intrinsic/default.yaml',
+        'config/calibrations/camera_extrinsic/default.yaml',
+        'config/calibrations/kinematics/default.yaml'
         'config/calibrations/camera_intrinsic/{duckiebot:s}.yaml',
         'config/calibrations/camera_extrinsic/{duckiebot:s}.yaml',
         'config/calibrations/kinematics/{duckiebot:s}.yaml'
@@ -286,8 +301,8 @@ def get_calibration_files(destination_dir, duckiebot_name):
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = 'http://{:s}.local:{:d}/{:s}'.format(
-            duckiebot_name, FILES_API_PORT, calib_file
+        url = 'http://{:s}.local/files/{:s}'.format(
+            duckiebot_name, calib_file
         )
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
@@ -296,7 +311,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
             dtslogger.error("Could not get the calibration file {:s} from the robot {:s}".format(
                 calib_file, duckiebot_name
             ))
-            return
+            continue
         # make destination directory
         dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
         if not os.path.isdir(dirname):
