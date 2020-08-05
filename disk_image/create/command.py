@@ -441,16 +441,20 @@ class DTCommand(DTCommandAbs):
                         _run_cmd([
                             'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
                             '/bin/bash -c '
-                            '"apt update && apt full-upgrade -y --no-install-recommends"'
-                        ], shell=True, env={'DEBIAN_FRONTEND': 'noninteractive'})
+                            '"apt update && '
+                            'DEBIAN_FRONTEND=noninteractive '
+                            'apt full-upgrade -y --no-install-recommends"'
+                        ], shell=True)
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
                             _run_cmd([
                                 'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
                                 '/bin/bash -c '
-                                f'"apt update && apt install -y --no-install-recommends {pkgs}"'
-                            ], shell=True, env={'DEBIAN_FRONTEND': 'noninteractive'})
+                                f'"apt update && '
+                                f'DEBIAN_FRONTEND=noninteractive '
+                                f'apt install -y --no-install-recommends {pkgs}"'
+                            ], shell=True)
                     except Exception as e:
                         _run_cmd(['sudo', 'umount', _boot])
                         raise e
