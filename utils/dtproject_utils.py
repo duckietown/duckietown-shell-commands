@@ -62,6 +62,10 @@ TEMPLATE_TO_SRC = {
     'template-ros': {
         '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),
         '2': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
+    },
+    'template-core': {
+        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo)),
+        '2': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
     }
 }
 
@@ -71,6 +75,10 @@ TEMPLATE_TO_LAUNCHFILE = {
         '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
     },
     'template-ros': {
+        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
+        '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
+    },
+    'template-core': {
         '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo)),
         '2': lambda repo: ('launchers', '/launch/{:s}'.format(repo))
     }
