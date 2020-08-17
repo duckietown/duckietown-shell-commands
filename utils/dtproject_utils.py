@@ -177,7 +177,8 @@ class DTProject:
         configurations = {}
         if self._type_version == "2":
             configurations_file = os.path.join(self._path, 'configurations.yaml')
-            configurations = _parse_configurations(configurations_file)
+            if os.path.isfile(configurations_file):
+                configurations = _parse_configurations(configurations_file)
         # ---
         return configurations
 
@@ -214,8 +215,7 @@ class DTProject:
         return not self.is_clean()
 
     def image_metadata(self, endpoint, arch: str, owner: str = 'duckietown'):
-        client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+        client = _docker_client(endpoint)
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -224,8 +224,7 @@ class DTProject:
             return None
 
     def image_labels(self, endpoint, arch: str, owner: str = 'duckietown'):
-        client = endpoint if isinstance(endpoint, docker.DockerClient) else \
-            docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+        client = _docker_client(endpoint)
         image_name = self.image(arch, owner=owner)
         try:
             image = client.images.get(image_name)
@@ -357,6 +356,13 @@ def canonical_arch(arch):
     return CANONICAL_ARCH[arch]
 
 
+def dtlabel(key, value=None):
+    label = f"{DOCKER_LABEL_DOMAIN}.{key.lstrip('.')}"
+    if value is not None:
+        label = f"{label}={value}"
+    return label
+
+
 def _remote_url_to_https(remote_url):
     ssh_pattern = 'git@([^:]+):([^/]+)/(.+)'
     res = re.search(ssh_pattern, remote_url, re.IGNORECASE)
@@ -380,8 +386,6 @@ def _parse_configurations(config_file: str) -> dict:
         return configurations_content['configurations']
 
 
-def dtlabel(key, value=None):
-    label = f"{DOCKER_LABEL_DOMAIN}.{key.lstrip('.')}"
-    if value is not None:
-        label = f"{label}={value}"
-    return label
+def _docker_client(endpoint):
+    return endpoint if isinstance(endpoint, docker.DockerClient) else \
+        docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
