@@ -112,6 +112,7 @@ class DTProject:
         self._repository = SimpleNamespace(
             name=repo_info['REPOSITORY'],
             sha=repo_info['SHA'],
+            detached=repo_info['BRANCH'] == 'HEAD',
             branch=repo_info['BRANCH'],
             head_version=repo_info['VERSION.HEAD'],
             closest_version=repo_info['VERSION.CLOSEST'],

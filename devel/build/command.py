@@ -94,6 +94,11 @@ class DTCommand(DTCommandAbs):
             project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
+        # check if the git HEAD is detached
+        if project.repository.detached:
+            dtslogger.error('The repository HEAD is detached. Create a branch or check one out '
+                            'before continuing. Aborting.')
+            exit(8)
         # define build-args
         buildargs = {
             'buildargs': {},
