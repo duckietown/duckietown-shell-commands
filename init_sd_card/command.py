@@ -2,6 +2,7 @@ import argparse
 import getpass
 import json
 import os
+import sys
 import shutil
 import subprocess
 import time
@@ -34,7 +35,7 @@ DISK_IMAGE_URL = \
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
-SUPPORTED_STEPS = ['download', 'flash', 'setup']
+SUPPORTED_STEPS = ['download', 'flash', 'verify', 'setup']
 WIRED_ROBOT_TYPES = ['watchtower', 'traffic_light', 'town']
 
 
@@ -176,6 +177,7 @@ class DTCommand(DTCommandAbs):
         step2function = {
             "download": step_download,
             "flash": step_flash,
+            "verify": step_verify,
             "setup": step_setup
         }
         # validate steps
@@ -223,7 +225,7 @@ def step_download(shell, parsed, data):
         except KeyboardInterrupt:
             dtslogger.info('Deleting partial ZIP file...')
             _run_cmd(['rm', out_file('zip')])
-            exit(1)
+            exit(3)
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{out_file('zip')}].")
     # unzip (if necessary)
@@ -246,11 +248,10 @@ def step_flash(shell, parsed, data):
     check_program_dependency("lsblk")
     check_program_dependency("sync")
 
-    # ask for a device  if not set already:
+    # ask for a device if not set already
     if parsed.device is None:
         dtslogger.info(INPUT_DEVICE_MSG)
         _run_cmd(LIST_DEVICES_CMD, shell=True)
-
         msg = "Type the name of your device (include the '/dev' part):   "
         parsed.device = builtins.input(msg)
 
@@ -268,7 +269,7 @@ def step_flash(shell, parsed, data):
             granted = ask_confirmation(msg)
             if not granted:
                 dtslogger.info('Please retry while specifying a valid device. Bye bye!')
-                exit(2)
+                exit(4)
 
     # use dd to flash
     dtslogger.info('Flashing [{}] -> {}[{}]:'.format(data['disk_img'], sd_type, parsed.device))
@@ -315,8 +316,46 @@ def step_flash(shell, parsed, data):
     _run_cmd(['sync'])
     dtslogger.info('Done!')
     # ---
-    dtslogger.info('{}[{}] successfully flashed!'.format(sd_type, parsed.device))
+    dtslogger.info('{}[{}] flashed!'.format(sd_type, parsed.device))
     return {'sd_type': sd_type}
+
+
+def step_verify(shell, parsed, data):
+    dtslogger.info('Verifying {}[{}]...'.format(data.get('sd_type', ''), parsed.device))
+    buf_size = 4096
+    # create a progress bar to track the progress
+    pbar = ProgressBar()
+    tbytes = os.stat(data['disk_img']).st_size
+    nbytes = 0
+    # compare bytes
+    try:
+        with open(data['disk_img'], 'rb') as origin:
+            with _sudo_open(parsed.device, 'rb') as destination:
+                buffer1 = origin.read(buf_size)
+                while buffer1:
+                    buf1_len = len(buffer1)
+                    buffer2 = destination.read(buf1_len)
+                    buf2_len = len(buffer2)
+                    # check lengths, then content
+                    if buf1_len != buf2_len or buffer1 != buffer2:
+                        raise IOError(
+                            'Mismatch in range position [{}-{}]'.format(nbytes, nbytes + buf1_len)
+                        )
+                    # update progress bar
+                    nbytes += buf1_len
+                    progress = int(100 * (nbytes / tbytes))
+                    pbar.update(progress)
+                    # read another chunk
+                    buffer1 = origin.read(buf_size)
+    except IOError as e:
+        sys.stdout.write('\n')
+        sys.stdout.flush()
+        dtslogger.error('The verification step failed. Please, try re-flashing.\n'
+                        'The error reads:\n\n{}'.format(str(e)))
+        exit(5)
+    # ---
+    dtslogger.info('{}[{}] successfully flashed!'.format(data.get('sd_type', ''), parsed.device))
+    return {}
 
 
 def step_setup(shell, parsed, data):
@@ -375,7 +414,7 @@ def step_setup(shell, parsed, data):
         if not os.path.isfile(placeholder_file):
             print(placeholder_file)
             dtslogger.error(f"The placeholder {surgery_bit['placeholder']} is not recognized.")
-            exit(3)
+            exit(6)
         # load placeholder file format
         with open(placeholder_file, 'rt') as fin:
             placeholder_fmt = fin.read()
@@ -388,7 +427,7 @@ def step_setup(shell, parsed, data):
         if used_bytes > block_size:
             dtslogger.error(f"Content for placeholder {surgery_bit['placeholder']} exceeding the "
                             f'allocated space of {block_size} bytes.')
-            exit(4)
+            exit(7)
         # create masked content (content is padded with new lines)
         masked_content = content + b'\n' * (block_size - used_bytes)
         # debug only
@@ -397,7 +436,7 @@ def step_setup(shell, parsed, data):
         dtslogger.debug('Injecting {}/{} bytes ({}%) '.format(used_bytes, block_size, block_usage)
                         + 'into [{partition}]:{path}.'.format(**surgery_bit))
         # apply change
-        dd_cmd = (['sudo'] if data['sd_type'] == 'SD' else []) + [
+        dd_cmd = (['sudo'] if data.get('sd_type', 'SD') == 'SD' else []) + [
             'dd', 'of={}'.format(parsed.device), 'bs=1',
             'count={}'.format(block_size),
             'seek={}'.format(block_offset),
@@ -420,6 +459,11 @@ def step_setup(shell, parsed, data):
     dtslogger.info('Done!')
     # ---
     return {}
+
+
+def _sudo_open(filepath, *args, **kwargs):
+    proc = subprocess.Popen(['sudo', 'cat', filepath], stdout=subprocess.PIPE)
+    return proc.stdout
 
 
 def _interpret_wifi_string(s):
