@@ -322,7 +322,7 @@ def step_flash(shell, parsed, data):
 
 def step_verify(shell, parsed, data):
     dtslogger.info('Verifying {}[{}]...'.format(data.get('sd_type', ''), parsed.device))
-    buf_size = 4096
+    buf_size = 16 * 1024
     # create a progress bar to track the progress
     pbar = ProgressBar()
     tbytes = os.stat(data['disk_img']).st_size
@@ -462,6 +462,9 @@ def step_setup(shell, parsed, data):
 
 
 def _sudo_open(filepath, *args, **kwargs):
+    # check if dependencies are met
+    check_program_dependency("cat")
+    # ---
     proc = subprocess.Popen(['sudo', 'cat', filepath], stdout=subprocess.PIPE)
     return proc.stdout
 
