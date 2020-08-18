@@ -416,10 +416,8 @@ class DTCommand(DTCommandAbs):
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
-                        output = _run_cmd([
-                            'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
-                            'echo "Hello from an ARM chroot!"'
-                        ], get_output=True, shell=True)
+                        output = _run_cmd_in_root('echo "Hello from an ARM chroot!"',
+                                                  get_output=True)
                         if 'Exec format error' in output:
                             raise Exception('Exec format error')
                     except (BaseException, subprocess.CalledProcessError) as e:
@@ -438,23 +436,29 @@ class DTCommand(DTCommandAbs):
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
                         # run full-upgrade on the new root
-                        _run_cmd([
-                            'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
-                            '/bin/bash -c '
-                            '"apt update && apt --yes --force-yes --no-install-recommends'
+                        _run_cmd_in_root(
+                            'apt update && '
+                            'apt --yes --force-yes --no-install-recommends'
                             ' -o Dpkg::Options::=\"--force-confdef\" '
                             ' -o Dpkg::Options::=\"--force-confold\" '
-                            'full-upgrade"'
-                        ], shell=True)
+                            'full-upgrade'
+                        )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
-                            _run_cmd([
-                                'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
-                                '/bin/bash -c '
-                                f'"DEBIAN_FRONTEND=noninteractive '
-                                f'apt install --yes --force-yes --no-install-recommends {pkgs}"'
-                            ], shell=True)
+                            _run_cmd_in_root(
+                                f'DEBIAN_FRONTEND=noninteractive '
+                                f'apt install --yes --force-yes --no-install-recommends {pkgs}'
+                            )
+                        # upgrade libseccomp
+                        # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
+                        _run_cmd_in_root(
+                            'cd /tmp/ && '
+                            'wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/'
+                            'libseccomp2_2.4.3-1+b1_armhf.deb && '
+                            'sudo dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && '
+                            'rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb'
+                        )
                     except Exception as e:
                         _run_cmd(['sudo', 'umount', _boot])
                         raise e
@@ -892,6 +896,15 @@ def _run_cmd(cmd, get_output=False, shell=False, env=None):
         return subprocess.check_output(cmd, shell=shell, env=env).decode('utf-8')
     else:
         subprocess.check_call(cmd, shell=shell, env=env)
+
+
+def _run_cmd_in_root(cmd, *args, **kwargs):
+    cmd = ' '.join(cmd) if isinstance(cmd, list) else cmd
+    return _run_cmd([
+        'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
+        '/bin/bash -c '
+        '"{}"'.format(cmd)
+    ], *args, **kwargs, shell=True)
 
 
 def _find_virtual_sd_card(disk_file, quiet=False):

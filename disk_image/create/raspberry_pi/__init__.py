@@ -16,7 +16,6 @@ _command_file = "command.py"
 
 # import current command
 if _exists(_join(_this_dir, _command_file)):
-    # noinspection PyUnresolvedReferences
     from .command import *
 
 # find all modules
