@@ -65,10 +65,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-
-        # TODO: remove
-        # global DISK_BY_LABEL
-
         parser = argparse.ArgumentParser()
         # define parser arguments
         parser.add_argument(
