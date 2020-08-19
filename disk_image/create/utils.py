@@ -45,27 +45,26 @@ class VirtualSDCard:
         # refresh devices module
         run_cmd(['sudo', 'udevadm', 'trigger'])
         # look for a free loop device
-        lodevs = subprocess.check_output(['sudo', 'losetup', '-f']).decode('utf-8').split('\n')
+        cmd = ['sudo', 'losetup', '-f']
+        dtslogger.debug("$ %s" % cmd)
+        lodevs = subprocess.check_output(cmd).decode('utf-8').split('\n')
         lodevs = list(filter(len, lodevs))
         if len(lodevs) <= 0:
-            dtslogger.error(
-                'No free loop devices found. Cannot use virtual image. '
-                'Free at least one loop device and retry.'
-            )
+            dtslogger.error('No free loop devices found. Free at least one loop device and retry.')
             exit(3)
         # make sure there is not a conflict with other partitions
         for partition in self._partition_table.keys():
             if os.path.exists(self._disk_by_label(partition)):
-                partitions_list = ', '.join(sorted(self._partition_table.keys()))
+                partitions = ', '.join(sorted(self._partition_table.keys()))
                 dtslogger.error(
-                    f'At least one partition with a conflicting name (e.g., {partitions_list}) '
+                    f'At least one partition with a conflicting name (e.g., {partitions}) '
                     f'was found in the system. Detach them before continuing.'
                 )
                 exit(4)
         # mount loop device
-        lodev = subprocess.check_output(
-            ["sudo", "losetup", "--show", "-fPL", self._disk_file]
-        ).decode('utf-8').strip()
+        cmd = ["sudo", "losetup", "--show", "-fPL", self._disk_file]
+        dtslogger.debug("$ %s" % cmd)
+        lodev = subprocess.check_output(cmd).decode('utf-8').strip()
         # refresh devices module
         run_cmd(['sudo', 'udevadm', 'trigger'])
         # once mounted, keep track of the loopdev in use
@@ -77,7 +76,9 @@ class VirtualSDCard:
             dtslogger.info(f"Closing disk {self._disk_file}...")
         try:
             # free loop devices
-            output = subprocess.check_output(["sudo", "losetup", "--json"]).decode('utf-8')
+            cmd = ["sudo", "losetup", "--json"]
+            dtslogger.debug("$ %s" % cmd)
+            output = subprocess.check_output(cmd).decode('utf-8')
             devices = json.loads(output)
             for dev in devices['loopdevices']:
                 if not ('(deleted)' in dev['back-file']
@@ -301,10 +302,10 @@ def run_cmd(cmd, get_output=False, shell=False, env=None):
         subprocess.check_call(cmd, shell=shell, env=env)
 
 
-def run_cmd_in_root(cmd, *args, **kwargs):
+def run_cmd_in_partition(partition, cmd, *args, **kwargs):
     cmd = ' '.join(cmd) if isinstance(cmd, list) else cmd
     return run_cmd([
-        'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
+        'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT(partition),
         '/bin/bash -c '
         '"{}"'.format(cmd)
     ], *args, **kwargs, shell=True)

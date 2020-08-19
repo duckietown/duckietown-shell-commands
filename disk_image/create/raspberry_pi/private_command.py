@@ -36,7 +36,7 @@ from disk_image.create.utils import \
     get_file_first_line, \
     get_file_length, \
     run_cmd, \
-    run_cmd_in_root, \
+    run_cmd_in_partition, \
     validator_autoboot_stack, \
     validator_yaml_syntax
 
@@ -138,7 +138,7 @@ class DTCommand(DTCommandAbs):
         # get version
         distro = get_distro_version(shell)
         # create a virtual SD card object
-        sd_card = VirtualSDCard(in_file_path('img'), DISK_IMAGE_PARTITION_TABLE)
+        sd_card = VirtualSDCard(out_file_path('img'), DISK_IMAGE_PARTITION_TABLE)
         # this is the surgey plan that will be performed by the init_sd_card command
         surgery_plan = []
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
@@ -172,6 +172,7 @@ class DTCommand(DTCommandAbs):
             'stamp': time.time(),
             'stamp_human': datetime.now().isoformat()
         }
+        print()
         #
         # STEPS:
         # ------>
@@ -236,15 +237,19 @@ class DTCommand(DTCommandAbs):
             # create empty disk image
             dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
             run_cmd([
-                'dd', 'if=/dev/zero', f"of={out_file_path('img')}", 'bs=100M',
-                f'count={10 * DISK_IMAGE_SIZE_GB}'
+                'dd', 'if=/dev/zero', f"of={out_file_path('img')}", f'bs={1024 * 1024}',
+                f'count={1024 * DISK_IMAGE_SIZE_GB}'
             ])
             dtslogger.info("Empty disk image created!")
-            # make copy
+            # make copy of the disk image
             dtslogger.info(f"Copying [{in_file_path('img')}] -> [{out_file_path('img')}]")
             run_cmd([
                 'dd', f"if={in_file_path('img')}", f"of={out_file_path('img')}", 'conv=notrunc'
             ])
+            # flush buffer
+            dtslogger.info("Flushing I/O buffer...")
+            run_cmd(['sync'])
+            # ---
             dtslogger.info('Step END: create\n')
         # Step: create
         # <------
@@ -288,6 +293,10 @@ class DTCommand(DTCommandAbs):
                 "sudo", "parted", "-s", sd_card.loopdev, "resizepart",
                 str(DISK_IMAGE_PARTITION_TABLE['root']), "100%"
             ])
+            # force driver to reload file size
+            run_cmd(['sudo', 'losetup', '-c', sd_card.loopdev])
+            # show info about disk
+            dtslogger.debug('\n' + run_cmd(['sudo', 'fdisk', '-l', sd_card.loopdev], True))
             # fix file system
             run_cmd(["sudo", "e2fsck", "-f", root_device])
             # resize file system
@@ -341,8 +350,8 @@ class DTCommand(DTCommandAbs):
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
-                        output = run_cmd_in_root('echo "Hello from an ARM chroot!"',
-                                                  get_output=True)
+                        output = run_cmd_in_partition('root', 'echo "Hello from an ARM chroot!"',
+                                                      get_output=True)
                         if 'Exec format error' in output:
                             raise Exception('Exec format error')
                     except (BaseException, subprocess.CalledProcessError) as e:
@@ -361,7 +370,8 @@ class DTCommand(DTCommandAbs):
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
                         # run full-upgrade on the new root
-                        run_cmd_in_root(
+                        run_cmd_in_partition(
+                            'root',
                             'apt update && '
                             'apt --yes --force-yes --no-install-recommends'
                             ' -o Dpkg::Options::=\"--force-confdef\" '
@@ -371,13 +381,15 @@ class DTCommand(DTCommandAbs):
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
-                            run_cmd_in_root(
+                            run_cmd_in_partition(
+                                'root',
                                 f'DEBIAN_FRONTEND=noninteractive '
                                 f'apt install --yes --force-yes --no-install-recommends {pkgs}'
                             )
                         # upgrade libseccomp
                         # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                        run_cmd_in_root(
+                        run_cmd_in_partition(
+                            'root',
                             'cd /tmp/ && '
                             'wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/'
                             'libseccomp2_2.4.3-1+b1_armhf.deb && '
