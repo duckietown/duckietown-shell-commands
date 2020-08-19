@@ -1,13 +1,13 @@
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from .raspberry_pi.private_command import DTCommand as RaspberryPiCommand
-from .jetson_nano.private_command import DTCommand as JetsonNanoCommand
+# from .jetson_nano.private_command import DTCommand as JetsonNanoCommand
 
 DEFAULT_DEVICE = 'raspberry_pi'
 
 DEVICE_TO_COMMAND = {
     'raspberry_pi': RaspberryPiCommand,
-    'jetson_nano': JetsonNanoCommand
+    # 'jetson_nano': JetsonNanoCommand
 }
 
 
