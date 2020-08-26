@@ -5,63 +5,10 @@ import argparse
 import subprocess
 from dt_shell import DTCommandAbs, dtslogger
 
+from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
+from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 
-DEFAULT_ARCH = 'arm32v7'
-DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DOCKER_INFO = """
-Docker Endpoint:
-  Hostname: {Name}
-  Operating System: {OperatingSystem}
-  Kernel Version: {KernelVersion}
-  OSType: {OSType}
-  Architecture: {Architecture}
-  Total Memory: {MemTotal}
-  CPUs: {NCPU}
-"""
-ARCH_MAP = {
-    'arm32v7': ['arm', 'arm32v7', 'armv7l', 'armhf'],
-    'amd64': ['x64', 'x86_64', 'amd64', 'Intel 64'],
-    'arm64v8': ['arm64', 'arm64v8', 'armv8', 'aarch64']
-}
-CANONICAL_ARCH = {
-    'arm': 'arm32v7',
-    'arm32v7': 'arm32v7',
-    'armv7l': 'arm32v7',
-    'armhf': 'arm32v7',
-    'x64': 'amd64',
-    'x86_64': 'amd64',
-    'amd64': 'amd64',
-    'Intel 64': 'amd64',
-    'arm64': 'arm64v8',
-    'arm64v8': 'arm64v8',
-    'armv8': 'arm64v8',
-    'aarch64': 'arm64v8'
-}
-ARCH_COMPATIBILITY_MAP = {
-    'arm32v7': ['arm32v7'],
-    'arm64v8': ['arm32v7', 'arm64v8'],
-    'amd64': ['amd64']
-}
-DOCKER_LABEL_DOMAIN = "org.duckietown.label"
-TEMPLATE_TO_SRC = {
-    'template-basic': {
-        '1': lambda repo: ('code', '/packages/{:s}/'.format(repo))
-    },
-    'template-ros': {
-        '1': lambda repo: ('', '/code/catkin_ws/src/{:s}/'.format(repo))
-    }
-}
-TEMPLATE_TO_LAUNCHFILE = {
-    'template-basic': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo))
-    },
-    'template-ros': {
-        '1': lambda repo: ('launch.sh', '/launch/{:s}/launch.sh'.format(repo))
-    }
-}
-DEFAULT_VOLUMES = [
-    '/var/run/avahi-daemon/socket'
-]
+LAUNCHER_FMT = 'dt-launcher-%s'
 
 
 class DTCommand(DTCommandAbs):
@@ -74,7 +21,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to run")
-        parser.add_argument('-a', '--arch', default=DEFAULT_ARCH, choices=set(CANONICAL_ARCH.values()),
+        parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to run")
         parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
                             help="Docker socket or hostname where to run the image")
@@ -88,6 +35,8 @@ class DTCommand(DTCommandAbs):
                             help="Whether to force pull the image of the project")
         parser.add_argument('--build', default=False, action='store_true',
                             help="Whether to build the image of the project")
+        parser.add_argument('--plain', default=False, action='store_true',
+                            help="Whether to run the image without default module configuration")
         parser.add_argument('--no-multiarch', default=False, action='store_true',
                             help="Whether to disable multiarch support (based on bin_fmt)")
         parser.add_argument('-f', '--force', default=False, action='store_true',
@@ -100,6 +49,8 @@ class DTCommand(DTCommandAbs):
                             help="The docker registry username that owns the Docker image")
         parser.add_argument('--rm', default=True, action='store_true',
                             help="Whether to remove the container once done")
+        parser.add_argument('--launcher', default=None,
+                            help="Launcher to invoke inside the container (template v2 or newer)")
         parser.add_argument('--loop', default=False, action='store_true',
                             help="(Experimental) Whether to run the LOOP image")
         parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
@@ -111,6 +62,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('docker_args', nargs='*', default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        parsed.workdir = os.path.abspath(parsed.workdir)
         # x-docker runtime
         if parsed.use_x_docker:
             parsed.runtime = 'x-docker'
@@ -121,19 +73,20 @@ class DTCommand(DTCommandAbs):
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))
         # show info about project
         shell.include.devel.info.command(shell, args)
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(parsed.workdir)
-        repo = repo_info['REPOSITORY']
-        branch = repo_info['BRANCH']
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
+        # get info about project
+        project = DTProject(parsed.workdir)
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            parsed.arch = get_endpoint_architecture(parsed.machine)
+            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
+        # get the module configuration
+        module_configuration_args = []
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
         if mount_code:
-            projects_to_mount = []
+            projects_to_mount = [parsed.workdir] if parsed.mount is True else []
             # (always) mount current project
-            projects_to_mount.append(parsed.workdir)
             # mount secondary projects
             if isinstance(parsed.mount, str):
                 projects_to_mount.extend([
@@ -147,31 +100,13 @@ class DTCommand(DTCommandAbs):
                         'The path "{:s}" is not a Duckietown project'.format(project_path)
                     )
                 # get project info
-                project = shell.include.devel.info.get_project_info(project_path)
-                template = project['TYPE']
-                template_v = project['TYPE_VERSION']
-                # make sure we support this project version
-                if template not in TEMPLATE_TO_SRC or \
-                        template_v not in TEMPLATE_TO_SRC[template] or \
-                        template not in TEMPLATE_TO_LAUNCHFILE or \
-                        template_v not in TEMPLATE_TO_LAUNCHFILE[template]:
-                    dtslogger.error(
-                        'Template {:s} v{:s} for project {:s} is not supported'.format(
-                            template, template_v, project_path
-                        )
-                    )
-                    exit(2)
-                # get project repo info
-                project_repo_info = shell.include.devel.info.get_repo_info(project_path)
-                project_repo = project_repo_info['REPOSITORY']
-                # create mountpoints
-                local_src, destination_src = \
-                    TEMPLATE_TO_SRC[template][template_v](project_repo)
-                local_launch, destination_launch = \
-                    TEMPLATE_TO_LAUNCHFILE[template][template_v](project_repo)
+                proj = DTProject(project_path)
+                # get local and remote paths to code and launchfile
+                local_src, destination_src = proj.code_paths()
+                local_launch, destination_launch = proj.launch_paths()
                 # (experimental): when we run remotely, use /code/<project> as base
                 if parsed.machine != DEFAULT_MACHINE:
-                    project_path = '/code/%s' % project_repo
+                    project_path = '/code/%s' % proj.repository.name
                 # compile mounpoints
                 mount_option += [
                     '-v', '{:s}:{:s}'.format(
@@ -184,22 +119,15 @@ class DTCommand(DTCommandAbs):
                     )
                 ]
         # check if the index is clean
-        if parsed.mount and nmodified + nadded > 0:
+        if parsed.mount and project.is_dirty():
             dtslogger.warning('Your index is not clean (some files are not committed).')
             dtslogger.warning('If you know what you are doing, use --force (-f) to force '
                               'the execution of the command.')
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
-        # volumes
-        mount_option += [
-            '--volume=%s:%s' % (v, v) for v in DEFAULT_VOLUMES
-            if os.path.exists(v)
-        ]
-        # loop mode (Experimental)
-        loop_tag = '' if not parsed.loop else 'LOOP-'
         # create image name
-        image = "%s/%s:%s-%s%s" % (parsed.username, repo, branch, loop_tag, parsed.arch)
+        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
         # get info about docker endpoint
         dtslogger.info('Retrieving info about Docker endpoint...')
         epoint = _run_cmd([
@@ -220,7 +148,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(msg)
         # register bin_fmt in the target machine (if needed)
         if not parsed.no_multiarch:
-            compatible_archs = ARCH_COMPATIBILITY_MAP[CANONICAL_ARCH[epoint['Architecture']]]
+            compatible_archs = BUILD_COMPATIBILITY_MAP[CANONICAL_ARCH[epoint['Architecture']]]
             if parsed.arch not in compatible_archs:
                 dtslogger.info('Configuring machine for multiarch...')
                 try:
@@ -270,6 +198,10 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info('Found an image with the same name. Using it. User --force-pull to force a new pull.')
         # cmd option
+        if parsed.cmd and parsed.launcher:
+            raise ValueError('You cannot use the option --launcher together with --cmd.')
+        if parsed.launcher:
+            parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = [] if not parsed.arguments else \
             ['--'] + list(map(lambda s: '--%s' % s, parsed.arguments))
@@ -280,7 +212,7 @@ class DTCommand(DTCommandAbs):
             parsed.docker_args += ['--rm']
         # container name
         if not parsed.name:
-            parsed.name = 'dts-run-{:s}'.format(repo)
+            parsed.name = 'dts-run-{:s}'.format(project.name)
         parsed.docker_args += ['--name', parsed.name]
         # escape spaces in arguments
         parsed.docker_args = [a.replace(' ', '\\ ') for a in parsed.docker_args]
@@ -289,6 +221,7 @@ class DTCommand(DTCommandAbs):
             parsed.runtime,
                 '-H=%s' % parsed.machine,
                 'run', '-it'] +
+                    module_configuration_args +
                     parsed.docker_args +
                     mount_option +
                     [image] +

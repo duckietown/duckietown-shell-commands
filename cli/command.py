@@ -3,12 +3,15 @@ import json
 import shutil
 import argparse
 import subprocess
+import uuid
+
+from utils.duckietown_utils import get_distro_version
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 
 DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
-DEFAULT_IMAGE = 'duckietown/dt-gui-tools:{major}-{arch}'
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:{distro}-{arch}'
 DEFAULT_RUNTIME = 'docker'
 CANONICAL_ARCH = {
     'arm': 'arm32v7',
@@ -72,7 +75,8 @@ class DTCommand(DTCommandAbs):
         environ = []
         # ROS master
         if parsed.master:
-            environ += ['--env', 'ROS_MASTER_URI', 'http://%s:11311' % parsed.master]
+            master = parsed.master if parsed.master.endswith('local') else f'{parsed.master}.local'
+            environ += ['--env', f'ROS_MASTER_URI=http://{master}:11311']
         # environment variables
         environ += list(map(lambda e: '--env=%s' % e, parsed.environ))
         # docker arguments
@@ -104,7 +108,7 @@ class DTCommand(DTCommandAbs):
         ]
         # compile image name
         image = parsed.image if parsed.image \
-            else DEFAULT_IMAGE.format(major=shell.get_commands_version(), arch=endpoint_arch)
+            else DEFAULT_IMAGE.format(distro=get_distro_version(shell), arch=endpoint_arch)
         # print info
         dtslogger.info('Running command [%s]...' % ' '.join(parsed.command))
         print('------>')
@@ -116,7 +120,7 @@ class DTCommand(DTCommandAbs):
                 '-it',
                 '--rm',
                 '--net=host',
-                '--name', 'dts-cli-run-helper'] +
+                '--name', str(uuid.uuid4())[:8]] +
                 environ +
                 volumes +
                 docker_arguments +

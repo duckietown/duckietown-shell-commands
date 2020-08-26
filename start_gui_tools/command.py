@@ -1,157 +1,151 @@
-import argparse
 import os
+import json
+import argparse
 import platform
 import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist
-from utils.networking_utils import get_duckiebot_ip
+from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture
+from utils.duckietown_utils import get_distro_version
+
+DEFAULT_IMAGE_FMT = 'duckietown/dt-gui-tools:{}-{}'
+AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
+USAGE = """
+GUI Tools: 
+
+    {}
+"""
 
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts start_gui_tools DUCKIEBOT_NAME"
-        usage = """
-Keyboard control: 
-
-    %(prog)s
-"""
-
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot"
+            "hostname",
+            nargs='?',
+            default=None,
+            help="Name of the Duckiebot"
         )
         parser.add_argument(
-            "--network", default="host", help="Name of the network which to connect"
+            "--network",
+            default="host",
+            help="Name of the network to connect the container to"
         )
         parser.add_argument(
             "--sim",
             action="store_true",
             default=False,
-            help="are we running in simulator?",
+            help="Are we running in simulator?",
         )
         parser.add_argument(
-            "--base_image",
-            dest="image",
-            default="duckietown/dt-core:daffy-amd64",
-            help="The base image, probably don't change the default",
+            "--image",
+            default=None,
+            help="The Docker image to use. Advanced users only.",
         )
         parser.add_argument(
-            "--novnc",
+            "--vnc",
             action="store_true",
-            dest='novnc',
-            default=True,
+            default=False,
             help="Run the novnc server",
         )
-
-        parser.add_argument(
-            "--no-novnc",
-            action="store_false",
-            dest='novnc',
-            help="Do not run the novnc server",
-        )
-            
-        parsed_args = parser.parse_args(args)
-
-        if parsed_args.sim:
-            duckiebot_ip = "localhost"
+        # parse arguments
+        parsed = parser.parse_args(args)
+        # change hostname if we are in SIM mode
+        if parsed.sim or parsed.hostname is None:
+            machine = parsed.hostname = "localhost"
         else:
-            duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
-
-        hostname = parsed_args.hostname
-        image = parsed_args.image
-
+            machine = parsed.hostname = f'{parsed.hostname}.local' \
+                if not parsed.hostname.endswith('.local') else parsed.hostname
+        # pick the right architecture if not set
+        arch = get_endpoint_architecture()
+        dtslogger.info(f'Target architecture automatically set to {arch}.')
+        # compile image name
+        image = parsed.image if parsed.image else \
+            DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+        # open Docker client
         client = check_docker_environment()
-        container_name = "interactive_gui_tools_%s" % hostname
+        # create container name and make there is no name clash
+        container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
         remove_if_running(client, container_name)
-
-        if parsed_args.sim:
-            env = {
-                "HOSTNAME": "default",
-                "ROS_MASTER": hostname,
-                "DUCKIEBOT_NAME": hostname,
-                "ROS_MASTER_URI": "http://%s:11311" % hostname,
-            }
-        else:
-            env = {
-                "HOSTNAME": hostname,
-                "ROS_MASTER": hostname,
-                "DUCKIEBOT_NAME": hostname,
-                "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
-            }
-
-        env["QT_X11_NO_MITSHM"] = 1
-
-        p = platform.system().lower()
-        volumes = {
-            '/tmp/.X11-unix': {'bind': '/tmp/.X11-unix', 'mode': 'rw'}
+        # setup common env
+        env = {
+            "VEHICLE_NAME": parsed.hostname,
+            "ROS_MASTER": parsed.hostname,
+            "DUCKIEBOT_NAME": parsed.hostname,
+            "ROS_MASTER_URI": "http://%s:11311" % machine,
+            "HOSTNAME": "default" if parsed.sim else parsed.hostname
         }
-        
-        if 'darwin' in p:
-            subprocess.call(["xhost", "+", '127.0.0.1'])
-            env['DISPLAY'] = 'host.docker.internal:0'
+        volumes = {}
+        # configure mDNS
+        if os.path.exists(AVAHI_SOCKET):
+            volumes[AVAHI_SOCKET] = {
+                'bind': AVAHI_SOCKET,
+                'mode': 'rw'
+            }
         else:
-            subprocess.call(["xhost", "+"])
-            env["DISPLAY"] = os.environ["DISPLAY"]
-
-        dtslogger.info(
-            "Running %s on localhost with environment vars: %s" % (container_name, env)
+            dtslogger.warning('Avahi socket not found ({}). The container might not be able '
+                              'to resolve *.local hostnames.'.format(AVAHI_SOCKET))
+        # configure X11 forwarding
+        if not parsed.vnc:
+            env["QT_X11_NO_MITSHM"] = 1
+            # we mount the X11 socket
+            volumes['/tmp/.X11-unix'] = {
+                'bind': '/tmp/.X11-unix',
+                'mode': 'rw'
+            }
+            # configure X forwarding for different systems
+            p = platform.system().lower()
+            if 'darwin' in p:
+                subprocess.call(["xhost", "+", '127.0.0.1'])
+                env['DISPLAY'] = 'host.docker.internal:0'
+            else:
+                subprocess.call(["xhost", "+"])
+                env["DISPLAY"] = os.environ["DISPLAY"]
+        # print some stats
+        dtslogger.debug(
+            f"Running {container_name} with environment vars:\n\n"
+            f"{json.dumps(env, sort_keys=True, indent=4)}\n"
         )
-
-        cmd = "/bin/bash"
-
+        # pull image
+        pull_if_not_exist(client, image)
+        # collect container config
         params = {
             "image": image,
             "name": container_name,
-            "network_mode": parsed_args.network,
+            "network_mode": parsed.network,
             "environment": env,
             "privileged": True,
             "stdin_open": True,
             "tty": True,
             "detach": True,
-            "command": cmd,
+            "remove": True,
+            "stream": True,
+            "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
             "volumes": volumes,
         }
-
-        pull_if_not_exist(client, params['image'])
-        container = client.containers.run(**params)
-
-
-        
-        if parsed_args.novnc:
-            novnc_container_name = "novnc_%s" % hostname
-            remove_if_running(client, novnc_container_name)
-            vncenv = {
-                'VEHICLE_NAME': env['HOSTNAME'],
-                'ROS_MASTER_URI': env['ROS_MASTER_URI'],
-                'HOSTNAME': env['HOSTNAME']
+        # extend container config for VNC
+        if parsed.vnc:
+            params["ports"] = {
+                '5901/tcp': ('0.0.0.0', 5901),
+                '6901/tcp': ('0.0.0.0', 6901)
             }
-            dtslogger.info('running vnc with environment %s' % vncenv)
-            vncparams = {
-                "image": "duckietown/docker-ros-vnc:daffy",
-                "name": novnc_container_name,
-                "environment": vncenv,
-                "ports": {'5901/tcp':('0.0.0.0',5901), '6901/tcp':('0.0.0.0',6901)},
-                "detach": True,
-                }
-            pull_if_not_exist(client, vncparams['image'])
-            novnc_container = client.containers.run(**vncparams)
+        # print some info
+        if parsed.vnc:
             dtslogger.info(
-                "Running novnc. To use navigate your browser http://localhost:6901/vnc.html. Password is quackquack."
-                )
-        else:
-            dtslogger.info(
-                "Not running novnc."
+                "Running novnc. Navigate to http://localhost:6901/ in your browser. "
+                "Password is 'quackquack'."
             )
-
-        
+        dtslogger.debug(f"Running container with configuration:\n\n"
+                        f"{json.dumps(params, sort_keys=True, indent=4)}\n")
+        # run the container
+        client.containers.run(**params)
+        # attach to the container with an interactive session
         attach_cmd = "docker attach %s" % container_name
         start_command_in_subprocess(attach_cmd)
-
-        if parsed_args.novnc:
-            dtslogger.info("Shutting down novnc...")
-            novnc_container.stop()
+        # ---
         dtslogger.info("Done. Have a nice day")

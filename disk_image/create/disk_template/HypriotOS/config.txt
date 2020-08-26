@@ -1,0 +1,17 @@
+# general config
+hdmi_force_hotplug=1
+enable_uart=0
+
+# enable camera
+start_x=1
+disable_camera_led=0
+
+# give only 128MB (minimum when using the camera) of RAM to the GPU
+gpu_mem=128
+
+# enable audio
+dtparam=audio=on
+
+# enable I2C
+dtparam=i2c1=on
+dtparam=i2c_arm=on
