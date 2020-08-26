@@ -99,6 +99,7 @@ class DTCommand(DTCommandAbs):
                '-e', 'COMPMAKE_COMMAND=rparmake',
                '-it', '-v', f'{pwd1}:/pwd{flag}', '--workdir', '/pwd', image]
 
+
         dtslogger.info('executing:\nls ' + " ".join(cmd))
 
         try:
