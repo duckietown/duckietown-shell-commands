@@ -59,7 +59,7 @@ class DTCommand(DTCommandAbs):
         if parsed.sim or parsed.hostname is None:
             machine = parsed.hostname = "localhost"
         else:
-            machine = parsed.hostname = f'{parsed.hostname}.local' \
+            machine = f'{parsed.hostname}.local' \
                 if not parsed.hostname.endswith('.local') else parsed.hostname
         # pick the right architecture if not set
         arch = get_endpoint_architecture()
