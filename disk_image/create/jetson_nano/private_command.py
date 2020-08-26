@@ -40,30 +40,46 @@ from disk_image.create.utils import \
     validator_yaml_syntax
 
 DISK_IMAGE_PARTITION_TABLE = {
-    'HypriotOS': 1,
-    'root': 2
+    'APP': 1,
+    'TBC': 2,
+    'RP1': 3,
+    'EBT': 4,
+    'WB0': 5,
+    'BPF': 6,
+    'BPF-DTB': 7,
+    'FX': 8,
+    'TOS': 9,
+    'DTB': 10,
+    'LNX': 11,
+    'EKS': 12,
+    'BMP': 13,
+    'RP4': 14
 }
-DISK_IMAGE_SIZE_GB = 8
+DISK_IMAGE_SIZE_GB = 18
 DISK_IMAGE_FORMAT_VERSION = "1"
-HYPRIOTOS_VERSION = "1.11.1"
-HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
-INPUT_DISK_IMAGE_URL = f"https://github.com/hypriot/image-builder-rpi/releases/download/" \
-                       f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
+ROOT_PARTITION = "APP"
+JETPACK_VERSION = "4.4"
+JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
+INPUT_DISK_IMAGE_URL = f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" \
+                       f"{JETPACK_DISK_IMAGE_NAME}.zip"
 TEMPLATE_FILE_VALIDATOR = {
-    'root:/data/config/autoboot/*.yaml':
+    'APP:/data/config/autoboot/*.yaml':
         lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    'root:/data/config/calibrations/*/default.yaml':
+    'APP:/data/config/calibrations/*/default.yaml':
         lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
-DISK_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'disk_template')
+COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
+DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, 'disk_template')
+NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, 'nvidia-license.txt')
 SUPPORTED_STEPS = [
-    'download', 'create', 'mount', 'resize', 'upgrade',
+    'license', 'download', 'create', 'mount', 'fix', 'resize', 'upgrade',
     'setup', 'docker', 'finalize', 'unmount', 'compress'
 ]
 
+
 class DTCommand(DTCommandAbs):
 
-    help = 'Prepares an .img disk file for a Raspberry Pi'
+    help = 'Prepares an .img disk file for an Nvidia Jetson Nano'
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -130,7 +146,7 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(parsed.output):
             os.makedirs(parsed.output)
         # define output file template
-        in_file_path = lambda ex: os.path.join(parsed.workdir, f'{HYPRIOTOS_DISK_IMAGE_NAME}.{ex}')
+        in_file_path = lambda ex: os.path.join(parsed.workdir, f'{JETPACK_DISK_IMAGE_NAME}.{ex}')
         input_image_name = pathlib.Path(in_file_path('img')).stem
         out_file_path = lambda ex: os.path.join(parsed.output, f'dt-{input_image_name}.{ex}')
         # get version
@@ -147,8 +163,8 @@ class DTCommand(DTCommandAbs):
             'version': DISK_IMAGE_FORMAT_VERSION,
             'input_name': input_image_name,
             'input_url': INPUT_DISK_IMAGE_URL,
-            'base_type': 'HypriotOS',
-            'base_version': HYPRIOTOS_VERSION,
+            'base_type': 'Nvidia Jetpack',
+            'base_version': JETPACK_VERSION,
             'environment': {
                 'hostname': socket.gethostname(),
                 'user': getpass.getuser(),
@@ -173,6 +189,35 @@ class DTCommand(DTCommandAbs):
         print()
         #
         # STEPS:
+        # ------>
+        # Step: license
+        if 'license' in parsed.steps:
+            dtslogger.info('Step BEGIN: license')
+            # ask to either agree or go away
+            while True:
+                answer = ask_confirmation(
+                    f'This disk image uses the Nvidia Jetpack v{JETPACK_VERSION}. By proceeding, '
+                    f'you agree to the terms and conditions of the License For Customer Use of '
+                    f'NVIDIA Software"',
+                    default='n',
+                    choices={'a': 'Accept', 'n': 'Reject', 'r': 'Read License'},
+                    question='Do you accept?'
+                )
+                if answer == 'r':
+                    # load license text
+                    with open(NVIDIA_LICENSE_FILE, 'rt') as fin:
+                        nvidia_license = fin.read()
+                    print(f'\n{nvidia_license}\n')
+                elif answer == 'a':
+                    break
+                elif answer == 'n':
+                    dtslogger.error('You must agree to the License first.')
+                    exit(9)
+            # ---
+            dtslogger.info('Step END: license\n')
+        # Step: license
+        # <------
+        #
         # ------>
         # Step: download
         if 'download' in parsed.steps:
@@ -199,7 +244,7 @@ class DTCommand(DTCommandAbs):
                     ])
                 except KeyboardInterrupt as e:
                     dtslogger.info('Cleaning up...')
-                    run_cmd(['rm', '-rf', in_file_path('zip')])
+                    run_cmd(['rm', '-f', in_file_path('zip')])
                     raise e
             else:
                 dtslogger.info(f"Reusing cached ZIP image file [{in_file_path('zip')}].")
@@ -210,7 +255,7 @@ class DTCommand(DTCommandAbs):
                     run_cmd(['unzip', in_file_path('zip'), '-d', parsed.workdir])
                 except KeyboardInterrupt as e:
                     dtslogger.info('Cleaning up...')
-                    run_cmd(['rm', '-rf', in_file_path('img')])
+                    run_cmd(['rm', '-f', in_file_path('img')])
                     raise e
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
@@ -219,7 +264,6 @@ class DTCommand(DTCommandAbs):
         # Step: download
         # <------
         #
-        # STEPS:
         # ------>
         # Step: create
         if 'create' in parsed.steps:
@@ -276,6 +320,22 @@ class DTCommand(DTCommandAbs):
         # <------
         #
         # ------>
+        # Step: fix
+        if 'fix' in parsed.steps:
+            dtslogger.info('Step BEGIN: fix')
+            # fix GPT partition table
+            dtslogger.info(f'Fixing GPT partition table on [{sd_card.loopdev}]')
+            cmd = ["sudo", "gdisk", sd_card.loopdev]
+            dtslogger.debug("$ %s" % cmd)
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+            time.sleep(1)
+            p.communicate("w\ny\n".encode("ascii"))
+            dtslogger.info('Done!')
+            dtslogger.info('Step END: fix\n')
+        # Step: fix
+        # <------
+        #
+        # ------>
         # Step: resize
         if 'resize' in parsed.steps:
             dtslogger.info('Step BEGIN: resize')
@@ -284,13 +344,11 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                 return
             # get root partition id
-            root_device = sd_card.partition_device('root')
-            # get original disk identifier
-            disk_identifier = sd_card.get_disk_identifier()
+            root_device = sd_card.partition_device(ROOT_PARTITION)
             # resize root partition to take the entire disk
             run_cmd([
                 "sudo", "parted", "-s", sd_card.loopdev, "resizepart",
-                str(DISK_IMAGE_PARTITION_TABLE['root']), "100%"
+                str(DISK_IMAGE_PARTITION_TABLE[ROOT_PARTITION]), "100%"
             ])
             # force driver to reload file size
             run_cmd(['sudo', 'losetup', '-c', sd_card.loopdev])
@@ -300,119 +358,9 @@ class DTCommand(DTCommandAbs):
             run_cmd(["sudo", "e2fsck", "-f", root_device])
             # resize file system
             run_cmd(["sudo", "resize2fs", root_device])
-            dtslogger.info('Waiting 5 seconds for changes to take effect...')
-            time.sleep(5)
-            # make sure that the changes had an effect
-            assert sd_card.get_disk_identifier() != disk_identifier
-            # restore disk identifier
-            sd_card.set_disk_identifier(disk_identifier)
-            assert sd_card.get_disk_identifier() == disk_identifier
             # ---
             dtslogger.info('Step END: resize\n')
         # Step: resize
-        # <------
-        #
-        # ------>
-        # Step: upgrade
-        if 'upgrade' in parsed.steps:
-            dtslogger.info('Step BEGIN: upgrade')
-            # from this point on, if anything weird happens, unmount the disk
-            try:
-                # make sure that the disk is mounted
-                if not sd_card.is_mounted():
-                    dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
-                    return
-                # check if the `root` disk device exists
-                root_partition_disk = sd_card.partition_device('root')
-                if not os.path.exists(root_partition_disk):
-                    raise ValueError(f'Disk device {root_partition_disk} not found')
-                # check if the `HypriotOS` disk device exists
-                hypriotos_partition_disk = sd_card.partition_device('HypriotOS')
-                if not os.path.exists(hypriotos_partition_disk):
-                    raise ValueError(f'Disk device {hypriotos_partition_disk} not found')
-                # mount `root` partition
-                sd_card.mount_partition('root')
-                # from this point on, if anything weird happens, unmount the `root` disk
-                try:
-                    # create fake (temporary) /dev/null inside root and make it publicly writable
-                    _dev_null = os.path.join(PARTITION_MOUNTPOINT('root'), 'dev', 'null')
-                    run_cmd(['sudo', 'touch', _dev_null])
-                    run_cmd(['sudo', 'chmod', '777', _dev_null])
-                    # configure the kernel for QEMU
-                    run_cmd([
-                        'docker',
-                            'run',
-                                '--rm',
-                                '--privileged',
-                                'multiarch/qemu-user-static:register',
-                                    '--reset'])
-                    # try running a simple echo from the new chroot, if an error occurs, we need
-                    # to check the QEMU configuration
-                    try:
-                        output = run_cmd_in_partition('root', 'echo "Hello from an ARM chroot!"',
-                                                      get_output=True)
-                        if 'Exec format error' in output:
-                            raise Exception('Exec format error')
-                    except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error("An error occurred while trying to run an ARM binary "
-                                        "from the temporary chroot.\n"
-                                        "This usually indicates a misconfiguration of QEMU "
-                                        "on the host.\n"
-                                        "Please, make sure that you have the packages "
-                                        "'qemu-user-static' and 'binfmt-support' installed "
-                                        "via APT.\n\n"
-                                        "The full error is:\n\t%s" % str(e))
-                        exit(2)
-                    # mount the partition HypriotOS as root:/boot
-                    _boot = os.path.join(PARTITION_MOUNTPOINT('root'), 'boot')
-                    run_cmd(['sudo', 'mount', '-t', 'auto', hypriotos_partition_disk, _boot])
-                    # from this point on, if anything weird happens, unmount the `root` disk
-                    try:
-                        # run full-upgrade on the new root
-                        run_cmd_in_partition(
-                            'root',
-                            'apt update && '
-                            'apt --yes --force-yes --no-install-recommends'
-                            ' -o Dpkg::Options::=\"--force-confdef\" '
-                            ' -o Dpkg::Options::=\"--force-confold\" '
-                            'full-upgrade'
-                        )
-                        # install packages
-                        if APT_PACKAGES_TO_INSTALL:
-                            pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
-                            run_cmd_in_partition(
-                                'root',
-                                f'DEBIAN_FRONTEND=noninteractive '
-                                f'apt install --yes --force-yes --no-install-recommends {pkgs}'
-                            )
-                        # upgrade libseccomp
-                        # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                        run_cmd_in_partition(
-                            'root',
-                            'cd /tmp/ && '
-                            'wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/'
-                            'libseccomp2_2.4.3-1+b1_armhf.deb && '
-                            'sudo dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && '
-                            'rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb'
-                        )
-                    except Exception as e:
-                        run_cmd(['sudo', 'umount', _boot])
-                        raise e
-                    # unmount 'HypriotOS'
-                    run_cmd(['sudo', 'umount', _boot])
-                    # remove temporary /dev/null
-                    run_cmd(['sudo', 'rm', '-f', _dev_null])
-                except Exception as e:
-                    sd_card.umount_partition('root')
-                    raise e
-                # unmount 'root'
-                sd_card.umount_partition('root')
-                # ---
-            except Exception as e:
-                sd_card.umount()
-                raise e
-            dtslogger.info('Step END: upgrade\n')
-        # Step: upgrade
         # <------
         #
         # ------>
@@ -491,7 +439,7 @@ class DTCommand(DTCommandAbs):
                                     'length_bytes': max_bytes
                                 })
                         # store stats before closing the [root] partition
-                        if partition == 'root':
+                        if partition == ROOT_PARTITION:
                             stats_filepath = os.path.join(
                                 PARTITION_MOUNTPOINT(partition), DISK_IMAGE_STATS_LOCATION
                             )
@@ -513,7 +461,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.umount()
                 raise e
             # finalize surgery plan
-            dtslogger.info('Locating files for surgery in disk image...')
+            dtslogger.info('Locating files for surgery in the disk image...')
             placeholders = find_placeholders_on_disk(out_file_path('img'))
             for i in range(len(surgery_plan)):
                 full_placeholder = f"{FILE_PLACEHOLDER_SIGNATURE}{surgery_plan[i]['placeholder']}"
@@ -529,6 +477,90 @@ class DTCommand(DTCommandAbs):
         # <------
         #
         # ------>
+        # Step: upgrade
+        if 'upgrade' in parsed.steps:
+            dtslogger.info('Step BEGIN: upgrade')
+            # from this point on, if anything weird happens, unmount the disk
+            try:
+                # make sure that the disk is mounted
+                if not sd_card.is_mounted():
+                    dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
+                    return
+                # check if the root disk device exists
+                root_partition_disk = sd_card.partition_device(ROOT_PARTITION)
+                if not os.path.exists(root_partition_disk):
+                    raise ValueError(f'Disk device {root_partition_disk} not found')
+                # mount `root` partition
+                sd_card.mount_partition(ROOT_PARTITION)
+                # from this point on, if anything weird happens, unmount the `root` disk
+                try:
+                    # create fake (temporary) /dev/null inside root and make it publicly writable
+                    _dev_null = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), 'dev', 'null')
+                    run_cmd(['sudo', 'touch', _dev_null])
+                    run_cmd(['sudo', 'chmod', '777', _dev_null])
+                    # configure the kernel for QEMU
+                    run_cmd([
+                        'docker',
+                            'run',
+                                '--rm',
+                                '--privileged',
+                                'multiarch/qemu-user-static:register',
+                                    '--reset'])
+                    # try running a simple echo from the new chroot, if an error occurs, we need
+                    # to check the QEMU configuration
+                    try:
+                        output = run_cmd_in_partition(
+                            ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True)
+                        if 'Exec format error' in output:
+                            raise Exception('Exec format error')
+                    except (BaseException, subprocess.CalledProcessError) as e:
+                        dtslogger.error("An error occurred while trying to run an ARM binary "
+                                        "from the temporary chroot.\n"
+                                        "This usually indicates a misconfiguration of QEMU "
+                                        "on the host.\n"
+                                        "Please, make sure that you have the packages "
+                                        "'qemu-user-static' and 'binfmt-support' installed "
+                                        "via APT.\n\n"
+                                        "The full error is:\n\t%s" % str(e))
+                        exit(2)
+                    # from this point on, if anything weird happens, unmount the `root` disk
+                    try:
+                        pass
+                        # # run full-upgrade on the new root
+                        # run_cmd_in_partition(
+                        #     ROOT_PARTITION,
+                        #     'apt update && '
+                        #     'apt --yes --force-yes --no-install-recommends'
+                        #     ' -o Dpkg::Options::=\"--force-confdef\" '
+                        #     ' -o Dpkg::Options::=\"--force-confold\" '
+                        #     'full-upgrade'
+                        # )
+                        # # install packages
+                        # if APT_PACKAGES_TO_INSTALL:
+                        #     pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
+                        #     run_cmd_in_partition(
+                        #         ROOT_PARTITION,
+                        #         f'DEBIAN_FRONTEND=noninteractive '
+                        #         f'apt install --yes --force-yes --no-install-recommends {pkgs}'
+                        #     )
+                    except Exception as e:
+                        raise e
+                    # remove temporary /dev/null
+                    run_cmd(['sudo', 'rm', '-f', _dev_null])
+                except Exception as e:
+                    sd_card.umount_partition(ROOT_PARTITION)
+                    raise e
+                # unmount ROOT_PARTITION
+                sd_card.umount_partition(ROOT_PARTITION)
+                # ---
+            except Exception as e:
+                sd_card.umount()
+                raise e
+            dtslogger.info('Step END: upgrade\n')
+        # Step: upgrade
+        # <------
+        #
+        # ------>
         # Step: docker
         if 'docker' in parsed.steps:
             dtslogger.info('Step BEGIN: docker')
@@ -539,22 +571,23 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                     return
                 # check if the corresponding disk device exists
-                partition_disk = sd_card.partition_device('root')
+                partition_disk = sd_card.partition_device(ROOT_PARTITION)
                 if not os.path.exists(partition_disk):
                     raise ValueError(f'Disk device {partition_disk} not found')
                 # mount device
-                sd_card.mount_partition('root')
+                sd_card.mount_partition(ROOT_PARTITION)
                 # get local docker client
                 local_docker = docker.from_env()
                 # pull dind image
                 pull_docker_image(local_docker, 'docker:dind')
                 # run auxiliary Docker engine
                 remote_docker_dir = os.path.join(
-                    PARTITION_MOUNTPOINT('root'), 'var', 'lib', 'docker'
+                    PARTITION_MOUNTPOINT(ROOT_PARTITION), 'var', 'lib', 'docker'
                 )
                 remote_docker_engine_container = local_docker.containers.run(
                     image='docker:dind',
                     detach=True,
+                    remove=True,
                     auto_remove=True,
                     publish_all_ports=True,
                     privileged=True,
@@ -594,7 +627,7 @@ class DTCommand(DTCommandAbs):
                     # stop container
                     remote_docker_engine_container.stop()
                     # unmount partition
-                    sd_card.umount_partition('root')
+                    sd_card.umount_partition(ROOT_PARTITION)
                 # ---
             except Exception as e:
                 # unmount disk

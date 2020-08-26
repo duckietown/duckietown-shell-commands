@@ -2,6 +2,7 @@ from dt_shell import dtslogger
 
 import json
 import os
+import sys
 import subprocess
 import time
 import glob
@@ -9,6 +10,8 @@ import collections
 import re
 import yaml
 import itertools
+import shutil
+
 
 from utils.duckietown_utils import get_distro_version
 
@@ -97,61 +100,62 @@ class VirtualSDCard:
 
     def mount_partition(self, partition):
         dtslogger.info(f'Mounting partition "{partition}"...')
-        # refresh devices module
-        max_retries = 3
-        for i in range(max_retries):
-            if os.path.exists(PARTITION_MOUNTPOINT(partition)):
-                break
-            # refresh kernel module
-            run_cmd(['sudo', 'udevadm', 'trigger'])
-            # wait for changes to take effect
-            if i > 0:
-                dtslogger.info('Waiting for the device module to pick up the changes')
-                time.sleep(2)
-            # mount partition
-            if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-                wait_for_disk(self._disk_by_label(partition), timeout=20)
-                try:
-                    run_cmd(["udisksctl", "mount", "-b", self._disk_by_label(partition)])
-                    break
-                except BaseException as e:
-                    if i == max_retries - 1:
-                        raise e
-                    dtslogger.info(
-                        f'We had issues mounting partition "{partition}". Retrying soon.')
-                time.sleep(2)
+        # get disk device and mountpoint
+        partition_device = self._disk_by_label(partition)
+        mountpoint = PARTITION_MOUNTPOINT(partition)
+        # check if the mountpoint exists
+        if os.path.exists(mountpoint):
+            msg = f'The directory {mountpoint} already exists. Remove it before continuing.'
+            dtslogger.error(msg)
+            raise ValueError(msg)
+        # mount partition
+        wait_for_disk(partition_device, timeout=20)
+        try:
+            run_cmd(['sudo', 'mkdir', '-p', mountpoint])
+            run_cmd(['sudo', 'mount', '-t', 'auto', partition_device, mountpoint])
+        except BaseException as e:
+            dtslogger.error(f'We had issues mounting partition "{partition}".')
+            raise e
         # ---
-        assert os.path.exists(PARTITION_MOUNTPOINT(partition))
+        assert os.path.exists(mountpoint) and os.path.ismount(mountpoint)
         dtslogger.info(f'Partition "{partition}" successfully mounted!')
 
     def umount_partition(self, partition):
         dtslogger.info(f'Unmounting partition "{partition}"...')
-        # refresh devices module
-        run_cmd(['sudo', 'udevadm', 'trigger'])
-        # unmount partition
-        if os.path.exists(PARTITION_MOUNTPOINT(partition)):
-            # try to unmount
-            for i in range(3):
-                if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-                    break
-                # request unmount
-                run_cmd(
-                    ["udisksctl", "unmount", "-b", self._disk_by_label(partition)],
-                    get_output=True
-                )
-                # wait for changes to take effect
-                if i > 0:
-                    dtslogger.info(f'Waiting for {self._disk_by_label(partition)} to unmount')
-                    time.sleep(2)
+        # get disk device and mountpoint
+        partition_device = self._disk_by_label(partition)
+        mountpoint = PARTITION_MOUNTPOINT(partition)
+        # check if mountpoint exists
+        if not os.path.exists(mountpoint):
+            # nothing to do
+            return
+        # the mountpoint exists
+        if not os.path.ismount(mountpoint):
+            msg = f'The directory {mountpoint} is not a mountpoint. Please, clean this mess.'
+            dtslogger.error(msg)
+            raise ValueError(msg)
+        # wait for the device to be free
+        in_use = True
+        while in_use:
+            dtslogger.info(f'Waiting for [{partition_device}]{mountpoint} to be freed.')
+            time.sleep(2)
+            lsof = run_cmd(
+                ['sudo', 'lsof', partition_device, '2>/dev/null', '||', ':'],
+                get_output=True, shell=True
+            ).splitlines()
+            in_use = len(lsof) > 0
+        # unmount
+        run_cmd(['sudo', 'umount', mountpoint])
+        run_cmd(['sudo', 'rmdir', mountpoint])
         # ---
         dtslogger.info(f'Partition "{partition}" successfully unmounted!')
 
     def get_disk_identifier(self):
         dtslogger.info(f'Reading Disk Identifier for {self._loopdev}...')
-        p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
+        p = re.compile(".*Disk identifier: (0x)?([0-9a-zA-Z\\-]*).*")
         fdisk_out = run_cmd(["sudo", "fdisk", "-l", self._loopdev], get_output=True)
         m = p.search(fdisk_out)
-        disk_identifier = m.group(1)
+        disk_identifier = m.group(2)
         dtslogger.info(f'Disk Identifier[{self._loopdev}]: {disk_identifier}')
         return disk_identifier
 
@@ -166,6 +170,15 @@ class VirtualSDCard:
 
     def disk_image_sha(self):
         return run_cmd(['sha256sum', self._disk_file], get_output=True).split(' ')[0]
+
+    def get_usage_percentage(self, partition):
+        if not self.is_mounted():
+            return None
+        path = PARTITION_MOUNTPOINT(partition)
+        if os.path.exists(path) and os.path.ismount(path):
+            usage = shutil.disk_usage(path)
+            return (usage.used / usage.total) * 100
+        return None
 
     @staticmethod
     def find_loopdev(disk_file, quiet=False):
@@ -264,7 +277,12 @@ def find_placeholders_on_disk(disk_image):
     # parse matches
     matches = map(lambda m: m.split(' ')[::-1], matches)
     matches = list(map(lambda m: (m[0], int(m[1])), matches))
-    placeholders = dict(matches)
+    # fix offset for strings attached to content from contiguous page
+    placeholders = {}
+    for string, offset in matches:
+        idx = string.index(FILE_PLACEHOLDER_SIGNATURE)
+        string = string[idx:]
+        placeholders[string] = offset - idx
     # make sure matches are unique
     if len(placeholders) != len(matches):
         pholders = map(lambda m: m[0], matches)
@@ -280,7 +298,11 @@ def find_placeholders_on_disk(disk_image):
 
 def get_file_first_line(filepath):
     with open(filepath, 'rt') as f:
-        line = f.readline()
+        try:
+            line = f.readline()
+        except UnicodeDecodeError:
+            # this must be a non-text (maybe a binary) file
+            return ''
     return line
 
 
@@ -297,9 +319,10 @@ def run_cmd(cmd, get_output=False, shell=False, env=None):
         cmd = ' '.join(cmd)
     # ---
     if get_output:
-        return subprocess.check_output(cmd, shell=shell, env=env).decode('utf-8')
+        return subprocess.check_output(
+            cmd, shell=shell, env=env, stderr=sys.stderr).decode('utf-8')
     else:
-        subprocess.check_call(cmd, shell=shell, env=env)
+        subprocess.check_call(cmd, shell=shell, env=env, stderr=sys.stderr)
 
 
 def run_cmd_in_partition(partition, cmd, *args, **kwargs):
