@@ -522,6 +522,25 @@ def pull_if_not_exist(client, image_name):
                 loader = 'Downloading .'
             print(loader, end='\r', flush=True)
 
+def build_if_not_exist(client, image_path, tag):
+    from docker.api import build
+    from docker.errors import ImageNotFound, BuildError
+    import json
+
+    try:
+        #loader = 'Building .'
+        for line in client.api.build(
+            path = image_path, nocache=True, 
+            rm=True,
+            tag=tag, 
+            dockerfile=image_path+"/Dockerfile"):
+            try :
+                sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
+            except Exception:
+                pass
+    except BuildError as e:
+        print('Unable to build, reason: {} '.format(str(e)))
+
 
 def build_logs_to_string(build_logs):
     """
