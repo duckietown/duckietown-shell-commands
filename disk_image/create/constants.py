@@ -1,6 +1,4 @@
-import getpass
-
-PARTITION_MOUNTPOINT = lambda partition: f"/media/{getpass.getuser()}/{partition}"
+PARTITION_MOUNTPOINT = lambda partition: f"/media/dts/{partition}"
 DISK_DEVICE = lambda device, partition_id: f"{device}p{partition_id}"
 FILE_PLACEHOLDER_SIGNATURE = "DT_DUCKIETOWN_PLACEHOLDER_"
 TMP_WORKDIR = "/tmp/duckietown/dts/disk_image"
@@ -81,13 +79,8 @@ MODULES_TO_LOAD = [
     }
 ]
 
-SUPPORTED_STEPS = [
-    'download', 'create', 'mount', 'resize', 'upgrade',
-    'setup', 'docker', 'finalize', 'unmount', 'compress'
-]
-
 CLI_TOOLS_NEEDED = [
-    'wget', 'unzip', 'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm', 'udisksctl',
-    'losetup', 'parted', 'e2fsck', 'resize2fs', 'truncate', 'mount', 'umount', 'touch', 'chroot',
-    'chmod', 'rm', 'docker'
+    'wget', 'unzip', 'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm',
+    'losetup', 'parted', 'e2fsck', 'resize2fs', 'truncate', 'mount', 'umount', 'touch',
+    'chroot', 'fdisk', 'gdisk', 'chmod', 'rm', 'docker'
 ]
