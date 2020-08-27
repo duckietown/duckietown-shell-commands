@@ -9,7 +9,7 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 import nbformat  # install before?
-from IPython.nbconvert import PythonExporter
+from nbconvert.exporters import PythonExporter
 
 #from git import Repo # pip install gitpython 
 import os
@@ -25,7 +25,7 @@ usage = """
 
     To know more on the `mooc` commands, use `dts duckiebot mooc -h`.
 
-        $ dts duckiebot mooc --duckiebot_name [DUCKIEBOT_NAME]
+        $ dts duckiebot mooc test --duckiebot_name [DUCKIEBOT_NAME]
 
 """
 
