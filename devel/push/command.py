@@ -13,7 +13,7 @@ class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
 
     @staticmethod
-    def _parse_args(args):
+    def _parse_args(args, return_parser=False):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -53,11 +53,20 @@ class DTCommand(DTCommandAbs):
             default="duckietown",
             help="the docker registry username to tag the image with"
         )
+        # the parser is needed for documenting it:
+        if return_parser:
+            return parser
+
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+
+        # in case we want only the parser so that we can document the command
+        if 'return_parser' in kwargs and kwargs['return_parser']:
+            return DTCommand._parse_args([], return_parser=True)
+
         parsed = DTCommand._parse_args(args)
         if 'parsed' in kwargs:
             parsed.__dict__.update(kwargs['parsed'].__dict__)

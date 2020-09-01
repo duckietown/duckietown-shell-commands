@@ -1,0 +1,48 @@
+FROM ubuntu
+
+ARG MAINTAINER="Aleksandar Petrov (alpetrov@ethz.ch)"
+
+# install apt dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev gcc git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# install python dependencies
+RUN python3 -m pip install \
+    sphinx==3.2.0 \
+    sphinx-rtd-theme \
+    sphinx-autobuild \
+    pygments==2.5.2 \
+    mock
+
+# inatall docker
+# RUN curl -fsSL https://get.docker.com -o get-docker.sh \
+#     && sh get-docker.sh \
+#     && rm get-docker.sh
+
+# install dts
+RUN python3 -m pip install --no-cache-dir --user -U duckietown-shell \
+    && export PATH="$PATH:$HOME/.local/bin"
+
+# napoleon needed to reuse the script we use for the ROS repos
+RUN cd "/" \
+    && git clone https://github.com/AleksandarPetrov/napoleon \
+    && cd /napoleon \
+    && python3 setup.py install -f
+
+# copy commands
+RUN mkdir /commands
+COPY . /commands
+RUN ls -l /commands
+
+# put everything in the right place
+RUN mkdir -p /docs/source
+COPY sphinx_docs/* /docs/source/
+COPY devel/docs/build/assets/docs/* /docs/source/
+RUN mkdir /docs/html
+
+CMD cd /docs \
+    && sphinx-build -b html source html \
+    || cat /tmp/sphinx-err-*.log
+

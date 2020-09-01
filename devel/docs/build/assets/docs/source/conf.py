@@ -36,39 +36,40 @@ os.makedirs(module_dir)
 code_dir = os.environ.get('DT_REPO_PATH', None)
 
 if code_dir is None:
-    raise ValueError('The environment variable DT_REPO_PATH is not set. Exiting.')
+    print('WARNING: The environment variable DT_REPO_PATH is not set. No ROS code will be documentable!!!')
 
-code_path = lambda *p: os.path.abspath(os.path.join(code_dir, *p))
+else:
+    code_path = lambda *p: os.path.abspath(os.path.join(code_dir, *p))
 
-# Find all the nodes and move them to the temp module folder
-print(" - Searching for code documentation...")
-node_source_files = []
-if os.path.isdir(code_path('packages')):
-    for pkg in os.listdir(code_path('packages')):
-        if '%s.rst' % pkg not in os.listdir(os.path.abspath('packages/')):
-            print("   WARNING: Package %s doesn't have a corresponding file in docs/packages! "
-                  "Skipping it." % pkg)
-            continue
-        # Add the include paths such that all the include modules can also be used with autodocs
-        sys.path.insert(0, code_path('packages', pkg, 'include'))
-        if os.path.isdir(code_path('packages', pkg, 'src')):
-            for node_source_file in os.listdir(code_path('packages', pkg, 'src')):
-                if node_source_file[-3:] == '.py' and node_source_file != '__init__.py':
-                    node_source_files.append(code_path('packages', pkg, 'src', node_source_file))
-                    copyfile(code_path('packages', pkg, 'src', node_source_file),
-                             os.path.join(module_dir, node_source_file))
+    # Find all the nodes and move them to the temp module folder
+    print(" - Searching for code documentation...")
+    node_source_files = []
+    if os.path.isdir(code_path('packages')):
+        for pkg in os.listdir(code_path('packages')):
+            if '%s.rst' % pkg not in os.listdir(os.path.abspath('packages/')):
+                print("   WARNING: Package %s doesn't have a corresponding file in docs/packages! "
+                      "Skipping it." % pkg)
+                continue
+            # Add the include paths such that all the include modules can also be used with autodocs
+            sys.path.insert(0, code_path('packages', pkg, 'include'))
+            if os.path.isdir(code_path('packages', pkg, 'src')):
+                for node_source_file in os.listdir(code_path('packages', pkg, 'src')):
+                    if node_source_file[-3:] == '.py' and node_source_file != '__init__.py':
+                        node_source_files.append(code_path('packages', pkg, 'src', node_source_file))
+                        copyfile(code_path('packages', pkg, 'src', node_source_file),
+                                 os.path.join(module_dir, node_source_file))
 
-# Create an __init__.py file for the temporary module
-with open(os.path.join(module_dir, '__init__.py'), 'w') as init_file:
-    for node_source_file in node_source_files:
-        init_file.write('from .%s import *\n' % (node_source_file.split('/')[-1][:-3]))
+    # Create an __init__.py file for the temporary module
+    with open(os.path.join(module_dir, '__init__.py'), 'w') as init_file:
+        for node_source_file in node_source_files:
+            init_file.write('from .%s import *\n' % (node_source_file.split('/')[-1][:-3]))
 
-# Add the temporary module to the paths
-sys.path.insert(0, dirpath)
-if os.environ.get('DEBUG', '0') == '1':
-    print("Final system path directories:")
-    print(sys.path)
-sys.setrecursionlimit(1500)
+    # Add the temporary module to the paths
+    sys.path.insert(0, dirpath)
+    if os.environ.get('DEBUG', '0') == '1':
+        print("Final system path directories:")
+        print(sys.path)
+    sys.setrecursionlimit(1500)
 
 ######################################################################################################################
 #
@@ -121,9 +122,11 @@ html_static_path = ['_static']
 
 ######################################################################################################################
 #
-#    Setup the napoleon and autodoc extensions
+#    Setup the extensions
 #
 ######################################################################################################################
+
+sys.path.append(os.path.abspath("./_ext"))
 
 # Napoleon (for Google-style docstrings)
 extensions = ['sphinxcontrib.napoleon']
@@ -133,6 +136,9 @@ extensions += ['sphinx.ext.autodoc']
 
 # Intersphinx: create hyperlinks to other repos and packages
 extensions += ['sphinx.ext.intersphinx']
+
+sys.path.append(os.path.abspath("./_ext"))
+extensions += ['dts_parser']
 
 # Load all the necessary mock imports
 print(" - Reading mock_imports...")

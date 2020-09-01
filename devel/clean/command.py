@@ -13,7 +13,7 @@ class DTCommand(DTCommandAbs):
     help = "Removes the Docker images relative to the current project"
 
     @staticmethod
-    def _parse_args(args):
+    def _parse_args(args, return_parser=False):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C",
@@ -33,11 +33,20 @@ class DTCommand(DTCommandAbs):
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname where to clean the image",
         )
+        # the parser is needed for documenting it:
+        if return_parser:
+            return parser
+
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+
+        # in case we want only the parser so that we can document the command
+        if 'return_parser' in kwargs and kwargs['return_parser']:
+            return DTCommand._parse_args([], return_parser=True)
+
         parsed = DTCommand._parse_args(args)
         if 'parsed' in kwargs:
             parsed.__dict__.update(kwargs['parsed'].__dict__)

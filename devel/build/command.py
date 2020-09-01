@@ -32,11 +32,27 @@ from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
 
 
 class DTCommand(DTCommandAbs):
+    """
+    This command is *very important* for such work. It does ...
+
+    It makes it important to have a table here:
+
+    +------------------------+------------+----------+----------+
+    | Header row, column 1   | Header 2   | Header 3 | Header 4 |
+    | (header rows optional) |            |          |          |
+    +========================+============+==========+==========+
+    | body row 1, column 1   | column 2   | column 3 | column 4 |
+    +------------------------+------------+----------+----------+
+    | body row 2             | ...        | ...      |          |
+    +------------------------+------------+----------+----------+
+
+    """
 
     help = 'Builds the current project'
+    parser = ,,,,
 
     @staticmethod
-    def command(shell, args):
+    def command(shell, args, return_parser=False):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument('-C', '--workdir', default=os.getcwd(),
@@ -82,6 +98,9 @@ class DTCommand(DTCommandAbs):
                             help="Build the code documentation as well")
         parser.add_argument('-v', '--verbose', default=False, action='store_true',
                             help="Be verbose")
+        if return_parser:
+            return parser
+
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
@@ -390,9 +409,9 @@ class DTCommand(DTCommandAbs):
         # compile extra info
         extra_info = '\n'.join(extra_info)
         # run docker image analysis
-        _, _, final_image_size = ImageAnalyzer.process(
-            buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci
-        )
+        # _, _, final_image_size = ImageAnalyzer.process(
+        #     buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci
+        # )
         # pull image (if the destination is different from the builder machine)
         if parsed.destination and parsed.machine != parsed.destination:
             _transfer_image(

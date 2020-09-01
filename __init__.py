@@ -10,7 +10,9 @@ from dt_shell.utils import format_exception
 modules = glob.glob(dirname(__file__) + "/*")
 
 # load submodules
-for mod in [m for m in modules if isdir(m) and basename(m) != "lib"]:
+for mod in [m for m in modules if isdir(m)
+                                  and basename(m) != "lib"
+                                  and basename(m) != "sphinx_docs"]:
     # print('trying to load %r' % m)
     try:
         exec("import %s" % basename(mod))
