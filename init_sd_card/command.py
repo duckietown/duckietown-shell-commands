@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import platform
 import time
 import socket
 from collections import namedtuple
@@ -243,7 +244,12 @@ def step_flash(shell, parsed, data):
     # check if dependencies are met
     check_program_dependency("dd")
     check_program_dependency("sudo")
-    check_program_dependency("lsblk")
+    p = platform.system().lower()
+    if 'darwin' in p:
+        check_program_dependency("diskutil")
+        DD_BLOCK_SIZE="64k"
+    else:
+        check_program_dependency("lsblk")
     check_program_dependency("sync")
 
     # ask for a device  if not set already:
@@ -272,9 +278,10 @@ def step_flash(shell, parsed, data):
 
     # use dd to flash
     dtslogger.info('Flashing [{}] -> {}[{}]:'.format(data['disk_img'], sd_type, parsed.device))
+
     dd_cmd = (['sudo'] if sd_type == 'SD' else []) + [
         'dd', 'if={}'.format(data['disk_img']), 'of={}'.format(parsed.device),
-        'bs={}'.format(DD_BLOCK_SIZE), 'status=progress'
+        'bs={}'.format(DD_BLOCK_SIZE)
     ]
 
     # create a progress bar to track the progress
