@@ -1,12 +1,8 @@
-import os
-import shutil
-import argparse
-import subprocess
-from termcolor import colored
 from dt_shell import DTShell, DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
+
     help = "Re-applies a template to the project"
 
     @staticmethod

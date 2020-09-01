@@ -2,22 +2,35 @@
 #
 # Maintainer: Andrea F. Daniele
 
+from os.path import \
+    exists as _exists, \
+    dirname as _dirname, \
+    basename as _basename, \
+    isdir as _isdir, \
+    isfile as _isfile, \
+    join as _join
+import glob as _glob
+
+# constants
+_this_dir = _dirname(__file__)
+_command_file = "command.py"
+
 # import current command
-try:
+if _exists(_join(_this_dir, _command_file)):
     # noinspection PyUnresolvedReferences
-    from .command import DTCommand
+    from .command import *
 
-except ImportError:
-    pass
-
-import glob
-from os.path import basename, dirname, isdir
-
-modules = glob.glob(dirname(__file__) + "/*")
+# find all modules
+_modules = [m for m in _glob.glob(_join(_this_dir, "*")) if _isdir(m)]
+# this is important to avoid name clashing with commands at lower levels
+_modules.sort(key=lambda p: int(_isfile(_join(p, _command_file))))
 
 # load submodules
-for mod in [m for m in modules if isdir(m)]:
+for _mod in _modules:
     try:
-        exec("from .%s import *" % basename(mod))
-    except ImportError:
-        pass
+        exec('from .%s import *' % _basename(_mod))
+    except ImportError as e:
+        if _exists(_join(_mod, _command_file)):
+            raise EnvironmentError(e)
+    except EnvironmentError as e:
+        raise e

@@ -2,7 +2,8 @@ import sys
 import json
 import argparse
 import subprocess
-from utils.duckietown_utils import get_robot_types
+
+from utils.duckietown_utils import get_robot_types, get_distro_version
 from utils.avahi_utils import wait_for_service
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -13,8 +14,9 @@ DEFAULT_TARGET = "unix:///var/run/docker.sock"
 DOCKER_SOCKET = "/var/run/docker.sock"
 LOG_API_DEFAULT_DATABASE = "db_log_default"
 LOG_DEFAULT_SUBGROUP = "default"
-LOG_DEFAULT_APP_ID = "101741598378777739147_dtsentediagnosticswriteonly"
-LOG_DEFAULT_APP_SECRET = "McZWwqezyTuPvAn95Wn2YsgI3v1eZyVCALoW2tmqdH5z7jy2"
+LOG_DEFAULT_APP_ID = "101741598378777739147_dts_daffy_diagnostics_run"
+LOG_DEFAULT_APP_SECRET = "VvXITEzPuaGwdXC03vCeHnYYjqUOoEc9ZZIJu8oO9UacID3B"
+AVAHI_SOCKET_FILE = "/var/run/avahi-daemon/socket"
 
 LOG_API_PROTOCOL = 'https'
 LOG_API_HOSTNAME = 'dashboard.duckietown.org'
@@ -79,12 +81,12 @@ class DTCommand(DTCommandAbs):
                             '--group',
                             required=True,
                             type=str,
-                            help="Name of the logging group within the database")
+                            help="Name of the experiment (e.g., new_fan)")
         parser.add_argument('-S',
                             '--subgroup',
                             default=LOG_DEFAULT_SUBGROUP,
                             type=str,
-                            help="Name of the logging subgroup within the database")
+                            help="Name of the test within the experiment (e.g., fan_model_X)")
         parser.add_argument('-d',
                             '--duration',
                             type=int,
@@ -100,6 +102,11 @@ class DTCommand(DTCommandAbs):
                             default='(empty)',
                             type=str,
                             help="Custom notes to attach to the log")
+        parser.add_argument('--no-pull',
+                            action='store_true',
+                            default=False,
+                            help="Whether we do not try to pull the diagnostics image before "
+                                 "running the experiment")
         parser.add_argument('--debug',
                             action='store_true',
                             default=False,
@@ -151,9 +158,14 @@ class DTCommand(DTCommandAbs):
         else:
             dtslogger.info(f'Device type forced to "{parsed.type}".')
         # create options
-        options = ['-it', '--rm', '--net=host']
+        options = [
+            '-it',
+            '--rm',
+            '--net=host',
+            '--volume={avahi_socket:s}:{avahi_socket:s}'.format(avahi_socket=AVAHI_SOCKET_FILE)
+        ]
         # create image name
-        image = DIAGNOSTICS_IMAGE.format(version=shell.get_commands_version(), arch=image_arch)
+        image = DIAGNOSTICS_IMAGE.format(version=get_distro_version(shell), arch=image_arch)
         # mount option
         if parsed.target == "unix://" + DOCKER_SOCKET:
             options += [
@@ -183,8 +195,17 @@ class DTCommand(DTCommandAbs):
         # container name
         container_name = 'dts-run-diagnostics-system-monitor'
         options += ['--name', container_name]
+        # update image
+        if not parsed.no_pull:
+            dtslogger.info(f'Attempting to update image "{image}"...')
+            _run_cmd([
+                'docker',
+                    '-H=%s' % parsed.machine,
+                    'pull',
+                        image
+            ])
         # run
-        dtslogger.info(f'Running system-monitor on "{parsed.machine}" monitoring "{parsed.target}".')
+        dtslogger.info(f'Running monitor on "{parsed.machine}", monitoring "{parsed.target}".')
         _run_cmd([
             'docker',
                 '-H=%s' % parsed.machine,

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+ROBOT_TYPE=$(head -1 /data/config/robot_type)
+
+BOOT_STACKS=(
+  "/data/config/autoboot/${ROBOT_TYPE}.yml"
+  "/data/config/autoboot/${ROBOT_TYPE}.yaml"
+  "/data/config/autoboot/${ROBOT_TYPE}.YML"
+  "/data/config/autoboot/${ROBOT_TYPE}.YAML"
+)
+
+for BOOT_STACK in "${BOOT_STACKS[@]}"; do
+  if [ -f "${BOOT_STACK}" ]; then
+    echo "Launching autoboot stack ${BOOT_STACK}..."
+    docker-compose --project-name autoboot --file "${BOOT_STACK}" up -d
+    echo "Autoboot stack should be now up!"
+    exit 0
+  fi
+done
+
+echo "Autoboot stack /data/config/autoboot/${ROBOT_TYPE}.[yml|yaml] not found!"
