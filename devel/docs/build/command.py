@@ -68,14 +68,6 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
-        # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_DISTRO'] != project.repository.branch:
-            dtslogger.info(
-                'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_DISTRO'], project.repository.branch
-                )
-            )
-            exit(0)
 
         # get the arch
         arch = get_endpoint_architecture()
