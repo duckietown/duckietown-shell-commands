@@ -1,10 +1,14 @@
 import os
 import argparse
 import subprocess
+
+from utils.dtproject_utils import DTProject
+
 from dt_shell import DTShell, DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
+
     help = "Computes the diff between the current project and its template"
 
     @staticmethod
@@ -27,8 +31,7 @@ class DTCommand(DTCommandAbs):
             "-v",
             "--version",
             default=None,
-            type=int,
-            choices=range(0, 99),
+            type=str,
             help="Version of the template to use (default = project's template version)"
         )
         parser.add_argument(
@@ -39,39 +42,43 @@ class DTCommand(DTCommandAbs):
         )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        # verify version
+        if parsed.version is not None:
+            try:
+                _ = int(parsed.version)
+            except ValueError:
+                dtslogger.error('The argument -v/--version must be an integer.')
+                return
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         dtslogger.info('Project workspace: {}'.format(code_dir))
         # show info about project
         shell.include.devel.info.command(shell, args)
         # get info about current project
-        project_info = shell.include.devel.info.get_project_info(code_dir)
-        # get info about current repo
-        repo_info = shell.include.devel.info.get_repo_info(code_dir)
+        project = DTProject(code_dir)
         # check if the index is clean
-        nmodified = repo_info['INDEX_NUM_MODIFIED']
-        nadded = repo_info['INDEX_NUM_ADDED']
-        # check if the index is clean
-        if nmodified + nadded > 0:
+        if project.is_dirty():
             dtslogger.warning('Your index is not clean.')
             dtslogger.warning('This command compares the template against committed changes.')
             print()
         # get template and template version
-        template = project_info['TYPE']
+        template = project.type
         if parsed.template is not None:
             template = parsed.template
-        template_version = 'v'+project_info['TYPE_VERSION']
+        template_version = 'v' + project.type_version
         if parsed.version is not None:
-            template_version = parsed.version
+            template_version = 'v'+parsed.version
         # script path
-        script_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'assets', 'template_ops.sh')
+        script_path = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)), '..', 'assets', 'template_ops.sh'
+        )
         # perform action
-        vars = {
+        env = {
             'CODE_DIR': code_dir,
             'TEMPLATE_TYPE': template,
             'TEMPLATE_VERSION': template_version,
-            'APPLY_DIFF': "{}".format(int(parsed.apply))
+            'APPLY_DIFF': str(int(parsed.apply))
         }
-        p = subprocess.Popen(script_path, env=vars, shell=True)
+        p = subprocess.Popen(script_path, env=env, shell=True)
         p.communicate()
 
     @staticmethod

@@ -10,6 +10,12 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
 
+
+ARCH='amd64'
+BRANCH='daffy'
+DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
+
+
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
@@ -23,23 +29,24 @@ Calibrate:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
+            "hostname",
+            default=None,
+            help="Name of the Duckiebot to calibrate"
         )
         parser.add_argument(
             "--base_image",
             dest="image",
-            default="duckietown/dt-core:daffy-amd64",
+            default=DEFAULT_IMAGE,
         )
         parser.add_argument(
             "--debug",
             action="store_true",
             default=False,
-            help="will enter you into the running container",
+            help="Will enter you into the running container",
         )
 
-        parsed_args = parser.parse_args(args)
-        hostname = parsed_args.hostname
-        duckiebot_ip = get_duckiebot_ip(hostname)
+        parsed = parser.parse_args(args)
+        duckiebot_ip = get_duckiebot_ip(parsed.hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
         # is the interface running?
@@ -51,67 +58,57 @@ Calibrate:
                     interface_container_found = True
             if not interface_container_found:
                 dtslogger.error(
-                    "The  duckiebot-interface is not running on the duckiebot"
+                    "The  duckiebot-interface is not running on the Duckiebot"
                 )
                 exit()
         except Exception as e:
             dtslogger.warn(
-                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s"
-                % e
+                "We could not verify that the duckiebot-interface module is running. "
+                "The exception reads: %s" % e
             )
 
-        # is the raw imagery being published?
-        try:
-            duckiebot_containers = duckiebot_client.containers.list()
-            raw_imagery_found = False
-            for c in duckiebot_containers:
-                if "demo_camera" in c.name:
-                    raw_imagery_found = True
-            if not raw_imagery_found:
-                dtslogger.error(
-                    "The demo_camera is not running on the duckiebot - please run `dts duckiebot demo "
-                    "--demo_name camera --package_name pi_camera --image "
-                    "duckietown/dt-core:daffy-arm32v7 --duckiebot_name %s`" % hostname
-                )
-                exit()
-
-        except Exception as e:
-            dtslogger.warn("%s" % e)
-
-        image = parsed_args.image
-
         client = check_docker_environment()
-        container_name = "intrinsic_calibration_%s" % hostname
+        container_name = "dts-calibrate-intrinsics-%s" % parsed.hostname
         remove_if_running(client, container_name)
         env = {
-            "HOSTNAME": hostname,
-            "ROS_MASTER": hostname,
-            "DUCKIEBOT_NAME": hostname,
-            "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
+            "VEHICLE_NAME": parsed.hostname,
             "QT_X11_NO_MITSHM": 1,
         }
 
-        volumes = {}
         subprocess.call(["xhost", "+"])
 
-        p = platform.system().lower()
-        if "darwin" in p:
-            env["DISPLAY"] = "%s:0" % socket.gethostbyname(socket.gethostname())
-            volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
+        if "darwin" in platform.system().lower():
+            env.update({
+                "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
+                "ROS_MASTER": parsed.hostname,
+                "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip
+            })
+            volumes = {
+                "/tmp/.X11-unix": {
+                    "bind": "/tmp/.X11-unix",
+                    "mode": "rw"
+                }
+            }
         else:
             env["DISPLAY"] = os.environ["DISPLAY"]
+            volumes = {
+                "/var/run/avahi-daemon/socket": {
+                    "bind": "/var/run/avahi-daemon/socket",
+                    "mode": "rw"
+                }
+            }
 
         dtslogger.info(
             "Running %s on localhost with environment vars: %s" % (container_name, env)
         )
 
         dtslogger.info(
-            "When the window opens you will need to move the checkerboard around in front of the Duckiebot camera"
+            "When the window opens you will need to move the checkerboard around "
+            "in front of the Duckiebot camera.\nPress [Q] to close the window."
         )
-        cmd = "roslaunch pi_camera intrinsic_calibration.launch veh:=%s" % hostname
 
         params = {
-            "image": image,
+            "image": parsed.image,
             "name": container_name,
             "network_mode": "host",
             "environment": env,
@@ -119,14 +116,16 @@ Calibrate:
             "stdin_open": True,
             "tty": True,
             "detach": True,
-            "command": cmd,
+            "remove": True,
+            "auto_remove": True,
+            "command": 'dt-launcher-intrinsic-calibration',
             "volumes": volumes,
         }
 
-        pull_if_not_exist(client, image)
+        pull_if_not_exist(client, parsed.image)
 
-        container = client.containers.run(**params)
+        client.containers.run(**params)
 
-        if parsed_args.debug:
-            attach_cmd = "docker attach %s" % (container_name)
+        if parsed.debug:
+            attach_cmd = "docker attach %s" % container_name
             start_command_in_subprocess(attach_cmd)

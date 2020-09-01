@@ -12,7 +12,7 @@ import six
 import docker
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import start_command_in_subprocess
+from utils.cli_utils import start_command_in_subprocess, ProgressBar
 from utils.networking_utils import get_duckiebot_ip
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
@@ -23,10 +23,94 @@ RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = '2375'
 
+DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
+DOCKER_INFO = """
+Docker Endpoint:
+  Hostname: {Name}
+  Operating System: {OperatingSystem}
+  Kernel Version: {KernelVersion}
+  OSType: {OSType}
+  Architecture: {Architecture}
+  Total Memory: {MemTotal}
+  CPUs: {NCPU}
+"""
+
+
+def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
+    from utils.dtproject_utils import CANONICAL_ARCH
+    client = docker.from_env() if hostname is None else \
+        docker.DockerClient(base_url=sanitize_docker_baseurl(hostname, port))
+    epoint_arch = client.info()['Architecture']
+    if epoint_arch not in CANONICAL_ARCH:
+        dtslogger.error(f'Architecture {epoint_arch} not supported!')
+        exit(1)
+    return CANONICAL_ARCH[epoint_arch]
+
+
+def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
+    if baseurl.startswith('unix:'):
+        return baseurl
+    elif baseurl.startswith('tcp://'):
+        return baseurl
+    else:
+        return f'tcp://{baseurl}:{port}'
+
+
+def get_client(endpoint=None):
+    if endpoint is None:
+        return docker.from_env()
+    return endpoint if isinstance(endpoint, docker.DockerClient) else \
+        docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+
 
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     return docker.DockerClient(base_url=f'tcp://{duckiebot_ip}:{port}')
 
+
+def pull_image(image, endpoint=None, progress=True):
+    client = get_client(endpoint)
+    layers = set()
+    pulled = set()
+    pbar = ProgressBar() if progress else None
+    for line in client.api.pull(image, stream=True, decode=True):
+        if 'id' not in line or 'status' not in line:
+            continue
+        layer_id = line['id']
+        layers.add(layer_id)
+        if line['status'] in ['Already exists', 'Pull complete']:
+            pulled.add(layer_id)
+        # update progress bar
+        if progress:
+            percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
+            pbar.update(percentage)
+    if progress:
+        pbar.done()
+
+
+def push_image(image, endpoint=None, progress=True, **kwargs):
+    client = get_client(endpoint)
+    layers = set()
+    pushed = set()
+    pbar = ProgressBar() if progress else None
+    for line in client.api.push(*image.split(':'), stream=True, decode=True, **kwargs):
+        if 'id' not in line or 'status' not in line:
+            continue
+        layer_id = line['id']
+        layers.add(layer_id)
+        if line['status'] in ['Layer already exists', 'Pushed']:
+            pushed.add(layer_id)
+        # update progress bar
+        if progress:
+            percentage = max(0.0, min(1.0, len(pushed) / max(1.0, len(layers)))) * 100.0
+            pbar.update(percentage)
+    if progress:
+        pbar.done()
+
+
+
+
+
+# Everything after this point needs to be checked
 
 def continuously_monitor(client, container_name):
     from docker.errors import NotFound, APIError
@@ -285,12 +369,12 @@ def check_if_running(client, container_name):
 def remove_if_running(client, container_name):
     try:
         container = client.containers.get(container_name)
-        dtslogger.info("%s already running - stopping it first.." % container_name)
+        dtslogger.info("Container %s already running - stopping it first.." % container_name)
         stop_container(container)
-        dtslogger.info("removing %s" % container_name)
+        dtslogger.info("Removing container %s" % container_name)
         remove_container(container)
     except Exception as e:
-        dtslogger.warn("couldn't remove existing container: %s" % e)
+        dtslogger.warn("Could not remove existing container: %s" % e)
 
 
 def start_rqt_image_view(duckiebot_name=None):
@@ -415,6 +499,7 @@ def remove_container(container):
     except Exception as e:
         dtslogger.warn("Container %s not found to remove! %s" % (container, e))
 
+
 def pull_if_not_exist(client, image_name):
     from docker.errors import ImageNotFound
 
@@ -436,3 +521,42 @@ def pull_if_not_exist(client, image_name):
                 print(' '*60, end='\r', flush=True)
                 loader = 'Downloading .'
             print(loader, end='\r', flush=True)
+
+def build_if_not_exist(client, image_path, tag):
+    from docker.api import build
+    from docker.errors import ImageNotFound, BuildError
+    import json
+
+    try:
+        #loader = 'Building .'
+        for line in client.api.build(
+            path = image_path, nocache=True, 
+            rm=True,
+            tag=tag, 
+            dockerfile=image_path+"/Dockerfile"):
+            try :
+                sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
+            except Exception:
+                pass
+    except BuildError as e:
+        print('Unable to build, reason: {} '.format(str(e)))
+
+
+def build_logs_to_string(build_logs):
+    """
+    Converts the docker build logs `JSON object <https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build>`_
+    to a simple printable string.
+
+    Args:
+        build_logs: build logs as JSON-decoded objects
+
+    Returns:
+        a string with the logs
+
+    """
+    s = ""
+    for l in build_logs:
+        for k, v in l.items():
+            if k == 'stream':
+                s+=str(v)
+    return s

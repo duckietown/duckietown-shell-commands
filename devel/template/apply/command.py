@@ -2,6 +2,7 @@ from dt_shell import DTShell, DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
+
     help = "Re-applies a template to the project"
 
     @staticmethod
