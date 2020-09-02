@@ -20,6 +20,7 @@ services:
       HTTP_PORT: 8080
     volumes:
       - /data:/data
+      - /secrets:/secrets
       # compose volume
       - compose-data:/user-data/databases
       # avahi socket
