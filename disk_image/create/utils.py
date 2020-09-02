@@ -282,7 +282,9 @@ def find_placeholders_on_disk(disk_image):
     for string, offset in matches:
         idx = string.index(FILE_PLACEHOLDER_SIGNATURE)
         string = string[idx:]
-        placeholders[string] = offset - idx
+        placeholders[string] = offset + idx
+        dtslogger.debug(f'Found placeholder {string} at position {placeholders[string]} '
+                        f'(string match was at {offset} with a correction of {idx} bytes).')
     # make sure matches are unique
     if len(placeholders) != len(matches):
         pholders = map(lambda m: m[0], matches)
