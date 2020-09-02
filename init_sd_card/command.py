@@ -13,7 +13,7 @@ from datetime import datetime
 
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-from utils.duckietown_utils import get_robot_types, get_robot_configurations
+from utils.duckietown_utils import get_robot_types, get_robot_configurations, get_robot_hardware
 
 from .constants import \
     TIPS_AND_TRICKS, \
@@ -28,15 +28,27 @@ INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-DD_BLOCK_SIZE = "64K"
-BASE_DISK_IMAGE = "dt-hypriotos-rpi-v1.11.1"
-DISK_IMAGE_URL = \
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/{BASE_DISK_IMAGE}.zip"
+DD_BLOCK_SIZE = "1M"
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
-SUPPORTED_STEPS = ['download', 'flash', 'verify', 'setup']
+SUPPORTED_STEPS = ['license', 'download', 'flash', 'verify', 'setup']
 WIRED_ROBOT_TYPES = ['watchtower', 'traffic_light', 'town']
+NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, 'nvidia-license.txt')
+
+
+def BASE_DISK_IMAGE(robot_configuration):
+    board_to_disk_image = {
+        'raspberry_pi': 'dt-hypriotos-rpi-v1.11.1',
+        'jetson_nano': 'dt-nvidia-jetpack-v4.4'
+    }
+    board, _ = get_robot_hardware(robot_configuration)
+    return board_to_disk_image[board]
+
+
+def DISK_IMAGE_URL(robot_configuration):
+    disk_image = BASE_DISK_IMAGE(robot_configuration)
+    return f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/{disk_image}.zip"
 
 
 class InvalidUserInput(Exception):
@@ -175,6 +187,7 @@ class DTCommand(DTCommandAbs):
         # fetch given steps
         steps = parsed.steps.split(",")
         step2function = {
+            "license": step_license,
             "download": step_download,
             "flash": step_flash,
             "verify": step_verify,
@@ -185,8 +198,18 @@ class DTCommand(DTCommandAbs):
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
+        # compile hardware specific disk image name and url
+        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration)
+        # compile files destinations
+        in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
+        # prepare data
+        data = {
+            'robot_configuration': parsed.robot_configuration,
+            'disk_zip': in_file('zip'),
+            'disk_img': in_file('img'),
+            'disk_metadata': in_file('json')
+        }
         # perform steps
-        data = {}
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
         # ---
@@ -197,7 +220,33 @@ class DTCommand(DTCommandAbs):
                                f'and put it inside a {parsed.robot_type.title()}. Have fun!')
 
 
-def step_download(shell, parsed, data):
+def step_license(_, parsed, __):
+    board, _ = get_robot_hardware(parsed.robot_configuration)
+    if board == 'jetson_nano':
+        # ask to either agree or go away
+        while True:
+            answer = ask_confirmation(
+                f'This disk image uses the Nvidia Jetpack OS. By proceeding, '
+                f'you agree to the terms and conditions of the License For Customer Use of '
+                f'NVIDIA Software"',
+                default='n',
+                choices={'a': 'Accept', 'n': 'Reject', 'r': 'Read License'},
+                question='Do you accept?'
+            )
+            if answer == 'r':
+                # load license text
+                with open(NVIDIA_LICENSE_FILE, 'rt') as fin:
+                    nvidia_license = fin.read()
+                print(f'\n{nvidia_license}\n')
+            elif answer == 'a':
+                break
+            elif answer == 'n':
+                dtslogger.error('You must explicitly agree to the License first.')
+                exit(8)
+    return {}
+
+
+def step_download(_, parsed, data):
     # check if dependencies are met
     check_program_dependency("wget")
     check_program_dependency("unzip")
@@ -213,35 +262,32 @@ def step_download(shell, parsed, data):
                 shutil.rmtree(parsed.workdir)
     # create temporary dir
     _run_cmd(['mkdir', '-p', parsed.workdir])
-    # compile files destinations
-    out_file = lambda e: os.path.join(parsed.workdir, f"{BASE_DISK_IMAGE}.{e}")
     # download zip (if necessary)
     dtslogger.info('Looking for ZIP image file...')
-    if not os.path.isfile(out_file('zip')):
+    if not os.path.isfile(data['disk_zip']):
         dtslogger.info('Downloading ZIP image...')
+        # compile image url
+        disk_image_url = DISK_IMAGE_URL(parsed.robot_configuration)
         try:
             _run_cmd(['wget', '--no-verbose', '--show-progress',
-                      '--output-document', out_file('zip'), DISK_IMAGE_URL])
+                      '--output-document', data['disk_zip'], disk_image_url])
         except KeyboardInterrupt:
             dtslogger.info('Deleting partial ZIP file...')
-            _run_cmd(['rm', out_file('zip')])
+            _run_cmd(['rm', data['disk_zip']])
             exit(3)
     else:
-        dtslogger.info(f"Reusing cached ZIP image file [{out_file('zip')}].")
+        dtslogger.info(f"Reusing cached ZIP image file [{data['disk_zip']}].")
     # unzip (if necessary)
-    if not os.path.isfile(out_file('img')):
+    if not os.path.isfile(data['disk_img']):
         dtslogger.info('Extracting ZIP image...')
-        _run_cmd(['unzip', out_file('zip'), '-d', parsed.workdir])
+        _run_cmd(['unzip', data['disk_zip'], '-d', parsed.workdir])
     else:
-        dtslogger.info(f"Reusing cached DISK image file [{out_file('img')}].")
+        dtslogger.info(f"Reusing cached DISK image file [{data['disk_img']}].")
     # ---
-    return {
-        'disk_img': out_file('img'),
-        'disk_metadata': out_file('json')
-    }
+    return {}
 
 
-def step_flash(shell, parsed, data):
+def step_flash(_, parsed, data):
     # check if dependencies are met
     check_program_dependency("dd")
     check_program_dependency("sudo")
@@ -320,7 +366,7 @@ def step_flash(shell, parsed, data):
     return {'sd_type': sd_type}
 
 
-def step_verify(shell, parsed, data):
+def step_verify(_, parsed, data):
     dtslogger.info('Verifying {}[{}]...'.format(data.get('sd_type', ''), parsed.device))
     buf_size = 16 * 1024
     # create a progress bar to track the progress
@@ -379,8 +425,8 @@ def step_setup(shell, parsed, data):
             'steps': {
                 step: bool(step in parsed.steps) for step in SUPPORTED_STEPS
             },
-            'input_name': BASE_DISK_IMAGE,
-            'input_url': DISK_IMAGE_URL,
+            'input_name': BASE_DISK_IMAGE(parsed.robot_configuration),
+            'input_url': DISK_IMAGE_URL(parsed.robot_configuration),
             'environment': {
                 'hostname': socket.gethostname(),
                 'user': getpass.getuser(),
@@ -461,7 +507,7 @@ def step_setup(shell, parsed, data):
     return {}
 
 
-def _sudo_open(filepath, *args, **kwargs):
+def _sudo_open(filepath, *_, **__):
     # check if dependencies are met
     check_program_dependency("cat")
     # ---
