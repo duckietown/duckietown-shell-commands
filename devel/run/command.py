@@ -98,8 +98,9 @@ class DTCommand(DTCommandAbs):
             if parsed.machine == DEFAULT_MACHINE:
                 # we are running locally, check if the mountpoint exists
                 if not os.path.exists(mountpoint):
-                    dtslogger.error(f"The mountpoint '{mountpoint}' does not exist.")
-                    return
+                    dtslogger.warning(f"The mountpoint '{mountpoint}' does not exist. "
+                                      f"This can create issues inside the container.")
+                    continue
                 mount_option += ['-v', '{:s}:{:s}'.format(mountpoint, mountpoint)]
         # mount source code (if requested)
         if mount_code:
