@@ -10,8 +10,8 @@ RUN apt-get update \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install \
-    sphinx==1.8.5 \
+RUN python3 -m pip install \
+    sphinx~=3.2.0 \
     sphinx-rtd-theme \
     sphinx-autobuild \
     pygments==2.5.2 \
@@ -22,7 +22,7 @@ COPY assets/docs /docs
 RUN cd "/" \
     && git clone https://github.com/AleksandarPetrov/napoleon \
     && cd /napoleon \
-    && python setup.py install -f
+    && python3 setup.py install -f
 
 RUN mkdir /docs/in
 RUN mkdir /docs/out
