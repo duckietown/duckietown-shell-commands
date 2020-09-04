@@ -500,7 +500,7 @@ def step_setup(shell, parsed, data):
         _run_cmd(['sync'])
     dtslogger.info('Surgery went OK!')
     # flush I/O buffer
-    dtslogger.info('Flushing I/O buffer...')
+    dtslogger.info('Flushing I/O buffer (this can take a while)...')
     _run_cmd(['sync'])
     dtslogger.info('Done!')
     # ---
