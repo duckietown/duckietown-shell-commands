@@ -342,9 +342,12 @@ class DTCommand(DTCommandAbs):
                 line = _build_line(line)
                 if not line:
                     continue
-                sys.stdout.write(line)
+                try:
+                    sys.stdout.write(line)
+                    buildlog.append(line)
+                except UnicodeEncodeError:
+                    pass
                 sys.stdout.flush()
-                buildlog.append(line)
 
         except APIError as e:
             dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
