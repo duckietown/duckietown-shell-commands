@@ -42,6 +42,8 @@ COPY sphinx_docs/* /docs/source/
 COPY devel/docs/build/assets/docs/* /docs/source/
 RUN mkdir /docs/html
 
+RUN chmod -R 777 /docs
+
 CMD cd /docs \
     && sphinx-build -b html source html \
     || cat /tmp/sphinx-err-*.log

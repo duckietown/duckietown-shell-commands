@@ -78,7 +78,8 @@ class DTS_Parser(SphinxDirective):
             node += docstring_content
 
             try:
-                cmd_parser = cmd_class.command(self.shell, ['--help'], return_parser=True)
+                cmd_parser = cmd_class.parser
+                # cmd_parser = cmd_class.command(self.shell, ['--help'], return_parser=True)
             except Exception as e:
                 print(f"ERROR: The parser for command {cmd_class} could not be obtained: {str(e)}!")
                 cmd_parser = None
