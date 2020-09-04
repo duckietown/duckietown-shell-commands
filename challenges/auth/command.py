@@ -7,17 +7,18 @@ from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cmd", required=True)
+    parser.add_argument("--impersonate", default=None)
+
     @staticmethod
     def command(shell: DTShell, args):
         from duckietown_challenges.rest_methods import dtserver_auth
 
         token = shell.get_dt1_token()
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--cmd", required=True)
-        parser.add_argument("--impersonate", default=None)
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         cmd = parsed.cmd
 

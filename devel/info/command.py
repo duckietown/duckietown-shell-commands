@@ -26,28 +26,25 @@ class DTCommand(DTCommandAbs):
 
     help = "Shows information about the current project"
 
+    # configure arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-C",
+        "--workdir",
+        default=os.getcwd(),
+        help="Directory containing the project to show",
+    )
+    parser.add_argument(
+        '--ci',
+        default=False,
+        action='store_true',
+        help="Overwrites configuration for CI (Continuous Integration)"
+    )
+
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to show",
-        )
-        parser.add_argument(
-            '--ci',
-            default=False,
-            action='store_true',
-            help="Overwrites configuration for CI (Continuous Integration)"
-        )
 
-        # in case we want only the parser so that we can document the command
-        if 'return_parser' in kwargs and kwargs['return_parser']:
-            return parser
-
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         if 'parsed' in kwargs:
             parsed.__dict__.update(kwargs['parsed'].__dict__)
         # ---

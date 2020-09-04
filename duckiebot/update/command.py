@@ -18,30 +18,35 @@ from utils.duckietown_utils import get_distro_version
 
 class DTCommand(DTCommandAbs):
 
+    prog = "dts duckiebot update"
+    parser = argparse.ArgumentParser(prog=prog)
+    # define arguments
+    parser.add_argument(
+        '-a', '--all',
+        default=False,
+        action='store_true',
+        help='Update all Duckietown modules (only official code is updated by default)'
+    )
+    parser.add_argument(
+        '-D', '--distro',
+        default=None,
+        help='Only update images of this Duckietown distro'
+    )
+    parser.add_argument(
+        'hostname',
+        nargs=1,
+        help='Name of the Duckiebot to check software status for'
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot update"
-        parser = argparse.ArgumentParser(prog=prog)
-        # define arguments
-        parser.add_argument(
-            '-a', '--all',
-            default=False,
-            action='store_true',
-            help='Update all Duckietown modules (only official code is updated by default)'
-        )
-        parser.add_argument(
-            '-D', '--distro',
-            default=get_distro_version(shell),
-            help='Only update images of this Duckietown distro'
-        )
-        parser.add_argument(
-            'hostname',
-            nargs=1,
-            help='Name of the Duckiebot to check software status for'
-        )
         # parse arguments
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         hostname = parsed.hostname[0]
+
+        # if distribution wasn't provided, take the default
+        if parsed.distro == None:
+            parsed.distro = get_distro_version(shell)
 
         # open Docker client
         docker = get_client(hostname)

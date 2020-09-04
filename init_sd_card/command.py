@@ -56,94 +56,96 @@ class InvalidUserInput(Exception):
 
 
 class DTCommand(DTCommandAbs):
+
+    parser = argparse.ArgumentParser()
+    # configure parser
+    parser.add_argument(
+        "--steps",
+        default=','.join(SUPPORTED_STEPS),
+        help="Steps to perform"
+    )
+    parser.add_argument(
+        "--hostname",
+        required=True,
+        help="Hostname of the device to flash"
+    )
+    parser.add_argument(
+        "--linux-username",
+        default="duckie",
+        help="Username of the linux user to create on the flashed device"
+    )
+    parser.add_argument(
+        "--linux-password",
+        default="quackquack",
+        help="Password to access the linux user profile created on the flashed device"
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="The SD card device to flash"
+    )
+    parser.add_argument(
+        "--country",
+        default="US",
+        help="2-letter country code (US, CA, CH, etc.)"
+    )
+    parser.add_argument(
+        "--wifi",
+        dest="wifi",
+        default=None,
+        help="""
+        Can specify one or more networks: "network:password,network:password,..."
+        Default for watchtower and traffic_light is no wifi config. 
+        Default for other robot types is "duckietown:quackquack"
+
+        Each network defined in the list can have between 1 and 3 arguments:
+
+            - Open networks (no password)
+
+                network:    "ssid"
+
+
+            - PSK (Pre-shared key) protected networks (no password)
+
+                network:    "ssid:psk"
+
+
+            - EAP (Extensible Authentication Protocol) protected networks
+
+                network:    "ssid:username:password"
+
+        """
+    )
+    parser.add_argument(
+        '--type',
+        dest='robot_type',
+        default=None,
+        choices=get_robot_types(),
+        help="Which type of robot we are setting up"
+    )
+    parser.add_argument(
+        '--configuration',
+        dest='robot_configuration',
+        default=None,
+        help="Which configuration your robot is in"
+    )
+    parser.add_argument(
+        "--no-cache",
+        default=False,
+        action='store_true',
+        help="Whether to use cached ISO image"
+    )
+    parser.add_argument(
+        "--workdir",
+        default=TMP_WORKDIR,
+        type=str,
+        help="(Optional) temporary working directory to use"
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        parser = argparse.ArgumentParser()
-        # configure parser
-        parser.add_argument(
-            "--steps",
-            default=','.join(SUPPORTED_STEPS),
-            help="Steps to perform"
-        )
-        parser.add_argument(
-            "--hostname",
-            required=True,
-            help="Hostname of the device to flash"
-        )
-        parser.add_argument(
-            "--linux-username",
-            default="duckie",
-            help="Username of the linux user to create on the flashed device"
-        )
-        parser.add_argument(
-            "--linux-password",
-            default="quackquack",
-            help="Password to access the linux user profile created on the flashed device"
-        )
-        parser.add_argument(
-            "--device",
-            default=None,
-            help="The SD card device to flash"
-        )
-        parser.add_argument(
-            "--country",
-            default="US",
-            help="2-letter country code (US, CA, CH, etc.)"
-        )
-        parser.add_argument(
-            "--wifi",
-            dest="wifi",
-            default=None,
-            help="""
-            Can specify one or more networks: "network:password,network:password,..."
-            Default for watchtower and traffic_light is no wifi config. 
-            Default for other robot types is "duckietown:quackquack"
-            
-            Each network defined in the list can have between 1 and 3 arguments:
-            
-                - Open networks (no password)
-
-                    network:    "ssid"
-            
-            
-                - PSK (Pre-shared key) protected networks (no password)
-
-                    network:    "ssid:psk"
-            
-            
-                - EAP (Extensible Authentication Protocol) protected networks
-
-                    network:    "ssid:username:password"
-            
-            """
-        )
-        parser.add_argument(
-            '--type',
-            dest='robot_type',
-            default=None,
-            choices=get_robot_types(),
-            help="Which type of robot we are setting up"
-        )
-        parser.add_argument(
-            '--configuration',
-            dest='robot_configuration',
-            default=None,
-            help="Which configuration your robot is in"
-        )
-        parser.add_argument(
-            "--no-cache",
-            default=False,
-            action='store_true',
-            help="Whether to use cached ISO image"
-        )
-        parser.add_argument(
-            "--workdir",
-            default=TMP_WORKDIR,
-            type=str,
-            help="(Optional) temporary working directory to use"
-        )
         # parse arguments
-        parsed = parser.parse_args(args=args)
+        parsed = DTCommand.parser.parse_args(args=args)
         # default WiFi
         if parsed.wifi is None:
             if parsed.robot_type in WIRED_ROBOT_TYPES:

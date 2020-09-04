@@ -11,18 +11,19 @@ class DTCommand(DTCommandAbs):
 
     help = 'Bumps the current project\'s version'
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-C', '--workdir', default=os.getcwd(),
+                        help="Directory containing the project to build")
+    parser.add_argument('-n', '--dry-run', default=False, action='store_true',
+                        help="Don't write any files, just pretend.")
+    parser.add_argument('part', nargs='?',
+                        choices=['major', 'minor', 'patch'], default='patch',
+                        help="Part of the version to bump")
+
     @staticmethod
     def command(shell, args):
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=os.getcwd(),
-                            help="Directory containing the project to build")
-        parser.add_argument('-n', '--dry-run', default=False, action='store_true',
-                            help="Don't write any files, just pretend.")
-        parser.add_argument('part', nargs='?',
-                            choices=['major', 'minor', 'patch'], default='patch',
-                            help="Part of the version to bump")
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         # make sure that bumpversion is available

@@ -9,12 +9,14 @@ from duckietown_challenges.rest_methods import get_dtserver_user_info
 
 
 class DTCommand(DTCommandAbs):
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--impersonate", type=str, default=None)
+
     @staticmethod
     def command(shell: DTShell, args):
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--impersonate", type=str, default=None)
 
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         token = shell.get_dt1_token()
 

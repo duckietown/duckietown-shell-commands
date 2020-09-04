@@ -39,19 +39,21 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot mooc"
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    parser.add_argument(
+        "--duckiebot_name", '-b',
+        dest="duckiebot_name",
+        default=None,
+        help="Name of the Duckiebot on which to run the exercise",
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot mooc"
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument(
-            "--duckiebot_name", '-b',
-            dest="duckiebot_name",
-            default=None,
-            help="Name of the Duckiebot on which to run the exercise",
-        )
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         check_docker_environment()
 

@@ -12,27 +12,14 @@ from docutils.statemachine import StringList
 
 import dt_shell as dts
 
-# def flatten_list(l):
-#     output = list()
-#     for i in l:
-#         if type(i) == list:
-#             output.append(flatten_list(i))
-#         else:
-#             output.append(i)
-#     return output
-
 
 class DTS_Parser(SphinxDirective):
 
-    # this enables content in the directive
-    has_content = True
 
     def print_log(self, msg):
         print("[DTS PARSER] %s" % msg)
 
     def run(self):
-        commands_version = self.content[0]
-
         self.print_log("Setting up a dts instance...")
         os.environ['DTSHELL_COMMANDS'] = '/commands'
         shell_config = dts.config.get_shell_config_default()
@@ -60,9 +47,10 @@ class DTS_Parser(SphinxDirective):
         class_path_short = ' '.join(parents + [command])
         class_path = '.'.join(parents + [command, 'command', 'DTCommand'])
 
-        node = nodes.section(ids=[f"dts_command_{class_path_short.replace(' ', '_')}"])
+        node = nodes.section(ids=[f"dts-command-{class_path_short.replace(' ', '-')}"])
         node += nodes.title(class_path_short, class_path_short)
         # if an actual command:
+
 
         if os.path.exists(os.path.join(path_to_command, 'command.py')):
             self.print_log(f"Loading command class {class_path}")
@@ -71,21 +59,19 @@ class DTS_Parser(SphinxDirective):
             cmd_class = dts.cli._load_class(class_path)
             self.print_log(f"Help string: {cmd_class.help}")
 
-            node += nodes.paragraph(text=f"Docs for the {class_path_short} command")
+            # node += nodes.paragraph(text=f"Docs for the {class_path_short} command")
             docstring_content = nodes.paragraph()
-            docstring = cmd_class.__doc__ if cmd_class.__doc__ else "Warning: No docstring for this command!"
+            docstring = cmd_class.__doc__ if cmd_class.__doc__ else ".. warning::\n    Warning: No docstring for this command!\n"
             self.state.nested_parse(StringList(docstring.split('\n'), 'dummy.rst'), 0, docstring_content)
             node += docstring_content
 
             try:
                 cmd_parser = cmd_class.parser
-                # cmd_parser = cmd_class.command(self.shell, ['--help'], return_parser=True)
             except Exception as e:
-                print(f"ERROR: The parser for command {cmd_class} could not be obtained: {str(e)}!")
+                self.print_log(f"ERROR: The parser for command {cmd_class} could not be obtained: {str(e)}!")
                 cmd_parser = None
 
             if cmd_parser is not None:
-                print(f"Help for {class_path_short}: {cmd_parser.format_help()}")
                 help_block = nodes.literal_block(cmd_parser.format_help(), cmd_parser.format_help())
                 help_block['class']=''
                 node += help_block
@@ -95,11 +81,8 @@ class DTS_Parser(SphinxDirective):
         # if a parent of a command, parse the children commands
         elif content!=dict():
             new_parents = parents + [command]
-            #
-            # node = nodes.section(ids=[f"dts_command_{class_path_short.replace(' ','_')}"])
-            # node += nodes.title(class_path_short, class_path_short)
             node += nodes.paragraph(text=f"Docs for the subcommands of {class_path_short}")
-            print(f"DEBUG: Adding section id=dts_command_{class_path_short.replace(' ','_')} title={class_path_short}")
+            self.print_log(f"DEBUG: Adding section id=dts_command_{class_path_short.replace(' ','-')} title={class_path_short}")
 
             for command, content_inner in sorted(content.items(), key=lambda item: item[0]):
                 node += self.parse_a_command(command, content_inner, new_parents)

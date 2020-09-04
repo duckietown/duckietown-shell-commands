@@ -13,16 +13,16 @@ from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
 
 class DTCommand(DTCommandAbs):
 
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--image',
+                        default='duckietown/docs-build:daffy',
+                        help="Which image to use")
+
     @staticmethod
     def command(shell: DTShell, args):
 
-        parser = argparse.ArgumentParser()
-
-        parser.add_argument('--image',
-                            default='duckietown/docs-build:daffy',
-                            help="Which image to use")
-
-        parsed = parser.parse_args(args=args)
+        parsed = DTCommand.parser.parse_args(args=args)
         image = parsed.image
 
         check_docker_environment()

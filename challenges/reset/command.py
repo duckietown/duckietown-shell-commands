@@ -5,24 +5,26 @@ from dt_shell import DTCommandAbs, DTShell, UserError
 
 
 class DTCommand(DTCommandAbs):
+
+    parser = argparse.ArgumentParser(prog="dts challenges reset")
+    parser.add_argument(
+        "--job", default=None, help="Only reset this particular job", type=int
+    )
+    parser.add_argument(
+        "--submission",
+        default=None,
+        type=int,
+        help="Reset this particular submission",
+    )
+    parser.add_argument(
+        "--step", default=None, help="Only reset this particular step"
+    )
+    parser.add_argument("--impersonate", default=None)
+
     @staticmethod
     def command(shell: DTShell, args):
         token = shell.get_dt1_token()
-        parser = argparse.ArgumentParser(prog="dts challenges reset")
-        parser.add_argument(
-            "--job", default=None, help="Only reset this particular job", type=int
-        )
-        parser.add_argument(
-            "--submission",
-            default=None,
-            type=int,
-            help="Reset this particular submission",
-        )
-        parser.add_argument(
-            "--step", default=None, help="Only reset this particular step"
-        )
-        parser.add_argument("--impersonate", default=None)
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         if parsed.submission is None and parsed.job is None:
             msg = "You need to specify either --job or --submission."

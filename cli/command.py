@@ -36,6 +36,23 @@ class DTCommand(DTCommandAbs):
 
     help = 'Easy way to run CLI commands inside a Duckietown ROS environment'
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
+                        help="Docker socket or hostname where to run the image")
+    parser.add_argument('-i', '--image', default=None,
+                        help="Docker image to run the command in")
+    parser.add_argument('--runtime', default=DEFAULT_RUNTIME, type=str,
+                        help="Docker runtime to use to run the container")
+    parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
+                        help="Use x-docker as runtime (needs to be installed separately)")
+    parser.add_argument('-M', '--master', default=None, type=str,
+                        help="Hostname of the ROS Master node")
+    parser.add_argument('-e', '--env', dest='environ', default=[], action='append',
+                        help="Environment variables to set inside the environment container")
+    parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
+                        help="Additional docker arguments for the environment container")
+    parser.add_argument('command', nargs='*', default=[])
+
     @staticmethod
     def command(shell: DTShell, args):
         if '--help' in args or '-h' in args:
@@ -44,23 +61,7 @@ class DTCommand(DTCommandAbs):
                 '\n\n\tdts %s [options] -- [command]\n\n----\n' % DTCommand.name
             )
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
-                            help="Docker socket or hostname where to run the image")
-        parser.add_argument('-i', '--image', default=None,
-                            help="Docker image to run the command in")
-        parser.add_argument('--runtime', default=DEFAULT_RUNTIME, type=str,
-                            help="Docker runtime to use to run the container")
-        parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
-                            help="Use x-docker as runtime (needs to be installed separately)")
-        parser.add_argument('-M', '--master', default=None, type=str,
-                            help="Hostname of the ROS Master node")
-        parser.add_argument('-e', '--env', dest='environ', default=[], action='append',
-                            help="Environment variables to set inside the environment container")
-        parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
-                            help="Additional docker arguments for the environment container")
-        parser.add_argument('command', nargs='*', default=[])
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         # docker runtime and use_x_docker are mutually exclusive
         if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:

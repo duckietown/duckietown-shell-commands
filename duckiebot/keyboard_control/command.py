@@ -22,30 +22,32 @@ CLI_DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot keyboard_control DUCKIEBOT_NAME"
+    usage = """
+    Keyboard control:
+
+        %(prog)s
+    """
+
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    parser.add_argument('--cli', dest='cli', default=False, action='store_true',
+                        help='A flag, if set will run with CLI instead of with GUI')
+    parser.add_argument('--network', default='host', help='Name of the network to connect to')
+    parser.add_argument('--sim', action='store_true', default=False,
+                        help='are we running in simulator?')
+    parser.add_argument('--gui_image', default=GUI_DEFAULT_IMAGE,
+                        help="The base image for running the GUI, probably don't change the default")
+    parser.add_argument('--cli_image', default=CLI_DEFAULT_IMAGE,
+                        help="The base image for running the GUI, probably don't change the default")
+
+    parser.add_argument('hostname', default=None, help='Name of the Duckiebot to control')
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot keyboard_control DUCKIEBOT_NAME"
-        usage = """
-Keyboard control:
 
-    %(prog)s
-"""
-
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        parser.add_argument('--cli', dest='cli', default=False, action='store_true',
-                            help='A flag, if set will run with CLI instead of with GUI')
-        parser.add_argument('--network', default='host', help='Name of the network to connect to')
-        parser.add_argument('--sim', action='store_true', default=False,
-                            help='are we running in simulator?')
-        parser.add_argument('--gui_image', default=GUI_DEFAULT_IMAGE,
-                            help="The base image for running the GUI, probably don't change the default")
-        parser.add_argument('--cli_image', default=CLI_DEFAULT_IMAGE,
-                            help="The base image for running the GUI, probably don't change the default")
-
-        parser.add_argument('hostname', default=None, help='Name of the Duckiebot to control')
-
-        parsed_args = parser.parse_args(args)
+        parsed_args = DTCommand.parser.parse_args(args)
 
         if parsed_args.sim:
             duckiebot_ip = "sim"

@@ -138,9 +138,15 @@ class DiscoverListener:
 
 class DTCommand(DTCommandAbs):
 
+    prog = 'dts fleet discover'
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    parser.add_argument('--type', dest="filter_type", default=None,
+                        choices=get_robot_types(),
+                        help="Filter devices by type")
+
     @staticmethod
     def command(shell, args):
-        prog = 'dts fleet discover'
 
         # try to import zeroconf
         try:
@@ -150,13 +156,7 @@ class DTCommand(DTCommandAbs):
             return
 
         # parse arguments
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        parser.add_argument('--type', dest="filter_type", default=None,
-                            choices=get_robot_types(),
-                            help="Filter devices by type")
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         # perform discover
         zeroconf = Zeroconf()

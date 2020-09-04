@@ -27,41 +27,43 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts challenges evaluate"
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    group = parser.add_argument_group("Basic")
+
+    group.add_argument("--no-cache", action="store_true", default=False, help="")
+    group.add_argument("--no-build", action="store_true", default=False, help="")
+    group.add_argument("--no-pull", action="store_true", default=False, help="")
+    group.add_argument("--challenge", help="Specific challenge to evaluate")
+
+    group.add_argument(
+        "--image",
+        help="Evaluator image to run",
+        default="duckietown/dt-challenges-evaluator:daffy",
+    )
+    group.add_argument(
+        "--shell",
+        action="store_true",
+        default=False,
+        help="Runs a shell in the container",
+    )
+    group.add_argument("--output", help="", default="output")
+    group.add_argument(
+        "--visualize",
+        help="Visualize the evaluation",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument("--impersonate", type=str, default=None)
+    group.add_argument("-C", dest="change", default=None)
+
     @staticmethod
     def command(shell: DTShell, args):
 
-        prog = "dts challenges evaluate"
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        group = parser.add_argument_group("Basic")
-
-        group.add_argument("--no-cache", action="store_true", default=False, help="")
-        group.add_argument("--no-build", action="store_true", default=False, help="")
-        group.add_argument("--no-pull", action="store_true", default=False, help="")
-        group.add_argument("--challenge", help="Specific challenge to evaluate")
-
-        group.add_argument(
-            "--image",
-            help="Evaluator image to run",
-            default="duckietown/dt-challenges-evaluator:daffy",
-        )
-        group.add_argument(
-            "--shell",
-            action="store_true",
-            default=False,
-            help="Runs a shell in the container",
-        )
-        group.add_argument("--output", help="", default="output")
-        group.add_argument(
-            "--visualize",
-            help="Visualize the evaluation",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument("--impersonate", type=str, default=None)
-        group.add_argument("-C", dest="change", default=None)
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         if parsed.change:
             os.chdir(parsed.change)

@@ -24,13 +24,15 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts challenges follow"
+
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+    parser.add_argument("--submission", required=True, type=int)
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts challenges follow"
-
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("--submission", required=True, type=int)
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         token = shell.get_dt1_token()
 

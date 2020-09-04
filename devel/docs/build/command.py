@@ -18,27 +18,28 @@ from utils.dtproject_utils import DTProject
 class DTCommand(DTCommandAbs):
     help = 'Builds the current project\'s documentation'
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-C', '--workdir', default=os.getcwd(),
+                        help="Directory containing the project to build")
+    parser.add_argument('-f', '--force', default=False, action='store_true',
+                        help="Whether to force the build when the git index is not clean")
+    parser.add_argument('-u', '--username', default="duckietown",
+                        help="The docker registry username to tag the image with")
+    parser.add_argument('--no-cache', default=False, action='store_true',
+                        help="Whether to use the Docker cache")
+    parser.add_argument('--push', default=False, action='store_true',
+                        help="Whether to push the resulting documentation")
+    parser.add_argument('--loop', default=False, action='store_true',
+                        help="(Developers only) Reuse the same base image, speed up the build")
+    parser.add_argument('--ci', default=False, action='store_true',
+                        help="Overwrites configuration for CI (Continuous Integration) builds")
+    parser.add_argument('--quiet', default=False, action='store_true',
+                        help="Suppress any building log")
+
     @staticmethod
     def command(shell, args):
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=os.getcwd(),
-                            help="Directory containing the project to build")
-        parser.add_argument('-f', '--force', default=False, action='store_true',
-                            help="Whether to force the build when the git index is not clean")
-        parser.add_argument('-u', '--username', default="duckietown",
-                            help="The docker registry username to tag the image with")
-        parser.add_argument('--no-cache', default=False, action='store_true',
-                            help="Whether to use the Docker cache")
-        parser.add_argument('--push', default=False, action='store_true',
-                            help="Whether to push the resulting documentation")
-        parser.add_argument('--loop', default=False, action='store_true',
-                            help="(Developers only) Reuse the same base image, speed up the build")
-        parser.add_argument('--ci', default=False, action='store_true',
-                            help="Overwrites configuration for CI (Continuous Integration) builds")
-        parser.add_argument('--quiet', default=False, action='store_true',
-                            help="Suppress any building log")
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info('Project workspace: {}'.format(parsed.workdir))

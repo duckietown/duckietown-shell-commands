@@ -36,74 +36,75 @@ BRANCH='daffy'
 DEFAULT_IMAGE = 'duckietown/dt-duckiebot-fifos-bridge:'+BRANCH
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot evaluate"
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+    group = parser.add_argument_group("Basic")
+    group.add_argument(
+        "--duckiebot_name",
+        default=None,
+        help="Name of the Duckiebot on which to perform evaluation",
+    )
+    group.add_argument(
+        "--image",
+        dest="image_name",
+        help="Image to evaluate, if none specified then we will build your current context",
+        default=None,
+    )
+    group.add_argument(
+        "--bridge_image",
+        default=DEFAULT_IMAGE,
+        help="The node that bridges your submission with ROS on the duckiebot. Probably don't change",
+    )
+    group.add_argument(
+        "--duration",
+        help="Number of seconds to run evaluation",
+        default=60
+    )
+    group.add_argument(
+        "--record_bag",
+        action="store_true",
+        default=False,
+        help="If true record a rosbag",
+    )
+    group.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="If true you will get a shell instead of executing",
+    )
+    group.add_argument(
+        "--raspberrypi",
+        action="store_true",
+        default=False,
+        help="If you would like your submission to be run a RasPI computer. Default is False.",
+    )
+    group.add_argument(
+        "--jetsonnano",
+        action="store_true",
+        default=False,
+        help="If you would like your submission to be run a Jetson Nano computer. Default is False. (Not Tested)",
+    )
+    group.add_argument(
+        "--max_vel",
+        help="the max velocity for the duckiebot",
+        default=0.7
+    )
+    group.add_argument("--challenge",
+                       help="Specific challenge to evaluate")
+
+    # Advanced arguments
+    group = parser.add_argument_group("Advanced")
+    group.add_argument(
+        "--docker-runtime",
+        dest="docker_runtime",
+        default=None,
+        help="Specify the runtime to use in Docker",
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot evaluate"
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        group = parser.add_argument_group("Basic")
-        group.add_argument(
-            "--duckiebot_name",
-            default=None,
-            help="Name of the Duckiebot on which to perform evaluation",
-        )
-        group.add_argument(
-            "--image",
-            dest="image_name",
-            help="Image to evaluate, if none specified then we will build your current context",
-            default=None,
-        )
-        group.add_argument(
-            "--bridge_image",
-            default=DEFAULT_IMAGE,
-            help="The node that bridges your submission with ROS on the duckiebot. Probably don't change",
-        )
-        group.add_argument(
-            "--duration",
-            help="Number of seconds to run evaluation",
-            default=60
-        )
-        group.add_argument(
-            "--record_bag",
-            action="store_true",
-            default=False,
-            help="If true record a rosbag",
-        )
-        group.add_argument(
-            "--debug",
-            action="store_true",
-            default=False,
-            help="If true you will get a shell instead of executing",
-        )
-        group.add_argument(
-            "--raspberrypi",
-            action="store_true",
-            default=False,
-            help="If you would like your submission to be run a RasPI computer. Default is False.",
-        )
-        group.add_argument(
-            "--jetsonnano",
-            action="store_true",
-            default=False,
-            help="If you would like your submission to be run a Jetson Nano computer. Default is False. (Not Tested)",
-        )
-        group.add_argument(
-            "--max_vel",
-            help="the max velocity for the duckiebot",
-            default=0.7
-        )
-        group.add_argument("--challenge",
-                           help="Specific challenge to evaluate")
-
-        # Advanced arguments
-        group = parser.add_argument_group("Advanced")
-        group.add_argument(
-            "--docker-runtime",
-            dest="docker_runtime",
-            default=None,
-            help="Specify the runtime to use in Docker",
-        )
-        # ---
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         tmpdir = "/tmp/%s/" % parsed.duckiebot_name
         USERNAME = getpass.getuser()
         dir_home_guest = os.path.expanduser("~")

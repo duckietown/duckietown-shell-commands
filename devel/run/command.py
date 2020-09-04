@@ -22,52 +22,53 @@ class DTCommand(DTCommandAbs):
 
     help = 'Runs the current project'
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-C', '--workdir', default=os.getcwd(),
+                        help="Directory containing the project to run")
+    parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
+                        help="Target architecture for the image to run")
+    parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
+                        help="Docker socket or hostname where to run the image")
+    parser.add_argument('-n', '--name', default=None,
+                        help="Name of the container")
+    parser.add_argument('--cmd', default=None,
+                        help="Command to run in the Docker container")
+    parser.add_argument('--pull', default=False, action='store_true',
+                        help="Whether to pull the image of the project")
+    parser.add_argument('--force-pull', default=False, action='store_true',
+                        help="Whether to force pull the image of the project")
+    parser.add_argument('--build', default=False, action='store_true',
+                        help="Whether to build the image of the project")
+    parser.add_argument('--plain', default=False, action='store_true',
+                        help="Whether to run the image without default module configuration")
+    parser.add_argument('--no-multiarch', default=False, action='store_true',
+                        help="Whether to disable multiarch support (based on bin_fmt)")
+    parser.add_argument('-f', '--force', default=False, action='store_true',
+                        help="Whether to force the run when the git index is not clean")
+    parser.add_argument('-M', '--mount', default=False, const=True, action='store',
+                        nargs='?', type=str,
+                        help="Whether to mount the current project into the container. "
+                             "Pass a comma-separated list of paths to mount multiple projects")
+    parser.add_argument('-u', '--username', default="duckietown",
+                        help="The docker registry username that owns the Docker image")
+    parser.add_argument('--rm', default=True, action='store_true',
+                        help="Whether to remove the container once done")
+    parser.add_argument('--launcher', default=None,
+                        help="Launcher to invoke inside the container (template v2 or newer)")
+    parser.add_argument('--loop', default=False, action='store_true',
+                        help="(Experimental) Whether to run the LOOP image")
+    parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
+                        help="Arguments for the container command")
+    parser.add_argument('--runtime', default='docker', type=str,
+                        help="Docker runtime to use to run the container")
+    parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
+                        help="Use x-docker as runtime (needs to be installed separately)")
+    parser.add_argument('docker_args', nargs='*', default=[])
+
     @staticmethod
     def command(shell, args):
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=os.getcwd(),
-                            help="Directory containing the project to run")
-        parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
-                            help="Target architecture for the image to run")
-        parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
-                            help="Docker socket or hostname where to run the image")
-        parser.add_argument('-n', '--name', default=None,
-                            help="Name of the container")
-        parser.add_argument('--cmd', default=None,
-                            help="Command to run in the Docker container")
-        parser.add_argument('--pull', default=False, action='store_true',
-                            help="Whether to pull the image of the project")
-        parser.add_argument('--force-pull', default=False, action='store_true',
-                            help="Whether to force pull the image of the project")
-        parser.add_argument('--build', default=False, action='store_true',
-                            help="Whether to build the image of the project")
-        parser.add_argument('--plain', default=False, action='store_true',
-                            help="Whether to run the image without default module configuration")
-        parser.add_argument('--no-multiarch', default=False, action='store_true',
-                            help="Whether to disable multiarch support (based on bin_fmt)")
-        parser.add_argument('-f', '--force', default=False, action='store_true',
-                            help="Whether to force the run when the git index is not clean")
-        parser.add_argument('-M', '--mount', default=False, const=True, action='store',
-                            nargs='?', type=str,
-                            help="Whether to mount the current project into the container. "
-                                 "Pass a comma-separated list of paths to mount multiple projects")
-        parser.add_argument('-u', '--username', default="duckietown",
-                            help="The docker registry username that owns the Docker image")
-        parser.add_argument('--rm', default=True, action='store_true',
-                            help="Whether to remove the container once done")
-        parser.add_argument('--launcher', default=None,
-                            help="Launcher to invoke inside the container (template v2 or newer)")
-        parser.add_argument('--loop', default=False, action='store_true',
-                            help="(Experimental) Whether to run the LOOP image")
-        parser.add_argument('-A', '--argument', dest='arguments', default=[], action='append',
-                            help="Arguments for the container command")
-        parser.add_argument('--runtime', default='docker', type=str,
-                            help="Docker runtime to use to run the container")
-        parser.add_argument('-X', dest='use_x_docker', default=False, action='store_true',
-                            help="Use x-docker as runtime (needs to be installed separately)")
-        parser.add_argument('docker_args', nargs='*', default=[])
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         # x-docker runtime

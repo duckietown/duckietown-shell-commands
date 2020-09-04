@@ -34,15 +34,16 @@ OR
 Where <visibility> can be one of [public, private].
 '''
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-B', '--bucket', default=None, choices=VALID_BUCKETS,
+                        help="Bucket the object should be uploaded to")
+    parser.add_argument('file', nargs=1)
+    parser.add_argument('object', nargs=1)
+
     @staticmethod
     def command(shell, args):
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-B', '--bucket', default=None, choices=VALID_BUCKETS,
-                            help="Bucket the object should be uploaded to")
-        parser.add_argument('file', nargs=1)
-        parser.add_argument('object', nargs=1)
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]

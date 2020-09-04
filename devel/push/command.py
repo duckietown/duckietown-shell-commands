@@ -12,52 +12,49 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
 
+    # configure arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-C",
+        "--workdir",
+        default=os.getcwd(),
+        help="Directory containing the project to push",
+    )
+    parser.add_argument(
+        "-a",
+        "--arch",
+        default=None,
+        help="Target architecture for the image to push",
+    )
+    parser.add_argument(
+        "-H",
+        "--machine",
+        default=DEFAULT_MACHINE,
+        help="Docker socket or hostname from where to push the image",
+    )
+    parser.add_argument(
+        '--ci',
+        default=False,
+        action='store_true',
+        help="Overwrites configuration for CI (Continuous Integration) push"
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        default=False,
+        action="store_true",
+        help="Whether to force the push when the git index is not clean",
+    )
+    parser.add_argument(
+        '-u',
+        '--username',
+        default="duckietown",
+        help="the docker registry username to tag the image with"
+    )
+
     @staticmethod
     def _parse_args(args, return_parser=False):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to push",
-        )
-        parser.add_argument(
-            "-a",
-            "--arch",
-            default=None,
-            help="Target architecture for the image to push",
-        )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=DEFAULT_MACHINE,
-            help="Docker socket or hostname from where to push the image",
-        )
-        parser.add_argument(
-            '--ci',
-            default=False,
-            action='store_true',
-            help="Overwrites configuration for CI (Continuous Integration) push"
-        )
-        parser.add_argument(
-            "-f",
-            "--force",
-            default=False,
-            action="store_true",
-            help="Whether to force the push when the git index is not clean",
-        )
-        parser.add_argument(
-            '-u',
-            '--username',
-            default="duckietown",
-            help="the docker registry username to tag the image with"
-        )
-        # the parser is needed for documenting it:
-        if return_parser:
-            return parser
-
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         return parsed
 
     @staticmethod

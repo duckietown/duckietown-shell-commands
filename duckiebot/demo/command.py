@@ -36,66 +36,68 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot demo"
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    parser.add_argument(
+        "--demo_name", '-d',
+        dest="demo_name",
+        default=None,
+        help="Name of the demo to run",
+    )
+
+    parser.add_argument(
+        "--duckiebot_name", '-b',
+        dest="duckiebot_name",
+        default=None,
+        help="Name of the Duckiebot on which to run the demo",
+    )
+
+    parser.add_argument(
+        "--package_name", '-p',
+        dest="package_name",
+        default=DEFAULT_PACKAGE,
+        help="You can specify the package that you want to use to look for launch files",
+    )
+
+    parser.add_argument(
+        "--image", '-i',
+        dest="image_to_run",
+        default=DEFAULT_IMAGE,
+        help="Docker image to use, you probably don't need to change ",
+    )
+
+    parser.add_argument(
+        "--debug", '-g',
+        dest="debug",
+        action="store_true",
+        default=False,
+        help="will enter you into the running container",
+    )
+
+    parser.add_argument(
+        "--experimental", '-e',
+        dest="experimental",
+        action="store_true",
+        default=False,
+        help='you can use this if your demo is in the `experimental` repo. ' \
+             + 'It will pick the image from the experimental repo and it will' \
+             + 'default the package name to experimental_demos',
+    )
+
+    parser.add_argument(
+        "--local", '-l',
+        dest="local",
+        action="store_true",
+        default=False,
+        help="Run the demo on this machine",
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot demo"
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument(
-            "--demo_name", '-d',
-            dest="demo_name",
-            default=None,
-            help="Name of the demo to run",
-        )
-
-        parser.add_argument(
-            "--duckiebot_name", '-b',
-            dest="duckiebot_name",
-            default=None,
-            help="Name of the Duckiebot on which to run the demo",
-        )
-
-        parser.add_argument(
-            "--package_name", '-p',
-            dest="package_name",
-            default=DEFAULT_PACKAGE,
-            help="You can specify the package that you want to use to look for launch files",
-        )
-
-        parser.add_argument(
-            "--image", '-i',
-            dest="image_to_run",
-            default=DEFAULT_IMAGE,
-            help="Docker image to use, you probably don't need to change ",
-        )
-
-        parser.add_argument(
-            "--debug", '-g',
-            dest="debug",
-            action="store_true",
-            default=False,
-            help="will enter you into the running container",
-        )
-
-        parser.add_argument(
-            "--experimental", '-e',
-            dest="experimental",
-            action="store_true",
-            default=False,
-            help='you can use this if your demo is in the `experimental` repo. ' \
-            + 'It will pick the image from the experimental repo and it will' \
-            + 'default the package name to experimental_demos',
-        )
-
-        parser.add_argument(
-            "--local", '-l',
-            dest="local",
-            action="store_true",
-            default=False,
-            help="Run the demo on this machine",
-        )
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         check_docker_environment()
         demo_name = parsed.demo_name

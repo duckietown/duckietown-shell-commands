@@ -17,35 +17,36 @@ DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot calibrate_intrinsics DUCKIEBOT_NAME"
+    usage = """
+    Calibrate:
+
+        %(prog)s
+    """
+
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+    parser.add_argument(
+        "hostname",
+        default=None,
+        help="Name of the Duckiebot to calibrate"
+    )
+    parser.add_argument(
+        "--base_image",
+        dest="image",
+        default=DEFAULT_IMAGE,
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Will enter you into the running container",
+    )
+
+
     @staticmethod
     def command(shell: DTShell, args):
-
-        prog = "dts duckiebot calibrate_intrinsics DUCKIEBOT_NAME"
-        usage = """
-Calibrate:
-
-    %(prog)s
-"""
-
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument(
-            "hostname",
-            default=None,
-            help="Name of the Duckiebot to calibrate"
-        )
-        parser.add_argument(
-            "--base_image",
-            dest="image",
-            default=DEFAULT_IMAGE,
-        )
-        parser.add_argument(
-            "--debug",
-            action="store_true",
-            default=False,
-            help="Will enter you into the running container",
-        )
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         duckiebot_ip = get_duckiebot_ip(parsed.hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
 

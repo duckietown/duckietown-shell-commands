@@ -49,59 +49,57 @@ class DTCommand(DTCommandAbs):
     """
 
     help = 'Builds the current project'
-    parser = ,,,,
+
+    # configure arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-C', '--workdir', default=os.getcwd(),
+                        help="Directory containing the project to build")
+    parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
+                        help="Target architecture for the image to build")
+    parser.add_argument('-H', '--machine', default=None,
+                        help="Docker socket or hostname where to build the image")
+    parser.add_argument('--pull', default=False, action='store_true',
+                        help="Whether to pull the latest base image used by the Dockerfile")
+    parser.add_argument('--no-cache', default=False, action='store_true',
+                        help="Whether to use the Docker cache")
+    parser.add_argument('--force-cache', default=False, action='store_true',
+                        help="Whether to force Docker to use an old version of the same "
+                             "image as cache")
+    parser.add_argument('--no-multiarch', default=False, action='store_true',
+                        help="Whether to disable multiarch support (based on bin_fmt)")
+    parser.add_argument('-f', '--force', default=False, action='store_true',
+                        help="Whether to force the build when the git index is not clean")
+    parser.add_argument('--push', default=False, action='store_true',
+                        help="Whether to push the resulting image")
+    parser.add_argument('--rm', default=False, action='store_true',
+                        help="Remove the images once the build succeded (after pushing)")
+    parser.add_argument('--loop', default=False, action='store_true',
+                        help="(Developers only) Reuse the same base image, speed up the build")
+    parser.add_argument('-u', '--username', default="duckietown",
+                        help="The docker registry username to tag the image with")
+    parser.add_argument('-b', '--base-tag', default=None,
+                        help="Docker tag for the base image. "
+                             "Use when the base image is also a development version")
+    parser.add_argument('--ci', default=False, action='store_true',
+                        help="Overwrites configuration for CI (Continuous Integration) builds")
+    parser.add_argument('--ci-force-builder-arch', dest='ci_force_builder_arch', default=None,
+                        choices=set(CANONICAL_ARCH.values()),
+                        help="Forces CI to build on a specific architecture node")
+    parser.add_argument('--cloud', default=False, action='store_true',
+                        help="Build the image on the cloud")
+    parser.add_argument('--stamp', default=False, action='store_true',
+                        help="Stamp image with the build time")
+    parser.add_argument('-D', '--destination', default=None,
+                        help="Docker socket or hostname where to deliver the image")
+    parser.add_argument('--docs', default=False, action='store_true',
+                        help="Build the code documentation as well")
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                        help="Be verbose")
 
     @staticmethod
-    def command(shell, args, return_parser=False):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-C', '--workdir', default=os.getcwd(),
-                            help="Directory containing the project to build")
-        parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
-                            help="Target architecture for the image to build")
-        parser.add_argument('-H', '--machine', default=None,
-                            help="Docker socket or hostname where to build the image")
-        parser.add_argument('--pull', default=False, action='store_true',
-                            help="Whether to pull the latest base image used by the Dockerfile")
-        parser.add_argument('--no-cache', default=False, action='store_true',
-                            help="Whether to use the Docker cache")
-        parser.add_argument('--force-cache', default=False, action='store_true',
-                            help="Whether to force Docker to use an old version of the same "
-                                 "image as cache")
-        parser.add_argument('--no-multiarch', default=False, action='store_true',
-                            help="Whether to disable multiarch support (based on bin_fmt)")
-        parser.add_argument('-f', '--force', default=False, action='store_true',
-                            help="Whether to force the build when the git index is not clean")
-        parser.add_argument('--push', default=False, action='store_true',
-                            help="Whether to push the resulting image")
-        parser.add_argument('--rm', default=False, action='store_true',
-                            help="Remove the images once the build succeded (after pushing)")
-        parser.add_argument('--loop', default=False, action='store_true',
-                            help="(Developers only) Reuse the same base image, speed up the build")
-        parser.add_argument('-u', '--username', default="duckietown",
-                            help="The docker registry username to tag the image with")
-        parser.add_argument('-b', '--base-tag', default=None,
-                            help="Docker tag for the base image. "
-                                 "Use when the base image is also a development version")
-        parser.add_argument('--ci', default=False, action='store_true',
-                            help="Overwrites configuration for CI (Continuous Integration) builds")
-        parser.add_argument('--ci-force-builder-arch', dest='ci_force_builder_arch', default=None,
-                            choices=set(CANONICAL_ARCH.values()),
-                            help="Forces CI to build on a specific architecture node")
-        parser.add_argument('--cloud', default=False, action='store_true',
-                            help="Build the image on the cloud")
-        parser.add_argument('--stamp', default=False, action='store_true',
-                            help="Stamp image with the build time")
-        parser.add_argument('-D', '--destination', default=None,
-                            help="Docker socket or hostname where to deliver the image")
-        parser.add_argument('--docs', default=False, action='store_true',
-                            help="Build the code documentation as well")
-        parser.add_argument('-v', '--verbose', default=False, action='store_true',
-                            help="Be verbose")
-        if return_parser:
-            return parser
+    def command(shell, args):
 
-        parsed, _ = parser.parse_known_args(args=args)
+        parsed, _ = DTCommand.parser.parse_known_args(args=args)
         # ---
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)

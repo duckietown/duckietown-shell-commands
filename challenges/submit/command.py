@@ -19,73 +19,74 @@ from duckietown_challenges.submission_read import read_submission_info
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts challenges submit"
+    usage = """
+
+
+    Submission:
+
+        %(prog)s --challenge NAME
+
+
+
+    ## Building options
+
+    Rebuilds ignoring Docker cache
+
+        %(prog)s --no-cache
+
+
+
+    ## Attaching user data
+
+    Submission with an identifying label:
+
+        %(prog)s --user-label  "My submission"    
+
+    Submission with an arbitrary JSON payload:
+
+        %(prog)s --user-meta  '{"param1": 123}'   
+
+
+
+
+    """
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    group = parser.add_argument_group("Submission identification")
+    parser.add_argument("--challenge", help="Specify challenge name.", default=None)
+    group.add_argument(
+        "--user-label",
+        dest="message",
+        default=None,
+        type=str,
+        help="Submission message",
+    )
+    group.add_argument(
+        "--user-meta",
+        dest="metadata",
+        default=None,
+        type=str,
+        help="Custom JSON structure to attach to the submission",
+    )
+
+    group = parser.add_argument_group("Building settings.")
+
+    group.add_argument(
+        "--no-cache", dest="no_cache", action="store_true", default=False
+    )
+    group.add_argument("--impersonate", type=int, default=None)
+
+    group.add_argument("-C", dest="cwd", default=None, help="Base directory")
+
     @staticmethod
     def command(shell: DTShell, args):
         check_docker_environment()
 
         token = shell.get_dt1_token()
 
-        prog = "dts challenges submit"
-        usage = """
-        
-
-Submission:
-
-    %(prog)s --challenge NAME
-
-
-
-## Building options
-
-Rebuilds ignoring Docker cache
-
-    %(prog)s --no-cache
-
-
-
-## Attaching user data
-    
-Submission with an identifying label:
-
-    %(prog)s --user-label  "My submission"    
-    
-Submission with an arbitrary JSON payload:
-
-    %(prog)s --user-meta  '{"param1": 123}'   
-        
-
-        
-        
-"""
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        group = parser.add_argument_group("Submission identification")
-        parser.add_argument("--challenge", help="Specify challenge name.", default=None)
-        group.add_argument(
-            "--user-label",
-            dest="message",
-            default=None,
-            type=str,
-            help="Submission message",
-        )
-        group.add_argument(
-            "--user-meta",
-            dest="metadata",
-            default=None,
-            type=str,
-            help="Custom JSON structure to attach to the submission",
-        )
-
-        group = parser.add_argument_group("Building settings.")
-
-        group.add_argument(
-            "--no-cache", dest="no_cache", action="store_true", default=False
-        )
-        group.add_argument("--impersonate", type=int, default=None)
-
-        group.add_argument("-C", dest="cwd", default=None, help="Base directory")
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         impersonate = parsed.impersonate
         if parsed.cwd is not None:
             dtslogger.info("Changing to directory %s" % parsed.cwd)

@@ -27,30 +27,22 @@ from zuper_ipce import ipce_from_object, IESO
 
 
 class DTCommand(DTCommandAbs):
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="challenge.yaml", help="YAML configuration file")
+    parser.add_argument("--no-cache", default=False, action="store_true")
+    parser.add_argument("--steps", default=None, help="Which steps (comma separated)")
+    parser.add_argument("--force-invalidate-subs", default=False, action="store_true")
+    parser.add_argument("-C", dest="cwd", default=None, help="Base directory")
+    parser.add_argument("--impersonate", type=str, default=None)
+    parser.add_argument("--pull", default=False, action="store_true")
+
     @staticmethod
     def command(shell: DTShell, args):
 
         token = shell.get_dt1_token()
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--config", default="challenge.yaml", help="YAML configuration file"
-        )
-
-        parser.add_argument("--no-cache", default=False, action="store_true")
-        parser.add_argument(
-            "--steps", default=None, help="Which steps (comma separated)"
-        )
-        parser.add_argument(
-            "--force-invalidate-subs", default=False, action="store_true"
-        )
-        parser.add_argument("-C", dest="cwd", default=None, help="Base directory")
-        parser.add_argument("--impersonate", type=str, default=None)
-        parser.add_argument(
-            "--pull", default=False, action="store_true"
-        )
-
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         impersonate = parsed.impersonate
 
         from dt_shell.env_checks import check_docker_environment

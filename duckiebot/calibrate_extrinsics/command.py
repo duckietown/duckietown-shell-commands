@@ -16,33 +16,34 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME"
+    usage = """
+    Calibrate: 
+
+        %(prog)s
+    """
+
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+    parser.add_argument(
+        "hostname", default=None, help="Name of the Duckiebot to calibrate"
+    )
+    parser.add_argument(
+        "--base_image",
+        dest="image",
+        default="duckietown/dt-core:daffy-arm32v7",
+    )
+    parser.add_argument(
+        "--no_verification",
+        action="store_true",
+        default=True,
+        help="If you don't have a lane you can skip the verification step",
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
 
-        prog = "dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME"
-        usage = """
-Calibrate: 
-
-    %(prog)s
-"""
-
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
-        )
-        parser.add_argument(
-            "--base_image",
-            dest="image",
-            default="duckietown/dt-core:daffy-arm32v7",
-        )
-        parser.add_argument(
-            "--no_verification",
-            action="store_true",
-            default=True,
-            help="If you don't have a lane you can skip the verification step",
-        )
-
-        parsed_args = parser.parse_args(args)
+        parsed_args = DTCommand.parser.parse_args(args)
         hostname = parsed_args.hostname
         duckiebot_ip = get_duckiebot_ip(hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)

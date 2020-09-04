@@ -29,7 +29,6 @@ RUN cd "/" \
 # copy commands
 RUN mkdir /commands
 COPY . /commands
-RUN ls -l /commands
 
 # put everything in the right place
 RUN mkdir -p /docs/source
@@ -38,11 +37,13 @@ COPY devel/docs/build/assets/docs/* /docs/source/
 RUN mkdir /docs/html
 RUN mkdir /out
 
+COPY devel/docs/build/assets/output-html.manifest.yaml /out
+
 RUN chmod -R 777 /docs
 
 CMD cd /docs \
     && sphinx-build -b html source html \
     && cp -r /docs/html/* /out \
-    && tar --create --gzip --verbose --file=/out/package.tgz  /out/* \
+    && tar --create --gzip --file=/docs/html/package.tgz  /out/* \
     || cat /tmp/sphinx-err-*.log
 

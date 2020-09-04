@@ -21,40 +21,41 @@ GUI Tools:
 
 class DTCommand(DTCommandAbs):
 
+    prog = "dts start_gui_tools DUCKIEBOT_NAME"
+    parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
+    parser.add_argument(
+        "hostname",
+        nargs='?',
+        default=None,
+        help="Name of the Duckiebot"
+    )
+    parser.add_argument(
+        "--network",
+        default="host",
+        help="Name of the network to connect the container to"
+    )
+    parser.add_argument(
+        "--sim",
+        action="store_true",
+        default=False,
+        help="Are we running in simulator?",
+    )
+    parser.add_argument(
+        "--image",
+        default=None,
+        help="The Docker image to use. Advanced users only.",
+    )
+    parser.add_argument(
+        "--vnc",
+        action="store_true",
+        default=False,
+        help="Run the novnc server",
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts start_gui_tools DUCKIEBOT_NAME"
-        parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
-        parser.add_argument(
-            "hostname",
-            nargs='?',
-            default=None,
-            help="Name of the Duckiebot"
-        )
-        parser.add_argument(
-            "--network",
-            default="host",
-            help="Name of the network to connect the container to"
-        )
-        parser.add_argument(
-            "--sim",
-            action="store_true",
-            default=False,
-            help="Are we running in simulator?",
-        )
-        parser.add_argument(
-            "--image",
-            default=None,
-            help="The Docker image to use. Advanced users only.",
-        )
-        parser.add_argument(
-            "--vnc",
-            action="store_true",
-            default=False,
-            help="Run the novnc server",
-        )
         # parse arguments
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
             machine = parsed.hostname = "localhost"

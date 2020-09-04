@@ -58,78 +58,80 @@ from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
+
+    prog = "dts challenges evaluator"
+    parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+    group = parser.add_argument_group("Basic")
+
+    group.add_argument(
+        "--submission", type=int, default=None, help="Run a specific submission."
+    )
+    group.add_argument(
+        "--reset",
+        dest="reset",
+        action="store_true",
+        default=False,
+        help="(needs --submission) Re-evaluate the specific submission.",
+    )
+
+    group = parser.add_argument_group("Advanced")
+
+    group.add_argument(
+        "--no-watchtower",
+        dest="no_watchtower",
+        action="store_true",
+        default=False,
+        help="Disable starting of watchtower",
+    )
+    group.add_argument(
+        "--no-pull",
+        dest="no_pull",
+        action="store_true",
+        default=False,
+        help="Disable pulling of containers",
+    )
+    group.add_argument(
+        "--no-upload",
+        dest="no_upload",
+        action="store_true",
+        default=False,
+        help="Disable upload of artifacts",
+    )
+    group.add_argument(
+        "--no-delete",
+        dest="no_delete",
+        action="store_true",
+        default=False,
+        help="Does not erase temporary files in /tmp/duckietown",
+    )
+
+    group.add_argument(
+        "--image",
+        help="Evaluator image to run",
+        default=EVALUATOR_IMAGE,
+    )
+
+    group.add_argument("--name", default=None, help="Name for this evaluator")
+    group.add_argument(
+        "--features", default=None, help="Pretend to be what you are not."
+    )
+
+    group.add_argument(
+        "--ipfs", action="store_true", default=False, help="Run with IPFS available"
+    )
+    group.add_argument(
+        "--one", action="store_true", default=False, help="Only run 1 submission"
+    )
+
     @staticmethod
     def command(shell: DTShell, args):
         check_docker_environment()
 
         home = os.path.expanduser("~")
-        prog = "dts challenges evaluator"
-        parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        group = parser.add_argument_group("Basic")
-
-        group.add_argument(
-            "--submission", type=int, default=None, help="Run a specific submission."
-        )
-        group.add_argument(
-            "--reset",
-            dest="reset",
-            action="store_true",
-            default=False,
-            help="(needs --submission) Re-evaluate the specific submission.",
-        )
-
-        group = parser.add_argument_group("Advanced")
-
-        group.add_argument(
-            "--no-watchtower",
-            dest="no_watchtower",
-            action="store_true",
-            default=False,
-            help="Disable starting of watchtower",
-        )
-        group.add_argument(
-            "--no-pull",
-            dest="no_pull",
-            action="store_true",
-            default=False,
-            help="Disable pulling of containers",
-        )
-        group.add_argument(
-            "--no-upload",
-            dest="no_upload",
-            action="store_true",
-            default=False,
-            help="Disable upload of artifacts",
-        )
-        group.add_argument(
-            "--no-delete",
-            dest="no_delete",
-            action="store_true",
-            default=False,
-            help="Does not erase temporary files in /tmp/duckietown",
-        )
-
-        group.add_argument(
-            "--image",
-            help="Evaluator image to run",
-            default=EVALUATOR_IMAGE,
-        )
-
-        group.add_argument("--name", default=None, help="Name for this evaluator")
-        group.add_argument(
-            "--features", default=None, help="Pretend to be what you are not."
-        )
-
-        group.add_argument(
-            "--ipfs", action="store_true", default=False, help="Run with IPFS available"
-        )
-        group.add_argument(
-            "--one", action="store_true", default=False, help="Only run 1 submission"
-        )
 
         # dtslogger.debug('args: %s' % args)
-        parsed = parser.parse_args(args)
+        parsed = DTCommand.parser.parse_args(args)
 
         machine_id = socket.gethostname()
 
