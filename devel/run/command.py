@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.warning(f"The mountpoint '{mountpoint}' does not exist. "
                                       f"This can create issues inside the container.")
                     continue
-                mount_option += ['-v', '{:s}:{:s}'.format(mountpoint, mountpoint)]
+            mount_option += ['-v', '{:s}:{:s}'.format(mountpoint, mountpoint)]
         # mount source code (if requested)
         if mount_code:
             projects_to_mount = [parsed.workdir] if parsed.mount is True else []
