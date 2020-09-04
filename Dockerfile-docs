@@ -16,11 +16,6 @@ RUN python3 -m pip install \
     pygments==2.5.2 \
     mock
 
-# inatall docker
-# RUN curl -fsSL https://get.docker.com -o get-docker.sh \
-#     && sh get-docker.sh \
-#     && rm get-docker.sh
-
 # install dts
 RUN python3 -m pip install --no-cache-dir --user -U duckietown-shell \
     && export PATH="$PATH:$HOME/.local/bin"
@@ -41,10 +36,13 @@ RUN mkdir -p /docs/source
 COPY sphinx_docs/* /docs/source/
 COPY devel/docs/build/assets/docs/* /docs/source/
 RUN mkdir /docs/html
+RUN mkdir /out
 
 RUN chmod -R 777 /docs
 
 CMD cd /docs \
     && sphinx-build -b html source html \
+    && cp -r /docs/html/* /out \
+    && tar --create --gzip --verbose --file=/out/package.tgz  /out/* \
     || cat /tmp/sphinx-err-*.log
 
