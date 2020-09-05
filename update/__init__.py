@@ -37,6 +37,10 @@ def check_compatible():
         msg = """
 
 Detected Duckietown Shell %s but these commands (%s) need Duckietown Shell >= %s.
+Please, update your Duckietown Shell using the following command,
+\n\n
+\tpip3 install -U duckietown-shell
+\n
 """ % (
             render_version(vnow),
             duckietown_shell_commands_version,
