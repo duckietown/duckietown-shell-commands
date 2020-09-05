@@ -102,8 +102,13 @@ Where <space> can be one of [public, private].
             exit(5)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
-        # make sure that the token is set
-        token = shell.get_dt1_token()
+        # get the token if it is set
+        token = None
+        # noinspection PyBroadException
+        try:
+            token = shell.get_dt1_token()
+        except Exception:
+            pass
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)
