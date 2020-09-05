@@ -6,13 +6,6 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import ProgressBar
 from utils.misc_utils import human_size
 
-try:
-    from dt_data_api import DataClient, TransferStatus
-except ImportError:
-    dtslogger.error('This command needs the Python library `dt_data_api`. '
-                    'Please, install it using the command `pip3 install dt-data-api` '
-                    'and try again.')
-    exit(8)
 
 VALID_SPACES = [
     'public',
