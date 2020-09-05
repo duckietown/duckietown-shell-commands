@@ -7,6 +7,7 @@ from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
+from utils.misc_utils import human_size
 
 LAUNCHER_FMT = 'dt-launcher-%s'
 
@@ -160,7 +161,7 @@ class DTCommand(DTCommandAbs):
         if 'ServerErrors' in epoint:
             dtslogger.error('\n'.join(epoint['ServerErrors']))
             return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        epoint['MemTotal'] = human_size(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # print info about multiarch
         msg = 'Running an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
@@ -276,11 +277,3 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         except subprocess.CalledProcessError as e:
             if not suppress_errors:
                 raise e
-
-
-def _sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
-        if abs(num) < 1024.0:
-            return "%3.2f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.2f%s%s" % (num, 'Yi', suffix)

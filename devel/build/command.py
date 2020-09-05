@@ -25,7 +25,7 @@ from utils.dtproject_utils import \
     DTProject, \
     dtlabel, \
     DISTRO_KEY
-from utils.misc_utils import human_time
+from utils.misc_utils import human_time, human_size
 from utils.cli_utils import start_command_in_subprocess
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -194,7 +194,7 @@ class DTCommand(DTCommandAbs):
         if 'ServerErrors' in epoint:
             dtslogger.error('\n'.join(epoint['ServerErrors']))
             return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        epoint['MemTotal'] = human_size(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # pick the right architecture if not set
         if parsed.arch is None:
@@ -458,14 +458,6 @@ def _build_line(line):
         line += '\n'
     # ---
     return line
-
-
-def _sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
-        if abs(num) < 1024.0:
-            return "%3.2f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.2f%s%s" % (num, 'Yi', suffix)
 
 
 def _add_token_to_docker_config(token):

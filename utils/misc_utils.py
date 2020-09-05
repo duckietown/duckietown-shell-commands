@@ -13,3 +13,11 @@ def human_time(time_secs, compact=False):
         parts.append('{}{}'.format(minutes, label('minutes')))
     parts.append('{}{}'.format(seconds, label('seconds')))
     return ', '.join(parts)
+
+
+def human_size(value, suffix='B', precision=2):
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
+        if abs(value) < 1024.0:
+            return f"%3.{precision}f %s%s" % (value, unit, suffix)
+        value /= 1024.0
+    return f"%.{precision}f%s%s".format(value, 'Yi', suffix)
