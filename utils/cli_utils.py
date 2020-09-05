@@ -62,6 +62,9 @@ class ProgressBar:
         self._scale = max(0.0, min(1.0, scale))
         self._max = int(math.ceil(100 * self._scale))
 
+    def set_header(self, header):
+        self._header = header
+
     def update(self, percentage):
         percentage_int = int(max(0, min(100, percentage)))
         if percentage_int == self._last_value:
