@@ -6,6 +6,8 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import ProgressBar
 from utils.misc_utils import human_size
 
+from dt_data_api import DataClient, TransferStatus
+
 
 VALID_SPACES = [
     'public',
