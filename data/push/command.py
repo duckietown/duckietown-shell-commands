@@ -57,7 +57,9 @@ Where <space> can be one of [public, private].
 
     @staticmethod
     def command(shell, args, **kwargs):
-        parsed = kwargs.get('parsed', DTCommand._parse_args(args))
+        parsed = kwargs.get('parsed', None)
+        if parsed is None:
+            parsed = DTCommand._parse_args(args)
         # ---
         parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]
