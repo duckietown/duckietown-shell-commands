@@ -136,7 +136,7 @@ Where <space> can be one of [public, private].
         def cb(h):
             speed = human_size(h.progress.speed)
             header = f'Downloading [{speed}/s] '
-            header = header + ' ' * max(0, 30 - len(header))
+            header = header + ' ' * max(0, 28 - len(header))
             pbar.set_header(header)
             pbar.update(h.progress.percentage)
             # check status
