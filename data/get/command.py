@@ -22,16 +22,16 @@ VALID_SPACES = [
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Uploads a file to the Duckietown Cloud Storage space'
+    help = 'Downloads a file from the Duckietown Cloud Storage space'
 
     usage = '''
 Usage:
 
-    dts data push --space <space> <file> <object>
+    dts data get --space <space> <object> <file>
     
 OR
 
-    dts data push <file> [<space>:]<object>
+    dts data get [<space>:]<object> <file>
     
 Where <space> can be one of [public, private].
 '''
@@ -45,17 +45,24 @@ Where <space> can be one of [public, private].
             '--space',
             default=None,
             choices=VALID_SPACES,
-            help="Storage space the object should be uploaded to"
+            help="Storage space the object should be downloaded from"
         )
         parser.add_argument(
-            'file',
-            nargs=1,
-            help="File to upload"
+            '-f',
+            '--force',
+            default=False,
+            action='store_true',
+            help="Overwrites local file if it exists"
         )
         parser.add_argument(
             'object',
             nargs=1,
             help="Destination path of the object"
+        )
+        parser.add_argument(
+            'file',
+            nargs=1,
+            help="File to download"
         )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -64,8 +71,8 @@ Where <space> can be one of [public, private].
     def command(shell, args, **kwargs):
         parsed = kwargs.get('parsed', DTCommand._parse_args(args))
         # ---
-        parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]
+        parsed.file = parsed.file[0]
         # check arguments
         # use the format [space]:[object] as a short for
         #      --space [space] [object]
@@ -96,9 +103,9 @@ Where <space> can be one of [public, private].
         parsed.object = object_path
         if space:
             parsed.space = space
-        # make sure that the input file exists
-        if not os.path.isfile(parsed.file):
-            dtslogger.error(f"File '{parsed.file}' not found!")
+        # make sure that the input file does not exist
+        if os.path.isfile(parsed.file) and not parsed.force:
+            dtslogger.error(f"File '{parsed.file}' already exists! Must be forced.")
             exit(5)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
@@ -113,9 +120,9 @@ Where <space> can be one of [public, private].
         def check_status(h):
             if h.status == TransferStatus.STOPPED:
                 print()
-                dtslogger.info('Stopping upload...')
+                dtslogger.info('Stopping download...')
                 handler.abort(block=True)
-                dtslogger.info('Upload stopped!')
+                dtslogger.info('Download stopped!')
                 exit(6)
             if h.status == TransferStatus.ERROR:
                 dtslogger.error(h.reason)
@@ -123,26 +130,26 @@ Where <space> can be one of [public, private].
 
         def cb(h):
             speed = human_size(h.progress.speed)
-            header = f'Uploading [{speed}/s] '
-            header = header + ' ' * max(0, 26 - len(header))
+            header = f'Downloading [{speed}/s] '
+            header = header + ' ' * max(0, 30 - len(header))
             pbar.set_header(header)
             pbar.update(h.progress.percentage)
             # check status
             check_status(h)
 
-        # upload file
-        dtslogger.info(f'Uploading {parsed.file} -> [{parsed.space}]:{parsed.object}')
-        handler = storage.upload(parsed.file, parsed.object)
+        # download file
+        dtslogger.info(f'Downloading [{parsed.space}]:{parsed.object} -> {parsed.file}')
+        handler = storage.download(parsed.object, parsed.file)
         handler.register_callback(cb)
 
         # capture SIGINT and abort
         signal.signal(signal.SIGINT, lambda *_: handler.abort())
 
-        # wait for the upload to finish
+        # wait for the download to finish
         handler.join()
 
         # check status
         check_status(handler)
 
-        # if we got here, the upload is completed
-        dtslogger.info('Upload completed!')
+        # if we got here, the download is completed
+        dtslogger.info('Download complete!')
