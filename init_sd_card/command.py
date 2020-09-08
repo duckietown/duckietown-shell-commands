@@ -8,6 +8,8 @@ import subprocess
 import time
 import socket
 from collections import namedtuple
+from types import SimpleNamespace
+
 from future import builtins
 from datetime import datetime
 
@@ -46,9 +48,9 @@ def BASE_DISK_IMAGE(robot_configuration):
     return board_to_disk_image[board]
 
 
-def DISK_IMAGE_URL(robot_configuration):
+def DISK_IMAGE_CLOUD_LOCATION(robot_configuration):
     disk_image = BASE_DISK_IMAGE(robot_configuration)
-    return f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/{disk_image}.zip"
+    return f"disk_image/{disk_image}.zip"
 
 
 class InvalidUserInput(Exception):
@@ -246,9 +248,8 @@ def step_license(_, parsed, __):
     return {}
 
 
-def step_download(_, parsed, data):
+def step_download(shell, parsed, data):
     # check if dependencies are met
-    check_program_dependency("wget")
     check_program_dependency("unzip")
 
     # clear cache (if requested)
@@ -266,15 +267,14 @@ def step_download(_, parsed, data):
     dtslogger.info('Looking for ZIP image file...')
     if not os.path.isfile(data['disk_zip']):
         dtslogger.info('Downloading ZIP image...')
-        # compile image url
-        disk_image_url = DISK_IMAGE_URL(parsed.robot_configuration)
-        try:
-            _run_cmd(['wget', '--no-verbose', '--show-progress',
-                      '--output-document', data['disk_zip'], disk_image_url])
-        except KeyboardInterrupt:
-            dtslogger.info('Deleting partial ZIP file...')
-            _run_cmd(['rm', data['disk_zip']])
-            exit(3)
+        # get disk image location on the cloud
+        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration)
+        # download zip
+        shell.include.data.get.command(shell, [], parsed=SimpleNamespace(
+            object=[disk_image],
+            file=[data['disk_zip']],
+            space='public'
+        ))
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{data['disk_zip']}].")
     # unzip (if necessary)
@@ -425,8 +425,8 @@ def step_setup(shell, parsed, data):
             'steps': {
                 step: bool(step in parsed.steps) for step in SUPPORTED_STEPS
             },
-            'input_name': BASE_DISK_IMAGE(parsed.robot_configuration),
-            'input_url': DISK_IMAGE_URL(parsed.robot_configuration),
+            'base_disk_name': BASE_DISK_IMAGE(parsed.robot_configuration),
+            'base_disk_location': DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration),
             'environment': {
                 'hostname': socket.gethostname(),
                 'user': getpass.getuser(),
