@@ -104,6 +104,12 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="(Optional) temporary working directory to use"
         )
+        parser.add_argument(
+            "--push",
+            default=False,
+            action='store_true',
+            help="Whether to push the final compressed image to the Duckietown Cloud Storage"
+        )
         # parse arguments
         parsed = parser.parse_args(args=args)
         # check given steps
