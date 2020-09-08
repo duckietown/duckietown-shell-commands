@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -23,7 +25,8 @@ from disk_image.create.constants import \
     DISK_IMAGE_STATS_LOCATION, \
     DOCKER_IMAGE_TEMPLATE, \
     APT_PACKAGES_TO_INSTALL, \
-    MODULES_TO_LOAD
+    MODULES_TO_LOAD, \
+    DATA_STORAGE_DISK_IMAGE_DIR
 
 from disk_image.create.utils import \
     VirtualSDCard, \
@@ -60,6 +63,7 @@ SUPPORTED_STEPS = [
     'download', 'create', 'mount', 'resize', 'upgrade',
     'setup', 'docker', 'finalize', 'unmount', 'compress'
 ]
+
 
 class DTCommand(DTCommandAbs):
 
@@ -132,7 +136,8 @@ class DTCommand(DTCommandAbs):
         # define output file template
         in_file_path = lambda ex: os.path.join(parsed.workdir, f'{HYPRIOTOS_DISK_IMAGE_NAME}.{ex}')
         input_image_name = pathlib.Path(in_file_path('img')).stem
-        out_file_path = lambda ex: os.path.join(parsed.output, f'dt-{input_image_name}.{ex}')
+        out_file_name = lambda ex: f'dt-{input_image_name}.{ex}'
+        out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
         # get version
         distro = get_distro_version(shell)
         # create a virtual SD card object
@@ -647,6 +652,24 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('Done!')
             dtslogger.info('Step END: compress\n')
         # Step: compress
+        # <------
+        #
+        # ------>
+        # Step: push
+        if parsed.push:
+            if 'compress' not in parsed.steps:
+                dtslogger.warning("The step 'compress' was not performed. No artifacts to push.")
+                return
+            dtslogger.info('Step BEGIN: push')
+            dtslogger.info('Pushing disk image...')
+            shell.include.data.push.command(shell, [], parsed=SimpleNamespace(
+                file=[out_file_path('zip')],
+                object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name('zip'))],
+                space='public'
+            ))
+            dtslogger.info('Done!')
+            dtslogger.info('Step END: push\n')
+        # Step: push
         # <------
 
     @staticmethod
