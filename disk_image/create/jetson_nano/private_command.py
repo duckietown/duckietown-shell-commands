@@ -525,24 +525,23 @@ class DTCommand(DTCommandAbs):
                         exit(2)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
-                        pass
-                        # # run full-upgrade on the new root
-                        # run_cmd_in_partition(
-                        #     ROOT_PARTITION,
-                        #     'apt update && '
-                        #     'apt --yes --force-yes --no-install-recommends'
-                        #     ' -o Dpkg::Options::=\"--force-confdef\" '
-                        #     ' -o Dpkg::Options::=\"--force-confold\" '
-                        #     'full-upgrade'
-                        # )
-                        # # install packages
-                        # if APT_PACKAGES_TO_INSTALL:
-                        #     pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
-                        #     run_cmd_in_partition(
-                        #         ROOT_PARTITION,
-                        #         f'DEBIAN_FRONTEND=noninteractive '
-                        #         f'apt install --yes --force-yes --no-install-recommends {pkgs}'
-                        #     )
+                        # run full-upgrade on the new root
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            'apt update && '
+                            'apt --yes --force-yes --no-install-recommends'
+                            ' -o Dpkg::Options::=\"--force-confdef\" '
+                            ' -o Dpkg::Options::=\"--force-confold\" '
+                            'full-upgrade'
+                        )
+                        # install packages
+                        if APT_PACKAGES_TO_INSTALL:
+                            pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                f'DEBIAN_FRONTEND=noninteractive '
+                                f'apt install --yes --force-yes --no-install-recommends {pkgs}'
+                            )
                     except Exception as e:
                         raise e
                     # remove temporary /dev/null
