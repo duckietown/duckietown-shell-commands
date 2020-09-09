@@ -13,18 +13,18 @@ import glob as _glob
 
 import pip
 
-def import_or_install(package):
+def import_or_install(package,name):
     try:
-        __import__(package)
+        __import__(name)
     except ImportError:
         pip.main(['install', package])   
 
 # to clone the mooc repo
-import_or_install("gitpyhton")
+import_or_install("gitpyhton","git")
 
 # to convert the notebook into a python script
-import_or_install("nbformat") 
-import_or_install("nbconvert") 
+import_or_install("nbformat","nbformat") 
+import_or_install("nbconvert","nbconvert") 
 
 
 # constants
