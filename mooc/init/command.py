@@ -34,6 +34,8 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        prog = "dts mooc init"
+        argparse.ArgumentParser(prog=prog, usage=usage)
 
         #
         #   get current working directory
