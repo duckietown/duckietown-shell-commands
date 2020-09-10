@@ -1,10 +1,10 @@
-import os
-import json
-import shutil
 import argparse
+import json
+import os
+import shutil
 import subprocess
-from dt_shell import DTCommandAbs, dtslogger
 
+from dt_shell import DTCommandAbs, dtslogger
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 from utils.misc_utils import human_size
@@ -27,6 +27,12 @@ class DTCommand(DTCommandAbs):
     def command(shell, args):
         # configure arguments
         parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "subcommand",
+            nargs='?',
+            default=None,
+            help="(Optional) Subcommand to execute"
+        )
         parser.add_argument('-C', '--workdir', default=os.getcwd(),
                             help="Directory containing the project to run")
         parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
@@ -83,6 +89,20 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         # get info about project
         project = DTProject(parsed.workdir)
+        # container name
+        if not parsed.name:
+            parsed.name = 'dts-run-{:s}'.format(project.name)
+        # subcommands
+        if parsed.subcommand == 'attach':
+            dtslogger.info(f'Attempting to attach to container {parsed.name}...')
+            # run
+            _run_cmd([
+                parsed.runtime,
+                '-H=%s' % parsed.machine,
+                'exec', '-it', parsed.name, 'bash']
+                , suppress_errors=True
+            )
+            return
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
@@ -230,9 +250,7 @@ class DTCommand(DTCommandAbs):
             parsed.docker_args = []
         if parsed.rm:
             parsed.docker_args += ['--rm']
-        # container name
-        if not parsed.name:
-            parsed.name = 'dts-run-{:s}'.format(project.name)
+        # add container name to docker args
         parsed.docker_args += ['--name', parsed.name]
         # escape spaces in arguments
         parsed.docker_args = [a.replace(' ', '\\ ') for a in parsed.docker_args]
