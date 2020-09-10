@@ -99,7 +99,7 @@ class DTCommand(DTCommandAbs):
             _run_cmd([
                 parsed.runtime,
                 '-H=%s' % parsed.machine,
-                'exec', '-it', parsed.name, 'bash']
+                'exec', '-it', parsed.name, '/entrypoint.sh', 'bash']
                 , suppress_errors=True
             )
             return
