@@ -42,13 +42,6 @@ class DTCommand(DTCommandAbs):
         )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
-        # verify version
-        if parsed.version is not None:
-            try:
-                _ = int(parsed.version)
-            except ValueError:
-                dtslogger.error('The argument -v/--version must be an integer.')
-                return
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
         dtslogger.info('Project workspace: {}'.format(code_dir))
         # show info about project
@@ -60,13 +53,22 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning('Your index is not clean.')
             dtslogger.warning('This command compares the template against committed changes.')
             print()
-        # get template and template version
+        # get template type
         template = project.type
         if parsed.template is not None:
             template = parsed.template
+        # prepend `duckietown/` if a user is not given
+        if '/' not in template:
+            template = f'duckietown/{template}'
+        # get template version
         template_version = 'v' + project.type_version
         if parsed.version is not None:
-            template_version = 'v'+parsed.version
+            # verify if `version` is an integer
+            try:
+                v = int(parsed.version)
+                template_version = f'v{v}'
+            except ValueError:
+                template_version = parsed.version
         # script path
         script_path = os.path.join(
             os.path.abspath(os.path.dirname(__file__)), '..', 'assets', 'template_ops.sh'
