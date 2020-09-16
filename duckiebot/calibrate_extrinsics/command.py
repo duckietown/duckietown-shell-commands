@@ -56,7 +56,7 @@ Calibrate:
 
         image = parsed_args.image
 
-        timestamp = datetime.date.today().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.datetime.today().strftime("%Y%m%d-%H%M%S")
 
         raw_input(
             "{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format(
@@ -64,7 +64,7 @@ Calibrate:
             )
         )
         log_file = "out-calibrate-extrinsics-%s-%s" % (hostname, timestamp)
-        rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
+        rosrun_params = "-o /data/config/calibrations/camera_extrinsic/{0} > /data/config/calibrations/camera_extrinsic/{0}.log".format(log_file)
         ros_pkg = "complete_image_pipeline calibrate_extrinsics"
         start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
         dtslogger.info("Running command: {}".format(start_command))
