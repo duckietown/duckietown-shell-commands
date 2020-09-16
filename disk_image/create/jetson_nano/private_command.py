@@ -504,10 +504,9 @@ class DTCommand(DTCommandAbs):
                 sd_card.mount_partition(ROOT_PARTITION)
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
-                    # create fake (temporary) /dev/null inside root and make it publicly writable
-                    _dev_null = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), 'dev', 'null')
-                    run_cmd(['sudo', 'touch', _dev_null])
-                    run_cmd(['sudo', 'chmod', '777', _dev_null])
+                    # mount /dev from the host
+                    _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), 'dev')
+                    run_cmd(['sudo', 'mount', '--bind', '/dev', _dev])
                     # configure the kernel for QEMU
                     run_cmd([
                         'docker',
@@ -535,27 +534,19 @@ class DTCommand(DTCommandAbs):
                         exit(2)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
-                        # run full-upgrade on the new root
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            'apt update && '
-                            'apt --yes --force-yes --no-install-recommends'
-                            ' -o Dpkg::Options::=\"--force-confdef\" '
-                            ' -o Dpkg::Options::=\"--force-confold\" '
-                            'full-upgrade'
-                        )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
-                                f'DEBIAN_FRONTEND=noninteractive '
+                                'apt update && '
+                                'DEBIAN_FRONTEND=noninteractive '
                                 f'apt install --yes --force-yes --no-install-recommends {pkgs}'
                             )
                     except Exception as e:
                         raise e
-                    # remove temporary /dev/null
-                    run_cmd(['sudo', 'rm', '-f', _dev_null])
+                    # unomunt bind /dev
+                    run_cmd(['sudo', 'umount', _dev])
                 except Exception as e:
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
