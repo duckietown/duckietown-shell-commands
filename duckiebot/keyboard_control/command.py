@@ -47,23 +47,30 @@ Keyboard control:
 
         parsed_args = parser.parse_args(args)
 
+        # Derp proof if someone types xxx.local, treat it correctly
+        filtered_hostnames = None
+        if ".local" in parsed_args.hostname:
+            filtered_hostnames = parsed_args.hostname.replace(".local","")
+        else:
+            filtered_hostnames = parsed_args.hostname
+
         if parsed_args.sim:
             duckiebot_ip = "sim"
         else:
-            duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
+            duckiebot_ip = get_duckiebot_ip(duckiebot_name=filtered_hostnames)
 
         network_mode = parsed_args.network
 
         if not parsed_args.cli:
             run_gui_controller(
-                parsed_args.hostname,
+                filtered_hostnames,
                 parsed_args.gui_image,
                 duckiebot_ip,
                 network_mode
             )
         else:
             run_cli_controller(
-                parsed_args.hostname,
+                filtered_hostnames,
                 parsed_args.cli_image,
                 duckiebot_ip,
                 network_mode,
