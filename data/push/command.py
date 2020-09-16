@@ -1,54 +1,71 @@
 import os
 import argparse
-import requests
+import signal
 
 from dt_shell import DTCommandAbs, dtslogger
-from utils.cli_utils import start_command_in_subprocess
+from utils.cli_utils import ProgressBar
+from utils.misc_utils import human_size
 
-DATA_API_ACTION = "put_object"
+from dt_data_api import DataClient, TransferStatus
 
-DATA_API_URL_FMT = "https://data.duckietown.org/v1/{action}/{bucket}/{object}"
-DATA_API_URL = lambda action, bucket, object: \
-    DATA_API_URL_FMT.format(action=action, bucket=bucket, object=object)
-BUCKET_FMT = lambda visibility: f"duckietown-{visibility}-storage"
 
-VALID_BUCKETS = [
-    'duckietown-public-storage',
-    'duckietown-private-storage'
+VALID_SPACES = [
+    'public',
+    'private'
 ]
 
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Uploads an object (file) to the Duckietown Cloud Storage space'
+    help = 'Uploads a file to the Duckietown Cloud Storage space'
 
     usage = '''
 Usage:
 
-    dts data push --bucket duckietown-<visibility>-storage <file> <object>
+    dts data push --space <space> <file> <object>
     
 OR
 
-    dts data push <file> [<visibility>:]<object>
+    dts data push <file> [<space>:]<object>
     
-Where <visibility> can be one of [public, private].
+Where <space> can be one of [public, private].
 '''
 
     @staticmethod
-    def command(shell, args):
+    def _parse_args(args):
         # configure arguments
         parser = argparse.ArgumentParser()
-        parser.add_argument('-B', '--bucket', default=None, choices=VALID_BUCKETS,
-                            help="Bucket the object should be uploaded to")
-        parser.add_argument('file', nargs=1)
-        parser.add_argument('object', nargs=1)
+        parser.add_argument(
+            '-S',
+            '--space',
+            default=None,
+            choices=VALID_SPACES,
+            help="Storage space the object should be uploaded to"
+        )
+        parser.add_argument(
+            'file',
+            nargs=1,
+            help="File to upload"
+        )
+        parser.add_argument(
+            'object',
+            nargs=1,
+            help="Destination path of the object"
+        )
         parsed, _ = parser.parse_known_args(args=args)
+        return parsed
+
+    @staticmethod
+    def command(shell, args, **kwargs):
+        parsed = kwargs.get('parsed', None)
+        if parsed is None:
+            parsed = DTCommand._parse_args(args)
         # ---
         parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]
         # check arguments
-        ## use the format [bucket_visibility]:[object] as a short for
-        ##      --bucket duckietown-[bucket_visibility]-storage [object]
+        # use the format [space]:[object] as a short for
+        #      --space [space] [object]
         arg1, arg2, *acc = (parsed.object + ':_').split(':')
         # handle invalid formats
         if len(acc) > 1:
@@ -56,53 +73,78 @@ Where <visibility> can be one of [public, private].
             print(DTCommand.usage)
             exit(1)
         # parse args
-        bucket_vis, object_path = (arg1, arg2) if arg2 != '_' else (None, arg1)
-        # make sure that the bucket is given in at least one form
-        if bucket_vis is None and parsed.bucket is None:
-            dtslogger.error('You must specify a destination bucket for the object.')
+        space, object_path = (arg1, arg2) if arg2 != '_' else (None, arg1)
+        # make sure that the space is given in at least one form
+        if space is None and parsed.space is None:
+            dtslogger.error('You must specify a storage space for the object.')
             print(DTCommand.usage)
             exit(2)
-        # make sure that at most one bucket is given
-        if bucket_vis is not None and parsed.bucket is not None:
-            dtslogger.error('You can specify at most one bucket as destination for the object.')
+        # make sure that at most one space is given
+        if space is not None and parsed.space is not None:
+            dtslogger.error('You can specify at most one storage space for the object.')
             print(DTCommand.usage)
             exit(3)
-        # validate bucket
-        if bucket_vis is not None and bucket_vis not in ['public', 'private']:
-            dtslogger.error("Bucket (short format) can be either 'public' or 'private'.")
+        # validate space
+        if space is not None and space not in ['public', 'private']:
+            dtslogger.error("Storage space (short format) can be either 'public' or 'private'.")
             print(DTCommand.usage)
             exit(4)
         # converge args to parsed
         parsed.object = object_path
-        if bucket_vis:
-            parsed.bucket = BUCKET_FMT(bucket_vis)
+        if space:
+            parsed.space = space
         # make sure that the input file exists
         if not os.path.isfile(parsed.file):
             dtslogger.error(f"File '{parsed.file}' not found!")
             exit(5)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
-        # make sure that the token is set
-        token = shell.get_dt1_token()
-        # request authorization to perform action
-        dtslogger.info('Authorizing request...')
-        data_api_url = DATA_API_URL(DATA_API_ACTION, parsed.bucket, parsed.object)
-        res = requests.get(data_api_url, headers={'X-Duckietown-Token': token})
-        if res.status_code != 200:
-            dtslogger.error(res.reason)
-            exit(100)
-        # parse answer
-        answer = res.json()
-        if answer['code'] != 200:
-            dtslogger.error(answer['message'])
-            exit(answer['code'])
-        # request authorized
-        signed_url = answer['data']['url']
-        dtslogger.info('Uploading file...')
-        start_command_in_subprocess([
-            'curl', '--progress-bar',
-            '--request', 'PUT',
-            '--upload-file', parsed.file,
-            f'"{signed_url}"',
-            '|', 'tee'
-        ])
+        # get the token if it is set
+        token = None
+        # noinspection PyBroadException
+        try:
+            token = shell.get_dt1_token()
+        except Exception:
+            pass
+        # create storage client
+        client = DataClient(token)
+        storage = client.storage(parsed.space)
+        # prepare progress bar
+        pbar = ProgressBar()
+
+        def check_status(h):
+            if h.status == TransferStatus.STOPPED:
+                print()
+                dtslogger.info('Stopping upload...')
+                handler.abort(block=True)
+                dtslogger.info('Upload stopped!')
+                exit(6)
+            if h.status == TransferStatus.ERROR:
+                dtslogger.error(h.reason)
+                exit(7)
+
+        def cb(h):
+            speed = human_size(h.progress.speed)
+            header = f'Uploading [{speed}/s] '
+            header = header + ' ' * max(0, 26 - len(header))
+            pbar.set_header(header)
+            pbar.update(h.progress.percentage)
+            # check status
+            check_status(h)
+
+        # upload file
+        dtslogger.info(f'Uploading {parsed.file} -> [{parsed.space}]:{parsed.object}')
+        handler = storage.upload(parsed.file, parsed.object)
+        handler.register_callback(cb)
+
+        # capture SIGINT and abort
+        signal.signal(signal.SIGINT, lambda *_: handler.abort())
+
+        # wait for the upload to finish
+        handler.join()
+
+        # check status
+        check_status(handler)
+
+        # if we got here, the upload is completed
+        dtslogger.info('Upload completed!')

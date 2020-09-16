@@ -181,7 +181,7 @@ intersphinx_mapping_default = {
 
 intersphinx_mapping = config.get('intersphinx_mapping', intersphinx_mapping_default)
 parsed = dict()
-for package, v in intersphinx_mapping.iteritems():
+for package, v in intersphinx_mapping.items():
     parsed[package] = (v['url'], tuple([None] + v['inventories']))
 intersphinx_mapping = parsed
 

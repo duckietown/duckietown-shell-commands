@@ -1,134 +1,67 @@
+from types import SimpleNamespace
+
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
 import pathlib
-import getpass
 import json
 import os
 import shutil
 import subprocess
 import time
-import glob
 import docker
-import collections
-import re
 import socket
-import yaml
 import fnmatch
-import itertools
+import getpass
 from datetime import datetime
 
-from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
+from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
 
-PARTITION_MOUNTPOINT = lambda partition: f"/media/{getpass.getuser()}/{partition}"
-DISK_DEVICE = lambda device, partition_id: f"{device}p{partition_id}"
-DISK_BY_LABEL = lambda partition: f"/dev/disk/by-label/{partition}"
+from disk_image.create.constants import \
+    PARTITION_MOUNTPOINT, \
+    FILE_PLACEHOLDER_SIGNATURE, \
+    TMP_WORKDIR, \
+    DISK_IMAGE_STATS_LOCATION, \
+    DOCKER_IMAGE_TEMPLATE, \
+    APT_PACKAGES_TO_INSTALL, \
+    MODULES_TO_LOAD, \
+    DATA_STORAGE_DISK_IMAGE_DIR
+
+from disk_image.create.utils import \
+    VirtualSDCard, \
+    check_cli_tools, \
+    pull_docker_image, \
+    disk_template_partitions, \
+    disk_template_objects, \
+    find_placeholders_on_disk, \
+    get_file_first_line, \
+    get_file_length, \
+    run_cmd, \
+    run_cmd_in_partition, \
+    validator_autoboot_stack, \
+    validator_yaml_syntax
+
 DISK_IMAGE_PARTITION_TABLE = {
     'HypriotOS': 1,
     'root': 2
 }
-ROOT_PARTITION = 'root'
 DISK_IMAGE_SIZE_GB = 8
 DISK_IMAGE_FORMAT_VERSION = "1"
-FILE_PLACEHOLDER_SIGNATURE = "DT_DUCKIETOWN_PLACEHOLDER_"
-TMP_WORKDIR = "/tmp/duckietown/dts/disk_image"
-DISK_IMAGE_STATS_LOCATION = 'data/stats/disk_image/build.json'
-DEVICE_ARCH = 'arm32v7'
-DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None: \
-    f'{owner}/{module}:' + ((f'{version}-%s' % DEVICE_ARCH) if tag is None else tag)
 HYPRIOTOS_VERSION = "1.11.1"
 HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
 INPUT_DISK_IMAGE_URL = f"https://github.com/hypriot/image-builder-rpi/releases/download/" \
                        f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
 TEMPLATE_FILE_VALIDATOR = {
     'root:/data/config/autoboot/*.yaml':
-        lambda *a, **kwa: _validator_autoboot_stack(*a, **kwa),
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     'root:/data/config/calibrations/*/default.yaml':
-        lambda *a, **kwa: _validator_yaml_syntax(*a, **kwa),
+        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
-
-APT_PACKAGES_TO_INSTALL = [
-    'rsync'
-]
-
-MODULES_TO_LOAD = [
-    {
-        'owner': 'portainer',
-        'module': 'portainer',
-        'tag': 'linux-arm'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-base-environment'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-commons'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-device-health'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-device-online'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-device-proxy'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-files-api'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-code-api'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-device-dashboard'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-ros-commons'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-duckiebot-interface'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-car-interface'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-rosbridge-websocket'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-core'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-system-monitor'
-    },
-    {
-        'owner': 'duckietown',
-        'module': 'dt-gui-tools'
-    }
-]
-
+DISK_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'disk_template')
 SUPPORTED_STEPS = [
     'download', 'create', 'mount', 'resize', 'upgrade',
     'setup', 'docker', 'finalize', 'unmount', 'compress'
-]
-
-CLI_TOOLS_NEEDED = [
-    'wget', 'unzip', 'sudo', 'cp', 'sha256sum', 'strings', 'grep', 'stat', 'udevadm', 'udisksctl',
-    'losetup', 'parted', 'e2fsck', 'resize2fs', 'truncate', 'mount', 'umount', 'touch', 'chroot',
-    'chmod', 'rm', 'docker'
 ]
 
 
@@ -138,7 +71,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        global DISK_BY_LABEL
         parser = argparse.ArgumentParser()
         # define parser arguments
         parser.add_argument(
@@ -172,6 +104,12 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="(Optional) temporary working directory to use"
         )
+        parser.add_argument(
+            "--push",
+            default=False,
+            action='store_true',
+            help="Whether to push the final compressed image to the Duckietown Cloud Storage"
+        )
         # parse arguments
         parsed = parser.parse_args(args=args)
         # check given steps
@@ -195,7 +133,7 @@ class DTCommand(DTCommandAbs):
             parsed.steps = set(parsed.steps).difference(skipped)
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check dependencies
-        _check_cli_tools()
+        check_cli_tools()
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()
@@ -204,11 +142,12 @@ class DTCommand(DTCommandAbs):
         # define output file template
         in_file_path = lambda ex: os.path.join(parsed.workdir, f'{HYPRIOTOS_DISK_IMAGE_NAME}.{ex}')
         input_image_name = pathlib.Path(in_file_path('img')).stem
-        out_file_path = lambda ex: os.path.join(parsed.output, f'dt-{input_image_name}.{ex}')
+        out_file_name = lambda ex: f'dt-{input_image_name}.{ex}'
+        out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
         # get version
         distro = get_distro_version(shell)
-        # this will hold the link to the loop device
-        loopdev = None
+        # create a virtual SD card object
+        sd_card = VirtualSDCard(out_file_path('img'), DISK_IMAGE_PARTITION_TABLE)
         # this is the surgey plan that will be performed by the init_sd_card command
         surgery_plan = []
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
@@ -242,6 +181,7 @@ class DTCommand(DTCommandAbs):
             'stamp': time.time(),
             'stamp_human': datetime.now().isoformat()
         }
+        print()
         #
         # STEPS:
         # ------>
@@ -258,17 +198,19 @@ class DTCommand(DTCommandAbs):
                     else:
                         shutil.rmtree(parsed.workdir)
             # create temporary dir
-            _run_cmd(['mkdir', '-p', parsed.workdir])
+            run_cmd(['mkdir', '-p', parsed.workdir])
             # download zip (if necessary)
             dtslogger.info('Looking for ZIP image file...')
             if not os.path.isfile(in_file_path('zip')):
                 dtslogger.info('Downloading ZIP image...')
                 try:
-                    _run_cmd(['wget', '--no-verbose', '--show-progress', '--continue',
-                              '--output-document', in_file_path('zip'), INPUT_DISK_IMAGE_URL])
+                    run_cmd([
+                        'wget', '--no-verbose', '--show-progress', '--continue',
+                        '--output-document', in_file_path('zip'), INPUT_DISK_IMAGE_URL
+                    ])
                 except KeyboardInterrupt as e:
                     dtslogger.info('Cleaning up...')
-                    _run_cmd(['rm', '-rf', in_file_path('zip')])
+                    run_cmd(['rm', '-rf', in_file_path('zip')])
                     raise e
             else:
                 dtslogger.info(f"Reusing cached ZIP image file [{in_file_path('zip')}].")
@@ -276,10 +218,10 @@ class DTCommand(DTCommandAbs):
             if not os.path.isfile(in_file_path('img')):
                 dtslogger.info('Extracting ZIP image...')
                 try:
-                    _run_cmd(['unzip', in_file_path('zip'), '-d', parsed.workdir])
+                    run_cmd(['unzip', in_file_path('zip'), '-d', parsed.workdir])
                 except KeyboardInterrupt as e:
                     dtslogger.info('Cleaning up...')
-                    _run_cmd(['rm', '-rf', in_file_path('img')])
+                    run_cmd(['rm', '-rf', in_file_path('img')])
                     raise e
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
@@ -303,16 +245,21 @@ class DTCommand(DTCommandAbs):
                     return
             # create empty disk image
             dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
-            _run_cmd([
-                'dd', 'if=/dev/zero', f"of={out_file_path('img')}", 'bs=100M',
-                f'count={10 * DISK_IMAGE_SIZE_GB}'
+            run_cmd([
+                'dd', 'if=/dev/zero', f"of={out_file_path('img')}", f'bs={1024 * 1024}',
+                f'count={1024 * DISK_IMAGE_SIZE_GB}'
             ])
             dtslogger.info("Empty disk image created!")
-            # make copy
+            # make copy of the disk image
             dtslogger.info(f"Copying [{in_file_path('img')}] -> [{out_file_path('img')}]")
-            _run_cmd([
-                'dd', f"if={in_file_path('img')}", f"of={out_file_path('img')}", 'conv=notrunc'
+            run_cmd([
+                'dd', f"if={in_file_path('img')}", f"of={out_file_path('img')}",
+                f'bs={1024 * 1024}', 'conv=notrunc'
             ])
+            # flush buffer
+            dtslogger.info("Flushing I/O buffer...")
+            run_cmd(['sync'])
+            # ---
             dtslogger.info('Step END: create\n')
         # Step: create
         # <------
@@ -322,21 +269,20 @@ class DTCommand(DTCommandAbs):
         if 'mount' in parsed.steps:
             dtslogger.info('Step BEGIN: mount')
             # check if the destination image is already mounted
-            loopdev = _find_virtual_sd_card(out_file_path('img'))
+            loopdev = VirtualSDCard.find_loopdev(out_file_path('img'))
+            sd_card.set_loopdev(loopdev)
             if loopdev:
                 dtslogger.warn(
                     f"The destination file {out_file_path('img')} already exists "
-                    f"and is mounted to {loopdev}, skipping the 'mount' step."
+                    f"and is mounted to {sd_card.loopdev}, skipping the 'mount' step."
                 )
             else:
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
-                loopdev = _mount_virtual_sd_card(out_file_path('img'))
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted on {loopdev}")
+                sd_card.mount()
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted "
+                               f"on {sd_card.loopdev}")
             dtslogger.info('Step END: mount\n')
-        # now we now the hard link to the device, avoid /dev/disk/by-label, prefer /dev/loop
-        # it is more stable
-        DISK_BY_LABEL = lambda p: f"{loopdev}p{DISK_IMAGE_PARTITION_TABLE[p]}"
         # Step: mount
         # <------
         #
@@ -345,30 +291,33 @@ class DTCommand(DTCommandAbs):
         if 'resize' in parsed.steps:
             dtslogger.info('Step BEGIN: resize')
             # make sure that the disk is mounted
-            if loopdev is None:
+            if not sd_card.is_mounted():
                 dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                 return
             # get root partition id
-            root_partition_id = DISK_IMAGE_PARTITION_TABLE[ROOT_PARTITION]
-            root_device = DISK_DEVICE(loopdev, root_partition_id)
+            root_device = sd_card.partition_device('root')
             # get original disk identifier
-            disk_identifier = _get_device_disk_identifier(loopdev)
+            disk_identifier = sd_card.get_disk_identifier()
             # resize root partition to take the entire disk
-            cmd = ["sudo", "parted", "-s", loopdev, "resizepart", "2", "100%"]
-            _run_cmd(cmd)
+            run_cmd([
+                "sudo", "parted", "-s", sd_card.loopdev, "resizepart",
+                str(DISK_IMAGE_PARTITION_TABLE['root']), "100%"
+            ])
+            # force driver to reload file size
+            run_cmd(['sudo', 'losetup', '-c', sd_card.loopdev])
+            # show info about disk
+            dtslogger.debug('\n' + run_cmd(['sudo', 'fdisk', '-l', sd_card.loopdev], True))
             # fix file system
-            cmd = ["sudo", "e2fsck", "-f", root_device]
-            _run_cmd(cmd)
+            run_cmd(["sudo", "e2fsck", "-f", root_device])
             # resize file system
-            cmd = ["sudo", "resize2fs", root_device]
-            _run_cmd(cmd)
+            run_cmd(["sudo", "resize2fs", root_device])
             dtslogger.info('Waiting 5 seconds for changes to take effect...')
             time.sleep(5)
             # make sure that the changes had an effect
-            assert _get_device_disk_identifier(loopdev) != disk_identifier
+            assert sd_card.get_disk_identifier() != disk_identifier
             # restore disk identifier
-            _set_device_disk_identifier(loopdev, disk_identifier)
-            assert _get_device_disk_identifier(loopdev) == disk_identifier
+            sd_card.set_disk_identifier(disk_identifier)
+            assert sd_card.get_disk_identifier() == disk_identifier
             # ---
             dtslogger.info('Step END: resize\n')
         # Step: resize
@@ -381,43 +330,38 @@ class DTCommand(DTCommandAbs):
             # from this point on, if anything weird happens, unmount the disk
             try:
                 # make sure that the disk is mounted
-                if loopdev is None:
+                if not sd_card.is_mounted():
                     dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                     return
                 # check if the `root` disk device exists
-                root_partition_disk = DISK_DEVICE(
-                    device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE['root']
-                )
+                root_partition_disk = sd_card.partition_device('root')
                 if not os.path.exists(root_partition_disk):
                     raise ValueError(f'Disk device {root_partition_disk} not found')
                 # check if the `HypriotOS` disk device exists
-                hypriotos_partition_disk = DISK_DEVICE(
-                    device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE['HypriotOS']
-                )
+                hypriotos_partition_disk = sd_card.partition_device('HypriotOS')
                 if not os.path.exists(hypriotos_partition_disk):
                     raise ValueError(f'Disk device {hypriotos_partition_disk} not found')
                 # mount `root` partition
-                _mount_partition('root')
+                sd_card.mount_partition('root')
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # create fake (temporary) /dev/null inside root and make it publicly writable
                     _dev_null = os.path.join(PARTITION_MOUNTPOINT('root'), 'dev', 'null')
-                    _run_cmd(['sudo', 'touch', _dev_null])
-                    _run_cmd(['sudo', 'chmod', '777', _dev_null])
+                    run_cmd(['sudo', 'touch', _dev_null])
+                    run_cmd(['sudo', 'chmod', '777', _dev_null])
                     # configure the kernel for QEMU
-                    _run_cmd([
+                    run_cmd([
                         'docker',
                             'run',
                                 '--rm',
                                 '--privileged',
                                 'multiarch/qemu-user-static:register',
-                                    '--reset'
-                    ])
+                                    '--reset'])
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
-                        output = _run_cmd_in_root('echo "Hello from an ARM chroot!"',
-                                                  get_output=True)
+                        output = run_cmd_in_partition('root', 'echo "Hello from an ARM chroot!"',
+                                                      get_output=True)
                         if 'Exec format error' in output:
                             raise Exception('Exec format error')
                     except (BaseException, subprocess.CalledProcessError) as e:
@@ -432,11 +376,12 @@ class DTCommand(DTCommandAbs):
                         exit(2)
                     # mount the partition HypriotOS as root:/boot
                     _boot = os.path.join(PARTITION_MOUNTPOINT('root'), 'boot')
-                    _run_cmd(['sudo', 'mount', '-t', 'auto', hypriotos_partition_disk, _boot])
+                    run_cmd(['sudo', 'mount', '-t', 'auto', hypriotos_partition_disk, _boot])
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
                         # run full-upgrade on the new root
-                        _run_cmd_in_root(
+                        run_cmd_in_partition(
+                            'root',
                             'apt update && '
                             'apt --yes --force-yes --no-install-recommends'
                             ' -o Dpkg::Options::=\"--force-confdef\" '
@@ -446,13 +391,15 @@ class DTCommand(DTCommandAbs):
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = ' '.join(APT_PACKAGES_TO_INSTALL)
-                            _run_cmd_in_root(
+                            run_cmd_in_partition(
+                                'root',
                                 f'DEBIAN_FRONTEND=noninteractive '
                                 f'apt install --yes --force-yes --no-install-recommends {pkgs}'
                             )
                         # upgrade libseccomp
                         # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                        _run_cmd_in_root(
+                        run_cmd_in_partition(
+                            'root',
                             'cd /tmp/ && '
                             'wget http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/'
                             'libseccomp2_2.4.3-1+b1_armhf.deb && '
@@ -460,20 +407,20 @@ class DTCommand(DTCommandAbs):
                             'rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb'
                         )
                     except Exception as e:
-                        _run_cmd(['sudo', 'umount', _boot])
+                        run_cmd(['sudo', 'umount', _boot])
                         raise e
                     # unmount 'HypriotOS'
-                    _run_cmd(['sudo', 'umount', _boot])
+                    run_cmd(['sudo', 'umount', _boot])
                     # remove temporary /dev/null
-                    _run_cmd(['sudo', 'rm', '-f', _dev_null])
+                    run_cmd(['sudo', 'rm', '-f', _dev_null])
                 except Exception as e:
-                    _umount_partition('root')
+                    sd_card.umount_partition('root')
                     raise e
                 # unmount 'root'
-                _umount_partition('root')
+                sd_card.umount_partition('root')
                 # ---
             except Exception as e:
-                _umount_virtual_sd_card(out_file_path('img'))
+                sd_card.umount()
                 raise e
             dtslogger.info('Step END: upgrade\n')
         # Step: upgrade
@@ -486,18 +433,20 @@ class DTCommand(DTCommandAbs):
             # from this point on, if anything weird happens, unmount the disk
             try:
                 # make sure that the disk is mounted
-                if loopdev is None:
+                if not sd_card.is_mounted():
                     dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                     return
                 # find partitions to update
-                partitions = _get_disk_template_partitions()
+                partitions = disk_template_partitions(DISK_TEMPLATE_DIR)
                 # put template objects inside the stats object
                 for partition in partitions:
                     stats['template']['directories'] = list(map(
-                        lambda u: u['relative'], _get_disk_template_objects(partition, 'directory')
+                        lambda u: u['relative'],
+                        disk_template_objects(DISK_TEMPLATE_DIR, partition, 'directory')
                     ))
                     stats['template']['files'] = list(map(
-                        lambda u: u['relative'], _get_disk_template_objects(partition, 'file')
+                        lambda u: u['relative'],
+                        disk_template_objects(DISK_TEMPLATE_DIR, partition, 'file')
                     ))
                 # make sure that all the partitions are there
                 for partition in partitions:
@@ -505,23 +454,23 @@ class DTCommand(DTCommandAbs):
                     if partition not in DISK_IMAGE_PARTITION_TABLE:
                         raise ValueError(f'Partition {partition} not declared in partition table')
                     # check if the corresponding disk device exists
-                    partition_disk = DISK_DEVICE(
-                        device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE[partition]
-                    )
+                    partition_disk = sd_card.partition_device(partition)
                     if not os.path.exists(partition_disk):
                         raise ValueError(f'Disk device {partition_disk} not found')
                     # mount device
-                    _mount_partition(partition)
+                    sd_card.mount_partition(partition)
                     # from this point on, if anything weird happens, unmount the disk
                     try:
                         dtslogger.info(f'Updating partition "{partition}":')
                         # create directory structure from disk template
-                        for update in _get_disk_template_objects(partition, 'directory'):
+                        for update in \
+                                disk_template_objects(DISK_TEMPLATE_DIR, partition, 'directory'):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
-                            _run_cmd(['sudo', 'mkdir', '-p', update['destination']])
+                            run_cmd(['sudo', 'mkdir', '-p', update['destination']])
                         # apply changes from disk_template
-                        for update in _get_disk_template_objects(partition, 'file'):
+                        for update in \
+                                disk_template_objects(DISK_TEMPLATE_DIR, partition, 'file'):
                             # validate file
                             validator = _get_validator_fcn(partition, update['relative'])
                             if validator:
@@ -531,16 +480,16 @@ class DTCommand(DTCommandAbs):
                             effect = 'MODIFY' if os.path.exists(update['destination']) else 'NEW'
                             dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
                             # copy new file
-                            _run_cmd(['sudo', 'cp', update['origin'], update['destination']])
+                            run_cmd(['sudo', 'cp', update['origin'], update['destination']])
                             # get first line of file
-                            file_first_line = _get_file_first_line(update['destination'])
+                            file_first_line = get_file_first_line(update['destination'])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
                                 placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
                                 # get stats about file
-                                real_bytes, max_bytes = _get_file_length(update['destination'])
+                                real_bytes, max_bytes = get_file_length(update['destination'])
                                 # saturate file so that it occupies the entire pagefile
-                                _run_cmd(['sudo', 'truncate', f'--size={max_bytes}',
+                                run_cmd(['sudo', 'truncate', f'--size={max_bytes}',
                                           update['destination']])
                                 # store preliminary info about the surgery
                                 surgery_plan.append({
@@ -553,30 +502,30 @@ class DTCommand(DTCommandAbs):
                                     'length_bytes': max_bytes
                                 })
                         # store stats before closing the [root] partition
-                        if partition == ROOT_PARTITION:
+                        if partition == 'root':
                             stats_filepath = os.path.join(
                                 PARTITION_MOUNTPOINT(partition), DISK_IMAGE_STATS_LOCATION
                             )
                             with open(out_file_path('stats'), 'wt') as fout:
                                 json.dump(stats, fout, indent=4, sort_keys=True)
-                            _run_cmd(['sudo', 'cp', out_file_path('stats'), stats_filepath])
+                            run_cmd(['sudo', 'cp', out_file_path('stats'), stats_filepath])
                         # flush I/O buffer
                         dtslogger.info('Flushing I/O buffer...')
-                        _run_cmd(['sync'])
+                        run_cmd(['sync'])
                         # ---
                         dtslogger.info(f'Partition {partition} updated!')
                     except Exception as e:
-                        _umount_partition(partition)
+                        sd_card.umount_partition(partition)
                         raise e
                     # umount partition
-                    _umount_partition(partition)
+                    sd_card.umount_partition(partition)
                 # ---
             except Exception as e:
-                _umount_virtual_sd_card(out_file_path('img'))
+                sd_card.umount()
                 raise e
             # finalize surgery plan
             dtslogger.info('Locating files for surgery in disk image...')
-            placeholders = _find_placeholders_on_disk(out_file_path('img'))
+            placeholders = find_placeholders_on_disk(out_file_path('img'))
             for i in range(len(surgery_plan)):
                 full_placeholder = f"{FILE_PLACEHOLDER_SIGNATURE}{surgery_plan[i]['placeholder']}"
                 # check if the placeholder was found
@@ -597,24 +546,22 @@ class DTCommand(DTCommandAbs):
             # from this point on, if anything weird happens, unmount the disk
             try:
                 # make sure that the disk is mounted
-                if loopdev is None:
+                if not sd_card.is_mounted():
                     dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
                     return
                 # check if the corresponding disk device exists
-                partition_disk = DISK_DEVICE(
-                    device=loopdev, partition_id=DISK_IMAGE_PARTITION_TABLE[ROOT_PARTITION]
-                )
+                partition_disk = sd_card.partition_device('root')
                 if not os.path.exists(partition_disk):
                     raise ValueError(f'Disk device {partition_disk} not found')
                 # mount device
-                _mount_partition(ROOT_PARTITION)
+                sd_card.mount_partition('root')
                 # get local docker client
                 local_docker = docker.from_env()
                 # pull dind image
-                _pull_docker_image(local_docker, 'docker:dind')
+                pull_docker_image(local_docker, 'docker:dind')
                 # run auxiliary Docker engine
                 remote_docker_dir = os.path.join(
-                    PARTITION_MOUNTPOINT(ROOT_PARTITION), 'var', 'lib', 'docker'
+                    PARTITION_MOUNTPOINT('root'), 'var', 'lib', 'docker'
                 )
                 remote_docker_engine_container = local_docker.containers.run(
                     image='docker:dind',
@@ -647,22 +594,22 @@ class DTCommand(DTCommandAbs):
                             owner=module['owner'], module=module['module'], version=distro,
                             tag=module['tag'] if 'tag' in module else None
                         )
-                        _pull_docker_image(remote_docker, image)
+                        pull_docker_image(remote_docker, image)
                     # ---
                     dtslogger.info('Docker images successfully transferred!')
                 except Exception as e:
                     # unmount disk
-                    _umount_virtual_sd_card(out_file_path('img'))
+                    sd_card.umount()
                     raise e
                 finally:
                     # stop container
                     remote_docker_engine_container.stop()
                     # unmount partition
-                    _umount_partition(ROOT_PARTITION)
+                    sd_card.umount_partition('root')
                 # ---
             except Exception as e:
                 # unmount disk
-                _umount_virtual_sd_card(out_file_path('img'))
+                sd_card.umount()
                 raise e
             dtslogger.info('Step END: docker\n')
         # Step: docker
@@ -674,7 +621,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info('Step BEGIN: finalize')
             # compute image sha256
             dtslogger.info(f"Computing SHA256 checksum of {out_file_path('img')}...")
-            disk_image_sha256 = _get_disk_image_sha(out_file_path('img'))
+            disk_image_sha256 = sd_card.disk_image_sha()
             dtslogger.info(f"SHA256: {disk_image_sha256}")
             # store surgery plan and other info
             dtslogger.info(f"Storing metadata in {out_file_path('json')}...")
@@ -695,7 +642,7 @@ class DTCommand(DTCommandAbs):
         # Step: unmount
         if 'unmount' in parsed.steps:
             dtslogger.info('Step BEGIN: unmount')
-            _umount_virtual_sd_card(out_file_path('img'))
+            sd_card.umount()
             dtslogger.info('Step END: unmount\n')
         # Step: unmount
         # <------
@@ -705,286 +652,35 @@ class DTCommand(DTCommandAbs):
         if 'compress' in parsed.steps:
             dtslogger.info('Step BEGIN: compress')
             dtslogger.info('Compressing disk image...')
-            _run_cmd([
+            run_cmd([
                 'zip', '-j', out_file_path('zip'), out_file_path('img'), out_file_path('json')
             ])
             dtslogger.info('Done!')
             dtslogger.info('Step END: compress\n')
         # Step: compress
         # <------
+        #
+        # ------>
+        # Step: push
+        if parsed.push:
+            if 'compress' not in parsed.steps:
+                dtslogger.warning("The step 'compress' was not performed. No artifacts to push.")
+                return
+            dtslogger.info('Step BEGIN: push')
+            dtslogger.info('Pushing disk image...')
+            shell.include.data.push.command(shell, [], parsed=SimpleNamespace(
+                file=[out_file_path('zip')],
+                object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name('zip'))],
+                space='public'
+            ))
+            dtslogger.info('Done!')
+            dtslogger.info('Step END: push\n')
+        # Step: push
+        # <------
 
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-def _check_cli_tools():
-    for cli_tool in CLI_TOOLS_NEEDED:
-        check_program_dependency(cli_tool)
-
-
-def _pull_docker_image(client, image):
-    repository, tag = image.split(':')
-    pbar = ProgressBar()
-    total_layers = set()
-    completed_layers = set()
-    dtslogger.info(f'Pulling image {image}...')
-    for step in client.api.pull(repository, tag, stream=True, decode=True):
-        if 'status' not in step or 'id' not in step:
-            continue
-        total_layers.add(step['id'])
-        if step['status'] in ['Download complete', 'Pull complete']:
-            completed_layers.add(step['id'])
-        # compute progress
-        if len(total_layers) > 0:
-            progress = int(100 * len(completed_layers) / len(total_layers))
-            pbar.update(progress)
-    pbar.update(100)
-    dtslogger.info(f'Image pulled: {image}')
-
-
-def _get_device_disk_identifier(device):
-    dtslogger.info(f'Reading Disk Identifier for {device}...')
-    p = re.compile(".*Disk identifier: 0x([0-9a-z]*).*")
-    fdisk_out = _run_cmd(["sudo", "fdisk", "-l", device], get_output=True)
-    m = p.search(fdisk_out)
-    disk_identifier = m.group(1)
-    dtslogger.info(f'Disk Identifier[{device}]: {disk_identifier}')
-    return disk_identifier
-
-
-def _set_device_disk_identifier(device, disk_identifier):
-    dtslogger.info(f'Re-applying disk identifier ({disk_identifier}) -> [{device}]')
-    cmd = ["sudo", "fdisk", device]
-    dtslogger.debug("$ %s" % cmd)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    p.communicate(("x\ni\n0x%s\nr\nw" % disk_identifier).encode("ascii"))
-    dtslogger.info('Done!')
-
-
-def _get_disk_image_sha(disk_image_file):
-    return _run_cmd(['sha256sum', disk_image_file], get_output=True).split(' ')[0]
-
-
-def _get_disk_template_partitions():
-    disk_template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'disk_template')
-    return list(filter(
-        lambda d: os.path.isdir(os.path.join(disk_template_dir, d)),
-        os.listdir(disk_template_dir)
-    ))
-
-
-def _get_disk_template_objects(partition, filter_type):
-    disk_template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'disk_template')
-    partition_template_dir = os.path.join(disk_template_dir, partition)
-    # check if we know about this partition
-    if not os.path.isdir(partition_template_dir):
-        raise ValueError(f'Partition "{partition}" not found in disk template.')
-    # define filtering functions
-    filter_lambdas = {
-        'file': os.path.isfile,
-        'directory': os.path.isdir
-    }
-    if filter_type not in filter_lambdas:
-        raise ValueError('The argument filter_type can have values from ["file", "directory"].')
-    filter_lambda = filter_lambdas[filter_type]
-    # run glob, this returns absolute path of every file and dir under the partition template dir
-    glob_star = glob.glob(os.path.join(partition_template_dir, '**'), recursive=True)
-    return [
-        {
-            'origin': f,
-            'destination': os.path.join(
-                PARTITION_MOUNTPOINT(partition),
-                os.path.relpath(f, partition_template_dir)
-            ),
-            'relative': '/' + os.path.relpath(f, partition_template_dir)
-        }
-        for f in glob_star if filter_lambda(f)
-    ]
-
-
-def _find_placeholders_on_disk(disk_image):
-    matches = _run_cmd(
-        ['strings', '-t', 'd', disk_image, '|', 'grep', f'"{FILE_PLACEHOLDER_SIGNATURE}"'],
-        get_output=True, shell=True
-    ).splitlines()
-    # parse matches
-    matches = map(lambda m: m.split(' ')[::-1], matches)
-    matches = list(map(lambda m: (m[0], int(m[1])), matches))
-    placeholders = dict(matches)
-    # make sure matches are unique
-    if len(placeholders) != len(matches):
-        pholders = map(lambda m: m[0], matches)
-        for pholder, count in collections.Counter(pholders).items():
-            if count > 1:
-                raise ValueError(
-                    f'The string "{pholder}" is not unique in the disk image {disk_image}, '
-                    f'{count} instances were found!'
-                )
-    # ---
-    return placeholders
-
-
-def _get_file_first_line(filepath):
-    with open(filepath, 'rt') as f:
-        line = f.readline()
-    return line
-
-
-def _get_file_length(filepath):
-    stat_out = _run_cmd(['stat', '--format', '%s,%b,%B', filepath], get_output=True)
-    real_size, num_blocks, block_size = stat_out.strip().split(',')
-    return int(real_size), int(num_blocks) * int(block_size)
-
-
-def _mount_partition(partition):
-    dtslogger.info(f'Mounting partition "{partition}"...')
-    # refresh devices module
-    max_retries = 3
-    for i in range(max_retries):
-        if os.path.exists(PARTITION_MOUNTPOINT(partition)):
-            break
-        # refresh kernel module
-        _run_cmd(['sudo', 'udevadm', 'trigger'])
-        # wait for changes to take effect
-        if i > 0:
-            dtslogger.info('Waiting for the device module to pick up the changes')
-            time.sleep(2)
-        # mount partition
-        if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-            _wait_for_disk(DISK_BY_LABEL(partition), timeout=20)
-            try:
-                _run_cmd(["udisksctl", "mount", "-b", DISK_BY_LABEL(partition)])
-                break
-            except BaseException as e:
-                if i == max_retries-1:
-                    raise e
-                dtslogger.info(f'We had issues mounting partition "{partition}". Retrying soon.')
-            time.sleep(2)
-    # ---
-    assert os.path.exists(PARTITION_MOUNTPOINT(partition))
-    dtslogger.info(f'Partition "{partition}" successfully mounted!')
-
-
-def _umount_partition(partition):
-    dtslogger.info(f'Unmounting partition "{partition}"...')
-    # refresh devices module
-    _run_cmd(['sudo', 'udevadm', 'trigger'])
-    # unmount partition
-    if os.path.exists(PARTITION_MOUNTPOINT(partition)):
-        # try to unmount
-        for i in range(3):
-            if not os.path.exists(PARTITION_MOUNTPOINT(partition)):
-                break
-            # request unmount
-            _run_cmd(["udisksctl", "unmount", "-b", DISK_BY_LABEL(partition)], get_output=True)
-            # wait for changes to take effect
-            if i > 0:
-                dtslogger.info(f'Waiting for the device {DISK_BY_LABEL(partition)} to unmount')
-                time.sleep(2)
-    # ---
-    dtslogger.info(f'Partition "{partition}" successfully unmounted!')
-
-
-def _run_cmd(cmd, get_output=False, shell=False, env=None):
-    dtslogger.debug("$ %s" % cmd)
-    # turn [cmd] into "cmd" if shell is set to True
-    if isinstance(cmd, list) and shell:
-        cmd = ' '.join(cmd)
-    # ---
-    if get_output:
-        return subprocess.check_output(cmd, shell=shell, env=env).decode('utf-8')
-    else:
-        subprocess.check_call(cmd, shell=shell, env=env)
-
-
-def _run_cmd_in_root(cmd, *args, **kwargs):
-    cmd = ' '.join(cmd) if isinstance(cmd, list) else cmd
-    return _run_cmd([
-        'sudo', 'chroot', '--userspec=0:0', PARTITION_MOUNTPOINT('root'),
-        '/bin/bash -c '
-        '"{}"'.format(cmd)
-    ], *args, **kwargs, shell=True)
-
-
-def _find_virtual_sd_card(disk_file, quiet=False):
-    # mount loop device
-    if not quiet:
-        dtslogger.info(f"Looking for loop devices associated to disk image {disk_file}...")
-    try:
-        # iterate over loop devices
-        lodevices = json.loads(_run_cmd(["sudo", "losetup", "--json"], get_output=True))
-        for dev in lodevices['loopdevices']:
-            if dev['back-file'].split(' ')[0] == disk_file:
-                if not quiet:
-                    dtslogger.info(f"Found {dev['name']}!")
-                # found a loop device connected to the given image
-                return dev['name']
-        if not quiet:
-            dtslogger.info("None found!")
-    except Exception as e:
-        if not quiet:
-            raise e
-    return None
-
-
-def _mount_virtual_sd_card(disk_file):
-    # refresh devices module
-    _run_cmd(['sudo', 'udevadm', 'trigger'])
-    # look for a free loop device
-    lodevs = subprocess.check_output(['sudo', 'losetup', '-f']).decode('utf-8').split('\n')
-    lodevs = list(filter(len, lodevs))
-    if len(lodevs) <= 0:
-        dtslogger.error(
-            'No free loop devices found. Cannot use virtual image. '
-            'Free at least one loop device and retry.'
-        )
-        exit(3)
-    # make sure there is not a conflict with other partitions
-    if os.path.exists(DISK_BY_LABEL('HypriotOS')) or os.path.exists(DISK_BY_LABEL('root')):
-        dtslogger.error(
-            'At least one partition with a conflicting name (e.g., HypriotOS, root) was found '
-            'in the system. Detach them before continuing.'
-        )
-        exit(4)
-    # mount loop device
-    lodev = subprocess.check_output(
-        ["sudo", "losetup", "--show", "-fPL", disk_file]
-    ).decode('utf-8').strip()
-    # refresh devices module
-    _run_cmd(['sudo', 'udevadm', 'trigger'])
-    # ---
-    return lodev
-
-
-def _umount_virtual_sd_card(disk_file, quiet=False):
-    # mount loop device
-    if not quiet:
-        dtslogger.info(f"Closing disk {disk_file}...")
-    try:
-        # free loop devices
-        output = subprocess.check_output(["sudo", "losetup", "--json"]).decode('utf-8')
-        devices = json.loads(output)
-        for dev in devices['loopdevices']:
-            if not ('(deleted)' in dev['back-file']
-                    or dev['back-file'].split(' ')[0] == disk_file):
-                continue
-            if not quiet:
-                dtslogger.info(f"Unmounting {disk_file} from {dev['name']}...")
-            _run_cmd(['sudo', 'losetup', '-d', dev['name']])
-    except Exception as e:
-        if not quiet:
-            raise e
-    if not quiet:
-        dtslogger.info("Done!")
-    # refresh devices module
-    _run_cmd(['sudo', 'udevadm', 'trigger'])
-
-
-def _wait_for_disk(disk, timeout):
-    stime = time.time()
-    while (time.time() - stime < timeout) and (not os.path.exists(disk)):
-        time.sleep(1.0)
 
 
 def _get_validator_fcn(partition, path):
@@ -993,42 +689,3 @@ def _get_validator_fcn(partition, path):
         if fnmatch.fnmatch(key, _k):
             return _f
     return None
-
-
-def _validator_autoboot_stack(shell, local_path, remote_path, data=None):
-    # get version
-    distro = get_distro_version(shell)
-    modules = {
-        DOCKER_IMAGE_TEMPLATE(
-            owner=module['owner'], module=module['module'], version=distro,
-            tag=module['tag'] if 'tag' in module else None
-        ) for module in MODULES_TO_LOAD
-    }
-    # load stack content
-    content = yaml.load(open(local_path, 'rt'), yaml.SafeLoader)
-    for srv_name, srv_info in content['services'].items():
-        srv_image = srv_info['image']
-        p1, p2, *_ = srv_image.split('/') + [None]
-        owners = [p1] if p2 else ['', 'library/']
-        image_full = p2 or p1
-        image, tag, *_ = image_full.split(':') + [None]
-        images = [f"{image}:{tag}"] if tag else ['', ':latest']
-        candidates = set(map(lambda p: '/'.join(p), itertools.product(owners, images)))
-        if len(candidates.intersection(modules)) > 0:
-            continue
-        # no images found
-        msg = f"The autoboot stack '{remote_path}' requires the " \
-              f"Docker image '{srv_image}' for the service '{srv_name}' but " \
-              f"no candidates were found in the list of modules to load."
-        dtslogger.error(msg)
-        raise ValueError(msg)
-
-
-def _validator_yaml_syntax(shell, local_path, remote_path, data=None):
-    # simply load the YAML file
-    try:
-        yaml.load(open(local_path, 'rt'), yaml.SafeLoader)
-    except yaml.YAMLError as e:
-        msg = f"The file {remote_path} is not a valid YAML file. Reason: {str(e)}"
-        dtslogger.error(msg)
-        raise ValueError(msg)

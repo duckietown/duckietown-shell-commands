@@ -150,9 +150,10 @@ def run_cli_controller(hostname, image, duckiebot_ip, network_mode, sim):
     duckiebot_client.containers.run(**params)
 
     cmd = 'docker %s attach %s' % (
-        '-H %s.local' % hostname if sim else '',
+        '-H %s.local' % hostname if not sim else '',
         container_name
     )
+    dtslogger.info("attach command: %s" % cmd)
     start_command_in_subprocess(cmd)
 
 

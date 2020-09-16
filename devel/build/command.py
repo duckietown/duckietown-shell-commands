@@ -25,7 +25,7 @@ from utils.dtproject_utils import \
     DTProject, \
     dtlabel, \
     DISTRO_KEY
-from utils.misc_utils import human_time
+from utils.misc_utils import human_time, human_size
 from utils.cli_utils import start_command_in_subprocess
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -113,7 +113,7 @@ class DTCommand(DTCommandAbs):
             parsed.stamp = True
             parsed.force_cache = True
             # check that the env variables are set
-            for key in ['ARCH', 'DISTRO', 'DT_TOKEN']:
+            for key in ['ARCH', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
@@ -181,14 +181,6 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
-        # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_DISTRO'] != project.repository.branch:
-            dtslogger.info(
-                'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_DISTRO'], project.repository.branch
-                )
-            )
-            exit(0)
         # add configuration labels (template v2+)
         if project_template_ver >= 2:
             for cfg_name, cfg_data in project.configurations().items():
@@ -202,7 +194,7 @@ class DTCommand(DTCommandAbs):
         if 'ServerErrors' in epoint:
             dtslogger.error('\n'.join(epoint['ServerErrors']))
             return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        epoint['MemTotal'] = human_size(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # pick the right architecture if not set
         if parsed.arch is None:
@@ -350,9 +342,12 @@ class DTCommand(DTCommandAbs):
                 line = _build_line(line)
                 if not line:
                     continue
-                sys.stdout.write(line)
+                try:
+                    sys.stdout.write(line)
+                    buildlog.append(line)
+                except UnicodeEncodeError:
+                    pass
                 sys.stdout.flush()
-                buildlog.append(line)
 
         except APIError as e:
             dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
@@ -463,14 +458,6 @@ def _build_line(line):
         line += '\n'
     # ---
     return line
-
-
-def _sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
-        if abs(num) < 1024.0:
-            return "%3.2f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.2f%s%s" % (num, 'Yi', suffix)
 
 
 def _add_token_to_docker_config(token):

@@ -7,8 +7,16 @@ from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
+from utils.misc_utils import human_size
 
 LAUNCHER_FMT = 'dt-launcher-%s'
+
+DEFAULT_MOUNTS = [
+    '/var/run/avahi-daemon/socket',
+    '/data'
+]
+
+DEFAULT_NETWORK_MODE = 'host'
 
 
 class DTCommand(DTCommandAbs):
@@ -81,9 +89,21 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
         # get the module configuration
         module_configuration_args = []
+        # apply default module configuration
+        module_configuration_args.append(f'--net={DEFAULT_NETWORK_MODE}')
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
+        # add default mount points
+        for mountpoint in DEFAULT_MOUNTS:
+            if parsed.machine == DEFAULT_MACHINE:
+                # we are running locally, check if the mountpoint exists
+                if not os.path.exists(mountpoint):
+                    dtslogger.warning(f"The mountpoint '{mountpoint}' does not exist. "
+                                      f"This can create issues inside the container.")
+                    continue
+            mount_option += ['-v', '{:s}:{:s}'.format(mountpoint, mountpoint)]
+        # mount source code (if requested)
         if mount_code:
             projects_to_mount = [parsed.workdir] if parsed.mount is True else []
             # (always) mount current project
@@ -141,7 +161,7 @@ class DTCommand(DTCommandAbs):
         if 'ServerErrors' in epoint:
             dtslogger.error('\n'.join(epoint['ServerErrors']))
             return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        epoint['MemTotal'] = human_size(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # print info about multiarch
         msg = 'Running an image for {} on {}.'.format(parsed.arch, epoint['Architecture'])
@@ -257,11 +277,3 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
         except subprocess.CalledProcessError as e:
             if not suppress_errors:
                 raise e
-
-
-def _sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
-        if abs(num) < 1024.0:
-            return "%3.2f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.2f%s%s" % (num, 'Yi', suffix)

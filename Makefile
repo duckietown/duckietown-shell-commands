@@ -11,7 +11,4 @@ bump:
 upload:
 	git push --tags
 	git push
-#	rm -f dist/*
-#	python setup.py sdist
-#	twine upload dist/*
 
