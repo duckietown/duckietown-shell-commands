@@ -72,35 +72,48 @@ Calibrate:
         env = default_env(hostname, duckiebot_ip)
 
         pull_if_not_exist(duckiebot_client, image)
-
-        duckiebot_client.containers.run(
-            image=image,
-            name=calibration_container_name,
-            privileged=True,
-            network_mode="host",
-            volumes=bind_duckiebot_data_dir(),
-            command="/bin/bash -c '%s'" % start_command,
-            environment=env,
-        )
-
-        if not parsed_args.no_verification:
-            raw_input(
-                "{}\nPlace the Duckiebot in a lane and press ENTER.".format("*" * 20)
-            )
-            log_file = "out-pipeline-%s-%s" % (hostname, timestamp)
-            rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
-            ros_pkg = "complete_image_pipeline single_image_pipeline"
-            start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
-            dtslogger.info("Running command: {}".format(start_command))
-
-            pull_if_not_exist(duckiebot_client, image)
-
+        zuperProblem = "returned non-zero exit status 2"
+        zuperProblemKey = "INFO:zuper-commons:"
+        try:
             duckiebot_client.containers.run(
                 image=image,
-                name=validation_container_name,
+                name=calibration_container_name,
                 privileged=True,
                 network_mode="host",
                 volumes=bind_duckiebot_data_dir(),
                 command="/bin/bash -c '%s'" % start_command,
                 environment=env,
             )
+        except Exception as e:
+            if (zuperProblem in str(e)) and (zuperProblemKey in str(e)):
+                dtslogger.info("Zuper issue captured! Ignoring!")
+                pass
+            else:
+                dtslogger.error("Fatal error occured: "+str(e))
+        if not parsed_args.no_verification:
+            raw_input(
+                "{}\nPlace the Duckiebot in a lane and press ENTER.".format("*" * 20)
+            )
+            log_file = "out-pipeline-%s-%s" % (hostname, timestamp)
+            rosrun_params = "-o /data/config/calibrations/camera_extrinsic/{0} > /data/config/calibrations/camera_extrinsic/{0}.log".format(log_file)
+            ros_pkg = "complete_image_pipeline single_image_pipeline"
+            start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
+            dtslogger.info("Running command: {}".format(start_command))
+
+            pull_if_not_exist(duckiebot_client, image)
+            try:
+                duckiebot_client.containers.run(
+                    image=image,
+                    name=validation_container_name,
+                    privileged=True,
+                    network_mode="host",
+                    volumes=bind_duckiebot_data_dir(),
+                    command="/bin/bash -c '%s'" % start_command,
+                    environment=env,
+                )
+            except Exception as e:
+                if zuperProblem in str(e):
+                    dtslogger.info("Zuper issue captured! Ignoring!")
+                    pass
+                else:
+                    dtslogger.error("Fatal error occured: "+str(e))
