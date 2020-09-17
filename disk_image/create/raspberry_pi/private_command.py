@@ -18,16 +18,14 @@ from datetime import datetime
 from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
 
-from disk_image.create.constants import (
-    PARTITION_MOUNTPOINT,
-    FILE_PLACEHOLDER_SIGNATURE,
-    TMP_WORKDIR,
-    DISK_IMAGE_STATS_LOCATION,
-    DOCKER_IMAGE_TEMPLATE,
-    APT_PACKAGES_TO_INSTALL,
-    MODULES_TO_LOAD,
-    DATA_STORAGE_DISK_IMAGE_DIR,
-)
+from disk_image.create.constants import \
+    PARTITION_MOUNTPOINT, \
+    FILE_PLACEHOLDER_SIGNATURE, \
+    TMP_WORKDIR, \
+    DISK_IMAGE_STATS_LOCATION, \
+    DOCKER_IMAGE_TEMPLATE, \
+    MODULES_TO_LOAD, \
+    DATA_STORAGE_DISK_IMAGE_DIR
 
 from disk_image.create.utils import (
     VirtualSDCard,
@@ -71,6 +69,9 @@ SUPPORTED_STEPS = [
     "compress",
 ]
 
+APT_PACKAGES_TO_INSTALL = [
+    'rsync',
+]
 
 class DTCommand(DTCommandAbs):
 

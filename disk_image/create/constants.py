@@ -9,8 +9,6 @@ DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None: f"{owner}/
     (f"{version}-%s" % DEVICE_ARCH) if tag is None else tag
 )
 
-APT_PACKAGES_TO_INSTALL = ["rsync"]
-
 MODULES_TO_LOAD = [
     {"owner": "portainer", "module": "portainer", "tag": "linux-arm"},
     {"owner": "duckietown", "module": "dt-base-environment"},

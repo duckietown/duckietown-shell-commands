@@ -18,16 +18,14 @@ from datetime import datetime
 from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
 
-from disk_image.create.constants import (
-    PARTITION_MOUNTPOINT,
-    FILE_PLACEHOLDER_SIGNATURE,
-    TMP_WORKDIR,
-    DISK_IMAGE_STATS_LOCATION,
-    DOCKER_IMAGE_TEMPLATE,
-    APT_PACKAGES_TO_INSTALL,
-    MODULES_TO_LOAD,
-    DATA_STORAGE_DISK_IMAGE_DIR,
-)
+from disk_image.create.constants import \
+    PARTITION_MOUNTPOINT, \
+    FILE_PLACEHOLDER_SIGNATURE, \
+    TMP_WORKDIR, \
+    DISK_IMAGE_STATS_LOCATION, \
+    DOCKER_IMAGE_TEMPLATE, \
+    MODULES_TO_LOAD, \
+    DATA_STORAGE_DISK_IMAGE_DIR
 
 from disk_image.create.utils import (
     VirtualSDCard,
@@ -88,6 +86,14 @@ SUPPORTED_STEPS = [
     "finalize",
     "unmount",
     "compress",
+]
+
+APT_PACKAGES_TO_INSTALL = [
+    'rsync',
+    'dkms',  # needed for Jetson WiFi drivers
+    'docker-compose',
+    # 'v4l2loopback-dkms',
+    'v4l2loopback-utils'
 ]
 
 
@@ -576,6 +582,32 @@ class DTCommand(DTCommandAbs):
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
+                        # clone the wifi driver source
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "git clone https://github.com/duckietown/rtl88x2bu.git /usr/src/rtl88x2bu-5.6.1"
+                        )
+                        # setup the camera pipeline
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "mkdir -p /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9/v4l2loopback &&"
+                            "git clone https://github.com/duckietown/v4l2loopback.git /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9/v4l2loopback"
+                        )
+                        # setup services
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "ln "
+                            "-s "
+                            "/etc/systemd/system/dt_init.service "
+                            "/etc/systemd/system/multi-user.target.wants/dt_init.service"
+                        )
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "ln "
+                            "-s "
+                            "/etc/systemd/system/gstpipeline.service "
+                            "/etc/systemd/system/multi-user.target.wants/gstpipeline.service"
+                        )
                     except Exception as e:
                         raise e
                     # unomunt bind /dev

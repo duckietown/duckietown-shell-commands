@@ -1,0 +1,9 @@
+[Unit]
+Description=This script setups the robot on boot
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/bin/dt_init.sh
+
+[Install]
+WantedBy=multi-user.target
