@@ -12,6 +12,7 @@ from dt_shell.env_checks import get_dockerhub_username
 from dt_shell.exceptions import UserError
 from dt_shell.utils import indent
 from duckietown_challenges import read_yaml_file
+from duckietown_challenges.utils import tag_from_date
 from duckietown_challenges.challenge import ChallengeDescription, ChallengesConstants
 from duckietown_challenges.cmd_submit_build import (
     BuildResult,
@@ -149,7 +150,6 @@ def go(token: str, impersonate: Optional[int], parsed, challenge: ChallengeDescr
     ieso = IESO(with_schema=False)
     ipce = ipce_from_object(challenge, ChallengeDescription, ieso=ieso)
     data2 = yaml.dump(ipce)
-    # data2 = yaml.dump(challenge.as_dict())
     res = dtserver_challenge_define(
         token, data2, parsed.force_invalidate_subs, impersonate=impersonate
     )
@@ -179,12 +179,13 @@ def build_image(
 ) -> BuildResult:
     d = datetime.datetime.now()
     username = get_dockerhub_username()
-    from duckietown_challenges.utils import tag_from_date
+
 
     if username.lower() != username:
         msg = f'Are you sure that the DockerHub username is not lowercase? You gave "{username}".'
         dtslogger.warning(msg)
         username = username.lower()
+
     br = BuildResult(
         repository=("%s-%s-%s" % (challenge_name, step_name, service_name)).lower(),
         organization=username,
@@ -199,6 +200,24 @@ def build_image(
         cmd.append("--pull")
 
     cmd.extend(["-t", complete, "-f", filename])
+    #
+    # build_options = \
+    #     --build - arg
+    # AIDO_REGISTRY =$(AIDO_REGISTRY) \
+    #                 - -build - arg
+    # PIP_INDEX_URL =$(PIP_INDEX_URL)
+
+    with open(filename) as f:
+        contents =f.read()
+    env_vars = ['AIDO_REGISTRY', 'PIP_INDEX_URL']
+    for v in env_vars:
+        if v not in contents:
+            continue
+        val = os.getenv(v)
+        if val is not None:
+            cmd.append('--build-arg')
+            cmd.append(f'{v}={val}')
+
 
     if no_cache:
         cmd.append("--no-cache")
