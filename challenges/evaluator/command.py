@@ -220,7 +220,7 @@ class DTCommand(DTCommandAbs):
 
         image = parsed.image
         dtslogger.info("Using evaluator image %s" % image)
-        name, tag = image.split(":")
+        name, _, tag = image.rpartition(":")
         if not parsed.no_pull:
             dtslogger.info("Updating container %s" % image)
             make_sure_image_pulled(client, name, tag)
