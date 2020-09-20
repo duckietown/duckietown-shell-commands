@@ -25,7 +25,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to run"
         )
         parser.add_argument(
             "-a",
@@ -40,10 +43,22 @@ class DTCommand(DTCommandAbs):
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname where to run the image",
         )
-        parser.add_argument("-n", "--name", default=None, help="Name of the container")
-        parser.add_argument("--cmd", default=None, help="Command to run in the Docker container")
         parser.add_argument(
-            "--pull", default=False, action="store_true", help="Whether to pull the image of the project"
+            "-n",
+            "--name",
+            default=None,
+            help="Name of the container"
+        )
+        parser.add_argument(
+            "--cmd",
+            default=None,
+            help="Command to run in the Docker container"
+        )
+        parser.add_argument(
+            "--pull",
+            default=False,
+            action="store_true",
+            help="Whether to pull the image of the project"
         )
         parser.add_argument(
             "--force-pull",
@@ -52,7 +67,10 @@ class DTCommand(DTCommandAbs):
             help="Whether to force pull the image of the project",
         )
         parser.add_argument(
-            "--build", default=False, action="store_true", help="Whether to build the image of the project"
+            "--build",
+            default=False,
+            action="store_true",
+            help="Whether to build the image of the project"
         )
         parser.add_argument(
             "--plain",
@@ -91,13 +109,22 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username that owns the Docker image",
         )
         parser.add_argument(
-            "--rm", default=True, action="store_true", help="Whether to remove the container once done"
+            "--rm",
+            default=True,
+            action="store_true",
+            help="Whether to remove the container once done"
         )
         parser.add_argument(
-            "--launcher", default=None, help="Launcher to invoke inside the container (template v2 or newer)"
+            "-L",
+            "--launcher",
+            default=None,
+            help="Launcher to invoke inside the container (template v2 or newer)"
         )
         parser.add_argument(
-            "--loop", default=False, action="store_true", help="(Experimental) Whether to run the LOOP image"
+            "--loop",
+            default=False,
+            action="store_true",
+            help="(Experimental) Whether to run the LOOP image"
         )
         parser.add_argument(
             "-A",
@@ -108,7 +135,10 @@ class DTCommand(DTCommandAbs):
             help="Arguments for the container command",
         )
         parser.add_argument(
-            "--runtime", default="docker", type=str, help="Docker runtime to use to run the container"
+            "--runtime",
+            default="docker",
+            type=str,
+            help="Docker runtime to use to run the container"
         )
         parser.add_argument(
             "-X",
