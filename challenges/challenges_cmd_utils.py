@@ -16,7 +16,7 @@ def check_duckietown_challenges_version():
         raise UserError(msg)
 
     version = tuple(map(int, __version__.split(".")))
-    required = (6, 0, 13)
+    required = (6, 0, 4)
 
     # dtslogger.info(f'Detected duckietown-challenges {__version__} ')
 

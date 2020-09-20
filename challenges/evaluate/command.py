@@ -8,7 +8,7 @@ import socket
 
 import yaml
 
-from challenges import check_duckietown_challenges_version
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment

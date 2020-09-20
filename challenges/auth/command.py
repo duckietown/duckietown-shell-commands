@@ -2,7 +2,7 @@ import argparse
 import json
 from typing import List
 
-from challenges import check_duckietown_challenges_version, wrap_server_operations
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell
 
 

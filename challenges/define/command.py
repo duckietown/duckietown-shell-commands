@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from challenges import check_duckietown_challenges_version, wrap_server_operations
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 
 from dt_shell.env_checks import check_docker_environment
