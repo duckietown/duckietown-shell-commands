@@ -7,12 +7,12 @@ import time
 import traceback
 from os.path import expanduser
 
+import docker
 import six
 
-import docker
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import start_command_in_subprocess, ProgressBar
+from utils.cli_utils import ProgressBar, start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
@@ -21,9 +21,9 @@ RPI_DUCKIEBOT_CALIBRATION = "duckietown/rpi-duckiebot-calibration:master18"
 RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
-DEFAULT_DOCKER_TCP_PORT = '2375'
+DEFAULT_DOCKER_TCP_PORT = "2375"
 
-DEFAULT_MACHINE = 'unix:///var/run/docker.sock'
+DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -38,33 +38,40 @@ Docker Endpoint:
 
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     from utils.dtproject_utils import CANONICAL_ARCH
-    client = docker.from_env() if hostname is None else \
-        docker.DockerClient(base_url=sanitize_docker_baseurl(hostname, port))
-    epoint_arch = client.info()['Architecture']
+
+    client = (
+        docker.from_env()
+        if hostname is None
+        else docker.DockerClient(base_url=sanitize_docker_baseurl(hostname, port))
+    )
+    epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
-        dtslogger.error(f'Architecture {epoint_arch} not supported!')
+        dtslogger.error(f"Architecture {epoint_arch} not supported!")
         exit(1)
     return CANONICAL_ARCH[epoint_arch]
 
 
 def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
-    if baseurl.startswith('unix:'):
+    if baseurl.startswith("unix:"):
         return baseurl
-    elif baseurl.startswith('tcp://'):
+    elif baseurl.startswith("tcp://"):
         return baseurl
     else:
-        return f'tcp://{baseurl}:{port}'
+        return f"tcp://{baseurl}:{port}"
 
 
 def get_client(endpoint=None):
     if endpoint is None:
         return docker.from_env()
-    return endpoint if isinstance(endpoint, docker.DockerClient) else \
-        docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+    return (
+        endpoint
+        if isinstance(endpoint, docker.DockerClient)
+        else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+    )
 
 
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
-    return docker.DockerClient(base_url=f'tcp://{duckiebot_ip}:{port}')
+    return docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
 
 
 def pull_image(image, endpoint=None, progress=True):
@@ -73,11 +80,11 @@ def pull_image(image, endpoint=None, progress=True):
     pulled = set()
     pbar = ProgressBar() if progress else None
     for line in client.api.pull(image, stream=True, decode=True):
-        if 'id' not in line or 'status' not in line:
+        if "id" not in line or "status" not in line:
             continue
-        layer_id = line['id']
+        layer_id = line["id"]
         layers.add(layer_id)
-        if line['status'] in ['Already exists', 'Pull complete']:
+        if line["status"] in ["Already exists", "Pull complete"]:
             pulled.add(layer_id)
         # update progress bar
         if progress:
@@ -92,12 +99,12 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
     layers = set()
     pushed = set()
     pbar = ProgressBar() if progress else None
-    for line in client.api.push(*image.split(':'), stream=True, decode=True, **kwargs):
-        if 'id' not in line or 'status' not in line:
+    for line in client.api.push(*image.split(":"), stream=True, decode=True, **kwargs):
+        if "id" not in line or "status" not in line:
             continue
-        layer_id = line['id']
+        layer_id = line["id"]
         layers.add(layer_id)
-        if line['status'] in ['Layer already exists', 'Pushed']:
+        if line["status"] in ["Layer already exists", "Pushed"]:
             pushed.add(layer_id)
         # update progress bar
         if progress:
@@ -107,10 +114,8 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
         pbar.done()
 
 
-
-
-
 # Everything after this point needs to be checked
+
 
 def continuously_monitor(client, container_name):
     from docker.errors import NotFound, APIError
@@ -133,9 +138,7 @@ def continuously_monitor(client, container_name):
             msg = "The container exited."
 
             logs = ""
-            for c in container.logs(
-                stdout=True, stderr=True, stream=True, since=last_log_timestamp
-            ):
+            for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
                 last_log_timestamp = datetime.datetime.now()
                 logs += c.decode("utf-8")
             dtslogger.error(msg)
@@ -151,11 +154,7 @@ def continuously_monitor(client, container_name):
             return  # XXX
         try:
             for c in container.logs(
-                stdout=True,
-                stderr=True,
-                stream=True,
-                follow=True,
-                since=last_log_timestamp,
+                stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp,
             ):
                 if six.PY2 or (type(c) is str):
                     sys.stdout.write(c)
@@ -187,10 +186,7 @@ def continuously_monitor(client, container_name):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (
-        image_name,
-        hostname,
-    )
+    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (image_name, hostname,)
     subprocess.check_output(["/bin/sh", "-c", command])
 
 
@@ -241,8 +237,7 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
         return duckiebot_client.containers.run(**params)
     else:
         dtslogger.warn(
-            "Container with image %s is already running on %s, skipping..."
-            % (image_name, duckiebot_name)
+            "Container with image %s is already running on %s, skipping..." % (image_name, duckiebot_name)
         )
 
 
@@ -275,9 +270,7 @@ def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
     container_name = "evaluator"
     try:
         container = duckiebot_client.containers.get(container_name)
-        dtslogger.info(
-            "slim remote already running on %s, restarting..." % duckiebot_name
-        )
+        dtslogger.info("slim remote already running on %s, restarting..." % duckiebot_name)
         stop_container(container)
         remove_container(container)
     except Exception as e:
@@ -313,9 +306,7 @@ def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None,
     except Exception as e:
         dtslogger.warn("coulgn't remove existing container: %s" % e)
 
-    dtslogger.info(
-        "Running %s on localhost with environment vars: %s" % (image_name, env_vars)
-    )
+    dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
 
     params = {
         "image": image_name,
@@ -342,8 +333,7 @@ def start_picamera(duckiebot_name):
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
     dtslogger.info(
-        "Running %s on %s with environment vars: %s"
-        % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars)
+        "Running %s on %s with environment vars: %s" % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars)
     )
 
     return duckiebot_client.containers.run(
@@ -379,9 +369,7 @@ def remove_if_running(client, container_name):
 
 def start_rqt_image_view(duckiebot_name=None):
     dtslogger.info(
-        """{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format(
-            "*" * 20
-        )
+        """{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format("*" * 20)
     )
     local_client = check_docker_environment()
 
@@ -398,18 +386,12 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["DISPLAY"] = ":0"
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            [
-                "/bin/sh",
-                "-c",
-                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
-            ]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
 
-    dtslogger.info(
-        "Running %s on localhost with environment vars: %s" % (RPI_GUI_TOOLS, env_vars)
-    )
+    dtslogger.info("Running %s on localhost with environment vars: %s" % (RPI_GUI_TOOLS, env_vars))
 
     return local_client.containers.run(
         image=RPI_GUI_TOOLS,
@@ -446,11 +428,7 @@ def start_gui_tools(duckiebot_name):
         )
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            [
-                "/bin/sh",
-                "-c",
-                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
-            ]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -469,10 +447,7 @@ def start_gui_tools(duckiebot_name):
 def attach_terminal(container_name, hostname=None):
     if hostname is not None:
         duckiebot_ip = get_duckiebot_ip(hostname)
-        docker_attach_command = "docker -H %s:2375 attach %s" % (
-            duckiebot_ip,
-            container_name,
-        )
+        docker_attach_command = "docker -H %s:2375 attach %s" % (duckiebot_ip, container_name,)
     else:
         docker_attach_command = "docker attach %s" % container_name
     return start_command_in_subprocess(docker_attach_command, os.environ)
@@ -508,38 +483,36 @@ def pull_if_not_exist(client, image_name):
     except ImageNotFound:
         dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
 
-        repository = image_name.split(':')[0]
+        repository = image_name.split(":")[0]
         try:
-            tag = image_name.split(':')[1]
+            tag = image_name.split(":")[1]
         except IndexError:
-            tag = 'latest'
+            tag = "latest"
 
-        loader = 'Downloading .'
+        loader = "Downloading ."
         for _ in client.api.pull(repository, tag, stream=True, decode=True):
-            loader += '.'
-            if len(loader)>40:
-                print(' '*60, end='\r', flush=True)
-                loader = 'Downloading .'
-            print(loader, end='\r', flush=True)
+            loader += "."
+            if len(loader) > 40:
+                print(" " * 60, end="\r", flush=True)
+                loader = "Downloading ."
+            print(loader, end="\r", flush=True)
+
 
 def build_if_not_exist(client, image_path, tag):
-    from docker.api import build
-    from docker.errors import ImageNotFound, BuildError
+    from docker.errors import BuildError
     import json
 
     try:
-        #loader = 'Building .'
+        # loader = 'Building .'
         for line in client.api.build(
-            path = image_path, nocache=True, 
-            rm=True,
-            tag=tag, 
-            dockerfile=image_path+"/Dockerfile"):
-            try :
-                sys.stdout.write(json.loads(line.decode("utf-8"))['stream'])
+            path=image_path, nocache=True, rm=True, tag=tag, dockerfile=image_path + "/Dockerfile"
+        ):
+            try:
+                sys.stdout.write(json.loads(line.decode("utf-8"))["stream"])
             except Exception:
                 pass
     except BuildError as e:
-        print('Unable to build, reason: {} '.format(str(e)))
+        print("Unable to build, reason: {} ".format(str(e)))
 
 
 def build_logs_to_string(build_logs):
@@ -557,6 +530,6 @@ def build_logs_to_string(build_logs):
     s = ""
     for l in build_logs:
         for k, v in l.items():
-            if k == 'stream':
-                s+=str(v)
+            if k == "stream":
+                s += str(v)
     return s

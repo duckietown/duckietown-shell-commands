@@ -16,16 +16,10 @@ class DTCommand(DTCommandAbs):
     def _parse_args(args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to clean",
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to clean",
         )
         parser.add_argument(
-            "-a",
-            "--arch",
-            default=None,
-            help="Target architecture for the image to clean",
+            "-a", "--arch", default=None, help="Target architecture for the image to clean",
         )
         parser.add_argument(
             "-H",
@@ -39,8 +33,8 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._parse_args(args)
-        if 'parsed' in kwargs:
-            parsed.__dict__.update(kwargs['parsed'].__dict__)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         # show info about project
@@ -49,7 +43,7 @@ class DTCommand(DTCommandAbs):
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
-            dtslogger.info(f'Target architecture automatically set to {parsed.arch}.')
+            dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
         images = [project.image(parsed.arch)]
         # clean release version
@@ -57,18 +51,15 @@ class DTCommand(DTCommandAbs):
             images.append(project.image_release(parsed.arch))
         # remove images
         for image in images:
-            img = _run_cmd(
-                ["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True
-            )
+            img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)
             if img:
                 dtslogger.info("Removing image {}...".format(image))
                 try:
                     _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", image])
                 except RuntimeError:
                     dtslogger.warn(
-                        "We had some issues removing the image '{:s}' on '{:s}'".format(
-                            image, parsed.machine
-                        ) + ". Just a heads up!"
+                        "We had some issues removing the image '{:s}' on '{:s}'".format(image, parsed.machine)
+                        + ". Just a heads up!"
                     )
 
     @staticmethod

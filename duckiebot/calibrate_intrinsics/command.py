@@ -11,9 +11,9 @@ from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not
 from utils.networking_utils import get_duckiebot_ip
 
 
-ARCH='amd64'
-BRANCH='daffy'
-DEFAULT_IMAGE = 'duckietown/dt-gui-tools:'+BRANCH+'-'+ARCH
+ARCH = "amd64"
+BRANCH = "daffy"
+DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
 
 
 class DTCommand(DTCommandAbs):
@@ -28,21 +28,12 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "hostname",
-            default=None,
-            help="Name of the Duckiebot to calibrate"
+            "--base_image", dest="image", default=DEFAULT_IMAGE,
         )
         parser.add_argument(
-            "--base_image",
-            dest="image",
-            default=DEFAULT_IMAGE,
-        )
-        parser.add_argument(
-            "--debug",
-            action="store_true",
-            default=False,
-            help="Will enter you into the running container",
+            "--debug", action="store_true", default=False, help="Will enter you into the running container",
         )
 
         parsed = parser.parse_args(args)
@@ -57,9 +48,7 @@ Calibrate:
                 if "duckiebot-interface" in c.name:
                     interface_container_found = True
             if not interface_container_found:
-                dtslogger.error(
-                    "The  duckiebot-interface is not running on the Duckiebot"
-                )
+                dtslogger.error("The  duckiebot-interface is not running on the Duckiebot")
                 exit()
         except Exception as e:
             dtslogger.warn(
@@ -78,29 +67,19 @@ Calibrate:
         subprocess.call(["xhost", "+"])
 
         if "darwin" in platform.system().lower():
-            env.update({
-                "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
-                "ROS_MASTER": parsed.hostname,
-                "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip
-            })
-            volumes = {
-                "/tmp/.X11-unix": {
-                    "bind": "/tmp/.X11-unix",
-                    "mode": "rw"
+            env.update(
+                {
+                    "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
+                    "ROS_MASTER": parsed.hostname,
+                    "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
                 }
-            }
+            )
+            volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
         else:
             env["DISPLAY"] = os.environ["DISPLAY"]
-            volumes = {
-                "/var/run/avahi-daemon/socket": {
-                    "bind": "/var/run/avahi-daemon/socket",
-                    "mode": "rw"
-                }
-            }
+            volumes = {"/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}}
 
-        dtslogger.info(
-            "Running %s on localhost with environment vars: %s" % (container_name, env)
-        )
+        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
 
         dtslogger.info(
             "When the window opens you will need to move the checkerboard around "
@@ -118,7 +97,7 @@ Calibrate:
             "detach": True,
             "remove": True,
             "auto_remove": True,
-            "command": 'dt-launcher-intrinsic-calibration',
+            "command": "dt-launcher-intrinsic-calibration",
             "volumes": volumes,
         }
 

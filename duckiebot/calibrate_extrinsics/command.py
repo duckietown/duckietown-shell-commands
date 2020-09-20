@@ -27,13 +27,9 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
-        )
-        parser.add_argument(
-            "--base_image",
-            dest="image",
-            default="duckietown/dt-core:daffy-arm32v7",
+            "--base_image", dest="image", default="duckietown/dt-core:daffy-arm32v7",
         )
         parser.add_argument(
             "--no_verification",
@@ -58,11 +54,7 @@ Calibrate:
 
         timestamp = datetime.date.today().strftime("%Y%m%d%H%M%S")
 
-        raw_input(
-            "{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format(
-                "*" * 20
-            )
-        )
+        raw_input("{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format("*" * 20))
         log_file = "out-calibrate-extrinsics-%s-%s" % (hostname, timestamp)
         rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
         ros_pkg = "complete_image_pipeline calibrate_extrinsics"
@@ -84,9 +76,7 @@ Calibrate:
         )
 
         if not parsed_args.no_verification:
-            raw_input(
-                "{}\nPlace the Duckiebot in a lane and press ENTER.".format("*" * 20)
-            )
+            raw_input("{}\nPlace the Duckiebot in a lane and press ENTER.".format("*" * 20))
             log_file = "out-pipeline-%s-%s" % (hostname, timestamp)
             rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
             ros_pkg = "complete_image_pipeline single_image_pipeline"

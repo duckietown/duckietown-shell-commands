@@ -21,12 +21,13 @@ usage = """
         $ dts duckiebot demo --demo_name [DEMO_NAME] --duckiebot_name [DUCKIEBOT_NAME]
 
 """
-ARCH='arm32v7'
-BRANCH='daffy'
-DEFAULT_IMAGE = 'duckietown/dt-core:'+BRANCH+'-'+ARCH
-EXPERIMENTAL_IMAGE = 'duckietown/dt-experimental:'+BRANCH+'-'+ARCH
-DEFAULT_PACKAGE = 'duckietown_demos'
-EXPERIMENTAL_PACKAGE = 'experimental_demos'
+ARCH = "arm32v7"
+BRANCH = "daffy"
+DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
+EXPERIMENTAL_IMAGE = "duckietown/dt-experimental:" + BRANCH + "-" + ARCH
+DEFAULT_PACKAGE = "duckietown_demos"
+EXPERIMENTAL_PACKAGE = "experimental_demos"
+
 
 class InvalidUserInput(Exception):
     pass
@@ -42,35 +43,36 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "--demo_name", '-d',
-            dest="demo_name",
-            default=None,
-            help="Name of the demo to run",
+            "--demo_name", "-d", dest="demo_name", default=None, help="Name of the demo to run",
         )
 
         parser.add_argument(
-            "--duckiebot_name", '-b',
+            "--duckiebot_name",
+            "-b",
             dest="duckiebot_name",
             default=None,
             help="Name of the Duckiebot on which to run the demo",
         )
 
         parser.add_argument(
-            "--package_name", '-p',
+            "--package_name",
+            "-p",
             dest="package_name",
             default=DEFAULT_PACKAGE,
             help="You can specify the package that you want to use to look for launch files",
         )
 
         parser.add_argument(
-            "--image", '-i',
+            "--image",
+            "-i",
             dest="image_to_run",
             default=DEFAULT_IMAGE,
             help="Docker image to use, you probably don't need to change ",
         )
 
         parser.add_argument(
-            "--debug", '-g',
+            "--debug",
+            "-g",
             dest="debug",
             action="store_true",
             default=False,
@@ -78,17 +80,19 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--experimental", '-e',
+            "--experimental",
+            "-e",
             dest="experimental",
             action="store_true",
             default=False,
-            help='you can use this if your demo is in the `experimental` repo. ' \
-            + 'It will pick the image from the experimental repo and it will' \
-            + 'default the package name to experimental_demos',
+            help="you can use this if your demo is in the `experimental` repo. "
+            + "It will pick the image from the experimental repo and it will"
+            + "default the package name to experimental_demos",
         )
 
         parser.add_argument(
-            "--local", '-l',
+            "--local",
+            "-l",
             dest="local",
             action="store_true",
             default=False,
@@ -132,19 +136,12 @@ class DTCommand(DTCommandAbs):
         remove_if_running(duckiebot_client, container_name)
         image_base = parsed.image_to_run
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({
-            "VEHICLE_NAME": duckiebot_name,
-            "VEHICLE_IP": duckiebot_ip
-        })
+        env_vars.update({"VEHICLE_NAME": duckiebot_name, "VEHICLE_IP": duckiebot_ip})
 
         if demo_name == "base":
             cmd = "/bin/bash"
         else:
-            cmd = "roslaunch %s %s.launch veh:=%s" % (
-                package_name,
-                demo_name,
-                duckiebot_name,
-            )
+            cmd = "roslaunch %s %s.launch veh:=%s" % (package_name, demo_name, duckiebot_name,)
 
         pull_if_not_exist(duckiebot_client, image_base)
 
@@ -165,8 +162,5 @@ class DTCommand(DTCommandAbs):
         )
 
         if demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s.local attach %s" % (
-                duckiebot_name,
-                container_name,
-            )
+            attach_cmd = "docker -H %s.local attach %s" % (duckiebot_name, container_name,)
             start_command_in_subprocess(attach_cmd)

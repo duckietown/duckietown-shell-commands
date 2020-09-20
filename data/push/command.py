@@ -9,17 +9,14 @@ from utils.misc_utils import human_size
 from dt_data_api import DataClient, TransferStatus
 
 
-VALID_SPACES = [
-    'public',
-    'private'
-]
+VALID_SPACES = ["public", "private"]
 
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Uploads a file to the Duckietown Cloud Storage space'
+    help = "Uploads a file to the Duckietown Cloud Storage space"
 
-    usage = '''
+    usage = """
 Usage:
 
     dts data push --space <space> <file> <object>
@@ -29,35 +26,27 @@ OR
     dts data push <file> [<space>:]<object>
     
 Where <space> can be one of [public, private].
-'''
+"""
 
     @staticmethod
     def _parse_args(args):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            '-S',
-            '--space',
+            "-S",
+            "--space",
             default=None,
             choices=VALID_SPACES,
-            help="Storage space the object should be uploaded to"
+            help="Storage space the object should be uploaded to",
         )
-        parser.add_argument(
-            'file',
-            nargs=1,
-            help="File to upload"
-        )
-        parser.add_argument(
-            'object',
-            nargs=1,
-            help="Destination path of the object"
-        )
+        parser.add_argument("file", nargs=1, help="File to upload")
+        parser.add_argument("object", nargs=1, help="Destination path of the object")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
     @staticmethod
     def command(shell, args, **kwargs):
-        parsed = kwargs.get('parsed', None)
+        parsed = kwargs.get("parsed", None)
         if parsed is None:
             parsed = DTCommand._parse_args(args)
         # ---
@@ -66,26 +55,26 @@ Where <space> can be one of [public, private].
         # check arguments
         # use the format [space]:[object] as a short for
         #      --space [space] [object]
-        arg1, arg2, *acc = (parsed.object + ':_').split(':')
+        arg1, arg2, *acc = (parsed.object + ":_").split(":")
         # handle invalid formats
         if len(acc) > 1:
             dtslogger.error("Invalid format for argument 'object'.")
             print(DTCommand.usage)
             exit(1)
         # parse args
-        space, object_path = (arg1, arg2) if arg2 != '_' else (None, arg1)
+        space, object_path = (arg1, arg2) if arg2 != "_" else (None, arg1)
         # make sure that the space is given in at least one form
         if space is None and parsed.space is None:
-            dtslogger.error('You must specify a storage space for the object.')
+            dtslogger.error("You must specify a storage space for the object.")
             print(DTCommand.usage)
             exit(2)
         # make sure that at most one space is given
         if space is not None and parsed.space is not None:
-            dtslogger.error('You can specify at most one storage space for the object.')
+            dtslogger.error("You can specify at most one storage space for the object.")
             print(DTCommand.usage)
             exit(3)
         # validate space
-        if space is not None and space not in ['public', 'private']:
+        if space is not None and space not in ["public", "private"]:
             dtslogger.error("Storage space (short format) can be either 'public' or 'private'.")
             print(DTCommand.usage)
             exit(4)
@@ -115,9 +104,9 @@ Where <space> can be one of [public, private].
         def check_status(h):
             if h.status == TransferStatus.STOPPED:
                 print()
-                dtslogger.info('Stopping upload...')
+                dtslogger.info("Stopping upload...")
                 handler.abort(block=True)
-                dtslogger.info('Upload stopped!')
+                dtslogger.info("Upload stopped!")
                 exit(6)
             if h.status == TransferStatus.ERROR:
                 dtslogger.error(h.reason)
@@ -125,15 +114,15 @@ Where <space> can be one of [public, private].
 
         def cb(h):
             speed = human_size(h.progress.speed)
-            header = f'Uploading [{speed}/s] '
-            header = header + ' ' * max(0, 26 - len(header))
+            header = f"Uploading [{speed}/s] "
+            header = header + " " * max(0, 26 - len(header))
             pbar.set_header(header)
             pbar.update(h.progress.percentage)
             # check status
             check_status(h)
 
         # upload file
-        dtslogger.info(f'Uploading {parsed.file} -> [{parsed.space}]:{parsed.object}')
+        dtslogger.info(f"Uploading {parsed.file} -> [{parsed.space}]:{parsed.object}")
         handler = storage.upload(parsed.file, parsed.object)
         handler.register_callback(cb)
 
@@ -147,4 +136,4 @@ Where <space> can be one of [public, private].
         check_status(handler)
 
         # if we got here, the upload is completed
-        dtslogger.info('Upload completed!')
+        dtslogger.info("Upload completed!")

@@ -1,14 +1,11 @@
-from __future__ import unicode_literals
-
 import argparse
 import getpass
 import os
 import subprocess
 import sys
 
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment, InvalidEnvironment
-
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
@@ -99,11 +96,11 @@ class DTCommand(DTCommandAbs):
                '-e', 'COMPMAKE_COMMAND=rparmake',
                '-it', '-v', f'{pwd1}:/pwd{flag}', '--workdir', '/pwd', image]
 
-
         dtslogger.info('executing:\nls ' + " ".join(cmd))
 
         try:
-            p = subprocess.Popen(cmd, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None, preexec_fn=None,
+            p = subprocess.Popen(cmd, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None,
+                                 preexec_fn=None,
                                  shell=False, cwd=pwd, env=None)
         except OSError as e:
             if e.errno == 2:

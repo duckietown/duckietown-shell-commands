@@ -8,7 +8,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
         # call diff
-        shell.include.devel.template.diff.command(shell, args + ['--apply'])
+        shell.include.devel.template.diff.command(shell, args + ["--apply"])
 
     @staticmethod
     def complete(shell, word, line):

@@ -1,21 +1,17 @@
 import argparse
 
+# from git import Repo # pip install gitpython
+import os
+
 import docker
-from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, pull_if_not_exist, build_if_not_exist
-from utils.networking_utils import get_duckiebot_ip
-
-
 import nbformat  # install before?
+import yaml
 from IPython.nbconvert import PythonExporter
 
-#from git import Repo # pip install gitpython 
-import os
-from shutil import copyfile
-
-import yaml
+from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.env_checks import check_docker_environment
+from utils.docker_utils import build_if_not_exist, default_env, remove_if_running
+from utils.networking_utils import get_duckiebot_ip
 
 usage = """
 
@@ -29,7 +25,8 @@ usage = """
 
 """
 
-MOOC_IMAGE = 'duckietown/mooc-exercises:exercise'
+MOOC_IMAGE = "duckietown/mooc-exercises:exercise"
+
 
 class InvalidUserInput(Exception):
     pass
@@ -45,7 +42,8 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "--duckiebot_name", '-b',
+            "--duckiebot_name",
+            "-b",
             dest="duckiebot_name",
             default=None,
             help="Name of the Duckiebot on which to run the exercise",
@@ -54,7 +52,6 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
 
         check_docker_environment()
-
 
         #
         #   get duckiebot name
@@ -69,44 +66,44 @@ class DTCommand(DTCommandAbs):
         #   get current working directory to chek if it is an exercise directory
         #
         working_dir = os.getcwd()
-        if not os.path.exists(working_dir+"/mooc-exe.yaml"):
+        if not os.path.exists(working_dir + "/mooc-exe.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
-        
+
         #
         #   Use information in the mooc-exe file
         #
-        packages_path=""
-        image_tag=""
+        packages_path = ""
+        image_tag = ""
         cmd = ""
 
-        with open(working_dir+"/mooc-exe.yaml") as f:
+        with open(working_dir + "/mooc-exe.yaml") as f:
             try:
                 config_file = yaml.load(f, Loader=yaml.FullLoader)
 
                 #   packages path in the image directory
-                packages_path =  working_dir+"/mooc-image"+config_file['exercise']['packages_path']
-               
-                cmd = config_file['exercise']['docker_cmd_exe']+" veh:=%s" % (
-                    duckiebot_name,
-                )
-                image_tag = config_file['exercise']['image_tag']
+                packages_path = working_dir + "/mooc-image" + config_file["exercise"]["packages_path"]
 
-                dtslogger.info('Running exercise {} v.{} on {} ...'.format(config_file['exercise']['name'],config_file['exercise']['version'],duckiebot_name))
+                cmd = config_file["exercise"]["docker_cmd_exe"] + " veh:=%s" % (duckiebot_name,)
+                image_tag = config_file["exercise"]["image_tag"]
+
+                dtslogger.info(
+                    "Running exercise {} v.{} on {} ...".format(
+                        config_file["exercise"]["name"], config_file["exercise"]["version"], duckiebot_name
+                    )
+                )
             except:
                 msg = "The mooc-exe file is missing or is corrupted"
                 raise InvalidUserInput(msg)
-        
 
-        #if not cloneRepo(exercise_path):
+        # if not cloneRepo(exercise_path):
         #    raise Exception("Error in cloning the repo")
 
-
         # convert the notebook to py and copy into the Image
-        if not convertNotebook(working_dir+"/notebooks/exercise.ipynb",packages_path+"exercise.py"):
+        if not convertNotebook(working_dir + "/notebooks/exercise.ipynb", packages_path + "exercise.py"):
             raise Exception("Make sure the path to the exercise folder is correct ...")
         #
-        #   It would be great to have only one repo and then clone in it 
+        #   It would be great to have only one repo and then clone in it
         #   different packages according to a file present in the exercise folder
         #
 
@@ -118,20 +115,16 @@ class DTCommand(DTCommandAbs):
         duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
 
         remove_if_running(duckiebot_client, image_tag)
-        
+
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({
-            "VEHICLE_NAME": duckiebot_name,
-            "VEHICLE_IP": duckiebot_ip
-        })
+        env_vars.update({"VEHICLE_NAME": duckiebot_name, "VEHICLE_IP": duckiebot_ip})
 
-        build_if_not_exist(duckiebot_client,working_dir+"/mooc-image",'duckietown/'+image_tag)
+        build_if_not_exist(duckiebot_client, working_dir + "/mooc-image", "duckietown/" + image_tag)
 
-        
         dtslogger.info("Running command %s" % cmd)
         demo_container = duckiebot_client.containers.run(
-            volumes={'/data': {'bind': '/data', 'mode': 'rw'}},
-            image="duckietown/"+image_tag,
+            volumes={"/data": {"bind": "/data", "mode": "rw"}},
+            image="duckietown/" + image_tag,
             command=cmd,
             network_mode="host",
             privileged=True,
@@ -143,14 +136,14 @@ class DTCommand(DTCommandAbs):
             detach=True,
             environment=env_vars,
         )
-        
-        print("Process completed successfully!")
-    
 
-#def cloneRepo(full_path) -> bool:
+        print("Process completed successfully!")
+
+
+# def cloneRepo(full_path) -> bool:
 #    name = "mooc-exercises"
 #    team = "duckietown"
-#    
+#
 #    clone_path = os.path.abspath(os.path.join(full_path, name))
 #
 #    if os.path.exists(clone_path):
@@ -168,20 +161,20 @@ class DTCommand(DTCommandAbs):
 #
 #    return False
 
-def convertNotebook(filepath,export_path) -> bool:
+
+def convertNotebook(filepath, export_path) -> bool:
     if not os.path.exists(filepath):
         return False
-    nb = nbformat.read(filepath, as_version=4)    
+    nb = nbformat.read(filepath, as_version=4)
     exporter = PythonExporter()
 
     # source is a tuple of python source code
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
-    try :
-        with open(export_path, 'w+') as fh:
+    try:
+        with open(export_path, "w+") as fh:
             fh.writelines(source)
     except Exception:
         return False
-    
+
     return True
-    

@@ -22,9 +22,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "hostname",
-            default=None,
-            help="Name of the host where logs should be fetched",
+            "hostname", default=None, help="Name of the host where logs should be fetched",
         )
 
         parsed = parser.parse_args(args)

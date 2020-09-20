@@ -3,15 +3,16 @@ from contextlib import contextmanager
 from dt_shell import OtherVersions, UserError
 
 
-__all__ = ['wrap_server_operations', 'check_duckietown_challenges_version']
+__all__ = ["wrap_server_operations", "check_duckietown_challenges_version"]
+
 
 def check_duckietown_challenges_version():
-    PKG = 'duckietown-challenges-daffy'
+    PKG = "duckietown-challenges-daffy"
 
     try:
         from duckietown_challenges import __version__
     except ImportError:
-        msg = f'Package {PKG} not installed.'
+        msg = f"Package {PKG} not installed."
         raise UserError(msg)
 
     version = tuple(map(int, __version__.split(".")))
@@ -35,11 +36,10 @@ def check_duckietown_challenges_version():
         raise UserError(msg)
 
 
-
-
 @contextmanager
 def wrap_server_operations():
     from duckietown_challenges.rest import NotAuthorized, NotFound, ServerIsDown
+
     try:
         yield
     except ServerIsDown as e:

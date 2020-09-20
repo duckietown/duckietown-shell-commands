@@ -4,10 +4,7 @@ import dt_shell
 from dt_shell import dtslogger, UserError
 
 if sys.version_info < (3, 6):
-    msg = (
-        "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s."
-        % str(sys.version)
-    )
+    msg = "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s." % str(sys.version)
     raise UserError(msg)
 
 min_duckietown_shell = ".".join(["5", "1", "7"])
@@ -26,9 +23,7 @@ def check_compatible():
     dtslogger.info("duckietown-shell-commands %s" % duckietown_shell_commands_version)
     from dt_shell import OtherVersions
 
-    OtherVersions.name2versions[
-        "duckietown-shell-commands"
-    ] = duckietown_shell_commands_version
+    OtherVersions.name2versions["duckietown-shell-commands"] = duckietown_shell_commands_version
 
     vnow = parse_version(dt_shell.__version__)
     vneed = parse_version(min_duckietown_shell)
