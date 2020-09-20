@@ -155,7 +155,7 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
             if not suppress_errors:
                 msg = 'The command {} returned exit code {}'.format(cmd, proc.returncode)
                 dtslogger.error(msg)
-            raise RuntimeError(msg)
+                raise RuntimeError(msg)
         out = proc.stdout.read().decode('utf-8').rstrip()
         if print_output:
             print(out)
