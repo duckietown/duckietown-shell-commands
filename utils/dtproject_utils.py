@@ -10,6 +10,7 @@ import docker
 from docker.errors import APIError, ImageNotFound
 from types import SimpleNamespace
 
+from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 
 
@@ -237,32 +238,32 @@ class DTProject:
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
             msg = "The path '%s' does not appear to be a Duckietown project. " % (metafile)
-            msg += "The metadata file '.dtproject' is missing."
-            raise ValueError(msg)
+            msg += "\nThe metadata file '.dtproject' is missing."
+            raise UserError(msg)
         # load '.dtproject'
         with open(metafile, "rt") as metastream:
             metadata = metastream.readlines()
         # empty metadata?
         if not metadata:
             msg = "The metadata file '.dtproject' is empty."
-            raise SyntaxError(msg)
+            raise UserError(msg)
         # parse metadata
         metadata = {p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata]}
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
                 msg = "The metadata file '.dtproject' does not contain the key '%s'." % key
-                raise SyntaxError(msg)
+                raise UserError(msg)
         # validate version
         version = metadata["TYPE_VERSION"]
         if version == "*" or version not in REQUIRED_METADATA_KEYS:
             msg = "The project version %s is not supported." % version
-            raise NotImplementedError(msg)
+            raise UserError(msg)
         # validate metadata
         for key in REQUIRED_METADATA_KEYS[version]:
             if key not in metadata:
                 msg = "The metadata file '.dtproject' does not contain the key '%s'." % key
-                raise SyntaxError(msg)
+                raise UserError(msg)
         # metadata is valid
         metadata["NAME"] = project_name
         metadata["PATH"] = path
