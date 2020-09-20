@@ -2,15 +2,18 @@ import argparse
 
 import termcolor
 
-from challenges import wrap_server_operations
+from challenges import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell
-from duckietown_challenges import get_duckietown_server_url
-from duckietown_challenges.rest_methods import get_dtserver_user_info
-
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        check_duckietown_challenges_version()
+
+        from duckietown_challenges import get_duckietown_server_url
+        from duckietown_challenges.rest_methods import get_dtserver_user_info
+
+
         parser = argparse.ArgumentParser()
         parser.add_argument("--impersonate", type=str, default=None)
 

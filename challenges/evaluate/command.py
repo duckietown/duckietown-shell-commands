@@ -8,6 +8,7 @@ import socket
 
 import yaml
 
+from challenges import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
@@ -27,6 +28,8 @@ usage = """
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        check_duckietown_challenges_version()
 
         prog = "dts challenges evaluate"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)

@@ -5,19 +5,16 @@ import os
 
 import termcolor
 
-from challenges import wrap_server_operations
+from challenges import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, get_dockerhub_username
-from duckietown_challenges import get_duckietown_server_url
-from duckietown_challenges.cmd_submit_build import submission_build
-from duckietown_challenges.rest_methods import (dtserver_get_compatible_challenges, dtserver_retire_same_label,
-                                                dtserver_submit2, get_registry_info)
-from duckietown_challenges.submission_read import read_submission_info
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        check_duckietown_challenges_version()
+
         check_docker_environment()
 
         token = shell.get_dt1_token()
@@ -96,6 +93,14 @@ Submission with an arbitrary JSON payload:
                 os.path.realpath(os.getcwd())
             )
             raise UserError(msg)
+
+        from duckietown_challenges import get_duckietown_server_url
+        from duckietown_challenges.cmd_submit_build import submission_build
+        from duckietown_challenges.rest_methods import (dtserver_get_compatible_challenges,
+                                                        dtserver_retire_same_label,
+                                                        dtserver_submit2, get_registry_info)
+        from duckietown_challenges.submission_read import read_submission_info
+
 
         sub_info = read_submission_info(".")
 

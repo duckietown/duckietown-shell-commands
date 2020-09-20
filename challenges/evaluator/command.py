@@ -10,6 +10,7 @@ import traceback
 
 from docker import DockerClient
 
+from challenges import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
@@ -60,6 +61,8 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        check_duckietown_challenges_version()
         check_docker_environment()
 
         home = os.path.expanduser("~")

@@ -1,8 +1,7 @@
 import argparse
 
-from challenges import wrap_server_operations
+from challenges import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs
-from duckietown_challenges.rest_methods import dtserver_retire
 
 usage = """
 
@@ -19,7 +18,11 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        check_duckietown_challenges_version()
+
         prog = "dts challenges retire"
+
+        from duckietown_challenges.rest_methods import dtserver_retire
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument("--submission", required=True, type=int)
