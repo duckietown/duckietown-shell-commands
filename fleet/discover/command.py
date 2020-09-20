@@ -98,7 +98,7 @@ class DiscoverListener:
         # prepare table
         columns = [
             "Status",  # Loading [yellow], Ready [green]
-            "Online",  # No [grey], Yes [green]
+            "Internet",  # No [grey], Yes [green]
             "Dashboard",  # Down [grey], Up [green]
             "Busy",  # No [grey], Yes [green]
         ]
@@ -181,8 +181,8 @@ def column_to_text_and_color(column, hostname, services):
         text, color, bg_color = "Down", "white", "grey"
         if hostname in services["DT::DASHBOARD"]:
             text, color, bg_color = "Up", "white", "green"
-    #  -> Online
-    if column == "Online":
+    #  -> Internet
+    if column == "Internet":
         text, color, bg_color = "No", "white", "grey"
         if hostname in services["DT::ONLINE"]:
             text, color, bg_color = "Yes", "white", "green"
