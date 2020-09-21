@@ -471,6 +471,12 @@ def step_setup(shell, parsed, data):
         # debug only
         assert len(masked_content) == block_size
         block_usage = int(100 * (used_bytes / float(block_size)))
+        if used_bytes >= block_size:
+            dtslogger.error(
+                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
+                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
+            )
+            exit(3)
         dtslogger.debug(
             "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
             + "into [{partition}]:{path}.".format(**surgery_bit)
