@@ -39,7 +39,7 @@ You can install it with a command like:
     if version < required:
         msg = f"""
     To use the AI-DO functionality, you need to have installed
-    {PKG} of at least {v(required)}. We have detected got {v(version)}.
+    {PKG} of at least {v(required)}. We have detected you have {v(version)}.
 
     Please update {PKG} using pip.
 
