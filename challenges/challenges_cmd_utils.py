@@ -1,6 +1,7 @@
+import traceback
 from contextlib import contextmanager
 
-from dt_shell import OtherVersions, UserError
+from dt_shell import OtherVersions, UserError, dtslogger
 
 __all__ = ["wrap_server_operations", "check_duckietown_challenges_version"]
 
@@ -18,6 +19,7 @@ def check_duckietown_challenges_version():
     try:
         from duckietown_challenges import __version__
     except ImportError:
+        dtslogger.error(traceback.format_exc())
         msg = f"""
 To use the AI-DO commands, you have to have an extra package installed
 called `{PKG}`.
