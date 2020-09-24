@@ -226,7 +226,7 @@ class DTCommand(DTCommandAbs):
                 local_launch, destination_launch = proj.launch_paths()
                 # (experimental): when we run remotely, use /code/<project> as base
                 if parsed.machine != DEFAULT_MACHINE:
-                    project_path = "/code/%s" % proj.repository.name
+                    project_path = "/code/%s" % proj.name
                 # compile mounpoints
                 mount_option += [
                     "-v",
@@ -357,7 +357,7 @@ class DTCommand(DTCommandAbs):
 
 
 def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
-    if shell:
+    if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
     if get_output:
