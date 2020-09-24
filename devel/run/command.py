@@ -154,6 +154,13 @@ class DTCommand(DTCommandAbs):
             help="Use x-docker as runtime (needs to be installed separately)",
         )
         parser.add_argument("docker_args", nargs="*", default=[])
+        # add a fake positional argument to avoid missing the first argument starting with `-`
+        try:
+            idx = args.index('--')
+            args = args[:idx] + ['--', '--fake'] + args[idx+1:]
+        except ValueError:
+            pass
+        # parse arguments
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
