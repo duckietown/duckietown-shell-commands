@@ -12,7 +12,7 @@ def v(x):
 
 def check_duckietown_challenges_version():
     PKG = "duckietown-challenges-daffy"
-    required = (6, 0, 22)
+    required = (6, 0, 24)
 
     PKG_VERSION = v(required)
 
