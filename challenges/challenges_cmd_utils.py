@@ -26,7 +26,7 @@ called `{PKG}`.
 
 You can install it with a command like:
 
-    pip install -U {PKG}>={PKG_VERSION}
+    pip install -U "{PKG}>={PKG_VERSION}"
 
 (Note: your configuration might require a different command.)
 """
@@ -45,7 +45,7 @@ You can install it with a command like:
 
     Please update {PKG} using pip.
 
-        pip install -U  {PKG}>={v(required)}
+        pip install -U  "{PKG}>={v(required)}"
     """
         raise UserError(msg)
 
