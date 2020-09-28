@@ -90,6 +90,7 @@ SUPPORTED_STEPS = [
 
 APT_PACKAGES_TO_INSTALL = [
     'rsync',
+    'nano',
     'dkms',  # needed for Jetson WiFi drivers
     'docker-compose',
     # 'v4l2loopback-dkms',
