@@ -227,6 +227,9 @@ class DTCommand(DTCommandAbs):
                     exit(9)
             # ---
             dtslogger.info("Step END: license\n")
+        else:
+            dtslogger.warning('Skipping "license" step. You are implicitly agreeing to the terms '
+                              'and conditions of the License For Customer Use of NVIDIA Software.')
         # Step: license
         # <------
         #
