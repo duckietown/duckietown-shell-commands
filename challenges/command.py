@@ -1,9 +1,10 @@
 import argparse
 from datetime import datetime
 from typing import List
- 
+
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import (check_docker_environment, get_dockerhub_username_and_password)
+from update import parse_version
 
 
 class DTCommand(DTCommandAbs):
@@ -66,7 +67,7 @@ class DTCommand(DTCommandAbs):
 def command_config(shell: DTShell, args: List[str]):
     parser = argparse.ArgumentParser(prog="dts challenges config")
     parser.add_argument("--docker-username", dest="username", help="Docker username")
-    parser.add_argument("--docker-password", dest="password", help="Docker password")
+    parser.add_argument("--docker-password", dest="password", help="Docker password or TOKEN")
     parsed = parser.parse_args(args)
 
     username = parsed.username
@@ -116,3 +117,7 @@ def check_package_version(PKG: str, min_version: str):
        (Note: your configuration might require a different command.)
        """
         raise UserError(msg)
+
+
+def parse_version(x):
+    return tuple(int(_) for _ in x.split("."))
