@@ -10,7 +10,7 @@ DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None: f"{owner}/
 )
 
 MODULES_TO_LOAD = [
-    {"owner": "portainer", "module": "portainer", "tag": "linux-arm"},
+    {"owner": "portainer", "module": "portainer-ce", "tag": "linux-arm"},
     {"owner": "duckietown", "module": "dt-base-environment"},
     {"owner": "duckietown", "module": "dt-commons"},
     {"owner": "duckietown", "module": "dt-device-health"},
