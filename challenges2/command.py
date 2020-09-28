@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 
 from challenges.challenges_cmd_utils import check_package_version
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import (check_docker_environment, get_dockerhub_username_and_password)
 
 
@@ -43,7 +43,6 @@ class DTCommand(DTCommandAbs):
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S}.txt".format(datetime.now())
         logname = f'/tmp/{container_name}-{timestamp}'
-
 
         gdr = \
             generic_docker_run(client,
