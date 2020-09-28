@@ -1,15 +1,17 @@
 import termcolor
 
-from challenges import wrap_server_operations
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell
-from duckietown_challenges.rest_methods import dtserver_get_user_submissions
-from duckietown_challenges.utils import pad_to_screen_length
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        check_duckietown_challenges_version()
+
         token = shell.get_dt1_token()
+        from duckietown_challenges.rest_methods import dtserver_get_user_submissions
+        from duckietown_challenges.utils import pad_to_screen_length
 
         with wrap_server_operations():
             submissions = dtserver_get_user_submissions(token)
@@ -49,9 +51,7 @@ class DTCommand(DTCommandAbs):
 
                 url = server + "/humans/submissions/%s" % submission_id
 
-                user_label = submission.get("user_label", None) or dark(
-                    "(no user label)"
-                )
+                user_label = submission.get("user_label", None) or dark("(no user label)")
 
                 M = 30
                 if len(user_label) > M:

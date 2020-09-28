@@ -10,6 +10,7 @@ import traceback
 
 from docker import DockerClient
 
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
@@ -60,6 +61,8 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        check_duckietown_challenges_version()
         check_docker_environment()
 
         home = os.path.expanduser("~")
@@ -68,9 +71,7 @@ class DTCommand(DTCommandAbs):
 
         group = parser.add_argument_group("Basic")
 
-        group.add_argument(
-            "--submission", type=int, default=None, help="Run a specific submission."
-        )
+        group.add_argument("--submission", type=int, default=None, help="Run a specific submission.")
         group.add_argument(
             "--reset",
             dest="reset",
@@ -111,22 +112,14 @@ class DTCommand(DTCommandAbs):
         )
 
         group.add_argument(
-            "--image",
-            help="Evaluator image to run",
-            default=EVALUATOR_IMAGE,
+            "--image", help="Evaluator image to run", default=EVALUATOR_IMAGE,
         )
 
         group.add_argument("--name", default=None, help="Name for this evaluator")
-        group.add_argument(
-            "--features", default=None, help="Pretend to be what you are not."
-        )
+        group.add_argument("--features", default=None, help="Pretend to be what you are not.")
 
-        group.add_argument(
-            "--ipfs", action="store_true", default=False, help="Run with IPFS available"
-        )
-        group.add_argument(
-            "--one", action="store_true", default=False, help="Only run 1 submission"
-        )
+        group.add_argument("--ipfs", action="store_true", default=False, help="Run with IPFS available")
+        group.add_argument("--one", action="store_true", default=False, help="Only run 1 submission")
 
         # dtslogger.debug('args: %s' % args)
         parsed = parser.parse_args(args)
@@ -202,25 +195,18 @@ class DTCommand(DTCommandAbs):
             h = socket.gethostname()
             replacement = h + ".local"
 
-            dtslogger.warning(
-                'There is "localhost" inside, so I will try to change it to %r'
-                % replacement
-            )
-            dtslogger.warning(
-                'This is because Docker cannot see the host as "localhost".'
-            )
+            dtslogger.warning('There is "localhost" inside, so I will try to change it to %r' % replacement)
+            dtslogger.warning('This is because Docker cannot see the host as "localhost".')
 
             url = url.replace("localhost", replacement)
             dtslogger.warning("The new url is: %s" % url)
-            dtslogger.warning(
-                "This will be passed to the evaluator in the Docker container."
-            )
+            dtslogger.warning("This will be passed to the evaluator in the Docker container.")
 
         env["DTSERVER"] = url
 
         image = parsed.image
         dtslogger.info("Using evaluator image %s" % image)
-        name, tag = image.split(":")
+        name, _, tag = image.rpartition(":")
         if not parsed.no_pull:
             dtslogger.info("Updating container %s" % image)
             make_sure_image_pulled(client, name, tag)
@@ -274,9 +260,7 @@ class DTCommand(DTCommandAbs):
             if container.status == "exited":
 
                 logs = ""
-                for c in container.logs(
-                    stdout=True, stderr=True, stream=True, since=last_log_timestamp
-                ):
+                for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
                     logs += c.decode("utf-8")
                     last_log_timestamp = datetime.datetime.now()
 
@@ -294,11 +278,7 @@ class DTCommand(DTCommandAbs):
                 if last_log_timestamp is not None:
                     print("since: %s" % last_log_timestamp.isoformat())
                 for c0 in container.logs(
-                    stdout=True,
-                    stderr=True,
-                    stream=True,  # follow=True,
-                    since=last_log_timestamp,
-                    tail=0,
+                    stdout=True, stderr=True, stream=True, since=last_log_timestamp, tail=0,  # follow=True,
                 ):
                     c: bytes = c0
                     try:
@@ -354,15 +334,15 @@ def make_sure_image_pulled(client: DockerClient, repository: str, tag: str = Non
             outs2 = outs.decode().strip()
             # print(outs2.__repr__())
             out = json.loads(outs2)
-            s = out.get('status', '')
-            s = '%d: %s' % (i, s)
+            s = out.get("status", "")
+            s = "%d: %s" % (i, s)
             i += 1
             s = s.ljust(cols)
-            sys.stderr.write(s + '\r')
+            sys.stderr.write(s + "\r")
         except:
             pass
-    sys.stderr.write('\n')
-    dtslogger.info('pull complete')
+    sys.stderr.write("\n")
+    dtslogger.info("pull complete")
 
 
 def ensure_watchtower_active(client: DockerClient):
@@ -389,11 +369,7 @@ def ensure_watchtower_active(client: DockerClient):
         }
 
         container = client.containers.run(
-            watchtower_tag,
-            volumes=volumes,
-            environment=env,
-            network_mode="host",
-            detach=True,
+            watchtower_tag, volumes=volumes, environment=env, network_mode="host", detach=True,
         )
         dtslogger.info("Detached: %s" % container)
 

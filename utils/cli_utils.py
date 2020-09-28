@@ -13,12 +13,10 @@ def get_clean_env():
 
     V = "DOCKER_HOST"
     if V in env:
-        msg = (
-            "I will ignore %s in the environment because we want to run things on the laptop."
-            % V
-        )
+        msg = "I will ignore %s in the environment because we want to run things on the laptop." % V
         dtslogger.info(msg)
         env.pop(V)
+
     return env
 
 
@@ -27,12 +25,12 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
     if env is None:
         env = get_clean_env()
     if shell and not isinstance(run_cmd, str):
-        run_cmd = ' '.join(run_cmd)
+        run_cmd = " ".join(run_cmd)
     for trial in range(retry):
         if trial > 0:
-            msg = f"An error occurred while running r{run_cmd}, retrying (trial={trial+1})"
+            msg = f"An error occurred while running {str(run_cmd)}, retrying (trial={trial+1})"
             dtslogger.warning(msg)
-        dtslogger.debug(' $ %r' % run_cmd)
+        dtslogger.debug(" $ %s" % str(run_cmd))
         ret = subprocess.run(
             run_cmd,
             shell=shell,
@@ -41,24 +39,29 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
             stdout=subprocess.PIPE if nostdout else sys.stdout,
             env=env,
         )
-
-        if ret.returncode == 0:
+        # exit codes: 0 (ok), 130 (ctrl-c)
+        if ret.returncode in [0, 130]:
             break
         else:
-            if retry == 1 or retry == trial+1:
-                msg = f"Error occurred while running \"{' '.join(run_cmd)}\", " \
-                      f"please check and retry ({ret.returncode})"
+            if retry == 1 or retry == trial + 1:
+                msg = (
+                    f'Error occurred while running "{str(run_cmd)}", '
+                    f"please check and retry ({ret.returncode})"
+                )
                 raise Exception(msg)
 
 
 class ProgressBar:
-
-    def __init__(self, scale=1.0, buf=sys.stdout):
+    def __init__(self, scale=1.0, buf=sys.stdout, header="Progress"):
         self._finished = False
         self._buffer = buf
+        self._header = header
         self._last_value = -1
         self._scale = max(0.0, min(1.0, scale))
         self._max = int(math.ceil(100 * self._scale))
+
+    def set_header(self, header):
+        self._header = header
 
     def update(self, percentage):
         percentage_int = int(max(0, min(100, percentage)))
@@ -68,7 +71,7 @@ class ProgressBar:
         if self._finished:
             return
         # compile progress bar
-        pbar = "Progress: [" if self._scale > 0.5 else "["
+        pbar = f"{self._header}: [" if self._scale > 0.5 else "["
         # progress
         pbar += "=" * percentage
         if percentage < self._max:
@@ -92,17 +95,27 @@ class ProgressBar:
         self.update(100)
 
 
-def ask_confirmation(message, default='y'):
+def ask_confirmation(message, default="y", question="Do you confirm?", choices=None):
+    binary_question = False
+    if choices is None:
+        choices = {"y": "Yes", "n": "No"}
+        binary_question = True
+    choices_str = " ({})".format(", ".join([f"{k}={v}" for k, v in choices.items()]))
     default_str = f" [{default}]" if default else ""
     while True:
         dtslogger.warn(f"{message.rstrip('.')}.")
-        r = input(f'Do you confirm?{default_str}: ')
-        if r.strip() == '':
+        r = input(f"{question}{choices_str}{default_str}: ")
+        if r.strip() == "":
             r = default
-        if r.strip().lower() in ['y', 'yes', 'yup', 'yep', 'si', 'aye']:
-            return True
-        elif r.strip().lower() in ['n', 'no', 'nope', 'nay']:
-            return False
+        r = r.strip().lower()
+        if binary_question:
+            if r in ["y", "yes", "yup", "yep", "si", "aye"]:
+                return True
+            elif r in ["n", "no", "nope", "nay"]:
+                return False
+        else:
+            if r in choices:
+                return r
 
 
 def check_program_dependency(exe):

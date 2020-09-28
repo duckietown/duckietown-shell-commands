@@ -25,7 +25,7 @@ from utils.dtproject_utils import \
     DTProject, \
     dtlabel, \
     DISTRO_KEY
-from utils.misc_utils import human_time
+from utils.misc_utils import human_time, human_size
 from utils.cli_utils import start_command_in_subprocess
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -43,7 +43,7 @@ class DTCommand(DTCommandAbs):
                             help="Directory containing the project to build")
         parser.add_argument('-a', '--arch', default=None, choices=set(CANONICAL_ARCH.values()),
                             help="Target architecture for the image to build")
-        parser.add_argument('-H', '--machine', default=DEFAULT_MACHINE,
+        parser.add_argument('-H', '--machine', default=None,
                             help="Docker socket or hostname where to build the image")
         parser.add_argument('--pull', default=False, action='store_true',
                             help="Whether to pull the latest base image used by the Dockerfile")
@@ -69,6 +69,9 @@ class DTCommand(DTCommandAbs):
                                  "Use when the base image is also a development version")
         parser.add_argument('--ci', default=False, action='store_true',
                             help="Overwrites configuration for CI (Continuous Integration) builds")
+        parser.add_argument('--ci-force-builder-arch', dest='ci_force_builder_arch', default=None,
+                            choices=set(CANONICAL_ARCH.values()),
+                            help="Forces CI to build on a specific architecture node")
         parser.add_argument('--cloud', default=False, action='store_true',
                             help="Build the image on the cloud")
         parser.add_argument('--stamp', default=False, action='store_true',
@@ -91,6 +94,11 @@ class DTCommand(DTCommandAbs):
             project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
+        # check if the git HEAD is detached
+        if project.repository.detached:
+            dtslogger.error('The repository HEAD is detached. Create a branch or check one out '
+                            'before continuing. Aborting.')
+            exit(8)
         # define build-args
         buildargs = {
             'buildargs': {},
@@ -100,13 +108,12 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             parsed.pull = True
             parsed.cloud = True
-            parsed.no_multiarch = True
             parsed.push = True
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
             # check that the env variables are set
-            for key in ['ARCH', 'DISTRO', 'DT_TOKEN']:
+            for key in ['ARCH', 'DT_TOKEN']:
                 if 'DUCKIETOWN_CI_'+key not in os.environ:
                     dtslogger.error(
                         'Variable DUCKIETOWN_CI_{:s} required when building with --ci'.format(key)
@@ -119,19 +126,30 @@ class DTCommand(DTCommandAbs):
         if parsed.cloud:
             if parsed.arch is None:
                 dtslogger.error('When building on the cloud you need to explicitly specify '
-                                'an architecture. Aborting...')
+                                'a target architecture. Aborting...')
                 exit(6)
+            if parsed.machine is not None:
+                dtslogger.error('The parameter --machine (-H) cannot be set together with '
+                                + '--cloud. Use --destination (-D) if you want to specify '
+                                + 'a destination for the image. Aborting...')
+                exit(4)
+            # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(f'No cloud machines found for target architecture {parsed.arch}. '
                                 f'Aborting...')
                 exit(3)
-            if parsed.machine != DEFAULT_MACHINE:
-                dtslogger.error('The parameter --machine (-H) cannot be set together with '
-                                + '--cloud. Use --destionation (-D) if you want to specify '
-                                + 'a destination for the image. Aborting...')
-                exit(4)
             # update machine parameter
             parsed.machine = CLOUD_BUILDERS[parsed.arch]
+            # in CI we can force builds on specific architectures
+            if parsed.ci_force_builder_arch is not None:
+                # force routing to the given architecture node
+                if parsed.ci_force_builder_arch not in CLOUD_BUILDERS:
+                    dtslogger.error(f'No cloud machines found for (forced) architecture '
+                                    f'{parsed.ci_force_builder_arch}. Aborting...')
+                    exit(7)
+                # update machine parameter
+                parsed.machine = CLOUD_BUILDERS[parsed.ci_force_builder_arch]
+                dtslogger.info(f'Build forced to happen on {parsed.ci_force_builder_arch} CI node')
             # configure docker for DT
             if parsed.ci:
                 token = os.environ['DUCKIETOWN_CI_DT_TOKEN']
@@ -163,14 +181,11 @@ class DTCommand(DTCommandAbs):
             if not parsed.force:
                 exit(1)
             dtslogger.warning('Forced!')
-        # in CI, we only build certain branches
-        if parsed.ci and os.environ['DUCKIETOWN_CI_DISTRO'] != project.repository.branch:
-            dtslogger.info(
-                'CI is looking for the branch "{:s}", this is "{:s}". Nothing to do!'.format(
-                    os.environ['DUCKIETOWN_CI_DISTRO'], project.repository.branch
-                )
-            )
-            exit(0)
+        # add configuration labels (template v2+)
+        if project_template_ver >= 2:
+            for cfg_name, cfg_data in project.configurations().items():
+                buildargs['labels'][dtlabel(f'image.configuration.{cfg_name}')] = \
+                    json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
         # get info about docker endpoint
@@ -179,7 +194,7 @@ class DTCommand(DTCommandAbs):
         if 'ServerErrors' in epoint:
             dtslogger.error('\n'.join(epoint['ServerErrors']))
             return
-        epoint['MemTotal'] = _sizeof_fmt(epoint['MemTotal'])
+        epoint['MemTotal'] = human_size(epoint['MemTotal'])
         print(DOCKER_INFO.format(**epoint))
         # pick the right architecture if not set
         if parsed.arch is None:
@@ -217,15 +232,18 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info('Configuring machine for multiarch builds...')
                 try:
                     docker.containers.run(
-                        'multiarch/qemu-user-static:register', '--reset',
+                        'multiarch/qemu-user-static:register',
                         remove=True,
-                        privileged=True
+                        auto_remove=True,
+                        privileged=True,
+                        command='--reset'
                     )
                     dtslogger.info('Multiarch Enabled!')
-                except (ContainerError, ImageNotFound, APIError):
+                except (ContainerError, ImageNotFound, APIError) as e:
                     msg = 'Multiarch cannot be enabled on the target machine. ' \
                           'This might create issues.'
                     dtslogger.warning(msg)
+                    dtslogger.debug(f'The error reads:\n\t{str(e)}\n')
             else:
                 msg = 'Building an image for {} on {}. Multiarch not needed!'.format(
                     parsed.arch, epoint['Architecture'])
@@ -315,8 +333,7 @@ class DTCommand(DTCommandAbs):
             'nocache': parsed.no_cache,
             'tag': image
         })
-        dtslogger.debug('Build arguments:')
-        dtslogger.debug('\n' + json.dumps(buildargs, sort_keys=True, indent=4))
+        dtslogger.debug('Build arguments:\n%s\n' % json.dumps(buildargs, sort_keys=True, indent=4))
 
         # build image
         buildlog = []
@@ -325,15 +342,18 @@ class DTCommand(DTCommandAbs):
                 line = _build_line(line)
                 if not line:
                     continue
-                sys.stdout.write(line)
+                try:
+                    sys.stdout.write(line)
+                    buildlog.append(line)
+                except UnicodeEncodeError:
+                    pass
                 sys.stdout.flush()
-                buildlog.append(line)
 
         except APIError as e:
             dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
             exit(1)
-        except ProjectBuildError as e:
-            dtslogger.error(f'An error occurred while building the project image:\n{str(e)}')
+        except ProjectBuildError:
+            dtslogger.error(f'An error occurred while building the project image.')
             exit(2)
         dimage = docker.images.get(image)
 
@@ -438,14 +458,6 @@ def _build_line(line):
         line += '\n'
     # ---
     return line
-
-
-def _sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
-        if abs(num) < 1024.0:
-            return "%3.2f %s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.2f%s%s" % (num, 'Yi', suffix)
 
 
 def _add_token_to_docker_config(token):

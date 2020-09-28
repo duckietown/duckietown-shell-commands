@@ -1,5 +1,4 @@
 import argparse
-import datetime
 
 from past.builtins import raw_input
 
@@ -28,7 +27,9 @@ Calibrate:
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument(
-            "hostname", default=None, help="Name of the Duckiebot to calibrate"
+            "hostname",
+            default=None,
+            help="Name of the Duckiebot to calibrate"
         )
         parser.add_argument(
             "--base_image",
@@ -38,7 +39,7 @@ Calibrate:
         parser.add_argument(
             "--no_verification",
             action="store_true",
-            default=False,
+            default=True,
             help="If you don't have a lane you can skip the verification step",
         )
 
@@ -56,18 +57,8 @@ Calibrate:
 
         image = parsed_args.image
 
-        timestamp = datetime.date.today().strftime("%Y%m%d%H%M%S")
-
-        raw_input(
-            "{}\nPlace the Duckiebot on the calibration patterns and press ENTER.".format(
-                "*" * 20
-            )
-        )
-        log_file = "out-calibrate-extrinsics-%s-%s" % (hostname, timestamp)
-        rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
-        ros_pkg = "complete_image_pipeline calibrate_extrinsics"
-        start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
-        dtslogger.info("Running command: {}".format(start_command))
+        raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration patterns and press ENTER.")
+        dtslogger.info("Running extrinsics calibration...")
 
         env = default_env(hostname, duckiebot_ip)
 
@@ -79,21 +70,14 @@ Calibrate:
             privileged=True,
             network_mode="host",
             volumes=bind_duckiebot_data_dir(),
-            command="/bin/bash -c '%s'" % start_command,
+            command="dt-launcher-calibrate-extrinsics",
             environment=env,
         )
+        dtslogger.info("Done!")
 
         if not parsed_args.no_verification:
-            raw_input(
-                "{}\nPlace the Duckiebot in a lane and press ENTER.".format("*" * 20)
-            )
-            log_file = "out-pipeline-%s-%s" % (hostname, timestamp)
-            rosrun_params = "-o /data/{0} > /data/{0}.log".format(log_file)
-            ros_pkg = "complete_image_pipeline single_image_pipeline"
-            start_command = "rosrun {0} {1}".format(ros_pkg, rosrun_params)
-            dtslogger.info("Running command: {}".format(start_command))
-
-            pull_if_not_exist(duckiebot_client, image)
+            raw_input(f"{'*' * 20}\nPlace the Duckiebot in a lane and press ENTER.")
+            dtslogger.info("Running extrinsics calibration validation...")
 
             duckiebot_client.containers.run(
                 image=image,
@@ -101,6 +85,7 @@ Calibrate:
                 privileged=True,
                 network_mode="host",
                 volumes=bind_duckiebot_data_dir(),
-                command="/bin/bash -c '%s'" % start_command,
+                command="dt-launcher-validate-extrinsics",
                 environment=env,
             )
+            dtslogger.info("Done!")

@@ -10,8 +10,8 @@ RUN apt-get update \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install \
-    sphinx==1.7.0 \
+RUN python3 -m pip install \
+    sphinx~=3.2.0 \
     sphinx-rtd-theme \
     sphinx-autobuild \
     pygments==2.5.2 \
@@ -22,17 +22,13 @@ COPY assets/docs /docs
 RUN cd "/" \
     && git clone https://github.com/AleksandarPetrov/napoleon \
     && cd /napoleon \
-    && python setup.py install -f
-
-RUN cd "/" \
-    && git clone https://github.com/sphinx-contrib/restbuilder.git \
-    && cd /restbuilder \
-    && git checkout 8728a23fff9e841e2c2bdf72eedea14003c7169a \
-    && python setup.py install -f
+    && python3 setup.py install -f
 
 RUN mkdir /docs/in
 RUN mkdir /docs/out
-RUN mkdir /docs/rst
+RUN mkdir -p /out
+
+COPY assets/output-html.manifest.yaml /out
 
 RUN chmod -R 777 /docs
 
@@ -40,5 +36,6 @@ CMD cp -r /docs/in/* /docs/source/ \
     && cd /docs \
     && sphinx-build -b html source build/html \
     && cp -r /docs/build/html/* /docs/out \
-    && sphinx-build -b rst source build/rst \
-    && cp -r /docs/build/rst/* /docs/rst
+    && cp -r /docs/build/html/* /out \
+    && tar --create --gzip --verbose --file=/docs/out/package.tgz  /out/* \
+    || cat /tmp/sphinx-err-*.log

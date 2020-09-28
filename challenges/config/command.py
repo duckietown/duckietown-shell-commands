@@ -9,9 +9,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
         parser = argparse.ArgumentParser(prog="dts challenges config")
-        parser.add_argument(
-            "--docker-username", dest="username", help="Docker username", required=True
-        )
+        parser.add_argument("--docker-username", dest="username", help="Docker username", required=True)
         parsed = parser.parse_args(args)
 
         username = parsed.username

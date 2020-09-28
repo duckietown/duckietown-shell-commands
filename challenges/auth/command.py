@@ -2,13 +2,16 @@ import argparse
 import json
 from typing import List
 
-from challenges import wrap_server_operations
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        check_duckietown_challenges_version()
+
         from duckietown_challenges.rest_methods import dtserver_auth
 
         token = shell.get_dt1_token()

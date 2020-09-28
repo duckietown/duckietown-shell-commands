@@ -23,8 +23,10 @@ from shutil import copyfile
 
 print('Configuring Sphinx:')
 
+
 # The module name should be repo name if it is defined (but dashes become underscores)
-module_name = os.environ.get('DT_MODULE_NAME', 'nodes').replace('-', '_')
+module_name = os.environ.get('DT_MODULE_TYPE', 'nodes').replace('-', '_')
+print('Module name: %s' % module_name)
 
 # Create the temporary module dir
 dirpath = tempfile.mkdtemp()
@@ -129,13 +131,10 @@ extensions = ['sphinxcontrib.napoleon']
 # Autodocs
 extensions += ['sphinx.ext.autodoc']
 
-# Docs to ReST files
-extensions += ['sphinxcontrib.restbuilder']
-
 # Intersphinx: create hyperlinks to other repos and packages
 extensions += ['sphinx.ext.intersphinx']
 
-# Load all the necesary mock imports
+# Load all the necessary mock imports
 print(" - Reading mock_imports...")
 if os.path.isfile('mock_imports'):
     with open('mock_imports') as f:
@@ -171,22 +170,23 @@ napoleon_use_keyword = config.get('napoleon_use_keyword', True)
 
 napoleon_custom_section = [(sec_name, 'Parameters') for sec_name in config.get('custom_sections', [])]
 
-# Configure restbuildier
-rst_file_suffix = '.rst'
-rst_link_suffix = ''
-rst_line_width = 78
-rst_indent = 4
 
 # Intersphinx config
-intersphinx_mapping_default = {'python': ('https://docs.python.org/2.7',
-                                          (None, 'objects.inv'))}
+intersphinx_mapping_default = {
+    'python': {
+        'url': 'https://docs.python.org/2.7',
+        'inventories': ['objects.inv']
+    }
+}
+
 intersphinx_mapping = config.get('intersphinx_mapping', intersphinx_mapping_default)
 parsed = dict()
-for package, v in intersphinx_mapping.iteritems():
-    parsed[package] = (v['url'], tuple([None]+v['inventories']))
+for package, v in intersphinx_mapping.items():
+    parsed[package] = (v['url'], tuple([None] + v['inventories']))
 intersphinx_mapping = parsed
 
 print(' - Intersphinx map: %s' % str(intersphinx_mapping))
+
 
 ######################################################################################################################
 #

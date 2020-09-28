@@ -31,20 +31,17 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to show",
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to show",
         )
         parser.add_argument(
-            '--ci',
+            "--ci",
             default=False,
-            action='store_true',
-            help="Overwrites configuration for CI (Continuous Integration)"
+            action="store_true",
+            help="Overwrites configuration for CI (Continuous Integration)",
         )
         parsed, _ = parser.parse_known_args(args=args)
-        if 'parsed' in kwargs:
-            parsed.__dict__.update(kwargs['parsed'].__dict__)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
         if parsed.ci:
             # disable coloring
@@ -55,8 +52,7 @@ class DTCommand(DTCommandAbs):
             "name": project.name,
             "branch": project.repository.branch,
             "distro": project.distro,
-            "index": tc.colored("Clean", "green") if project.is_clean() else tc.colored("Dirty",
-                                                                                        "yellow"),
+            "index": tc.colored("Clean", "green") if project.is_clean() else tc.colored("Dirty", "yellow"),
             "path": project.path,
             "type": project.type,
             "type_version": project.type_version,

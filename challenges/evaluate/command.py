@@ -8,7 +8,8 @@ import socket
 
 import yaml
 
-from dt_shell import DTCommandAbs, dtslogger
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import continuously_monitor, start_rqt_image_view
@@ -23,12 +24,12 @@ usage = """
  
 """
 
-from dt_shell import DTShell
-
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        check_duckietown_challenges_version()
 
         prog = "dts challenges evaluate"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
@@ -41,22 +42,14 @@ class DTCommand(DTCommandAbs):
         group.add_argument("--challenge", help="Specific challenge to evaluate")
 
         group.add_argument(
-            "--image",
-            help="Evaluator image to run",
-            default="duckietown/dt-challenges-evaluator:daffy",
+            "--image", help="Evaluator image to run", default="duckietown/dt-challenges-evaluator:daffy",
         )
         group.add_argument(
-            "--shell",
-            action="store_true",
-            default=False,
-            help="Runs a shell in the container",
+            "--shell", action="store_true", default=False, help="Runs a shell in the container",
         )
         group.add_argument("--output", help="", default="output")
         group.add_argument(
-            "--visualize",
-            help="Visualize the evaluation",
-            action="store_true",
-            default=False,
+            "--visualize", help="Visualize the evaluation", action="store_true", default=False,
         )
         parser.add_argument("--impersonate", type=str, default=None)
         group.add_argument("-C", dest="change", default=None)
@@ -99,9 +92,7 @@ class DTCommand(DTCommandAbs):
         dir_tmpdir_host = "/tmp"
         dir_tmpdir_guest = "/tmp"
 
-        volumes = {
-            "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}
-        }
+        volumes = {"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}}
         d = os.path.join(os.getcwd(), parsed.output)
         if not os.path.exists(d):
             os.makedirs(d)
@@ -125,19 +116,13 @@ class DTCommand(DTCommandAbs):
         # command.extend(['-C', fake_dir])
         env = {}
 
-        extra_environment = dict(
-            username=USERNAME, uid=UID, USER=USERNAME, HOME=dir_fake_home_guest
-        )
+        extra_environment = dict(username=USERNAME, uid=UID, USER=USERNAME, HOME=dir_fake_home_guest)
 
         env.update(extra_environment)
 
-        dtslogger.debug(
-            "Volumes:\n\n%s" % yaml.safe_dump(volumes, default_flow_style=False)
-        )
+        dtslogger.debug("Volumes:\n\n%s" % yaml.safe_dump(volumes, default_flow_style=False))
 
-        dtslogger.debug(
-            "Environment:\n\n%s" % yaml.safe_dump(env, default_flow_style=False)
-        )
+        dtslogger.debug("Environment:\n\n%s" % yaml.safe_dump(env, default_flow_style=False))
 
         from duckietown_challenges.rest import get_duckietown_server_url
 
@@ -147,25 +132,19 @@ class DTCommand(DTCommandAbs):
             h = socket.gethostname()
             replacement = h + ".local"
 
-            dtslogger.warning(
-                'There is "localhost" inside, so I will try to change it to %r'
-                % replacement
-            )
-            dtslogger.warning(
-                'This is because Docker cannot see the host as "localhost".'
-            )
+            dtslogger.warning('There is "localhost" inside, so I will try to change it to %r' % replacement)
+            dtslogger.warning('This is because Docker cannot see the host as "localhost".')
 
             url = url.replace("localhost", replacement)
             dtslogger.warning("The new url is: %s" % url)
-            dtslogger.warning(
-                "This will be passed to the evaluator in the Docker container."
-            )
+            dtslogger.warning("This will be passed to the evaluator in the Docker container.")
 
         env["DTSERVER"] = url
 
         container_name = "local-evaluator"
         image = parsed.image
-        name, tag = image.split(":")
+        name, _, tag = image.rpartition(":")
+
         if not parsed.no_pull:
             dtslogger.info("Updating container %s" % image)
 
