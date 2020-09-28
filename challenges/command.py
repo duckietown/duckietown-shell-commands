@@ -4,7 +4,7 @@ from typing import List
 
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import (check_docker_environment, get_dockerhub_username_and_password)
-from update import parse_version
+
 
 
 class DTCommand(DTCommandAbs):
