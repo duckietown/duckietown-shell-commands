@@ -4,7 +4,7 @@ import os
 from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 
-from dt_shell.env_checks import check_docker_environment
+from dt_shell.env_checks import check_docker_environment, get_dockerhub_username
 
 
 class DTCommand(DTCommandAbs):
@@ -68,6 +68,9 @@ class DTCommand(DTCommandAbs):
             challenge.date_open.tzinfo,
         )
 
+        username = get_dockerhub_username()
         dc_logger.info("read challenge", challenge=challenge)
         with wrap_server_operations():
-            dts_define(token, impersonate, parsed, challenge, base, client, no_cache)
+            dts_define(token=token, impersonate=impersonate,
+                       parsed=parsed, challenge=challenge, base=base, client=client, no_cache=no_cache,
+                       username=username)

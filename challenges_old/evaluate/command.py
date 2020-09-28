@@ -12,7 +12,7 @@ from challenges.challenges_cmd_utils import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.env_checks import check_docker_environment
-from utils.docker_utils import continuously_monitor, start_rqt_image_view
+from utils.docker_utils import continuously_monitor, replace_important_env_vars, start_rqt_image_view
 
 usage = """
 
@@ -42,7 +42,7 @@ class DTCommand(DTCommandAbs):
         group.add_argument("--challenge", help="Specific challenge to evaluate")
 
         group.add_argument(
-            "--image", help="Evaluator image to run", default="duckietown/dt-challenges-evaluator:daffy",
+            "--image", help="Evaluator image to run", default="${AIDO_REGISTRY}/duckietown/dt-challenges-evaluator:daffy",
         )
         group.add_argument(
             "--shell", action="store_true", default=False, help="Runs a shell in the container",
@@ -142,7 +142,7 @@ class DTCommand(DTCommandAbs):
         env["DTSERVER"] = url
 
         container_name = "local-evaluator"
-        image = parsed.image
+        image = replace_important_env_vars(parsed.image)
         name, _, tag = image.rpartition(":")
 
         if not parsed.no_pull:
