@@ -34,11 +34,12 @@ def check_compatible():
 Detected Duckietown Shell %s but these commands (%s) need Duckietown Shell >= %s.
 Please, update your Duckietown Shell using the following command,
 \n\n
-        pip3 install -U duckietown-shell
+        pip3 install --no-cache-dir -U "duckietown-shell>=%s"
 \n\n.
 """ % (
             render_version(vnow),
             duckietown_shell_commands_version,
+            render_version(vneed),
             render_version(vneed),
         )
 
