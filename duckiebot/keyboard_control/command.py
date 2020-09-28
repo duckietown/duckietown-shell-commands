@@ -18,6 +18,7 @@ GUI_ARCH = "amd64"
 ARCH = "arm32v7"
 GUI_DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + GUI_ARCH
 CLI_DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
+AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 
 
 class DTCommand(DTCommandAbs):
@@ -76,11 +77,27 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
     container_name = "joystick_gui_%s" % hostname
     remove_if_running(client, container_name)
 
-    env = set_default_env(hostname, duckiebot_ip)
-
+    env = {
+        "VEHICLE_NAME": hostname,
+        "ROS_MASTER": hostname,
+        "DUCKIEBOT_NAME": hostname,
+        "ROS_MASTER_URI": "http://%s:11311" % hostname,
+        "HOSTNAME": hostname
+    }
+    volumes = {}
     env["QT_X11_NO_MITSHM"] = 1
 
-    volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
+    volumes["/tmp/.X11-unix"] = {"bind": "/tmp/.X11-unix", "mode": "rw"}
+
+    # 2020-09-28 fix network resolve issue:
+
+    if os.path.exists(AVAHI_SOCKET):
+        volumes[AVAHI_SOCKET] = {"bind": AVAHI_SOCKET, "mode": "rw"}
+    else:
+        dtslogger.warning(
+            "Avahi socket not found ({}). The container might not be able "
+            "to resolve *.local hostnames.".format(AVAHI_SOCKET)
+        )
 
     subprocess.call(["xhost", "+"])
 
