@@ -1,8 +1,7 @@
 import argparse
 from datetime import datetime
 from typing import List
-
-from challenges.challenges_cmd_utils import check_package_version
+ 
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import (check_docker_environment, get_dockerhub_username_and_password)
 
@@ -81,4 +80,39 @@ def command_config(shell: DTShell, args: List[str]):
     if username is None and password is None:
         msg = 'You should pass at least one parameter.'
         msg += '\n\n' + parser.format_help()
+        raise UserError(msg)
+
+
+
+def check_package_version(PKG: str, min_version: str):
+    from pip._internal.utils.misc import get_installed_distributions
+    installed = get_installed_distributions()
+    pkgs = {_.project_name: _ for _ in installed}
+    if PKG not in pkgs:
+        msg = f"""
+        You need to have an extra package installed called `{PKG}`.
+
+        You can install it with a command like:
+
+            pip install -U "{PKG}>={min_version}"
+
+        (Note: your configuration might require a different command.)
+        """
+        raise UserError(msg)
+
+    p = pkgs[PKG]
+
+    installed_version = parse_version(p.version)
+    required_version = parse_version(min_version)
+    if installed_version < required_version:
+        msg = f"""
+       You need to have installed {PKG} of at least {min_version}. 
+       We have detected you have {p.version}.
+
+       Please update {PKG} using pip.
+
+           pip install -U  "{PKG}>={min_version}"
+
+       (Note: your configuration might require a different command.)
+       """
         raise UserError(msg)
