@@ -1,7 +1,7 @@
 import traceback
 from contextlib import contextmanager
 
-from dt_shell import OtherVersions, UserError, dtslogger
+from dt_shell import dtslogger, OtherVersions, UserError
 
 __all__ = ["wrap_server_operations", "check_duckietown_challenges_version"]
 
@@ -12,7 +12,7 @@ def v(x):
 
 def check_duckietown_challenges_version():
     PKG = "duckietown-challenges-daffy"
-    required = (6, 0, 4)
+    required = (6, 0, 31)
 
     PKG_VERSION = v(required)
 
@@ -26,7 +26,7 @@ called `{PKG}`.
 
 You can install it with a command like:
 
-    pip install -U {PKG}>={PKG_VERSION}
+    pip install -U "{PKG}>={PKG_VERSION}"
 
 (Note: your configuration might require a different command.)
 """
@@ -45,7 +45,7 @@ You can install it with a command like:
 
     Please update {PKG} using pip.
 
-        pip install -U  {PKG}>={v(required)}
+        pip install -U  "{PKG}>={v(required)}"
     """
         raise UserError(msg)
 
