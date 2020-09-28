@@ -5,6 +5,7 @@ import shutil
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
+from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 from utils.misc_utils import human_size
@@ -15,13 +16,15 @@ DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 
 DEFAULT_NETWORK_MODE = "host"
 
+DEFAULT_REMOTE_USER = "duckie"
+
 
 class DTCommand(DTCommandAbs):
 
     help = "Runs the current project"
 
     @staticmethod
-    def command(shell, args):
+    def command(shell, args: list):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -153,7 +156,21 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Use x-docker as runtime (needs to be installed separately)",
         )
+        parser.add_argument(
+            "-s",
+            "--sync",
+            default=False,
+            action="store_true",
+            help="Sync code from local project to remote"
+        )
         parser.add_argument("docker_args", nargs="*", default=[])
+        # add a fake positional argument to avoid missing the first argument starting with `-`
+        try:
+            idx = args.index('--')
+            args = args[:idx] + ['--', '--fake'] + args[idx+1:]
+        except ValueError:
+            pass
+        # parse arguments
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -226,7 +243,7 @@ class DTCommand(DTCommandAbs):
                 local_launch, destination_launch = proj.launch_paths()
                 # (experimental): when we run remotely, use /code/<project> as base
                 if parsed.machine != DEFAULT_MACHINE:
-                    project_path = "/code/%s" % proj.repository.name
+                    project_path = "/code/%s" % proj.name
                 # compile mounpoints
                 mount_option += [
                     "-v",
@@ -339,6 +356,22 @@ class DTCommand(DTCommandAbs):
         parsed.docker_args += ["--name", parsed.name]
         # escape spaces in arguments
         parsed.docker_args = [a.replace(" ", "\\ ") for a in parsed.docker_args]
+        # sync
+        if parsed.sync:
+            # only allowed when mounting remotely
+            if parsed.machine == DEFAULT_MACHINE:
+                dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
+                exit(2)
+            # make sure rsync is installed
+            check_program_dependency('rsync')
+            # get project locations
+            local_path = project.path
+            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+            # run rsync
+            dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
+            cmd = f'rsync --archive {local_path} {remote_path}'
+            _run_cmd(cmd, shell=True)
+            dtslogger.info(f"Code synced!")
         # run
         _run_cmd(
             [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
@@ -357,7 +390,7 @@ class DTCommand(DTCommandAbs):
 
 
 def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
-    if shell:
+    if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
     if get_output:
