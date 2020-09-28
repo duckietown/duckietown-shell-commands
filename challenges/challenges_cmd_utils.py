@@ -1,52 +1,56 @@
-import traceback
 from contextlib import contextmanager
+from typing import Tuple
 
-from dt_shell import dtslogger, OtherVersions, UserError
+from dt_shell import UserError
 
 __all__ = ["wrap_server_operations", "check_duckietown_challenges_version"]
 
 
-def v(x):
-    return ".".join(map(str, x))
+#
+# def v(x):
+#     return ".".join(map(str, x))
+
+def parse_version(x: str) -> Tuple[int, ...]:
+    return tuple(map(int, x.split(".")))
 
 
 def check_duckietown_challenges_version():
     PKG = "duckietown-challenges-daffy"
-    required = (6, 0, 24)
+    required = "6.0.30"
+    check_package_version(PKG, required)
 
-    PKG_VERSION = v(required)
 
-    try:
-        from duckietown_challenges import __version__
-    except ImportError:
-        dtslogger.error(traceback.format_exc())
+def check_package_version(PKG: str, min_version: str):
+    from pip._internal.utils.misc import get_installed_distributions
+    installed = get_installed_distributions()
+    pkgs = {_.project_name: _ for _ in installed}
+    if PKG not in pkgs:
         msg = f"""
-To use the AI-DO commands, you have to have an extra package installed
-called `{PKG}`.
+        You need to have an extra package installed called `{PKG}`.
 
-You can install it with a command like:
+        You can install it with a command like:
 
-    pip install -U "{PKG}>={PKG_VERSION}"
+            pip install -U "{PKG}>={min_version}"
 
-(Note: your configuration might require a different command.)
-"""
+        (Note: your configuration might require a different command.)
+        """
         raise UserError(msg)
 
-    version = tuple(map(int, __version__.split(".")))
+    p = pkgs[PKG]
 
-    # dtslogger.info(f'Detected duckietown-challenges {__version__} ')
-
-    OtherVersions.name2versions["duckietown-challenges"] = __version__
-
-    if version < required:
+    installed_version = parse_version(p.version)
+    required_version = parse_version(min_version)
+    if installed_version < required_version:
         msg = f"""
-    To use the AI-DO functionality, you need to have installed
-    {PKG} of at least {v(required)}. We have detected you have {v(version)}.
+       You need to have installed {PKG} of at least {min_version}. 
+       We have detected you have {p.version}.
 
-    Please update {PKG} using pip.
+       Please update {PKG} using pip.
 
-        pip install -U  "{PKG}>={v(required)}"
-    """
+           pip install -U  "{PKG}>={min_version}"
+
+       (Note: your configuration might require a different command.)
+       """
         raise UserError(msg)
 
 

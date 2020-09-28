@@ -14,7 +14,9 @@ from challenges.challenges_cmd_utils import check_duckietown_challenges_version
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
-EVALUATOR_IMAGE = "duckietown/dt-challenges-evaluator:daffy"
+from utils.docker_utils import replace_important_env_vars
+
+EVALUATOR_IMAGE = "${AIDO_REGISTRY}/duckietown/dt-challenges-evaluator:daffy"
 
 usage = """
 
@@ -204,7 +206,7 @@ class DTCommand(DTCommandAbs):
 
         env["DTSERVER"] = url
 
-        image = parsed.image
+        image = replace_important_env_vars(parsed.image)
         dtslogger.info("Using evaluator image %s" % image)
         name, _, tag = image.rpartition(":")
         if not parsed.no_pull:
