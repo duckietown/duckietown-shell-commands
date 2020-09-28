@@ -153,6 +153,6 @@ def set_default_env(hostname, ip):
         "ROS_MASTER": hostname,
         "VEHICLE_NAME": hostname,
         "VEHICLE_IP": ip,
-        "ROS_MASTER_URI": "http://%s:11311" % ip,
+        "ROS_MASTER_URI": "http://%s:11311" % hostname,
     }
     return env
