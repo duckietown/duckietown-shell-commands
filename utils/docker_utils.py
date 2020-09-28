@@ -2,6 +2,7 @@ import os
 import platform
 import subprocess
 import sys
+import re
 import time
 import traceback
 from datetime import datetime
@@ -10,7 +11,7 @@ from os.path import expanduser
 import docker
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-from zuper_commons.text import remove_escapes
+
 
 from utils.cli_utils import ProgressBar, start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
@@ -547,3 +548,10 @@ def continuously_monitor(client, container_name: str, log: str = None):
             logger.info("Will try to re-attach to container.")
             time.sleep(3)
     # logger.debug('monitoring graceful exit')
+
+
+escape = re.compile("\x1b\[[\d;]*?m")
+
+
+def remove_escapes(s):
+    return escape.sub("", s)
