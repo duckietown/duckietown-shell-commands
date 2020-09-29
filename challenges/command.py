@@ -6,7 +6,6 @@ from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import (check_docker_environment, get_dockerhub_username_and_password)
 
 
-
 class DTCommand(DTCommandAbs):
 
     @staticmethod
@@ -84,9 +83,24 @@ def command_config(shell: DTShell, args: List[str]):
         raise UserError(msg)
 
 
-
 def check_package_version(PKG: str, min_version: str):
-    from pip._internal.utils.misc import get_installed_distributions
+    pip_version = '?'
+    try:
+        from pip import __version__
+        pip_version = __version__
+        from pip._internal.utils.misc import get_installed_distributions
+    except ImportError:
+        msg = f"""
+           You need a higher version of "pip".  You have {pip_version}
+
+           You can install it with a command like:
+
+               pip install -U pip
+
+           (Note: your configuration might require a different command.)
+           """
+        raise UserError(msg)
+
     installed = get_installed_distributions()
     pkgs = {_.project_name: _ for _ in installed}
     if PKG not in pkgs:
