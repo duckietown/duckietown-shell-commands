@@ -5,8 +5,8 @@ import os
 
 import docker
 import nbformat  # install before?
-import yaml
-from IPython.nbconvert import PythonExporter
+from nbconvert.exporters import PythonExporter
+
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -21,7 +21,7 @@ usage = """
 
     To know more on the `mooc` commands, use `dts duckiebot mooc -h`.
 
-        $ dts duckiebot mooc --duckiebot_name [DUCKIEBOT_NAME]
+        $ dts duckiebot mooc test --duckiebot_name [DUCKIEBOT_NAME]
 
 """
 
@@ -38,7 +38,7 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot mooc"
+        prog = "dts mooc test"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
