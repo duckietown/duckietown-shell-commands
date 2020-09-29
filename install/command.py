@@ -17,9 +17,7 @@ class DTCommand(DTCommandAbs):
         requested_to_install = set(args)
         not_installable = requested_to_install.difference(all_commands)
         already_installed = requested_to_install.intersection(installed)
-        to_install = requested_to_install.intersection(all_commands).difference(
-            installed
-        )
+        to_install = requested_to_install.intersection(all_commands).difference(installed)
         need_reload = False
         # already installed
         for cmd in already_installed:

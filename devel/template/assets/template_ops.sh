@@ -7,8 +7,7 @@
 #   APPLY_DIFF
 #
 
-
-template_url="https://github.com/duckietown/${TEMPLATE_TYPE}"
+template_url="https://github.com/${TEMPLATE_TYPE}"
 template_remote="template"
 
 if [ -z ${TERM+x} ] || [ "${TERM}" = "dumb" ]; then
