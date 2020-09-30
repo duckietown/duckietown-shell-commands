@@ -38,10 +38,12 @@ class DTCommand(DTCommandAbs):
         username, secret = get_dockerhub_username_and_password()
         check_docker_environment()
         client = check_docker_environment()
-        container_name = 'challenges-docker'
+
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S}.txt".format(datetime.now())
-        logname = f'/tmp/{container_name}-{timestamp}'
+        container_name = f'challenges-docker-{timestamp}'
+        logname = f'/tmp/{container_name}'
+
 
         gdr = \
             generic_docker_run(client,
