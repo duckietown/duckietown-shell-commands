@@ -135,6 +135,7 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
+        env_dir = "/assets/setup/"
 
         if parsed.local:
             agent_client = local_client
@@ -189,13 +190,13 @@ class DTCommand(DTCommandAbs):
 
         # load default env params used by all (or most)
 
-        default_env = load_yaml(working_dir + "/../../setup/default_env.yaml")
+        default_env = load_yaml(working_dir + env_dir + "default_env.yaml")
 
         # Launch things one by one
 
         # let's launch the simulator
 
-        sim_env = load_yaml(working_dir + "/../../setup/sim_env.yaml")
+        sim_env = load_yaml(working_dir + env_dir + "sim_env.yaml")
         sim_env = {**sim_env, **default_env}
 
         dtslogger.info("Running simulator")
@@ -215,7 +216,7 @@ class DTCommand(DTCommandAbs):
         # let's launch the ros-core
 
         dtslogger.info("Running roscore")
-        agent_ros_env = load_yaml(working_dir + "/../../setup/ros_env.yaml")
+        agent_ros_env = load_yaml(working_dir + env_dir + "ros_env.yaml")
         agent_ros_env = {**default_env, **agent_ros_env}
         agent_ros_env['ROS_MASTER_URI'] = "http://ros_core:11311"
         agent_ros_env['HOSTNAME'] = "agent"
@@ -253,7 +254,7 @@ class DTCommand(DTCommandAbs):
 
         # let's launch the middleware_manager
         dtslogger.info("Running the middleware manager")
-        middleware_env = load_yaml(working_dir + "/../../setup/middleware_env.yaml")
+        middleware_env = load_yaml(working_dir + env_dir + "middleware_env.yaml")
         middleware_env = {**middleware_env, **default_env}
         mw_params = {
             "image": middle_image,
@@ -286,7 +287,7 @@ class DTCommand(DTCommandAbs):
         # TODO read from the config.yaml file which template we should launch
         dtslogger.info("Running the ros template")
 
-        ros_template_env = load_yaml(working_dir + "/../../setup/ros_template_env.yaml")
+        ros_template_env = load_yaml(working_dir + env_dir + "ros_template_env.yaml")
         ros_template_env = {**agent_ros_env, **ros_template_env}
         ros_template_volumes = fifos_bind
         ros_template_volumes[working_dir+"/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
