@@ -312,6 +312,10 @@ def get_file_length(filepath):
 
 
 def run_cmd(cmd, get_output=False, shell=False, env=None):
+    # remove empty sections
+    if isinstance(cmd, list):
+        cmd = [p for p in cmd if len(p)]
+    # some debug info
     dtslogger.debug("$ %s" % cmd)
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
