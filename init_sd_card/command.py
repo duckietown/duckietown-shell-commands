@@ -16,6 +16,7 @@ from datetime import datetime
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, get_robot_hardware
+from utils.misc_utils import human_time
 
 from .constants import (
     TIPS_AND_TRICKS,
@@ -304,7 +305,8 @@ def step_flash(_, parsed, data):
                 exit(4)
 
     # use dd to flash
-    dtslogger.info("Flashing [{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
+    stime = time.time()
+    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
         "dd",
         "if={}".format(data["disk_img"]),
@@ -314,7 +316,7 @@ def step_flash(_, parsed, data):
     ]
 
     # create a progress bar to track the progress
-    pbar = ProgressBar()
+    pbar = ProgressBar(header='Flashing [ETA: ND]')
     tbytes = os.stat(data["disk_img"]).st_size
 
     # launch dd
@@ -324,7 +326,7 @@ def step_flash(_, parsed, data):
     # read status and update progress bar
     par = b""
     while dd.poll() is None:
-        time.sleep(0.5)
+        time.sleep(0.1)
         # consume everything from the buffer
         char = dd.stderr.read(1)
         while len(char) == 1:
@@ -337,6 +339,11 @@ def step_flash(_, parsed, data):
                     nbytes = float(par.decode("utf-8"))
                     progress = int(100 * (nbytes / tbytes))
                     pbar.update(progress)
+                    # compute ETA
+                    if progress > 0:
+                        elapsed = time.time() - stime
+                        eta = (100 - progress) * (elapsed / progress)
+                        pbar.set_header('Flashing [ETA: {}]'.format(human_time(eta, True)))
                 except ValueError:
                     pass
                 par = None
@@ -345,6 +352,7 @@ def step_flash(_, parsed, data):
     # jump to 100% if success
     if dd.returncode == 0:
         pbar.update(100)
+        dtslogger.info('Flashed in {}'.format(human_time(time.time() - stime)))
 
     # flush I/O buffer
     dtslogger.info("Flushing I/O buffer...")
@@ -359,9 +367,10 @@ def step_verify(_, parsed, data):
     dtslogger.info("Verifying {}[{}]...".format(data.get("sd_type", ""), parsed.device))
     buf_size = 16 * 1024
     # create a progress bar to track the progress
-    pbar = ProgressBar()
+    pbar = ProgressBar(header='Verifying [ETA: ND]')
     tbytes = os.stat(data["disk_img"]).st_size
     nbytes = 0
+    stime = time.time()
     # compare bytes
     try:
         with open(data["disk_img"], "rb") as origin:
@@ -378,6 +387,11 @@ def step_verify(_, parsed, data):
                     nbytes += buf1_len
                     progress = int(100 * (nbytes / tbytes))
                     pbar.update(progress)
+                    # compute ETA
+                    if progress > 0:
+                        elapsed = time.time() - stime
+                        eta = (100 - progress) * (elapsed / progress)
+                        pbar.set_header('Verifying [ETA: {}]'.format(human_time(eta, True)))
                     # read another chunk
                     buffer1 = origin.read(buf_size)
     except IOError as e:
@@ -387,6 +401,7 @@ def step_verify(_, parsed, data):
             "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(str(e))
         )
         exit(5)
+    dtslogger.info('Verified in {}'.format(human_time(time.time() - stime)))
     # ---
     dtslogger.info("{}[{}] successfully flashed!".format(data.get("sd_type", ""), parsed.device))
     return {}
