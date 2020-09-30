@@ -83,10 +83,10 @@ class ProgressBar:
         self._buffer.write(pbar)
         self._buffer.flush()
         # return to start of line
-        self._buffer.write("\b" * len(pbar))
+        self._buffer.write("\b" * len(pbar) + '\x1b[2K')
         # end progress bar
         if percentage >= self._max:
-            self._buffer.write("\n")
+            self._buffer.write("Done!\n")
             self._buffer.flush()
             self._finished = True
         self._last_value = percentage_int
