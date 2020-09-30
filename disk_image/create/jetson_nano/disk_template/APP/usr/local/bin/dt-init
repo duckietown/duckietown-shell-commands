@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+
+set -x
 
 setup_etc_hosts() {
 cat >/etc/hosts <<EOL
@@ -15,6 +18,9 @@ EOL
 
 run_on_first_boot () {
   echo "Setting up the robot for its first ever boot..."
+
+  # activate `booting` service
+  cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
   # sudo without a password
   echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
@@ -64,8 +70,15 @@ run_on_first_boot () {
   cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
   cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 
-  echo "Setting up the containers..."
+  echo "Setting up the environment..."
   setup_etc_hosts
+
+  while ! timeout --signal=INT 5s docker ps; do
+    echo 'Waiting for Docker to start...'
+    sleep 2
+  done
+
+  echo "Setting up the containers..."
   dt-autoboot
 
   echo "Setting up completed!"
@@ -73,6 +86,9 @@ run_on_first_boot () {
 
 run_on_every_boot () {
   echo "Setting up the robot for this boot..."
+
+  # activate `booting` service
+  cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
   setup_etc_hosts
 
@@ -86,10 +102,13 @@ run_on_every_boot () {
   # killall wpa_supplicant
   # wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant.conf
 
+  # remove `booting` service
+  rm -f /etc/avahi/services/dt.booting.service
+
   echo "Setting up completed!"
 }
 
-FIRST_BOOT_EVIDENCE_FILE="/etc/DT_FIRST_BOOT_EVIDENCE"
+FIRST_BOOT_EVIDENCE_FILE="/boot/dt.first.boot.evidence"
 if test -f "$FIRST_BOOT_EVIDENCE_FILE"; then
   echo "$FIRST_BOOT_EVIDENCE_FILE exists so we assume this is not the first boot!"
   run_on_every_boot 2>&1 | tee /data/logs/this_boot_init.log
