@@ -2,8 +2,9 @@ import argparse
 import json
 from typing import List
 
-from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 from dt_shell import DTCommandAbs, DTShell
+
+from challenges.challenges_cmd_utils import check_duckietown_challenges_version, wrap_server_operations
 
 
 class DTCommand(DTCommandAbs):

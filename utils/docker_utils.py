@@ -1,17 +1,18 @@
-import datetime
 import os
 import platform
 import subprocess
 import sys
+import re
 import time
 import traceback
+from datetime import datetime
 from os.path import expanduser
 
 import docker
-import six
-
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
+
+
 from utils.cli_utils import ProgressBar, start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
@@ -112,76 +113,6 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
             pbar.update(percentage)
     if progress:
         pbar.done()
-
-
-# Everything after this point needs to be checked
-
-
-def continuously_monitor(client, container_name):
-    from docker.errors import NotFound, APIError
-
-    dtslogger.debug("Monitoring container %s" % container_name)
-    last_log_timestamp = None
-    while True:
-        try:
-            container = client.containers.get(container_name)
-        except Exception as e:
-            # msg = 'Cannot get container %s: %s' % (container_name, e)
-            # dtslogger.info(msg)
-            break
-            # dtslogger.info('Will wait.')
-            # time.sleep(5)
-            # continue
-
-        dtslogger.info("status: %s" % container.status)
-        if container.status == "exited":
-            msg = "The container exited."
-
-            logs = ""
-            for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
-                last_log_timestamp = datetime.datetime.now()
-                logs += c.decode("utf-8")
-            dtslogger.error(msg)
-
-            tf = "evaluator.log"
-            with open(tf, "w") as f:
-                f.write(logs)
-
-            msg = "Logs saved at %s" % tf
-            dtslogger.info(msg)
-
-            # return container.exit_code
-            return  # XXX
-        try:
-            for c in container.logs(
-                stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp,
-            ):
-                if six.PY2 or (type(c) is str):
-                    sys.stdout.write(c)
-                else:
-                    sys.stdout.write(c.decode("utf-8"))
-                last_log_timestamp = datetime.datetime.now()
-
-            time.sleep(3)
-        except KeyboardInterrupt:
-            dtslogger.info("Received CTRL-C. Stopping container...")
-            try:
-                container.stop()
-                dtslogger.info("Removing container")
-                container.remove()
-                dtslogger.info("Container removed.")
-            except NotFound:
-                pass
-            except APIError as e:
-                # if e.errno == 409:
-                #
-                pass
-            break
-        except BaseException:
-            dtslogger.error(traceback.format_exc())
-            dtslogger.info("Will try to re-attach to container.")
-            time.sleep(3)
-    # dtslogger.debug('monitoring graceful exit')
 
 
 def push_image_to_duckiebot(image_name, hostname):
@@ -386,7 +317,7 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["DISPLAY"] = ":0"
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'", ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -428,7 +359,7 @@ def start_gui_tools(duckiebot_name):
         )
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'", ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -517,7 +448,8 @@ def build_if_not_exist(client, image_path, tag):
 
 def build_logs_to_string(build_logs):
     """
-    Converts the docker build logs `JSON object <https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build>`_
+    Converts the docker build logs `JSON object
+    <https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build>`_
     to a simple printable string.
 
     Args:
@@ -533,3 +465,93 @@ def build_logs_to_string(build_logs):
             if k == "stream":
                 s += str(v)
     return s
+
+
+IMPORTANT_ENVS = {
+    "AIDO_REGISTRY": "docker.io",
+    "PIP_INDEX_URL": "https://pypi.org/simple",
+    'DTSERVER': "https://challenges.duckietown.org/v4",
+}
+
+
+def replace_important_env_vars(s: str) -> str:
+    for vname, vdefault in IMPORTANT_ENVS.items():
+        vref = "${%s}" % vname
+        if vref in s:
+            value = os.environ.get(vname, vdefault)
+            s = s.replace(vref, value)
+    return s
+logger = dtslogger
+
+def continuously_monitor(client, container_name: str, log: str = None):
+    if log is None:
+        log = f'{container_name}.log'
+    from docker.errors import NotFound, APIError
+
+    logger.debug(f"Monitoring container {container_name}; logs at {log}")
+    last_log_timestamp = None
+    while True:
+        try:
+            container = client.containers.get(container_name)
+        except Exception as e:
+            # msg = 'Cannot get container %s: %s' % (container_name, e)
+            # logger.info(msg)
+            break
+            # logger.info('Will wait.')
+            # time.sleep(5)
+            # continue
+
+        logger.info("status: %s" % container.status)
+        if container.status == "exited":
+            msg = "The container exited."
+            logger.info(msg)
+
+            with open(log, "a") as f:
+                for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
+                    last_log_timestamp = datetime.now()
+                    log_line = c.decode("utf-8")
+                    sys.stderr.write(log_line)
+                    f.write(remove_escapes(log_line))
+
+            msg = f"Logs saved at {log}"
+            logger.info(msg)
+
+            # return container.exit_code
+            return  # XXX
+        try:
+            with open(log, "a") as f:
+                for c in container.logs(
+                    stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp,
+                ):
+                    log_line = c.decode("utf-8")
+                    sys.stderr.write(log_line)
+                    f.write(remove_escapes(log_line))
+                    last_log_timestamp = datetime.now()
+
+            time.sleep(3)
+        except KeyboardInterrupt:
+            logger.info("Received CTRL-C. Stopping container...")
+            try:
+                container.stop()
+                logger.info("Removing container")
+                container.remove()
+                logger.info("Container removed.")
+            except NotFound:
+                pass
+            except APIError as e:
+                # if e.errno == 409:
+                #
+                pass
+            break
+        except BaseException:
+            logger.error(traceback.format_exc())
+            logger.info("Will try to re-attach to container.")
+            time.sleep(3)
+    # logger.debug('monitoring graceful exit')
+
+
+escape = re.compile("\x1b\[[\d;]*?m")
+
+
+def remove_escapes(s):
+    return escape.sub("", s)
