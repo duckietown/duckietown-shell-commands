@@ -2,6 +2,10 @@
 
 set -x
 
+SD_DEVICE=/dev/mmcblk0
+ROOT_PART_ID=1
+ROOT_PART_NAME=APP
+
 setup_etc_hosts() {
 cat >/etc/hosts <<EOL
 127.0.0.1	localhost
@@ -21,6 +25,14 @@ run_on_first_boot () {
 
   # activate `booting` service
   cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
+
+  # resize root partition
+  sudo sgdisk --move-second-header ${SD_DEVICE}
+  sudo sgdisk --delete=${ROOT_PART_ID} ${SD_DEVICE}
+  sudo sgdisk --largest-new=${ROOT_PART_ID} ${SD_DEVICE}
+  sudo parted ${SD_DEVICE} name ${ROOT_PART_ID} ${ROOT_PART_NAME}
+  sudo resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
+  sudo partprobe
 
   # sudo without a password
   echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
