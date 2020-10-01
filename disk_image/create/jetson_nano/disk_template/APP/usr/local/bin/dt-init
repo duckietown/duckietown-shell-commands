@@ -43,7 +43,7 @@ run_on_first_boot () {
   dkms install -m rtl88x2bu -v 5.6.1
 
   # install camera drivers
-  cd /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9/v4l2loopback
+  cd /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9/v4l2loopback || exit
   find . -exec touch \{\} \;
   make
   make install
