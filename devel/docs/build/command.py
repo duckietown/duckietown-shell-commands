@@ -1,8 +1,6 @@
 import argparse
 import os
 import sys
-import string
-import random
 import docker
 import tarfile
 import io

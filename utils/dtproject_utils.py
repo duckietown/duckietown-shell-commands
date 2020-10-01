@@ -87,27 +87,35 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
+
     def __init__(self, path: str):
+        self._adapters = []
+        self._repository = None
+        # use `fs` adapter by default
         self._path = os.path.abspath(path)
-        project_info = self._get_project_info(self._path)
-        self._name = project_info["NAME"]
-        self._type = project_info["TYPE"]
-        self._type_version = project_info["TYPE_VERSION"]
-        self._version = project_info["VERSION"]
-        repo_info = self._get_repo_info(self._path)
-        self._repository = SimpleNamespace(
-            name=repo_info["REPOSITORY"],
-            sha=repo_info["SHA"],
-            detached=repo_info["BRANCH"] == "HEAD",
-            branch=repo_info["BRANCH"],
-            head_version=repo_info["VERSION.HEAD"],
-            closest_version=repo_info["VERSION.CLOSEST"],
-            repository_url=repo_info["ORIGIN.URL"],
-            repository_page=repo_info["ORIGIN.HTTPS.URL"],
-            index_nmodified=repo_info["INDEX_NUM_MODIFIED"],
-            index_nadded=repo_info["INDEX_NUM_ADDED"],
-        )
-        self._distro, *_ = self._repository.branch.split("-")
+        self._adapters.append('fs')
+        # use `dtproject` adapter (required)
+        self._project_info = self._get_project_info(self._path)
+        self._type = self._project_info["TYPE"]
+        self._type_version = self._project_info["TYPE_VERSION"]
+        self._version = self._project_info["VERSION"]
+        self._adapters.append('dtproject')
+        # use `git` adapter if available
+        if os.path.isdir(os.path.join(self._path, '.git')):
+            repo_info = self._get_repo_info(self._path)
+            self._repository = SimpleNamespace(
+                name=repo_info["REPOSITORY"],
+                sha=repo_info["SHA"],
+                detached=repo_info["BRANCH"] == "HEAD",
+                branch=repo_info["BRANCH"],
+                head_version=repo_info["VERSION.HEAD"],
+                closest_version=repo_info["VERSION.CLOSEST"],
+                repository_url=repo_info["ORIGIN.URL"],
+                repository_page=repo_info["ORIGIN.HTTPS.URL"],
+                index_nmodified=repo_info["INDEX_NUM_MODIFIED"],
+                index_nadded=repo_info["INDEX_NUM_ADDED"],
+            )
+            self._adapters.append('git')
 
     @property
     def path(self):
@@ -115,7 +123,7 @@ class DTProject:
 
     @property
     def name(self):
-        return self._name
+        return self._repository.name if self._repository else os.path.basename(self.path)
 
     @property
     def type(self):
@@ -127,33 +135,64 @@ class DTProject:
 
     @property
     def distro(self):
-        return self._distro
+        return self._repository.branch.split("-")[0] if self._repository else 'latest'
 
     @property
     def version(self):
         return self._version
 
     @property
-    def repository(self):
-        return copy.copy(self._repository)
+    def head_version(self):
+        return self._repository.head_version if self._repository else 'latest'
+
+    @property
+    def closest_version(self):
+        return self._repository.closest_version if self._repository else 'latest'
+
+    @property
+    def version_name(self):
+        return self._repository.branch if self._repository else 'latest'
+
+    @property
+    def url(self):
+        return self._repository.repository_page if self._repository else None
+
+    @property
+    def sha(self):
+        return self._repository.sha if self._repository else 'ND'
+
+    @property
+    def adapters(self):
+        return copy.copy(self._adapters)
+
+    def is_release(self):
+        return self.head_version != "ND" if self._repository else False
+
+    def is_clean(self):
+        if self._repository:
+            return (self._repository.index_nmodified + self._repository.index_nadded) == 0
+        return True
+
+    def is_dirty(self):
+        return not self.is_clean()
+
+    def is_detached(self):
+        return self._repository.detached if self._repository else False
 
     def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
         arch = canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
-        version = re.sub(r"[^\w\-.]", "-", self.repository.branch)
-        return f"{owner}/{self.repository.name}:{version}{loop}{docs}-{arch}"
-
-    def is_release(self):
-        return self.repository.head_version != "ND"
+        version = re.sub(r"[^\w\-.]", "-", self.version_name)
+        return f"{owner}/{self.name}:{version}{loop}{docs}-{arch}"
 
     def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
         arch = canonical_arch(arch)
         docs = "-docs" if docs else ""
-        version = re.sub(r"[^\w\-.]", "-", self.repository.head_version)
-        return f"{owner}/{self.repository.name}:{version}{docs}-{arch}"
+        version = re.sub(r"[^\w\-.]", "-", self.head_version)
+        return f"{owner}/{self.name}:{version}{docs}-{arch}"
 
     def configurations(self) -> dict:
         if int(self._type_version) < 2:
@@ -185,7 +224,7 @@ class DTProject:
                 )
             )
         # ---
-        return TEMPLATE_TO_SRC[self.type][self.type_version](self.repository.name)
+        return TEMPLATE_TO_SRC[self.type][self.type_version](self.name)
 
     def launch_paths(self):
         # make sure we support this project version
@@ -199,13 +238,7 @@ class DTProject:
                 )
             )
         # ---
-        return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.repository.name)
-
-    def is_clean(self):
-        return self.repository.index_nmodified + self.repository.index_nadded == 0
-
-    def is_dirty(self):
-        return not self.is_clean()
+        return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
 
     def image_metadata(self, endpoint, arch: str, owner: str = "duckietown"):
         client = _docker_client(endpoint)
@@ -227,13 +260,12 @@ class DTProject:
 
     def remote_image_metadata(self, arch: str, owner: str = "duckietown"):
         arch = canonical_arch(arch)
-        image = f"{owner}/{self.repository.name}"
-        tag = f"{self.repository.branch}-{arch}"
-        return self.inspect_remore_image(image, tag)
+        image = f"{owner}/{self.name}"
+        tag = f"{self.version_name}-{arch}"
+        return self.inspect_remote_image(image, tag)
 
     @staticmethod
     def _get_project_info(path):
-        project_name = os.path.basename(path)
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
@@ -265,7 +297,6 @@ class DTProject:
                 msg = "The metadata file '.dtproject' does not contain the key '%s'." % key
                 raise UserError(msg)
         # metadata is valid
-        metadata["NAME"] = project_name
         metadata["PATH"] = path
         return metadata
 
@@ -313,7 +344,7 @@ class DTProject:
         }
 
     @staticmethod
-    def inspect_remore_image(image, tag):
+    def inspect_remote_image(image, tag):
         res = requests.get(DOCKER_HUB_API_URL["token"].format(image=image)).json()
         token = res["token"]
         # ---

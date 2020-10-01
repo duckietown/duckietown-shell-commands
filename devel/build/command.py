@@ -95,7 +95,7 @@ class DTCommand(DTCommandAbs):
         except ValueError:
             project_template_ver = -1
         # check if the git HEAD is detached
-        if project.repository.detached:
+        if project.is_detached():
             dtslogger.error('The repository HEAD is detached. Create a branch or check one out '
                             'before continuing. Aborting.')
             exit(8)
@@ -161,15 +161,22 @@ class DTCommand(DTCommandAbs):
             if not parsed.destination:
                 parsed.destination = DEFAULT_MACHINE
         # add code labels
-        project_head_version = project.repository.head_version if project.is_clean() else 'ND'
-        project_closest_version = project.repository.closest_version
-        buildargs['labels'][dtlabel('code.vcs')] = 'git'
+        project_head_version = project.head_version if project.is_clean() else 'ND'
+        project_closest_version = project.closest_version
         buildargs['labels'][dtlabel('code.distro')] = project.distro
         buildargs['labels'][dtlabel('code.version.head')] = project_head_version
         buildargs['labels'][dtlabel('code.version.closest')] = project_closest_version
-        buildargs['labels'][dtlabel('code.repository')] = project.repository.name
-        buildargs['labels'][dtlabel('code.branch')] = project.repository.branch
-        buildargs['labels'][dtlabel('code.url')] = project.repository.repository_page
+        # git-based project
+        if 'git' in project.adapters:
+            buildargs['labels'][dtlabel('code.vcs')] = 'git'
+            buildargs['labels'][dtlabel('code.repository')] = project.name
+            buildargs['labels'][dtlabel('code.branch')] = project.version_name
+            buildargs['labels'][dtlabel('code.url')] = project.url
+        else:
+            buildargs['labels'][dtlabel('code.vcs')] = 'ND'
+            buildargs['labels'][dtlabel('code.repository')] = 'ND'
+            buildargs['labels'][dtlabel('code.branch')] = 'ND'
+            buildargs['labels'][dtlabel('code.url')] = 'ND'
         # add template labels
         buildargs['labels'][dtlabel('template.name')] = project.type
         buildargs['labels'][dtlabel('template.version')] = project.type_version
@@ -258,8 +265,8 @@ class DTCommand(DTCommandAbs):
 
         # loop mode (Experimental)
         if parsed.loop:
-            buildargs['buildargs']['BASE_IMAGE'] = project.repository.name
-            buildargs['buildargs']['BASE_TAG'] = '-'.join([project.repository.branch, parsed.arch])
+            buildargs['buildargs']['BASE_IMAGE'] = project.name
+            buildargs['buildargs']['BASE_TAG'] = '-'.join([project.version_name, parsed.arch])
             buildargs['labels'][dtlabel('image.loop')] = '1'
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
@@ -301,7 +308,7 @@ class DTCommand(DTCommandAbs):
             else:
                 # project is clean
                 build_time = None
-                local_sha = project.repository.sha
+                local_sha = project.sha
                 # get remote image metadata
                 try:
                     labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
@@ -322,7 +329,7 @@ class DTCommand(DTCommandAbs):
         # add timestamp label
         buildargs['labels'][dtlabel('time')] = build_time
         # add code SHA label (CI only)
-        code_sha = project.repository.sha if project.is_clean() else 'ND'
+        code_sha = project.sha if project.is_clean() else 'ND'
         buildargs['labels'][dtlabel('code.sha')] = code_sha
 
         # collect build args
