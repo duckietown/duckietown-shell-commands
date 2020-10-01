@@ -59,9 +59,9 @@ run_on_first_boot () {
   # create swap
   echo "Setting up swap..."
   dd if=/dev/zero of=/swap0 bs=1M count=2048
+  chmod 0600 /swap0
   mkswap /swap0
   echo "/swap0 swap swap" >> /etc/fstab
-  chmod 0600 /swap0
   swapon -a
 
   # store the MAC addresses for future reference
