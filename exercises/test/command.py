@@ -13,6 +13,7 @@ from utils.docker_utils import build_if_not_exist, \
     default_env, remove_if_running, get_remote_client, \
     pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
+from utils.cli_utils import check_program_dependency
 
 usage = """
 
@@ -29,16 +30,18 @@ usage = """
 
 
 BRANCH="daffy"
-ARCH="amd64"
+DEFAULT_ARCH="amd64"
+REMOTE_ARCH="arm32v7"
 AIDO_REGISTRY="registry-stage.duckietown.org"
-ROSCORE_IMAGE="ros:noetic-ros-core"
-SIMULATOR_IMAGE="duckietown/challenge-aido_lf-simulator-gym:" + BRANCH
-ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
-VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64"
-MIDDLEWARE_IMAGE="duckietown/mooc-fifos-connector:" + BRANCH
-CAR_INTERFACE_IMAGE="duckietown/dt-car-interface:" + BRANCH + "-" + ARCH
-BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH + "-" + ARCH
+ROSCORE_IMAGE="ros:noetic-ros-core" # arch is prefix
+SIMULATOR_IMAGE="duckietown/challenge-aido_lf-simulator-gym:" + BRANCH # no arch
+ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH
+VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64" # always on amd64
+MIDDLEWARE_IMAGE="duckietown/mooc-fifos-connector:" + BRANCH # no arch
+CAR_INTERFACE_IMAGE="duckietown/dt-car-interface:" + BRANCH
+BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
+DEFAULT_REMOTE_USER = "duckie"
 
 class InvalidUserInput(Exception):
     pass
@@ -136,7 +139,7 @@ class DTCommand(DTCommandAbs):
         #
         #   get current working directory to check if it is an exercise directory
         #
-        working_dir = os.getcwd()
+        working_dir = "."
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
@@ -144,23 +147,49 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             agent_client = local_client
+            arch = DEFAULT_ARCH
         else:
+            # let's set some things up to run on the Duckiebot
+            check_program_dependence('rsync')
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{parsed.duckiebot_name}.local:/code/"
+            dtslogger.info(f"Syncing your code with {parsed.duckiebot_name}")
+            exercise_ws_dir = working_dir + "/exercise_ws"
+            exercise_cmd = f"rsync --archive {exercise_ws_dir} {remote_base_path}"
+            _run_cmd(exercise_cmd, shell=True)
+            launcher_dir = working_dir + "/launchers"
+            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
+            _run_cmd(launcher_cmd, shell=True)
+
+            # arch
+            arch = REMOTE_ARCH
             agent_client = duckiebot_client
 
+
+        # let's update the images based on arch
+        if not parsed.local
+            ros_image = f"{arch}/{ROSCORE_IMAGE}"
+        else:
+            ros_image = ROSCORE_IMAGE
+
+        ros_template_image = f"{ros_template_image}-{arch}"
+        car_interface_image = f"{CAR_INTERFACE_IMAGE}-{arch}"
+        bridge_image = f"{BRIDGE_IMAGE}-{arch}"
+
+
             # let's clean up any mess from last time
-        sim_container_name = "gym_simulator"
+        sim_container_name = "challenge-aido_lf-simulator-gym"
         remove_if_running(agent_client, sim_container_name)
-        ros_container_name = "ros_core"
+        ros_container_name = "noetic-ros-core"
         remove_if_running(agent_client, ros_container_name)
-        vnc_container_name = "vnc"
+        vnc_container_name = "dt-gui-tools"
         remove_if_running(local_client, vnc_container_name)  # vnc always local
-        middleware_container_name = "middleware"
+        middleware_container_name = "mooc-fifos-connector"
         remove_if_running(agent_client, middleware_container_name)
-        car_interface_container_name = "car_interface"
+        car_interface_container_name = "dt-car-interface"
         remove_if_running(agent_client, car_interface_container_name)
-        ros_template_container_name = "ros_template"
+        ros_template_container_name = "challenge-aido_lf-template-ros"
         remove_if_running(agent_client, ros_template_container_name)
-        bridge_container_name = "duckiebot_fifos_bridge"
+        bridge_container_name = "dt-duckiebot-fifos-bridge"
         remove_if_running(agent_client, bridge_container_name)
 
         try:
@@ -383,3 +412,28 @@ def load_yaml(file_name):
         except Exception as e:
             dtslogger.warn("error reading simulation environment config: %s" % e)
         return env
+
+
+
+def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
+    if shell and isinstance(cmd, (list, tuple)):
+        cmd = " ".join([str(s) for s in cmd])
+    dtslogger.debug("$ %s" % cmd)
+    if get_output:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=shell)
+        proc.wait()
+        if proc.returncode != 0:
+            if not suppress_errors:
+                msg = "The command {} returned exit code {}".format(cmd, proc.returncode)
+                dtslogger.error(msg)
+                raise RuntimeError(msg)
+        out = proc.stdout.read().decode("utf-8").rstrip()
+        if print_output:
+            print(out)
+        return out
+    else:
+        try:
+            subprocess.check_call(cmd, shell=shell)
+        except subprocess.CalledProcessError as e:
+            if not suppress_errors:
+                raise e
