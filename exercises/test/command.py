@@ -103,6 +103,8 @@ class DTCommand(DTCommandAbs):
         # get the local docker client
         local_client = check_docker_environment()
 
+
+
         # let's do all the input checks
 
         duckiebot_name = parsed.duckiebot_name
@@ -111,7 +113,7 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
 
         if not parsed.local and parsed.sim:
-            dtslogger.info("Note overriding remote flag and running locally since we are using simulator")
+            dtslogger.info("Note: Running locally since we are using simulator")
             parsed.local = True
 
         if not parsed.sim:
@@ -130,6 +132,7 @@ class DTCommand(DTCommandAbs):
         # done input checks
 
 
+
         #
         #   get current working directory to check if it is an exercise directory
         #
@@ -144,13 +147,13 @@ class DTCommand(DTCommandAbs):
         else:
             agent_client = duckiebot_client
 
-        # let's clean up any mess from last time
+            # let's clean up any mess from last time
         sim_container_name = "gym_simulator"
         remove_if_running(agent_client, sim_container_name)
         ros_container_name = "ros_core"
         remove_if_running(agent_client, ros_container_name)
         vnc_container_name = "vnc"
-        remove_if_running(local_client, vnc_container_name) # vnc always local
+        remove_if_running(local_client, vnc_container_name)  # vnc always local
         middleware_container_name = "middleware"
         remove_if_running(agent_client, middleware_container_name)
         car_interface_container_name = "car_interface"
