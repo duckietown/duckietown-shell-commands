@@ -10,10 +10,11 @@ from datetime import datetime
 from threading import Thread, Semaphore
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_client, get_endpoint_architecture
+from utils.docker_utils import get_client, get_endpoint_architecture_from_ip, get_remote_client
 from utils.dtproject_utils import dtlabel, DTProject
 from utils.cli_utils import ProgressBar, ask_confirmation
 from utils.duckietown_utils import get_distro_version
+from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
@@ -41,8 +42,10 @@ class DTCommand(DTCommandAbs):
         hostname = parsed.hostname[0]
 
         # open Docker client
-        docker = get_client(hostname)
-        arch = get_endpoint_architecture(hostname)
+        duckiebot_ip = get_duckiebot_ip(hostname)
+        docker = get_remote_client(duckiebot_ip)
+#        docker = get_client(hostname)
+        arch = get_endpoint_architecture_from_ip(duckiebot_ip)
         image_pattern = re.compile(f"^duckietown/.+:{get_distro_version(shell)}-{arch}$")
 
         # fetch list of images at the Docker endpoint
@@ -158,7 +161,7 @@ def _get_remote_labels(image):
     labels = None
     metadata = None
     try:
-        metadata = DTProject.inspect_remore_image(*image.split(":"))
+        metadata = DTProject.inspect_remote_image(*image.split(":"))
     except KeyboardInterrupt as e:
         raise e
     except BaseException:

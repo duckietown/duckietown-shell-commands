@@ -336,8 +336,12 @@ class DTCommand(DTCommandAbs):
         ros_template_env = {**agent_ros_env, **ros_template_env}
         ros_template_volumes = fifos_bind
         ros_template_volumes[working_dir+"/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        if parsed.sim:
+        if parsed.sim or parsed.local:
+            # TODO should get the calibrations from the robot
             ros_template_volumes[working_dir+"/assets"] = {"bind": "/data/config", "mode": "rw"}
+        else:
+            ros_template_volumes["/data/config"] = {"bind": "/data/config", "mode": "rw"}
+
         ros_template_volumes[working_dir+"/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
 
         ros_template_params = {
@@ -350,7 +354,7 @@ class DTCommand(DTCommandAbs):
             "tty": True,
             "command": "bash -c /code/launchers/run.sh"
         }
-
+        print(ros_template_params)
         pull_if_not_exist(agent_client, ros_template_params["image"])
         ros_template_container = agent_client.containers.run(**ros_template_params)
 
