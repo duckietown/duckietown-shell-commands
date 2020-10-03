@@ -2,8 +2,7 @@ import argparse
 
 # from git import Repo # pip install gitpython
 import os
-
-import docker
+import platform
 import nbformat  # install before?
 from nbconvert.exporters import PythonExporter
 import yaml
@@ -38,7 +37,7 @@ ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" +
 VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64"
 MIDDLEWARE_IMAGE="duckietown/mooc-fifos-connector:" + BRANCH
 CAR_INTERFACE_IMAGE="duckietown/dt-car-interface:" + BRANCH + "-" + ARCH
-
+BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH + "-" + ARCH
 
 
 class InvalidUserInput(Exception):
@@ -104,6 +103,8 @@ class DTCommand(DTCommandAbs):
         # get the local docker client
         local_client = check_docker_environment()
 
+        # let's do all the input checks
+
         duckiebot_name = parsed.duckiebot_name
         if duckiebot_name is None and not parsed.sim:
             msg = "You must specify a duckiebot_name or run in the simulator"
@@ -126,6 +127,7 @@ class DTCommand(DTCommandAbs):
             middle_image = MIDDLEWARE_IMAGE
             ros_template_image = ROS_TEMPLATE_IMAGE
 
+        # done input checks
 
 
         #
@@ -143,19 +145,20 @@ class DTCommand(DTCommandAbs):
             agent_client = duckiebot_client
 
         # let's clean up any mess from last time
-
         sim_container_name = "gym_simulator"
         remove_if_running(agent_client, sim_container_name)
         ros_container_name = "ros_core"
         remove_if_running(agent_client, ros_container_name)
         vnc_container_name = "vnc"
-        remove_if_running(agent_client, vnc_container_name)
+        remove_if_running(local_client, vnc_container_name) # vnc always local
         middleware_container_name = "middleware"
         remove_if_running(agent_client, middleware_container_name)
         car_interface_container_name = "car_interface"
         remove_if_running(agent_client, car_interface_container_name)
         ros_template_container_name = "ros_template"
         remove_if_running(agent_client, ros_template_container_name)
+        bridge_container_name = "duckiebot_fifos_bridge"
+        remove_if_running(agent_client, bridge_container_name)
 
         try:
             dict = agent_client.networks.prune()
@@ -173,6 +176,12 @@ class DTCommand(DTCommandAbs):
 
         if parsed.stop:
             exit(0)
+
+        # are we running on a mac?
+        if "darwin" in platform.system().lower():
+            running_on_mac = True
+        else:
+            running_on_mac = False # if we aren't running on mac we're on Linux
 
         # now let's build the network and volume
 
@@ -194,24 +203,69 @@ class DTCommand(DTCommandAbs):
 
         # Launch things one by one
 
-        # let's launch the simulator
+        if parsed.sim:
 
-        sim_env = load_yaml(working_dir + env_dir + "sim_env.yaml")
-        sim_env = {**sim_env, **default_env}
+            # let's launch the simulator
 
-        dtslogger.info("Running simulator")
+            sim_env = load_yaml(working_dir + env_dir + "sim_env.yaml")
+            sim_env = {**sim_env, **default_env}
 
-        sim_params = {
-            "image": sim_image,
-            "name": sim_container_name,
-            "network": agent_network.name,
-            "environment": sim_env,
-            "volumes": fifos_bind,
-            "tty": True,
-            "detach": True,
-        }
-        pull_if_not_exist(agent_client, sim_params["image"])
-        sim_container = agent_client.containers.run(**sim_params)
+            dtslogger.info("Running simulator")
+
+            sim_params = {
+                "image": sim_image,
+                "name": sim_container_name,
+                "network": agent_network.name,
+                "environment": sim_env,
+                "volumes": fifos_bind,
+                "tty": True,
+                "detach": True,
+            }
+            pull_if_not_exist(agent_client, sim_params["image"])
+            sim_container = agent_client.containers.run(**sim_params)
+
+            # let's launch the middleware_manager
+            dtslogger.info("Running the middleware manager")
+            middleware_env = load_yaml(working_dir + env_dir + "middleware_env.yaml")
+            middleware_env = {**middleware_env, **default_env}
+            mw_params = {
+                "image": middle_image,
+                "name": middleware_container_name,
+                "environment": middleware_env,
+                "network": agent_network.name,
+                "volumes": fifos_bind,
+                "detach": True,
+                "tty": True,
+            }
+            pull_if_not_exist(agent_client, mw_params["image"])
+            mw_container = agent_client.containers.run(**mw_params)
+
+        else: # we are running on a duckiebot
+
+            # let's launch the duckiebot fifos bridge, note that this one runs in a different
+            # ROS environment, the one on the robot
+            dtslogger.info("Running the duckiebot/fifos bridge")
+            bridge_env = {
+                "HOSTNAME": f"{duckiebot_name}",
+                "VEHICLE_NAME": f"{duckiebot_name}",
+                "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311"
+            }
+            bridge_volumes = fifos_bind
+            bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+
+            bridge_params = {
+                "image": BRIDGE_IMAGE,
+                "name": bridge_container_name,
+                "environment": bridge_env,
+                "network_mode": "host",
+                "volumes": fifos_bind,
+                "detach": True,
+                "tty": True,
+            }
+            pull_if_not_exist(agent_client, bridge_params["image"])
+            bridge_container = agent_client.containers.run(**bridge_params)
+
+        # done with sim/duckiebot stuff.
 
         # let's launch the ros-core
 
@@ -249,25 +303,10 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "tty": True,
         }
-        pull_if_not_exist(agent_client, vnc_params["image"])
-        vnc_container = agent_client.containers.run(**vnc_params)
+        # vnc always runs on local client
+        pull_if_not_exist(local_client, vnc_params["image"])
+        vnc_container = local_client.containers.run(**vnc_params)
 
-        # let's launch the middleware_manager
-        dtslogger.info("Running the middleware manager")
-        middleware_env = load_yaml(working_dir + env_dir + "middleware_env.yaml")
-        middleware_env = {**middleware_env, **default_env}
-        mw_params = {
-            "image": middle_image,
-            "name": middleware_container_name,
-            "environment": middleware_env,
-            "network": agent_network.name,
-            "volumes": fifos_bind,
-            "detach": True,
-            "tty": True,
-        }
-
-        pull_if_not_exist(agent_client, mw_params["image"])
-        mw_container = agent_client.containers.run(**mw_params)
 
         # let's launch the car interface
         dtslogger.info("Running the car interface")
