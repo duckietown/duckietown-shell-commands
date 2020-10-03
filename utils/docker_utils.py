@@ -74,6 +74,15 @@ def get_client(endpoint=None):
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     return docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
 
+# TODO quick hack to make this work - duplication of code above bad
+def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+    from utils.dtproject_utils import CANONICAL_ARCH
+    client = get_remote_client(duckiebot_ip, port)
+    epoint_arch = client.info()["Architecture"]
+    if epoint_arch not in CANONICAL_ARCH:
+        dtslogger.error(f"Architecture {epoint_arch} not supported!")
+        exit(1)
+    return CANONICAL_ARCH[epoint_arch]
 
 def pull_image(image, endpoint=None, progress=True):
     client = get_client(endpoint)
