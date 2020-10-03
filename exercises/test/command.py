@@ -293,12 +293,15 @@ class DTCommand(DTCommandAbs):
         # let's launch vnc
         dtslogger.info("Running vnc")
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
+        vnc_env = agent_ros_env
+        if not parsed.local:
+            vnc_env["ROS_MASTER_URI"] = f"http://{duckiebot_name}.local:11311"
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
             "command": "dt-launcher-vnc",
             "network": agent_network.name,
-            "environment": agent_ros_env,
+            "environment": vnc_env,
             "ports": vnc_port,
             "detach": True,
             "tty": True,
