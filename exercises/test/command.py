@@ -6,7 +6,7 @@ import platform
 import nbformat  # install before?
 from nbconvert.exporters import PythonExporter
 import yaml
-
+import requests
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import build_if_not_exist, \
@@ -344,6 +344,10 @@ class DTCommand(DTCommandAbs):
 
         ros_template_volumes[working_dir+"/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
 
+        if parsed.local and not parsed.sim:
+            # get the calibrations from the robot with the REST API
+            get_calibration_files(working_dir+"/assets", parsed.duckiebot_name)
+
         ros_template_params = {
             "image": ros_template_image,
             "name": ros_template_container_name,
@@ -386,3 +390,46 @@ def load_yaml(file_name):
         except Exception as e:
             dtslogger.warn("error reading simulation environment config: %s" % e)
         return env
+
+
+
+# get the calibration files off the robot
+def get_calibration_files(destination_dir, duckiebot_name):
+    dtslogger.info("Getting all calibration files")
+
+    calib_files = [
+        "config/calibrations/camera_intrinsic/{duckiebot:s}.yaml",
+        "config/calibrations/camera_extrinsic/{duckiebot:s}.yaml",
+        "config/calibrations/kinematics/{duckiebot:s}.yaml",
+    ]
+
+    for calib_file in calib_files:
+        calib_file = calib_file.format(duckiebot=duckiebot_name)
+        url = "http://{:s}.local/files/{:s}".format(duckiebot_name, calib_file)
+        # get calibration using the files API
+        dtslogger.debug('Fetching file "{:s}"'.format(url))
+        res = requests.get(url, timeout=10)
+        if res.status_code != 200:
+            dtslogger.warn(
+                "Could not get the calibration file {:s} from the robot {:s}. Is your Duckiebot calibrated? ".format(
+                    calib_file, duckiebot_name
+                )
+            )
+            continue
+        # make destination directory
+        dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
+        if not os.path.isdir(dirname):
+            dtslogger.debug('Creating directory "{:s}"'.format(dirname))
+            os.makedirs(dirname)
+        # save calibration file to disk
+        # NOTE: all agent names in evaluations are "agent" so need to copy
+        #       the robot specific calibration to default
+        destination_file = os.path.join(dirname, "agent.yaml")
+        dtslogger.debug(
+            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
+                duckiebot_name, calib_file, destination_file
+            )
+        )
+        with open(destination_file, "wb") as fd:
+            for chunk in res.iter_content(chunk_size=128):
+                fd.write(chunk)
