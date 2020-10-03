@@ -354,7 +354,6 @@ class DTCommand(DTCommandAbs):
             "tty": True,
             "command": "bash -c /code/launchers/run.sh"
         }
-        print(ros_template_params)
         pull_if_not_exist(agent_client, ros_template_params["image"])
         ros_template_container = agent_client.containers.run(**ros_template_params)
 
