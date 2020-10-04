@@ -116,6 +116,10 @@ run_on_every_boot () {
 
   # remove `booting` service
   rm -f /etc/avahi/services/dt.booting.service
+  
+  echo "Improving Performance!"
+  jetson_clocks
+  echo 255 >> /sys/devices/pwm-fan/target_pwm
 
   echo "Setting up completed!"
 }
