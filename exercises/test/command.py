@@ -3,6 +3,7 @@ import argparse
 # from git import Repo # pip install gitpython
 import os
 import platform
+import subprocess
 import nbformat  # install before?
 from nbconvert.exporters import PythonExporter
 import yaml
@@ -150,7 +151,7 @@ class DTCommand(DTCommandAbs):
             arch = DEFAULT_ARCH
         else:
             # let's set some things up to run on the Duckiebot
-            check_program_dependence('rsync')
+            check_program_dependency('rsync')
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{parsed.duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your code with {parsed.duckiebot_name}")
             exercise_ws_dir = working_dir + "/exercise_ws"
@@ -166,7 +167,7 @@ class DTCommand(DTCommandAbs):
 
 
         # let's update the images based on arch
-        if not parsed.local
+        if not parsed.local:
             ros_image = f"{arch}/{ROSCORE_IMAGE}"
         else:
             ros_image = ROSCORE_IMAGE
@@ -286,7 +287,7 @@ class DTCommand(DTCommandAbs):
             bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
 
             bridge_params = {
-                "image": BRIDGE_IMAGE,
+                "image": bridge_image,
                 "name": bridge_container_name,
                 "environment": bridge_env,
                 "network_mode": "host",
@@ -310,11 +311,11 @@ class DTCommand(DTCommandAbs):
 
         ros_port = {"11311/tcp": ("0.0.0.0", 11311)}
         ros_params = {
-            "image": ROSCORE_IMAGE,
+            "image": ros_image,
             "name": ros_container_name,
             "network": agent_network.name,
             "environment": agent_ros_env,
-            "ports": ros_port,
+ #           "ports": ros_port,
             "detach": True,
             "tty": True,
             "command": "roscore",
@@ -346,7 +347,7 @@ class DTCommand(DTCommandAbs):
         # let's launch the car interface
         dtslogger.info("Running the car interface")
         car_params = {
-            "image": CAR_INTERFACE_IMAGE,
+            "image": car_interface_image,
             "name": car_interface_container_name,
             "environment": agent_ros_env,
             "network": agent_network.name,
@@ -364,14 +365,16 @@ class DTCommand(DTCommandAbs):
         ros_template_env = load_yaml(working_dir + env_dir + "ros_template_env.yaml")
         ros_template_env = {**agent_ros_env, **ros_template_env}
         ros_template_volumes = fifos_bind
-        ros_template_volumes[working_dir+"/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+
         if parsed.sim or parsed.local:
-            # TODO should get the calibrations from the robot
             ros_template_volumes[working_dir+"/assets"] = {"bind": "/data/config", "mode": "rw"}
+            ros_template_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+            ros_template_volumes[working_dir + "/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
         else:
             ros_template_volumes["/data/config"] = {"bind": "/data/config", "mode": "rw"}
+            ros_template_volumes["/code/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+            ros_template_volumes["/code/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
 
-        ros_template_volumes[working_dir+"/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
 
         if parsed.local and not parsed.sim:
             # get the calibrations from the robot with the REST API
