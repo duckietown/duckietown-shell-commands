@@ -548,6 +548,17 @@ class DTCommand(DTCommandAbs):
                         exit(2)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
+                        # run full-upgrade on the new root
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "apt update && "
+                            "apt-mark hold nvidia-l4t-bootloader && "
+                            "apt --yes --force-yes --no-install-recommends"
+                            ' -o Dpkg::Options::="--force-confdef" '
+                            ' -o Dpkg::Options::="--force-confold" '
+                            "full-upgrade && "
+                            "apt-mark unhold nvidia-l4t-bootloader",
+                        )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
