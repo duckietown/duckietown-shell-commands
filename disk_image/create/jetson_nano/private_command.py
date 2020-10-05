@@ -252,10 +252,10 @@ class DTCommand(DTCommandAbs):
             if step != parsed.cache_record:
                 return
             # cache step
-            dtslogger.debug(f"Caching step '{step}'...")
+            dtslogger.info(f"Caching step '{step}'...")
             cache_file_path = cached_step_file_path(step, 'img')
             _copy_file(out_file_path('img'), cache_file_path)
-            dtslogger.debug(f"Step '{step}' cached.")
+            dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
         if parsed.cache_target is not None:
@@ -553,7 +553,6 @@ class DTCommand(DTCommandAbs):
                             pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
-                                "apt update && "
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
@@ -893,5 +892,5 @@ def _copy_file(origin, destination):
     # create destination directory
     os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
     # make copy of the file
-    dtslogger.debug(f"Copying [{origin}] -> [{destination}]")
+    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
     run_cmd(["cp", origin, destination])
