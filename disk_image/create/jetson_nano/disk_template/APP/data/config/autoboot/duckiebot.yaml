@@ -4,7 +4,7 @@ services:
   portainer:
     image: portainer/portainer:linux-arm-1.24.1
     container_name: portainer
-    command: ["--host=unix:///var/run/docker.sock"]
+    command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
     network_mode: host
     volumes:
