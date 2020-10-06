@@ -265,7 +265,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(sim_params)
 
             pull_if_not_exist(agent_client, sim_params["image"])
-#            sim_container = agent_client.containers.run(**sim_params)
+            sim_container = agent_client.containers.run(**sim_params)
 
             # let's launch the middleware_manager
             dtslogger.info("Running the middleware manager")
@@ -313,7 +313,7 @@ class DTCommand(DTCommandAbs):
         # let's launch the ros-core
 
         dtslogger.info("Running %s" % ros_container_name)
-        agent_ros_env = {'ROS_MASTER_URI': "http://ros_core:11311"}
+        agent_ros_env = load_yaml(env_dir + "ros_env.yaml")
 
         ros_port = {"11311/tcp": ("0.0.0.0", 11311)}
         ros_params = {
@@ -334,7 +334,7 @@ class DTCommand(DTCommandAbs):
         # let's launch vnc
         dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = {'ROS_MASTER_URI': "http://ros_core:11311"}
+        vnc_env = agent_ros_env
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
@@ -355,7 +355,7 @@ class DTCommand(DTCommandAbs):
 
 
         # let's launch the car interface
-        dtslogger.info("Running the car interface")
+        dtslogger.info("Running the %s" % car_interface_container_name)
         car_params = {
             "image": car_interface_image,
             "name": car_interface_container_name,
@@ -365,12 +365,15 @@ class DTCommand(DTCommandAbs):
             "tty": True
         }
 
+        if parsed.debug:
+            dtslogger.info(car_params)
+
         pull_if_not_exist(agent_client, car_params["image"])
         car_container = agent_client.containers.run(**car_params)
 
         # Let's launch the ros template
         # TODO read from the config.yaml file which template we should launch
-        dtslogger.info("Running the ros template")
+        dtslogger.info("Running the %s" % ros_template_container_name)
 
         ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
         ros_template_env = {**agent_ros_env, **ros_template_env}
@@ -400,6 +403,10 @@ class DTCommand(DTCommandAbs):
             "tty": True,
             "command": "bash -c /code/launchers/run.sh"
         }
+
+        if parsed.debug:
+            dtslogger.info(ros_template_params)
+
         pull_if_not_exist(agent_client, ros_template_params["image"])
         ros_template_container = agent_client.containers.run(**ros_template_params)
 
