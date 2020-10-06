@@ -98,7 +98,15 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-            + "this is not expected to work on MacOSX"
+            + "this is not expected to work on MacOSX",
+        )
+
+        parser.add_argument(
+            "--debug",
+            dest="debug",
+            action="store_true",
+            default=False,
+            help="See extra debugging output",
         )
 
 
@@ -140,11 +148,11 @@ class DTCommand(DTCommandAbs):
         #
         #   get current working directory to check if it is an exercise directory
         #
-        working_dir = "."
+        working_dir = os.getcwd()
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
-        env_dir = "/assets/setup/"
+        env_dir = working_dir + "/assets/setup/"
 
         if parsed.local:
             agent_client = local_client
@@ -180,7 +188,7 @@ class DTCommand(DTCommandAbs):
             # let's clean up any mess from last time
         sim_container_name = "challenge-aido_lf-simulator-gym"
         remove_if_running(agent_client, sim_container_name)
-        ros_container_name = "noetic-ros-core"
+        ros_container_name = "ros_core"
         remove_if_running(agent_client, ros_container_name)
         vnc_container_name = "dt-gui-tools"
         remove_if_running(local_client, vnc_container_name)  # vnc always local
@@ -232,7 +240,7 @@ class DTCommand(DTCommandAbs):
 
         # load default env params used by all (or most)
 
-        default_env = load_yaml(working_dir + env_dir + "default_env.yaml")
+        default_env = load_yaml(env_dir + "default_env.yaml")
 
         # Launch things one by one
 
@@ -240,11 +248,10 @@ class DTCommand(DTCommandAbs):
 
             # let's launch the simulator
 
-            sim_env = load_yaml(working_dir + env_dir + "sim_env.yaml")
+            sim_env = load_yaml(env_dir + "sim_env.yaml")
             sim_env = {**sim_env, **default_env}
 
-            dtslogger.info("Running simulator")
-
+            dtslogger.info("Running %s" % sim_container_name )
             sim_params = {
                 "image": sim_image,
                 "name": sim_container_name,
@@ -254,12 +261,15 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
                 "detach": True,
             }
+            if parsed.debug:
+                dtslogger.info(sim_params)
+
             pull_if_not_exist(agent_client, sim_params["image"])
-            sim_container = agent_client.containers.run(**sim_params)
+#            sim_container = agent_client.containers.run(**sim_params)
 
             # let's launch the middleware_manager
             dtslogger.info("Running the middleware manager")
-            middleware_env = load_yaml(working_dir + env_dir + "middleware_env.yaml")
+            middleware_env = load_yaml(env_dir + "middleware_env.yaml")
             middleware_env = {**middleware_env, **default_env}
             mw_params = {
                 "image": middle_image,
@@ -271,7 +281,7 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
             pull_if_not_exist(agent_client, mw_params["image"])
-            mw_container = agent_client.containers.run(**mw_params)
+ #           mw_container = agent_client.containers.run(**mw_params)
 
         else: # we are running on a duckiebot
 
@@ -296,18 +306,14 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
             pull_if_not_exist(agent_client, bridge_params["image"])
-            bridge_container = agent_client.containers.run(**bridge_params)
+ #           bridge_container = agent_client.containers.run(**bridge_params)
 
         # done with sim/duckiebot stuff.
 
         # let's launch the ros-core
 
-        dtslogger.info("Running roscore")
-        agent_ros_env = load_yaml(working_dir + env_dir + "ros_env.yaml")
-        agent_ros_env = {**default_env, **agent_ros_env}
-        agent_ros_env['ROS_MASTER_URI'] = "http://ros_core:11311"
-        agent_ros_env['HOSTNAME'] = "agent"
-        agent_ros_env['VEHICLE_NAME'] = "agent"
+        dtslogger.info("Running %s" % ros_container_name)
+        agent_ros_env = {'ROS_MASTER_URI': "http://ros_core:11311"}
 
         ros_port = {"11311/tcp": ("0.0.0.0", 11311)}
         ros_params = {
@@ -315,20 +321,20 @@ class DTCommand(DTCommandAbs):
             "name": ros_container_name,
             "network": agent_network.name,
             "environment": agent_ros_env,
- #           "ports": ros_port,
+            "ports": ros_port,
             "detach": True,
             "tty": True,
             "command": "roscore",
         }
+        if parsed.debug:
+            dtslogger.info(ros_params)
         pull_if_not_exist(agent_client, ros_params["image"])
         ros_container = agent_client.containers.run(**ros_params)
 
         # let's launch vnc
-        dtslogger.info("Running vnc")
+        dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = agent_ros_env
-        if not parsed.local:
-            vnc_env["ROS_MASTER_URI"] = f"http://{duckiebot_name}.local:11311"
+        vnc_env = {'ROS_MASTER_URI': "http://ros_core:11311"}
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
@@ -339,6 +345,10 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "tty": True,
         }
+
+        if parsed.debug:
+            dtslogger.info(vnc_params)
+
         # vnc always runs on local client
         pull_if_not_exist(local_client, vnc_params["image"])
         vnc_container = local_client.containers.run(**vnc_params)
@@ -356,13 +366,13 @@ class DTCommand(DTCommandAbs):
         }
 
         pull_if_not_exist(agent_client, car_params["image"])
-        car_container = agent_client.containers.run(**car_params)
+ #       car_container = agent_client.containers.run(**car_params)
 
         # Let's launch the ros template
         # TODO read from the config.yaml file which template we should launch
         dtslogger.info("Running the ros template")
 
-        ros_template_env = load_yaml(working_dir + env_dir + "ros_template_env.yaml")
+        ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
         ros_template_env = {**agent_ros_env, **ros_template_env}
         ros_template_volumes = fifos_bind
 
@@ -391,7 +401,7 @@ class DTCommand(DTCommandAbs):
             "command": "bash -c /code/launchers/run.sh"
         }
         pull_if_not_exist(agent_client, ros_template_params["image"])
-        ros_template_container = agent_client.containers.run(**ros_template_params)
+ #       ros_template_container = agent_client.containers.run(**ros_template_params)
 
 
 
