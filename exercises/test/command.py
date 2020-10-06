@@ -281,7 +281,7 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
             pull_if_not_exist(agent_client, mw_params["image"])
- #           mw_container = agent_client.containers.run(**mw_params)
+            mw_container = agent_client.containers.run(**mw_params)
 
         else: # we are running on a duckiebot
 
@@ -306,7 +306,7 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
             pull_if_not_exist(agent_client, bridge_params["image"])
- #           bridge_container = agent_client.containers.run(**bridge_params)
+            bridge_container = agent_client.containers.run(**bridge_params)
 
         # done with sim/duckiebot stuff.
 
@@ -366,7 +366,7 @@ class DTCommand(DTCommandAbs):
         }
 
         pull_if_not_exist(agent_client, car_params["image"])
- #       car_container = agent_client.containers.run(**car_params)
+        car_container = agent_client.containers.run(**car_params)
 
         # Let's launch the ros template
         # TODO read from the config.yaml file which template we should launch
@@ -401,7 +401,7 @@ class DTCommand(DTCommandAbs):
             "command": "bash -c /code/launchers/run.sh"
         }
         pull_if_not_exist(agent_client, ros_template_params["image"])
- #       ros_template_container = agent_client.containers.run(**ros_template_params)
+        ros_template_container = agent_client.containers.run(**ros_template_params)
 
 
 
