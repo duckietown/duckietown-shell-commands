@@ -441,7 +441,7 @@ class DTCommand(DTCommandAbs):
             "environment": ros_template_env,
             "detach": True,
             "tty": True,
-            "command": ["/code/launchers/run.sh", "--start"]
+            "command": ["/code/launchers/run.sh"]
         }
 
         if parsed.local:
