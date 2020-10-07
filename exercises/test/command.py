@@ -12,7 +12,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.docker_utils import build_if_not_exist, \
     default_env, remove_if_running, get_remote_client, \
-    pull_if_not_exist
+    pull_if_not_exist, pull_image
 from utils.networking_utils import get_duckiebot_ip
 from utils.cli_utils import check_program_dependency
 
@@ -34,7 +34,7 @@ BRANCH="daffy"
 DEFAULT_ARCH="amd64"
 REMOTE_ARCH="arm32v7"
 AIDO_REGISTRY="registry-stage.duckietown.org"
-ROSCORE_IMAGE="ros:noetic-ros-core" # arch is prefix
+ROSCORE_IMAGE="duckietown/dt-commons:" + BRANCH
 SIMULATOR_IMAGE="duckietown/challenge-aido_lf-simulator-gym:" + BRANCH # no arch
 ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH
 VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64" # always on amd64
@@ -43,6 +43,7 @@ CAR_INTERFACE_IMAGE="duckietown/dt-car-interface:" + BRANCH
 BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
+AGENT_ROS_PORT = "11312"
 
 class InvalidUserInput(Exception):
     pass
@@ -109,6 +110,14 @@ class DTCommand(DTCommandAbs):
             help="See extra debugging output",
         )
 
+        parser.add_argument(
+            "--pull",
+            dest="pull",
+            action="store_true",
+            default=False,
+            help="Should we pull all of the images"
+        )
+
 
         parsed = parser.parse_args(args)
 
@@ -160,30 +169,18 @@ class DTCommand(DTCommandAbs):
         else:
             # let's set some things up to run on the Duckiebot
             check_program_dependency('rsync')
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{parsed.duckiebot_name}.local:/code/"
-            dtslogger.info(f"Syncing your code with {parsed.duckiebot_name}")
-            exercise_ws_dir = working_dir + "/exercise_ws"
-            exercise_cmd = f"rsync --archive {exercise_ws_dir} {remote_base_path}"
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
+            dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
+#            exercise_ws_dir = working_dir + "/exercise_ws"
+            exercise_cmd = f"rsync --archive {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
-            launcher_dir = working_dir + "/launchers"
-            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
-            _run_cmd(launcher_cmd, shell=True)
+#            launcher_dir = working_dir + "/launchers"
+#            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
+#            _run_cmd(launcher_cmd, shell=True)
 
             # arch
             arch = REMOTE_ARCH
             agent_client = duckiebot_client
-
-
-        # let's update the images based on arch
-        if not parsed.local:
-            ros_image = f"{arch}/{ROSCORE_IMAGE}"
-        else:
-            ros_image = ROSCORE_IMAGE
-
-        ros_template_image = f"{ros_template_image}-{arch}"
-        car_interface_image = f"{CAR_INTERFACE_IMAGE}-{arch}"
-        bridge_image = f"{BRIDGE_IMAGE}-{arch}"
-
 
             # let's clean up any mess from last time
         sim_container_name = "challenge-aido_lf-simulator-gym"
@@ -213,10 +210,51 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             dtslogger.warn("error removing volume: %s" % e)
 
-        # done cleaning
-
         if parsed.stop:
             exit(0)
+
+        # done cleaning
+
+
+
+
+        if not parsed.local:
+            ros_env = {
+                "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
+                }
+        else:
+            ros_env = {
+                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"
+            }
+            if parsed.sim:
+                ros_env["VEHICLE_NAME"] = "agent"
+                ros_env["HOSTNAME"] = "agent"
+            else:
+                ros_env["VEHICLE_NAME"] = duckiebot_name
+                ros_env["HOSTNAME"] = duckiebot_name
+
+
+        # let's update the images based on arch
+        ros_image = f"{ROSCORE_IMAGE}-{arch}"
+        ros_template_image = f"{ros_template_image}-{arch}"
+        car_interface_image = f"{CAR_INTERFACE_IMAGE}-{arch}"
+        bridge_image = f"{BRIDGE_IMAGE}-{arch}"
+
+
+
+        # let's see if we should pull the images
+        local_images = [VNC_IMAGE, middle_image, sim_image]
+        agent_images = [bridge_image, ros_image, car_interface_image, ros_template_image]
+
+        if parsed.pull:
+            for image in local_images:
+                dtslogger.info(f"Pulling {image}")
+                pull_image(image, local_client)
+            for image in agent_images:
+                dtslogger.info(f"Pulling {image}")
+                pull_image(image, agent_client)
+
+
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -225,9 +263,9 @@ class DTCommand(DTCommandAbs):
             running_on_mac = False # if we aren't running on mac we're on Linux
 
         # now let's build the network and volume
-
         try:
-            agent_network = agent_client.networks.create("agent-network", driver="bridge")
+            agent_network = agent_client.networks.create(
+                "agent-network", driver="bridge")
         except Exception as e:
             dtslogger.warn("error creating network: %s" % e)
 
@@ -255,12 +293,14 @@ class DTCommand(DTCommandAbs):
             sim_params = {
                 "image": sim_image,
                 "name": sim_container_name,
-                "network": agent_network.name,
+                "network": agent_network.name, # always local
                 "environment": sim_env,
                 "volumes": fifos_bind,
                 "tty": True,
                 "detach": True,
             }
+
+
             if parsed.debug:
                 dtslogger.info(sim_params)
 
@@ -275,11 +315,15 @@ class DTCommand(DTCommandAbs):
                 "image": middle_image,
                 "name": middleware_container_name,
                 "environment": middleware_env,
-                "network": agent_network.name,
+                "network": agent_network.name, # always local
                 "volumes": fifos_bind,
                 "detach": True,
                 "tty": True,
             }
+
+            if parsed.debug:
+                dtslogger.info(mw_params)
+
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
 
@@ -300,32 +344,47 @@ class DTCommand(DTCommandAbs):
                 "image": bridge_image,
                 "name": bridge_container_name,
                 "environment": bridge_env,
-                "network_mode": "host",
+                "network_mode": "host", # bridge always on host
                 "volumes": fifos_bind,
                 "detach": True,
                 "tty": True,
             }
+
+            # if we are local - we need to have a network so that the hostname
+            # matches the ROS_MASTER_URI or else ROS complains. If we are running on the
+            # Duckiebot we set the hostname to be the duckiebot name so we can use host mode
+            if parsed.local and running_on_mac:
+                dtslogger.warn("WARNING: Running agent locally not in simulator is not expected to work. Suggest to remove the --local flag")
+
+            if parsed.debug:
+                dtslogger.info(bridge_params)
+
             pull_if_not_exist(agent_client, bridge_params["image"])
             bridge_container = agent_client.containers.run(**bridge_params)
 
-        # done with sim/duckiebot stuff.
+        # done with sim/duckiebot specific stuff.
 
         # let's launch the ros-core
 
         dtslogger.info("Running %s" % ros_container_name)
-        agent_ros_env = load_yaml(env_dir + "ros_env.yaml")
 
-        ros_port = {"11311/tcp": ("0.0.0.0", 11311)}
+        ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
         ros_params = {
             "image": ros_image,
             "name": ros_container_name,
-            "network": agent_network.name,
-            "environment": agent_ros_env,
+            "environment": ros_env,
             "ports": ros_port,
             "detach": True,
             "tty": True,
-            "command": "roscore",
+            "command": f"roscore -p {AGENT_ROS_PORT}",
         }
+
+        if parsed.local:
+            ros_params["network"] = agent_network.name
+        else:
+            ros_params["network_mode"] = "host"
+
+
         if parsed.debug:
             dtslogger.info(ros_params)
         pull_if_not_exist(agent_client, ros_params["image"])
@@ -334,17 +393,26 @@ class DTCommand(DTCommandAbs):
         # let's launch vnc
         dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = agent_ros_env
+        vnc_env = ros_env
+#        if not parsed.local:
+#            vnc_env["VEHICLE_NAME"] = duckiebot_name
+#            vnc_env["ROS_MASTER"] = duckiebot_name
+#            vnc_env["HOSTNAME"] = duckiebot_name
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
             "command": "dt-launcher-vnc",
-            "network": agent_network.name,
             "environment": vnc_env,
+            "stream": True,
             "ports": vnc_port,
             "detach": True,
             "tty": True,
         }
+
+        if parsed.local:
+            vnc_params["network"] = agent_network.name
+        else:
+            vnc_params["network"] = "host"
 
         if parsed.debug:
             dtslogger.info(vnc_params)
@@ -359,11 +427,14 @@ class DTCommand(DTCommandAbs):
         car_params = {
             "image": car_interface_image,
             "name": car_interface_container_name,
-            "environment": agent_ros_env,
-            "network": agent_network.name,
+            "environment": ros_env,
             "detach": True,
             "tty": True
         }
+        if parsed.local:
+            car_params["network"] = agent_network.name
+#        else:
+#            car_params["network_mode"] = "host"
 
         if parsed.debug:
             dtslogger.info(car_params)
@@ -376,7 +447,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Running the %s" % ros_template_container_name)
 
         ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
-        ros_template_env = {**agent_ros_env, **ros_template_env}
+        ros_template_env = {**ros_env, **ros_template_env}
         ros_template_volumes = fifos_bind
 
         if parsed.sim or parsed.local:
@@ -396,13 +467,17 @@ class DTCommand(DTCommandAbs):
         ros_template_params = {
             "image": ros_template_image,
             "name": ros_template_container_name,
-            "network": agent_network.name,
             "volumes": ros_template_volumes,
             "environment": ros_template_env,
             "detach": True,
             "tty": True,
             "command": "bash -c /code/launchers/run.sh"
         }
+
+        if parsed.local:
+            ros_template_params["network"] = agent_network.name
+        else:
+            ros_template_params["network_mode"] = "host"
 
         if parsed.debug:
             dtslogger.info(ros_template_params)

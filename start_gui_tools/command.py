@@ -114,8 +114,7 @@ class DTCommand(DTCommandAbs):
         # print some info
         if parsed.vnc:
             dtslogger.info(
-                "Running novnc. Navigate to http://localhost:6901/ in your browser. "
-                "Password is 'quackquack'."
+                "Running novnc. Navigate to http://localhost:8087/ in your browser. "
             )
         dtslogger.debug(
             f"Running container with configuration:\n\n" f"{json.dumps(params, sort_keys=True, indent=4)}\n"
