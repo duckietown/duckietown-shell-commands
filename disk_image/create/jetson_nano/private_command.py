@@ -61,7 +61,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_FORMAT_VERSION = "1"
+DISK_IMAGE_VERSION = "1.0"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
@@ -155,7 +155,8 @@ class DTCommand(DTCommandAbs):
         # define output file template
         in_file_path = lambda ex: os.path.join(parsed.workdir, f"{JETPACK_DISK_IMAGE_NAME}.{ex}")
         input_image_name = pathlib.Path(in_file_path("img")).stem
-        out_file_name = lambda ex: f"dt-{input_image_name}.{ex}"
+        output_image_name = input_image_name.replace(JETPACK_VERSION, DISK_IMAGE_VERSION)
+        out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
         out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
         # get version
         distro = get_distro_version(shell)
@@ -166,7 +167,7 @@ class DTCommand(DTCommandAbs):
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
         stats = {
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-            "version": DISK_IMAGE_FORMAT_VERSION,
+            "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
             "input_url": INPUT_DISK_IMAGE_URL,
             "base_type": "Nvidia Jetpack",
@@ -676,7 +677,7 @@ class DTCommand(DTCommandAbs):
             # store surgery plan and other info
             dtslogger.info(f"Storing metadata in {out_file_path('json')}...")
             metadata = {
-                "version": DISK_IMAGE_FORMAT_VERSION,
+                "version": DISK_IMAGE_VERSION,
                 "disk_image": os.path.basename(out_file_path("img")),
                 "sha256": disk_image_sha256,
                 "surgery_plan": surgery_plan,

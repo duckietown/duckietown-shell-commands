@@ -42,8 +42,8 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 def BASE_DISK_IMAGE(robot_configuration):
     board_to_disk_image = {
-        "raspberry_pi": "dt-hypriotos-rpi-v1.11.1",
-        "jetson_nano": "dt-nvidia-jetpack-v4.4",
+        "raspberry_pi": "dt-hypriotos-rpi-v1.0",
+        "jetson_nano": "dt-nvidia-jetpack-v1.0",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
