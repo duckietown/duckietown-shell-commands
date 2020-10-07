@@ -157,10 +157,16 @@ class DTCommand(DTCommandAbs):
         remove_if_running(duckiebot_client, container_name)
         image_base = parsed.image_to_run
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({
-            "VEHICLE_NAME": duckiebot_name,
-            "VEHICLE_IP": duckiebot_ip
-        })
+        
+        #I had to comment out those lines in order to get
+        #the same environment as the one that was working
+        #for extrinsic calibration.
+        # Fixes this error:
+        # RLException: cannot resolve host address for machine [localhost]
+        #env_vars.update({
+        #    "VEHICLE_NAME": duckiebot_name,
+        #    "VEHICLE_IP": duckiebot_ip
+        #})
 
         # get robot_type
         if parsed.robot_type == 'auto':
