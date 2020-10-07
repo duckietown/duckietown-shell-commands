@@ -27,7 +27,7 @@ from .constants import (
     WPA_EAP_NETWORK_CONFIG,
 )
 
-INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
+INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
@@ -43,8 +43,8 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 def BASE_DISK_IMAGE(robot_configuration):
     board_to_disk_image = {
-        "raspberry_pi": "dt-hypriotos-rpi-v1.0",
-        "jetson_nano": "dt-nvidia-jetpack-v1.0",
+        "raspberry_pi": "dt-hypriotos-rpi-v1.1",
+        "jetson_nano": "dt-nvidia-jetpack-v1.1",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -66,16 +66,6 @@ class DTCommand(DTCommandAbs):
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
         parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
-        parser.add_argument(
-            "--linux-username",
-            default="duckie",
-            help="Username of the linux user to create on the flashed device",
-        )
-        parser.add_argument(
-            "--linux-password",
-            default="quackquack",
-            help="Password to access the linux user profile created on the flashed device",
-        )
         parser.add_argument("--device", default=None, help="The SD card device to flash")
         parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument(
@@ -119,10 +109,16 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use cached ISO image"
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--workdir",
+            default=TMP_WORKDIR,
+            type=str,
+            help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -421,9 +417,7 @@ def step_setup(shell, parsed, data):
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
-        "files_sanitize": None,
-        "linux_username": parsed.linux_username,
-        "linux_password": parsed.linux_password,
+        "sanitize_files": None,
         "stats": json.dumps(
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
@@ -451,7 +445,7 @@ def step_setup(shell, parsed, data):
     surgery_plan = disk_metadata["surgery_plan"]
     # compile list of files to sanitize at first boot
     sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
-    surgery_data["files_sanitize"] = "\n".join(map(lambda f: f"  - sanitize-file {f}", sanitize))
+    surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f'v{disk_metadata["version"]}')
     # perform surgery
@@ -477,8 +471,8 @@ def step_setup(shell, parsed, data):
         # make sure the content does not exceed the block size
         if used_bytes > block_size:
             dtslogger.error(
-                f"Content for placeholder {surgery_bit['placeholder']} exceeding the "
-                f"allocated space of {block_size} bytes."
+                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
+                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
             )
             exit(7)
         # create masked content (content is padded with new lines)
@@ -486,12 +480,6 @@ def step_setup(shell, parsed, data):
         # debug only
         assert len(masked_content) == block_size
         block_usage = int(100 * (used_bytes / float(block_size)))
-        if used_bytes >= block_size:
-            dtslogger.error(
-                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
-                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
-            )
-            exit(3)
         dtslogger.debug(
             "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
             + "into [{partition}]:{path}.".format(**surgery_bit)
@@ -505,19 +493,21 @@ def step_setup(shell, parsed, data):
             "seek={}".format(block_offset),
             "conv=notrunc",
         ]
-        # launch dd
-        dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        dtslogger.debug(f"$ {dd_cmd}")
-        # write
-        dd.stdin.write(masked_content)
-        dd.stdin.flush()
-        dd.stdin.close()
-        dd.wait()
-        # flush I/O buffer
-        _run_cmd(["sync"])
+        # write twice (found to increase success rate)
+        for wpass in range(2):
+            # launch dd
+            dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            dtslogger.debug(f"[{wpass+1}/2] $ {dd_cmd}")
+            # write
+            dd.stdin.write(masked_content)
+            dd.stdin.flush()
+            dd.stdin.close()
+            dd.wait()
+            # flush I/O buffer
+            _run_cmd(["sync"])
     dtslogger.info("Surgery went OK!")
     # flush I/O buffer
-    dtslogger.info("Flushing I/O buffer (this can take a while)...")
+    dtslogger.info("Flushing I/O buffer...")
     _run_cmd(["sync"])
     dtslogger.info("Done!")
     # ---

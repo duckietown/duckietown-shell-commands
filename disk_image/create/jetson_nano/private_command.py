@@ -60,7 +60,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.0"
+DISK_IMAGE_VERSION = "1.1"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
@@ -503,18 +503,9 @@ class DTCommand(DTCommandAbs):
                 sd_card.mount_partition(ROOT_PARTITION)
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
-                    # copy QEMU
-                    _local_qemu = os.path.join(
-                        DISK_TEMPLATE_DIR, ROOT_PARTITION, 'usr', 'bin', 'qemu-aarch64-static')
-                    _remote_qemu = os.path.join(
-                        PARTITION_MOUNTPOINT(ROOT_PARTITION), 'usr', 'bin', 'qemu-aarch64-static')
-                    run_cmd(["sudo", "cp", _local_qemu, _remote_qemu])
-                    # configure resolvconf
-                    _local_resolvconf = os.path.join(
-                        DISK_TEMPLATE_DIR, ROOT_PARTITION, 'run', 'resolvconf', 'resolv.conf')
-                    _remote_resolvconf = os.path.join(
-                        PARTITION_MOUNTPOINT(ROOT_PARTITION), 'run', 'resolvconf', 'resolv.conf')
-                    run_cmd(["sudo", "cp", _local_resolvconf, _remote_resolvconf])
+                    # copy QEMU, resolvconf
+                    transfer_file(ROOT_PARTITION, ['usr', 'bin', 'qemu-aarch64-static'])
+                    transfer_file(ROOT_PARTITION, ['run', 'resolvconf', 'resolv.conf'])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
@@ -555,9 +546,9 @@ class DTCommand(DTCommandAbs):
                             "apt update && "
                             "apt-mark hold nvidia-l4t-bootloader && "
                             "apt --yes --force-yes --no-install-recommends"
-                            ' -o Dpkg::Options::="--force-confdef" '
-                            ' -o Dpkg::Options::="--force-confold" '
-                            "full-upgrade && "
+                            ' -o Dpkg::Options::="--force-confdef"'
+                            ' -o Dpkg::Options::="--force-confold"'
+                            " full-upgrade && "
                             "apt-mark unhold nvidia-l4t-bootloader",
                         )
                         # install packages
@@ -572,32 +563,17 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "git clone "
-                            "https://github.com/duckietown/rtl88x2bu.git "
-                            "/usr/src/rtl88x2bu-5.6.1"
+                            "https://github.com/duckietown/rtl88x2bu.git"
+                            " /usr/src/rtl88x2bu-5.6.1"
                         )
                         # setup the camera pipeline
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "mkdir -p /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/"
-                            "kernel-4.9/v4l2loopback "
-                            "&& git clone https://github.com/duckietown/v4l2loopback.git "
-                            "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/"
+                            "kernel-4.9/v4l2loopback && "
+                            "git clone https://github.com/duckietown/v4l2loopback.git"
+                            " /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/"
                             "kernel-4.9/v4l2loopback"
-                        )
-                        # setup services
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "ln "
-                            "-s "
-                            "/etc/systemd/system/dt_init.service "
-                            "/etc/systemd/system/multi-user.target.wants/dt_init.service"
-                        )
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "ln "
-                            "-s "
-                            "/etc/systemd/system/gstpipeline.service "
-                            "/etc/systemd/system/multi-user.target.wants/gstpipeline.service"
                         )
                     except Exception as e:
                         raise e
@@ -774,14 +750,30 @@ class DTCommand(DTCommandAbs):
                                         "length_bytes": max_bytes,
                                     }
                                 )
-                        # store stats before closing the [root] partition
+                        # special handling of the ROOT partition
                         if partition == ROOT_PARTITION:
+                            # store stats before closing the [root] partition
                             stats_filepath = os.path.join(
                                 PARTITION_MOUNTPOINT(partition), DISK_IMAGE_STATS_LOCATION
                             )
                             with open(out_file_path("stats"), "wt") as fout:
                                 json.dump(stats, fout, indent=4, sort_keys=True)
                             run_cmd(["sudo", "cp", out_file_path("stats"), stats_filepath])
+                            # setup services
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "ln"
+                                " -s"
+                                " /etc/systemd/system/dt_init.service"
+                                " /etc/systemd/system/multi-user.target.wants/dt_init.service"
+                            )
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "ln"
+                                " -s"
+                                " /etc/systemd/system/gstpipeline.service"
+                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service"
+                            )
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
                         run_cmd(["sync"])
@@ -906,3 +898,9 @@ def _copy_file(origin, destination):
     # make copy of the file
     dtslogger.info(f"Copying [{origin}] -> [{destination}]")
     run_cmd(["cp", origin, destination])
+
+
+def transfer_file(partition, location):
+    _local_filepath = os.path.join(DISK_TEMPLATE_DIR, partition, *location)
+    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
+    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])

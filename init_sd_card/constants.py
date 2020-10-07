@@ -12,13 +12,19 @@ TIPS_AND_TRICKS = """
 
 Without arguments the script performs the steps:
 
+    license
     download
     flash
+    verify
     setup
 
 You can use --steps to run only some of those:
 
     dts init_sd_card --steps flash,setup
+
+You can use --no-steps to exclude some steps:
+
+    dts init_sd_card --no-steps verify
 
 
 """
