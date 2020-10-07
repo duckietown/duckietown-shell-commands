@@ -1,0 +1,14 @@
+[Unit]
+Description=GST Pipeline
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+#User=$USER
+ExecStart=/bin/bash /usr/local/bin/gstpipeline.sh
+
+[Install]
+WantedBy=multi-user.target
