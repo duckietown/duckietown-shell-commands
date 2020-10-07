@@ -411,8 +411,8 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             vnc_params["network"] = agent_network.name
-        else:
-            vnc_params["network"] = "host"
+#        else:
+#            vnc_params["network"] = "host"
 
         if parsed.debug:
             dtslogger.info(vnc_params)
@@ -433,8 +433,8 @@ class DTCommand(DTCommandAbs):
         }
         if parsed.local:
             car_params["network"] = agent_network.name
-#        else:
-#            car_params["network_mode"] = "host"
+        else:
+            car_params["network_mode"] = "host"
 
         if parsed.debug:
             dtslogger.info(car_params)
