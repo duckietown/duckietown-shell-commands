@@ -2,6 +2,8 @@
 
 ROBOT_TYPE=$(head -1 /data/config/robot_type)
 
+DOCKER_SOCKET=unix:///var/run/docker.sock
+
 BOOT_STACKS=(
   "/data/config/autoboot/${ROBOT_TYPE}.yml"
   "/data/config/autoboot/${ROBOT_TYPE}.yaml"
@@ -12,7 +14,13 @@ BOOT_STACKS=(
 for BOOT_STACK in "${BOOT_STACKS[@]}"; do
   if [ -f "${BOOT_STACK}" ]; then
     echo "Launching autoboot stack ${BOOT_STACK}..."
-    docker-compose --project-name autoboot --file "${BOOT_STACK}" up -d
+    set -e
+    docker-compose \
+        --host "${DOCKER_SOCKET}" \
+        --project-name "autoboot" \
+        --file "${BOOT_STACK}" \
+        up \
+            -d
     echo "Autoboot stack should be now up!"
     exit 0
   fi
