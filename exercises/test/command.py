@@ -276,10 +276,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn("error creating volume: %s" % e)
             raise
 
-        # load default env params used by all (or most)
-
-        default_env = load_yaml(env_dir + "default_env.yaml")
-
         # Launch things one by one
 
         if parsed.sim:
@@ -287,7 +283,6 @@ class DTCommand(DTCommandAbs):
             # let's launch the simulator
 
             sim_env = load_yaml(env_dir + "sim_env.yaml")
-            sim_env = {**sim_env, **default_env}
 
             dtslogger.info("Running %s" % sim_container_name )
             sim_params = {
@@ -310,7 +305,6 @@ class DTCommand(DTCommandAbs):
             # let's launch the middleware_manager
             dtslogger.info("Running the middleware manager")
             middleware_env = load_yaml(env_dir + "middleware_env.yaml")
-            middleware_env = {**middleware_env, **default_env}
             mw_params = {
                 "image": middle_image,
                 "name": middleware_container_name,
