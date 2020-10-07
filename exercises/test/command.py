@@ -39,7 +39,6 @@ SIMULATOR_IMAGE="duckietown/challenge-aido_lf-simulator-gym:" + BRANCH # no arch
 ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH
 VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64" # always on amd64
 MIDDLEWARE_IMAGE="duckietown/mooc-fifos-connector:" + BRANCH # no arch
-CAR_INTERFACE_IMAGE="duckietown/dt-car-interface:" + BRANCH
 BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
@@ -191,8 +190,6 @@ class DTCommand(DTCommandAbs):
         remove_if_running(local_client, vnc_container_name)  # vnc always local
         middleware_container_name = "mooc-fifos-connector"
         remove_if_running(agent_client, middleware_container_name)
-        car_interface_container_name = "dt-car-interface"
-        remove_if_running(agent_client, car_interface_container_name)
         ros_template_container_name = "challenge-aido_lf-template-ros"
         remove_if_running(agent_client, ros_template_container_name)
         bridge_container_name = "dt-duckiebot-fifos-bridge"
@@ -237,14 +234,13 @@ class DTCommand(DTCommandAbs):
         # let's update the images based on arch
         ros_image = f"{ROSCORE_IMAGE}-{arch}"
         ros_template_image = f"{ros_template_image}-{arch}"
-        car_interface_image = f"{CAR_INTERFACE_IMAGE}-{arch}"
         bridge_image = f"{BRIDGE_IMAGE}-{arch}"
 
 
 
         # let's see if we should pull the images
         local_images = [VNC_IMAGE, middle_image, sim_image]
-        agent_images = [bridge_image, ros_image, car_interface_image, ros_template_image]
+        agent_images = [bridge_image, ros_image, ros_template_image]
 
         if parsed.pull:
             for image in local_images:
@@ -416,26 +412,6 @@ class DTCommand(DTCommandAbs):
         vnc_container = local_client.containers.run(**vnc_params)
 
 
-        # let's launch the car interface
-        dtslogger.info("Running the %s" % car_interface_container_name)
-        car_params = {
-            "image": car_interface_image,
-            "name": car_interface_container_name,
-            "environment": ros_env,
-            "detach": True,
-            "tty": True
-        }
-        if parsed.local:
-            car_params["network"] = agent_network.name
-        else:
-            car_params["network_mode"] = "host"
-
-        if parsed.debug:
-            dtslogger.info(car_params)
-
-        pull_if_not_exist(agent_client, car_params["image"])
-        car_container = agent_client.containers.run(**car_params)
-
         # Let's launch the ros template
         # TODO read from the config.yaml file which template we should launch
         dtslogger.info("Running the %s" % ros_template_container_name)
@@ -465,7 +441,7 @@ class DTCommand(DTCommandAbs):
             "environment": ros_template_env,
             "detach": True,
             "tty": True,
-            "command": "bash -c /code/launchers/run.sh"
+            "command": ["/code/launchers/run.sh", "--start"]
         }
 
         if parsed.local:
