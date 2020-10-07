@@ -73,14 +73,19 @@ class DTCommand(DTCommandAbs):
                 "Avahi socket not found ({}). The container might not be able "
                 "to resolve *.local hostnames.".format(AVAHI_SOCKET)
             )
+
+        p = platform.system().lower()
+        if "darwin" in p:
+            running_on_mac = True
+        else:
+            running_on_mac = False
         # configure X11 forwarding
         if not parsed.vnc:
             env["QT_X11_NO_MITSHM"] = 1
             # we mount the X11 socket
             volumes["/tmp/.X11-unix"] = {"bind": "/tmp/.X11-unix", "mode": "rw"}
             # configure X forwarding for different systems
-            p = platform.system().lower()
-            if "darwin" in p:
+            if running_on_mac:
                 subprocess.call(["xhost", "+", "127.0.0.1"])
                 env["DISPLAY"] = "host.docker.internal:0"
             else:
@@ -94,12 +99,11 @@ class DTCommand(DTCommandAbs):
         # pull image
         pull_if_not_exist(client, image)
         # collect container config
+
         params = {
             "image": image,
             "name": container_name,
-            "network_mode": parsed.network,
             "environment": env,
-            "privileged": True,
             "stdin_open": True,
             "tty": True,
             "detach": True,
@@ -108,14 +112,18 @@ class DTCommand(DTCommandAbs):
             "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
             "volumes": volumes,
         }
-        # extend container config for VNC
+        if not running_on_mac:
+            params["privileged"] = True
+            params["network_mode"] = parsed.network
+
         if parsed.vnc:
-            params["ports"] = {"5901/tcp": ("0.0.0.0", 5901), "6901/tcp": ("0.0.0.0", 6901)}
+            params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+
+
         # print some info
         if parsed.vnc:
             dtslogger.info(
-                "Running novnc. Navigate to http://localhost:6901/ in your browser. "
-                "Password is 'quackquack'."
+                "Running novnc. Navigate to http://localhost:8087/ in your browser. "
             )
         dtslogger.debug(
             f"Running container with configuration:\n\n" f"{json.dumps(params, sort_keys=True, indent=4)}\n"
