@@ -39,7 +39,7 @@ COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "town"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
-STABLE_DISK_IMAGE_VERSION = "1.0"
+STABLE_DISK_IMAGE_VERSION = "1.1"
 EXPERIMENTAL_DISK_IMAGE_VERSION = "1.1"
 DISK_IMAGE_VERSION = STABLE_DISK_IMAGE_VERSION
 
