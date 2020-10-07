@@ -39,12 +39,15 @@ COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "town"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+STABLE_DISK_IMAGE_VERSION = "1.0"
+EXPERIMENTAL_DISK_IMAGE_VERSION = "1.1"
+DISK_IMAGE_VERSION = STABLE_DISK_IMAGE_VERSION
 
 
 def BASE_DISK_IMAGE(robot_configuration):
     board_to_disk_image = {
-        "raspberry_pi": "dt-hypriotos-rpi-v1.1",
-        "jetson_nano": "dt-nvidia-jetpack-v1.1",
+        "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION}",
+        "jetson_nano": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -60,8 +63,10 @@ class InvalidUserInput(Exception):
 
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell: DTShell, args):
+        global DISK_IMAGE_VERSION
         parser = argparse.ArgumentParser()
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
@@ -115,6 +120,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to use cached ISO image"
         )
         parser.add_argument(
+            "--experimental",
+            default=False,
+            action="store_true",
+            help="Use experimental disk image and parameters"
+        )
+        parser.add_argument(
             "--workdir",
             default=TMP_WORKDIR,
             type=str,
@@ -128,6 +139,9 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
+        # experimental
+        if parsed.experimental:
+            DISK_IMAGE_VERSION = EXPERIMENTAL_DISK_IMAGE_VERSION
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -422,6 +436,7 @@ def step_setup(shell, parsed, data):
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
                 "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration),
+                "base_disk_version": DISK_IMAGE_VERSION,
                 "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration),
                 "environment": {
                     "hostname": socket.gethostname(),
