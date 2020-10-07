@@ -439,6 +439,8 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy resolvconf
+                    _rcf = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), 'etc', 'resolv.conf')
+                    run_cmd(["sudo", "rm", "-f", _rcf])
                     transfer_file(ROOT_PARTITION, ['etc', 'resolv.conf'])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
