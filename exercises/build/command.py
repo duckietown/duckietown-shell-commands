@@ -13,6 +13,7 @@ from utils.docker_utils import build_if_not_exist, \
     default_env, remove_if_running, get_remote_client, \
     pull_if_not_exist
 from utils.networking_utils import get_duckiebot_ip
+from utils.cli_utils import start_command_in_subprocess
 
 usage = """
 
@@ -106,7 +107,6 @@ class DTCommand(DTCommandAbs):
             "name": container_name,
             "volumes": ros_template_volumes,
             "command": cmd,
-            "privileged": True,
             "stdin_open": True,
             "tty": True,
             "detach": True,
@@ -116,6 +116,10 @@ class DTCommand(DTCommandAbs):
 
         pull_if_not_exist(client, ros_template_params["image"])
         ros_template_container = client.containers.run(**ros_template_params)
+        attach_cmd = "docker attach %s" % container_name
+        start_command_in_subprocess(attach_cmd)
+
+        dtslogger.info("Build complete")
 
 def convertNotebook(filepath, export_path) -> bool:
     if not os.path.exists(filepath):
