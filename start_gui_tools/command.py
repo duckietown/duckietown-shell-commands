@@ -108,9 +108,8 @@ class DTCommand(DTCommandAbs):
             "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
             "volumes": volumes,
         }
-        # extend container config for VNC
-        if parsed.vnc:
-            params["ports"] = {"5901/tcp": ("0.0.0.0", 5901), "6901/tcp": ("0.0.0.0", 6901)}
+
+
         # print some info
         if parsed.vnc:
             dtslogger.info(
