@@ -16,10 +16,17 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to build"
         )
         parser.add_argument(
-            "-n", "--dry-run", default=False, action="store_true", help="Don't write any files, just pretend."
+            "-n",
+            "--dry-run",
+            default=False,
+            action="store_true",
+            help="Don't write any files, just pretend."
         )
         parser.add_argument(
             "part",
@@ -50,6 +57,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning("You cannot bump the version while the index is not clean.")
             dtslogger.warning("Please, commit your changes and try again.")
             exit(1)
+        # check if the project is already released
+        if project.is_release():
+            dtslogger.info("The project is already on a release commit. Nothing to do.")
+            return
         # prepare call
         options = ["--verbose"]
         if parsed.dry_run:
