@@ -16,12 +16,6 @@ from utils.docker_utils import sanitize_docker_baseurl
 
 REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
-ARCH_MAP = {
-    "arm32v7": ["arm", "arm32v7", "armv7l", "armhf"],
-    "amd64": ["x64", "x86_64", "amd64", "Intel 64"],
-    "arm64v8": ["arm64", "arm64v8", "armv8", "aarch64"],
-}
-
 CANONICAL_ARCH = {
     "arm": "arm32v7",
     "arm32v7": "arm32v7",
@@ -31,13 +25,24 @@ CANONICAL_ARCH = {
     "x86_64": "amd64",
     "amd64": "amd64",
     "Intel 64": "amd64",
-    "arm64": "arm64v8",
-    "arm64v8": "arm64v8",
-    "armv8": "arm64v8",
-    "aarch64": "arm64v8",
+
+    # TODO: @afdaniele. Forward arm64v8 -> arm32v7 until the arm64v8 family of images is fixed
+    # "arm64": "arm64v8",
+    # "arm64v8": "arm64v8",
+    # "armv8": "arm64v8",
+    # "aarch64": "arm64v8",
+
+    "arm64": "arm32v7",
+    "arm64v8": "arm32v7",
+    "armv8": "arm32v7",
+    "aarch64": "arm32v7",
 }
 
-BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
+BUILD_COMPATIBILITY_MAP = {
+    "arm32v7": ["arm32v7"],
+    "arm64v8": ["arm32v7", "arm64v8"],
+    "amd64": ["amd64"]
+}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -373,7 +378,8 @@ class DTProject:
 def canonical_arch(arch):
     if arch not in CANONICAL_ARCH:
         raise ValueError(
-            f"Given architecture {arch} is not supported. " f"Valid choices are: {', '.join(ARCH_MAP.keys())}"
+            f"Given architecture {arch} is not supported. " 
+            f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
         )
     # ---
     return CANONICAL_ARCH[arch]
