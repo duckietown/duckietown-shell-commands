@@ -36,6 +36,8 @@ CANONICAL_ARCH = {
     "arm64v8": "arm32v7",
     "armv8": "arm32v7",
     "aarch64": "arm32v7",
+
+    "FAKE": "arm64v8"
 }
 
 BUILD_COMPATIBILITY_MAP = {
