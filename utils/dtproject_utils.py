@@ -191,7 +191,7 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.version_name)
@@ -200,7 +200,7 @@ class DTProject:
     def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{owner}/{self.name}:{version}{docs}-{arch}"
@@ -270,7 +270,7 @@ class DTProject:
             return None
 
     def remote_image_metadata(self, arch: str, owner: str = "duckietown"):
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         image = f"{owner}/{self.name}"
         tag = f"{self.version_name}-{arch}"
         return self.inspect_remote_image(image, tag)
@@ -373,6 +373,14 @@ class DTProject:
             headers={"Authorization": "Bearer {0}".format(token)},
         ).json()
         return res
+
+
+def assert_canonical_arch(arch):
+    if arch not in CANONICAL_ARCH.values():
+        raise ValueError(
+            f"Given architecture {arch} is not supported. " 
+            f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
+        )
 
 
 def canonical_arch(arch):
