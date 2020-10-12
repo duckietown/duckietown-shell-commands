@@ -10,12 +10,13 @@ PROJECT_INFO = """
 {project}
 {space}Name: {name}
 {space}Distro: {distro}
-{space}Branch: {branch}
+{space}Version: {version_name}
 {space}Index: {index}
-{space}Version: {version}
+{space}Semantic Version: {version}
 {space}Path: {path}
 {space}Type: {type}
 {space}Template Version: {type_version}
+{space}Adapters: {adapters}
 {end}
 """
 
@@ -49,15 +50,17 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
         info = {
+            "project": tc.colored("Project:", "grey", "on_white"),
             "name": project.name,
-            "branch": project.repository.branch,
+            "version_name": project.version_name,
             "distro": project.distro,
-            "index": tc.colored("Clean", "green") if project.is_clean() else tc.colored("Dirty", "yellow"),
+            "index": tc.colored("Clean", "green") if project.is_clean() else
+            tc.colored("Dirty", "yellow"),
             "path": project.path,
             "type": project.type,
             "type_version": project.type_version,
             "version": project.version,
-            "project": tc.colored("Project:", "grey", "on_white"),
+            "adapters": ' '.join(project.adapters),
             "space": tc.colored("  ", "grey", "on_white"),
             "end": tc.colored("________", "grey", "on_white"),
         }

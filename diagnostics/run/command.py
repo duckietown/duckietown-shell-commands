@@ -5,12 +5,12 @@ import subprocess
 
 from utils.duckietown_utils import get_robot_types, get_distro_version
 from utils.avahi_utils import wait_for_service
+from utils.dtproject_utils import CANONICAL_ARCH
+from utils.docker_utils import DEFAULT_MACHINE
 
 from dt_shell import DTCommandAbs, dtslogger
 
-
-DEFAULT_MACHINE = "unix:///var/run/docker.sock"
-DEFAULT_TARGET = "unix:///var/run/docker.sock"
+DEFAULT_TARGET = DEFAULT_MACHINE
 DOCKER_SOCKET = "/var/run/docker.sock"
 LOG_API_DEFAULT_DATABASE = "db_log_default"
 LOG_DEFAULT_SUBGROUP = "default"
@@ -23,21 +23,6 @@ LOG_API_HOSTNAME = "dashboard.duckietown.org"
 LOG_API_VERSION = "1.0"
 
 DIAGNOSTICS_IMAGE = "duckietown/dt-system-monitor:{version}-{arch}"
-
-CANONICAL_ARCH = {
-    "arm": "arm32v7",
-    "arm32v7": "arm32v7",
-    "armv7l": "arm32v7",
-    "armhf": "arm32v7",
-    "x64": "amd64",
-    "x86_64": "amd64",
-    "amd64": "amd64",
-    "Intel 64": "amd64",
-    "arm64": "arm64v8",
-    "arm64v8": "arm64v8",
-    "armv8": "arm64v8",
-    "aarch64": "arm64v8",
-}
 
 
 class DTCommand(DTCommandAbs):

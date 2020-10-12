@@ -30,6 +30,7 @@ class DiscoverListener:
     supported_services = [
         "DT::ONLINE",
         "DT::PRESENCE",
+        "DT::BOOTING",
         "DT::ROBOT_TYPE",
         "DT::ROBOT_CONFIGURATION",
         "DT::DASHBOARD",
@@ -97,7 +98,7 @@ class DiscoverListener:
                     pass
         # prepare table
         columns = [
-            "Status",  # Loading [yellow], Ready [green]
+            "Status",  # Booting [yellow], Ready [green]
             "Internet",  # No [grey], Yes [green]
             "Dashboard",  # Down [grey], Up [green]
             "Busy",  # No [grey], Yes [green]
@@ -132,6 +133,7 @@ class DiscoverListener:
 
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell, args):
         prog = "dts fleet discover"
@@ -174,8 +176,8 @@ def column_to_text_and_color(column, hostname, services):
     if column == "Status":
         if hostname in services["DT::PRESENCE"]:
             text, color, bg_color = "Ready", "white", "green"
-        if hostname in services["DT::DEVICE-INIT"]:
-            text, color, bg_color = "Loading", "white", "yellow"
+        if hostname in services["DT::BOOTING"]:
+            text, color, bg_color = "Booting", "white", "yellow"
     #  -> Dashboard
     if column == "Dashboard":
         text, color, bg_color = "Down", "white", "grey"
