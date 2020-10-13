@@ -339,10 +339,9 @@ def step_flash(_, parsed, data):
                 dtslogger.info(INPUT_DEVICE_MSG)
                 _run_cmd(LIST_DEVICES_CMD, shell=True)
         else:
-            print()
-            print("We observe the following matching disks:")
-            print("If there are multiple disks, you want to make sure to select the right one!")
-            print("Note that the actual disk size will be slightly smaller than your specification")
+            dtslogger.info("We observe the following matching disks:")
+            dtslogger.info("If there are multiple disks, you want to make sure to select the right one!")
+            dtslogger.info("Note that the actual disk size will be slightly smaller than your specification")
             print()
             for entry in disk_list:
                 local_info = entry.split()
