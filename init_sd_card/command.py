@@ -305,7 +305,8 @@ def step_flash(_, parsed, data):
                 answer = ask_confirmation(msg, default="n",question="Proceed?")
                 if answer:
                     break
-        
+            else:
+                break
         # Filter with only the listed disk size
         command = "lsblk -I 8 -d"
         disk_info = os.popen(command).read().split(os.linesep)
