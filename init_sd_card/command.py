@@ -314,7 +314,6 @@ def step_flash(_, parsed, data):
                 disk_size = entry.split()[3]
             except IndexError:
                 continue
-            print(disk_size)
             if "T" in disk_size:
                 disk_size = disk_size.replace("T", "")
                 disk_size = float(disk_size)*1024
@@ -323,9 +322,6 @@ def step_flash(_, parsed, data):
                 disk_size = float(disk_size)
             elif disk_size=="SIZE":
                 disk_size = 0
-            
-            print(abs(disk_size-desired_sd_size))
-
             if abs(disk_size-desired_sd_size)<=10:
                 dtslogger.info("Find Match!")
                 disk_list.append(entry)
