@@ -300,7 +300,7 @@ def step_flash(_, parsed, data):
             except:
                 pass
             compliant_2s = desired_sd_size and (not(desired_sd_size & (desired_sd_size - 1)))
-            if desired_sd_size>=64 or desired_sd_size<=16 or compliant_2s:
+            if desired_sd_size>=64 or desired_sd_size<=16 or not compliant_2s:
                 msg = "Warning! You are indicating a non standard SD card size as: %s" %str(desired_sd_size)
                 answer = ask_confirmation(msg, default="n",question="Proceed?")
                 if answer:
