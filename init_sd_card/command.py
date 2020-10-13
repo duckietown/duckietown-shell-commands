@@ -292,10 +292,14 @@ def step_flash(_, parsed, data):
 
     # ask for a device if not set already
     if parsed.device is None:
+        # Ask user first what is their desired device size as a confirmation.
+
         dtslogger.info(INPUT_DEVICE_MSG)
         _run_cmd(LIST_DEVICES_CMD, shell=True)
         msg = "Type the name of your device (include the '/dev' part):   "
         parsed.device = builtins.input(msg)
+
+    
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
@@ -313,26 +317,6 @@ def step_flash(_, parsed, data):
             if not granted:
                 dtslogger.info("Please retry while specifying a valid device. Bye bye!")
                 exit(4)
-
-    # Safety check to prevent large partition accidentally written
-    if sd_type == "SD":
-        try:
-            while True:
-                command = 'lsblk | grep '+ parsed.device.replace("/dev/","")
-                disk_info = os.popen(command).read().split()
-                disk_size = disk_info[3]
-                if ('T' in disk_size) or (('G' in disk_size) and (float(disk_size.replace('G',""))>=65)):
-                    msg = "Warning! You are attempting to flash the image to a disk with size %s " % disk_size
-                    answer = ask_confirmation(msg,default="n",question="Proceed?")
-                    if not answer:
-                        dtslogger.info(INPUT_DEVICE_MSG)
-                        _run_cmd(LIST_DEVICES_CMD, shell=True)
-                        msg = "Type the name of your device (include the '/dev' part):   "
-                        parsed.device = builtins.input(msg)
-                    else:
-                        break
-        except:
-            dtslogger.info("Failed to perform disk size check!...")
 
     # use dd to flash
     stime = time.time()
