@@ -295,7 +295,10 @@ def step_flash(_, parsed, data):
         # Ask user first what is their desired device size as a confirmation.
         while True:
             msg = "Tell me what size is your SD card (in GB):"
-            desired_sd_size = builtins.input(msg)
+            try:
+                desired_sd_size = int(builtins.input(msg))
+            except:
+                pass
             compliant_2s = desired_sd_size and (not(desired_sd_size & (desired_sd_size - 1)))
             if desired_sd_size>=64 or desired_sd_size<=16 or compliant_2s:
                 msg = "Warning! You are indicating a non standard SD card size as: %s" %str(desired_sd_size)
@@ -307,19 +310,28 @@ def step_flash(_, parsed, data):
         disk_info = os.popen(command).read().split(os.linesep)
         disk_list = []
         for entry in disk_info:
-            disk_size = entry.split()[3]
+            try:
+                disk_size = entry.split()[3]
+            except IndexError:
+                continue
+            print(disk_size)
             if "T" in disk_size:
                 disk_size = disk_size.replace("T", "")
                 disk_size = float(disk_size)*1024
             elif "G" in disk_size:
                 disk_size = disk_size.replace("G", "")
                 disk_size = float(disk_size)
+            elif disk_size=="SIZE":
+                disk_size = 0
+            
+            print(abs(disk_size-desired_sd_size))
 
-            if abs(disk_size-desired_sd_size)<=5:
-                dtslogger.log("Find Match!")
+            if abs(disk_size-desired_sd_size)<=10:
+                dtslogger.info("Find Match!")
                 disk_list.append(entry)
+            
         
-        if disk_list.size()<1:
+        if len(disk_list)<1:
             msg = "I cannot find a match, make sure your SD card is plugged in!"
             answer = ask_confirmation(msg,default="n",question="Do you want to manually search for disk?")
             if not answer:
