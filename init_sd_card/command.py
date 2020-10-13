@@ -301,7 +301,7 @@ def step_flash(_, parsed, data):
                 pass
             compliant_2s = desired_sd_size and (not(desired_sd_size & (desired_sd_size - 1)))
             if desired_sd_size>=64 or desired_sd_size<=16 or not compliant_2s:
-                msg = "Warning! You are indicating a non standard SD card size as: %s" %str(desired_sd_size)
+                msg = "Warning! You are indicating a non standard SD card size as: %s GB" %str(desired_sd_size)
                 answer = ask_confirmation(msg, default="n",question="Proceed?")
                 if answer:
                     break
@@ -342,6 +342,7 @@ def step_flash(_, parsed, data):
             print()
             print("We observe the following matching disks:")
             print("If there are multiple disks, you want to make sure to select the right one!")
+            print("Note that the actual disk size will be slightly smaller than your specification")
             print()
             for entry in disk_list:
                 local_info = entry.split()
