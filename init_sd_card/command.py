@@ -293,9 +293,46 @@ def step_flash(_, parsed, data):
     # ask for a device if not set already
     if parsed.device is None:
         # Ask user first what is their desired device size as a confirmation.
+        while True:
+            msg = "Tell me what size is your SD card (in GB):"
+            desired_sd_size = builtins.input(msg)
+            compliant_2s = desired_sd_size and (not(desired_sd_size & (desired_sd_size - 1)))
+            if desired_sd_size>=64 or desired_sd_size<=16 or compliant_2s:
+                msg = "Warning! You are indicating a non standard SD card size as: %s" %str(desired_sd_size)
+                answer = ask_confirmation(msg, default="n",question="Proceed?")
+                if answer:
+                    break
+        
+        command = "lsblk -I 8 -d"
+        disk_info = os.popen(command).read().split(os.linesep)
+        disk_list = []
+        for entry in disk_info:
+            disk_size = entry.split()[3]
+            if "T" in disk_size:
+                disk_size = disk_size.replace("T", "")
+                disk_size = float(disk_size)*1024
+            elif "G" in disk_size:
+                disk_size = disk_size.replace("G", "")
+                disk_size = float(disk_size)
 
-        dtslogger.info(INPUT_DEVICE_MSG)
-        _run_cmd(LIST_DEVICES_CMD, shell=True)
+            if abs(disk_size-desired_sd_size)<=5:
+                dtslogger.log("Find Match!")
+                disk_list.append(entry)
+        
+        if disk_list.size()<1:
+            msg = "I cannot find a match, make sure your SD card is plugged in!"
+            answer = ask_confirmation(msg,default="n",question="Do you want to manually search for disk?")
+            if not answer:
+                dtslogger.error("SD card found failed! Exiting...")
+                exit(2)
+            else:
+                dtslogger.info(INPUT_DEVICE_MSG)
+                _run_cmd(LIST_DEVICES_CMD, shell=True)
+        else:
+            dtslogger.info("We observe the following matching disks:")
+            for entry in disk_list:
+                dtslogger.info("/dev/"+entry)
+
         msg = "Type the name of your device (include the '/dev' part):   "
         parsed.device = builtins.input(msg)
 
