@@ -306,6 +306,7 @@ def step_flash(_, parsed, data):
                 if answer:
                     break
         
+        # Filter with only the listed disk size
         command = "lsblk -I 8 -d"
         disk_info = os.popen(command).read().split(os.linesep)
         disk_list = []
@@ -337,14 +338,16 @@ def step_flash(_, parsed, data):
                 dtslogger.info(INPUT_DEVICE_MSG)
                 _run_cmd(LIST_DEVICES_CMD, shell=True)
         else:
-            dtslogger.info("We observe the following matching disks:")
+            print()
+            print("We observe the following matching disks:")
+            print("If there are multiple disks, you want to make sure to select the right one!")
+            print()
             for entry in disk_list:
-                dtslogger.info("/dev/"+entry)
-
+                local_info = entry.split()
+                print("Disk: /dev/"+local_info[0]+"    Size: "+local_info[3])
+            print()
         msg = "Type the name of your device (include the '/dev' part):   "
         parsed.device = builtins.input(msg)
-
-    
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
