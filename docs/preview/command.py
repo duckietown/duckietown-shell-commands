@@ -18,10 +18,13 @@ class DTCommand(DTCommandAbs):
     def _parse_args(args):
         # configure arguments
         parser = argparse.ArgumentParser()
-        parser.add_argument("--preview",default=0,action=1,help="")
+        parser.add_argument("--preview",default="1",
+                help="Set Preview Level: 0:Disabled 1:MainOnly 2:Showall")
+        parsed,_ = parser.parse_known_args(args=args)
+        return parsed
 
     @staticmethod
-    def command(shell:DTShell,args, **kwargs):
+    def command(shell: DTShell,args, **kwargs):
         parsed = DTCommand._parse_args(args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
@@ -37,4 +40,17 @@ class DTCommand(DTCommandAbs):
                     directory_name = directory_name.replace("/","")
             dtslogger.info("Currently the book is: %s" % directory_name)
         main = "file://"+os.getcwd()+"/duckuments-dist/"+directory_name+"/out/index.html"
-        webbrowser.open(main,new=2)
+        if parsed.preview=="1":
+            webbrowser.open(main,new=2)
+        if parsed.preview=="2":
+            error_file = "file://"+os.getcwd()+"/duckuments-dist/errors.html"
+            warning_file = "file://"+os.getcwd()+"/duckuments-dist/warnings.html"
+            todo_file = "file://"+os.getcwd()+"/duckuments-dist/tasks.html"
+            webbrowser.open(error_file,new=2)
+            webbrowser.open(warning_file,new=2)
+            webbrowser.open(todo_file,new=2)
+            webbrowser.open(main,new=2)
+
+    @staticmethod
+    def complete(shell, word, line):
+        return []
