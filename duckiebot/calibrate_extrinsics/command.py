@@ -39,7 +39,7 @@ Calibrate:
         parser.add_argument(
             "--no_verification",
             action="store_true",
-            default=True,
+            default=False,
             help="If you don't have a lane you can skip the verification step",
         )
 
