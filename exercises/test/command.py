@@ -126,6 +126,15 @@ class DTCommand(DTCommandAbs):
             help="Flag to only restart the agent container and nothing else. Useful when you are developing your agent"
         )
 
+        parser.add_argument(
+            "--interactive",
+            "-i",
+            dest="interactive",
+            action="store_true",
+            default=False,
+            help="Will run the agent in interactive mode with the code mounted"
+        )
+
 
         parsed = parser.parse_args(args)
 
@@ -298,11 +307,11 @@ class DTCommand(DTCommandAbs):
 
 
         if parsed.restart_agent:
+            launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
+                  running_on_mac, agent_client)
             launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
                  parsed, working_dir, exercise_name, ros_template_image, agent_network,
                  agent_client, duckiebot_name)
-            launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
-                  running_on_mac, agent_client)
             exit(0)
 
 
@@ -447,13 +456,17 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
         "environment": ros_template_env,
         "detach": True,
         "tty": True,
-        "command": ["/code/launchers/run.sh"]
+        "command": ["/code/launchers/run_all.sh"]
     }
 
     if parsed.local:
         ros_template_params["network"] = agent_network.name
     else:
         ros_template_params["network_mode"] = "host"
+
+    if parsed.interactive:
+        ros_template_params["command"] = "/bin/bash"
+        ros_template_params["stdin_open"] = True
 
     if parsed.debug:
         dtslogger.info(ros_template_params)
@@ -462,8 +475,10 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
     ros_template_container = agent_client.containers.run(**ros_template_params)
 
     attach_cmd = "docker %s attach %s" % (
-    "" if parsed.local else f"-H {duckiebot_name}.local", ros_template_container_name)
+        "" if parsed.local else f"-H {duckiebot_name}.local", ros_template_container_name)
     start_command_in_subprocess(attach_cmd)
+
+
 
 def launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
                   running_on_mac, agent_client):
