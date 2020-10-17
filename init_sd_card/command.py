@@ -39,22 +39,37 @@ COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "town"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
-STABLE_DISK_IMAGE_VERSION = "1.1"
-EXPERIMENTAL_DISK_IMAGE_VERSION = "1.1"
-DISK_IMAGE_VERSION = STABLE_DISK_IMAGE_VERSION
 
 
-def BASE_DISK_IMAGE(robot_configuration):
+def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
+    board_to_disk_image_version = {
+        "raspberry_pi": {
+            "stable": "1.1",
+            "experimental": "1.1",
+        },
+        "jetson_nano": {
+            "stable": "1.1",
+            "experimental": "1.1.1",
+        },
+    }
+    board, _ = get_robot_hardware(robot_configuration)
+    stream = 'stable' if not experimental else 'experimental'
+    return board_to_disk_image_version[board][stream]
+
+
+def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
-        "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION}",
-        "jetson_nano": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION}",
+        "raspberry_pi":
+            f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano":
+            f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
 
 
-def DISK_IMAGE_CLOUD_LOCATION(robot_configuration):
-    disk_image = BASE_DISK_IMAGE(robot_configuration)
+def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
+    disk_image = BASE_DISK_IMAGE(robot_configuration, experimental)
     return f"disk_image/{disk_image}.zip"
 
 
@@ -66,7 +81,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        global DISK_IMAGE_VERSION
         parser = argparse.ArgumentParser()
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
@@ -139,9 +153,6 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
-        # experimental
-        if parsed.experimental:
-            DISK_IMAGE_VERSION = EXPERIMENTAL_DISK_IMAGE_VERSION
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -195,7 +206,7 @@ class DTCommand(DTCommandAbs):
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
         # compile hardware specific disk image name and url
-        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration)
+        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental)
         # compile files destinations
         in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
         # prepare data
@@ -266,7 +277,7 @@ def step_download(shell, parsed, data):
     if not os.path.isfile(data["disk_zip"]):
         dtslogger.info("Downloading ZIP image...")
         # get disk image location on the cloud
-        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration)
+        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental)
         # download zip
         shell.include.data.get.command(
             shell, [], parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public")
@@ -435,9 +446,12 @@ def step_setup(shell, parsed, data):
         "stats": json.dumps(
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-                "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration),
-                "base_disk_version": DISK_IMAGE_VERSION,
-                "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration),
+                "base_disk_name":
+                    BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
+                "base_disk_version":
+                    DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
+                "base_disk_location":
+                    DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental),
                 "environment": {
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
