@@ -210,18 +210,17 @@ class DTCommand(DTCommandAbs):
             remove_if_running(agent_client, middleware_container_name)
             remove_if_running(agent_client, ros_template_container_name)
             remove_if_running(agent_client, bridge_container_name)
+            try:
+                dict = agent_client.networks.prune()
+                dtslogger.info("Successfully removed network %s" % dict)
+            except Exception as e:
+                dtslogger.warn("error removing volume: %s" % e)
 
-        try:
-            dict = agent_client.networks.prune()
-            dtslogger.info("Successfully removed network %s" % dict)
-        except Exception as e:
-            dtslogger.warn("error removing volume: %s" % e)
-
-        try:
-            dict = agent_client.volumes.prune()
-            dtslogger.info("Successfully removed volume %s" % dict)
-        except Exception as e:
-            dtslogger.warn("error removing volume: %s" % e)
+            try:
+                dict = agent_client.volumes.prune()
+                dtslogger.info("Successfully removed volume %s" % dict)
+            except Exception as e:
+                dtslogger.warn("error removing volume: %s" % e)
 
         if parsed.stop:
             exit(0)
@@ -267,26 +266,35 @@ class DTCommand(DTCommandAbs):
                 pull_image(image, agent_client)
 
 
+        if not parsed.restart_agent:
+            try:
+                agent_network = agent_client.networks.create(
+                    "agent-network", driver="bridge")
+            except Exception as e:
+                dtslogger.warn("error creating network: %s" % e)
+
+            try:
+                fifos_volume = agent_client.volumes.create(name="fifos")
+            except Exception as e:
+                dtslogger.warn("error creating volume: %s" % e)
+                raise
+        else:
+            try:
+                agent_network = agent_client.networks.get("agent-network")
+            except Exception as e:
+                dtslogger.warn("error getting network: %s" % e)
+            try:
+                fifos_volume = agent_client.volumes.get("fifos")
+            except Exception as e:
+                dtslogger.warn("error getting volume: %s" % e)
+
+        fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
             running_on_mac = True
         else:
             running_on_mac = False # if we aren't running on mac we're on Linux
-
-        # now let's build the network and volume
-        try:
-            agent_network = agent_client.networks.create(
-                "agent-network", driver="bridge")
-        except Exception as e:
-            dtslogger.warn("error creating network: %s" % e)
-
-        try:
-            fifos_volume = agent_client.volumes.create(name="fifos")
-            fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
-        except Exception as e:
-            dtslogger.warn("error creating volume: %s" % e)
-            raise
 
 
         if parsed.restart_agent:
@@ -297,10 +305,11 @@ class DTCommand(DTCommandAbs):
                   running_on_mac, agent_client)
             exit(0)
 
+
+
         # Launch things one by one
 
         if parsed.sim:
-
             # let's launch the simulator
 
             sim_env = load_yaml(env_dir + "sim_env.yaml")
