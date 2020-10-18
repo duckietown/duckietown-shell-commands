@@ -9,24 +9,12 @@ from utils.duckietown_utils import get_distro_version
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
+from utils.dtproject_utils import CANONICAL_ARCH
+from utils.docker_utils import DEFAULT_MACHINE
 
-DEFAULT_MACHINE = "unix:///var/run/docker.sock"
+
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
 DEFAULT_RUNTIME = "docker"
-CANONICAL_ARCH = {
-    "arm": "arm32v7",
-    "arm32v7": "arm32v7",
-    "armv7l": "arm32v7",
-    "armhf": "arm32v7",
-    "x64": "amd64",
-    "x86_64": "amd64",
-    "amd64": "amd64",
-    "Intel 64": "amd64",
-    "arm64": "arm64v8",
-    "arm64v8": "arm64v8",
-    "armv8": "arm64v8",
-    "aarch64": "arm64v8",
-}
 DEFAULT_VOLUMES = ["/var/run/avahi-daemon/socket"]
 
 

@@ -17,17 +17,16 @@ from datetime import datetime
 
 from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
+from utils.misc_utils import human_time
 
-from disk_image.create.constants import (
-    PARTITION_MOUNTPOINT,
-    FILE_PLACEHOLDER_SIGNATURE,
-    TMP_WORKDIR,
-    DISK_IMAGE_STATS_LOCATION,
-    DOCKER_IMAGE_TEMPLATE,
-    APT_PACKAGES_TO_INSTALL,
-    MODULES_TO_LOAD,
-    DATA_STORAGE_DISK_IMAGE_DIR,
-)
+from disk_image.create.constants import \
+    PARTITION_MOUNTPOINT, \
+    FILE_PLACEHOLDER_SIGNATURE, \
+    TMP_WORKDIR, \
+    DISK_IMAGE_STATS_LOCATION, \
+    DOCKER_IMAGE_TEMPLATE, \
+    MODULES_TO_LOAD, \
+    DATA_STORAGE_DISK_IMAGE_DIR
 
 from disk_image.create.utils import (
     VirtualSDCard,
@@ -61,16 +60,19 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_FORMAT_VERSION = "1"
+DISK_IMAGE_VERSION = "1.1.1"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" f"{JETPACK_DISK_IMAGE_NAME}.zip"
+    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" 
+    f"{JETPACK_DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    "APP:/data/config/autoboot/*.yaml":
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/config/calibrations/*/default.yaml":
+        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
@@ -83,11 +85,27 @@ SUPPORTED_STEPS = [
     "fix",
     "resize",
     "upgrade",
-    "setup",
     "docker",
+    "setup",
     "finalize",
     "unmount",
     "compress",
+]
+MANDATORY_STEPS = [
+    "license",
+    "create",
+    "mount",
+    "unmount"
+]
+
+APT_PACKAGES_TO_INSTALL = [
+    'rsync',
+    'nano',
+    'htop',
+    'dkms',  # needed for Jetson WiFi drivers
+    'docker-compose',
+    # 'v4l2loopback-dkms',
+    'v4l2loopback-utils'
 ]
 
 
@@ -106,16 +124,40 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps",
+            type=str,
+            default="",
+            help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
-            "-o", "--output", type=str, default=None, help="The destination directory for the output file"
+            "-o", "--output",
+            type=str,
+            default=None,
+            help="The destination directory for the output files"
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use previously downloaded base ISO image/zip archive (download step)"
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--workdir",
+            type=str,
+            default=TMP_WORKDIR,
+            help="(Optional) temporary working directory to use"
+        )
+        parser.add_argument(
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
+        )
+        parser.add_argument(
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -125,6 +167,7 @@ class DTCommand(DTCommandAbs):
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
+        stime = time.time()
         # check given steps
         f = lambda s: len(s) > 0
         parsed.steps = parsed.steps.split(",")
@@ -145,6 +188,13 @@ class DTCommand(DTCommandAbs):
             skipped = set(parsed.steps).intersection(set(parsed.no_steps))
             parsed.steps = set(parsed.steps).difference(skipped)
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
+        # check steps caching
+        if parsed.cache_target not in [None] + SUPPORTED_STEPS:
+            dtslogger.error(f'Unknown step `{parsed.cache_target}`')
+            return
+        if parsed.cache_record not in [None] + SUPPORTED_STEPS:
+            dtslogger.error(f'Unknown step `{parsed.cache_record}`')
+            return
         # check dependencies
         check_cli_tools()
         # check if the output directory exists, create it if it does not
@@ -155,18 +205,24 @@ class DTCommand(DTCommandAbs):
         # define output file template
         in_file_path = lambda ex: os.path.join(parsed.workdir, f"{JETPACK_DISK_IMAGE_NAME}.{ex}")
         input_image_name = pathlib.Path(in_file_path("img")).stem
-        out_file_name = lambda ex: f"dt-{input_image_name}.{ex}"
+        output_image_name = input_image_name.replace(JETPACK_VERSION, DISK_IMAGE_VERSION)
+        out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
         out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
+        cached_step_file_path = lambda step, ex: \
+            os.path.join(parsed.output, 'cache', out_file_name(ex) + f'.{step}')
         # get version
         distro = get_distro_version(shell)
         # create a virtual SD card object
         sd_card = VirtualSDCard(out_file_path("img"), DISK_IMAGE_PARTITION_TABLE)
         # this is the surgey plan that will be performed by the init_sd_card command
         surgery_plan = []
+        # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
+        disk_image_origin = in_file_path('img')
+        using_cached_step = False
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
         stats = {
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-            "version": DISK_IMAGE_FORMAT_VERSION,
+            "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
             "input_url": INPUT_DISK_IMAGE_URL,
             "base_type": "Nvidia Jetpack",
@@ -191,7 +247,32 @@ class DTCommand(DTCommandAbs):
             "stamp": time.time(),
             "stamp_human": datetime.now().isoformat(),
         }
+
+        # create caching function
+        def cache_step(step):
+            if step != parsed.cache_record:
+                return
+            # cache step
+            dtslogger.info(f"Caching step '{step}'...")
+            cache_file_path = cached_step_file_path(step, 'img')
+            _copy_file(out_file_path('img'), cache_file_path)
+            dtslogger.info(f"Step '{step}' cached.")
+
+        # use cached step
+        if parsed.cache_target is not None:
+            disk_image_origin = cached_step_file_path(parsed.cache_target, 'img')
+            if not os.path.isfile(disk_image_origin):
+                dtslogger.error(f'No cached artifact found for step `{parsed.cache_target}`')
+                return
+            for step in SUPPORTED_STEPS[:SUPPORTED_STEPS.index(parsed.cache_target)+1]:
+                if step in MANDATORY_STEPS:
+                    continue
+                parsed.steps.remove(step)
+            using_cached_step = True
+
+        # ---
         print()
+        dtslogger.info(f'Steps to perform: {[s for s in SUPPORTED_STEPS if s in parsed.steps]}')
         #
         # STEPS:
         # ------>
@@ -219,7 +300,11 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error("You must agree to the License first.")
                     exit(9)
             # ---
+            cache_step('license')
             dtslogger.info("Step END: license\n")
+        else:
+            dtslogger.warning('Skipping "license" step. You are implicitly agreeing to the terms '
+                              'and conditions of the License For Customer Use of NVIDIA Software.')
         # Step: license
         # <------
         #
@@ -274,6 +359,7 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
             # ---
+            cache_step('download')
             dtslogger.info("Step END: download\n")
         # Step: download
         # <------
@@ -293,32 +379,30 @@ class DTCommand(DTCommandAbs):
                     dtslogger.info("Aborting.")
                     return
             # create empty disk image
-            dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
-            run_cmd(
-                [
+            if not using_cached_step:
+                dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
+                run_cmd([
                     "dd",
                     "if=/dev/zero",
                     f"of={out_file_path('img')}",
                     f"bs={1024 * 1024}",
                     f"count={1024 * DISK_IMAGE_SIZE_GB}",
-                ]
-            )
-            dtslogger.info("Empty disk image created!")
+                ])
+                dtslogger.info("Empty disk image created!")
             # make copy of the disk image
-            dtslogger.info(f"Copying [{in_file_path('img')}] -> [{out_file_path('img')}]")
-            run_cmd(
-                [
-                    "dd",
-                    f"if={in_file_path('img')}",
-                    f"of={out_file_path('img')}",
-                    f"bs={1024 * 1024}",
-                    "conv=notrunc",
-                ]
-            )
+            dtslogger.info(f"Copying [{disk_image_origin}] -> [{out_file_path('img')}]")
+            run_cmd([
+                "dd",
+                f"if={disk_image_origin}",
+                f"of={out_file_path('img')}",
+                f"bs={1024 * 1024}",
+                "" if using_cached_step else "conv=notrunc"
+            ])
             # flush buffer
             dtslogger.info("Flushing I/O buffer...")
             run_cmd(["sync"])
             # ---
+            cache_step('create')
             dtslogger.info("Step END: create\n")
         # Step: create
         # <------
@@ -339,7 +423,10 @@ class DTCommand(DTCommandAbs):
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
                 sd_card.mount()
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " 
+                               f"on {sd_card.loopdev}")
+            # ---
+            cache_step('mount')
             dtslogger.info("Step END: mount\n")
         # Step: mount
         # <------
@@ -356,6 +443,8 @@ class DTCommand(DTCommandAbs):
             time.sleep(1)
             p.communicate("w\ny\n".encode("ascii"))
             dtslogger.info("Done!")
+            # ---
+            cache_step('fix')
             dtslogger.info("Step END: fix\n")
         # Step: fix
         # <------
@@ -391,126 +480,9 @@ class DTCommand(DTCommandAbs):
             # resize file system
             run_cmd(["sudo", "resize2fs", root_device])
             # ---
+            cache_step('resize')
             dtslogger.info("Step END: resize\n")
         # Step: resize
-        # <------
-        #
-        # ------>
-        # Step: setup
-        if "setup" in parsed.steps:
-            dtslogger.info("Step BEGIN: setup")
-            # from this point on, if anything weird happens, unmount the disk
-            try:
-                # make sure that the disk is mounted
-                if not sd_card.is_mounted():
-                    dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
-                    return
-                # find partitions to update
-                partitions = disk_template_partitions(DISK_TEMPLATE_DIR)
-                # put template objects inside the stats object
-                for partition in partitions:
-                    stats["template"]["directories"] = list(
-                        map(
-                            lambda u: u["relative"],
-                            disk_template_objects(DISK_TEMPLATE_DIR, partition, "directory"),
-                        )
-                    )
-                    stats["template"]["files"] = list(
-                        map(
-                            lambda u: u["relative"],
-                            disk_template_objects(DISK_TEMPLATE_DIR, partition, "file"),
-                        )
-                    )
-                # make sure that all the partitions are there
-                for partition in partitions:
-                    # check if the partition defined in the disk_template dir exists
-                    if partition not in DISK_IMAGE_PARTITION_TABLE:
-                        raise ValueError(f"Partition {partition} not declared in partition table")
-                    # check if the corresponding disk device exists
-                    partition_disk = sd_card.partition_device(partition)
-                    if not os.path.exists(partition_disk):
-                        raise ValueError(f"Disk device {partition_disk} not found")
-                    # mount device
-                    sd_card.mount_partition(partition)
-                    # from this point on, if anything weird happens, unmount the disk
-                    try:
-                        dtslogger.info(f'Updating partition "{partition}":')
-                        # create directory structure from disk template
-                        for update in disk_template_objects(DISK_TEMPLATE_DIR, partition, "directory"):
-                            dtslogger.info(f"- Creating directory [{update['relative']}]")
-                            # create destination
-                            run_cmd(["sudo", "mkdir", "-p", update["destination"]])
-                        # apply changes from disk_template
-                        for update in disk_template_objects(DISK_TEMPLATE_DIR, partition, "file"):
-                            # validate file
-                            validator = _get_validator_fcn(partition, update["relative"])
-                            if validator:
-                                dtslogger.debug(f"Validating file {update['relative']}...")
-                                validator(shell, update["origin"], update["relative"])
-                            # create or modify file
-                            effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
-                            dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
-                            # copy new file
-                            run_cmd(["sudo", "cp", update["origin"], update["destination"]])
-                            # get first line of file
-                            file_first_line = get_file_first_line(update["destination"])
-                            # only files containing a known placeholder will be part of the surgery
-                            if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
-                                # get stats about file
-                                real_bytes, max_bytes = get_file_length(update["destination"])
-                                # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
-                                # store preliminary info about the surgery
-                                surgery_plan.append(
-                                    {
-                                        "partition": partition,
-                                        "partition_id": DISK_IMAGE_PARTITION_TABLE[partition],
-                                        "path": update["relative"],
-                                        "placeholder": placeholder,
-                                        "offset_bytes": None,
-                                        "used_bytes": real_bytes,
-                                        "length_bytes": max_bytes,
-                                    }
-                                )
-                        # store stats before closing the [root] partition
-                        if partition == ROOT_PARTITION:
-                            stats_filepath = os.path.join(
-                                PARTITION_MOUNTPOINT(partition), DISK_IMAGE_STATS_LOCATION
-                            )
-                            with open(out_file_path("stats"), "wt") as fout:
-                                json.dump(stats, fout, indent=4, sort_keys=True)
-                            run_cmd(["sudo", "cp", out_file_path("stats"), stats_filepath])
-                        # flush I/O buffer
-                        dtslogger.info("Flushing I/O buffer...")
-                        run_cmd(["sync"])
-                        # ---
-                        dtslogger.info(f"Partition {partition} updated!")
-                    except Exception as e:
-                        sd_card.umount_partition(partition)
-                        raise e
-                    # umount partition
-                    sd_card.umount_partition(partition)
-                # ---
-            except Exception as e:
-                sd_card.umount()
-                raise e
-            # finalize surgery plan
-            dtslogger.info("Locating files for surgery in the disk image...")
-            placeholders = find_placeholders_on_disk(out_file_path("img"))
-            for i in range(len(surgery_plan)):
-                full_placeholder = f"{FILE_PLACEHOLDER_SIGNATURE}{surgery_plan[i]['placeholder']}"
-                # check if the placeholder was found
-                if full_placeholder not in placeholders:
-                    raise ValueError(
-                        f'The string "{full_placeholder}" '
-                        f"was not found in the disk image {out_file_path('img')}"
-                    )
-                # update surgery plan
-                surgery_plan[i]["offset_bytes"] = placeholders[full_placeholder]
-            dtslogger.info("All files located successfully!")
-            dtslogger.info("Step END: setup\n")
-        # Step: setup
         # <------
         #
         # ------>
@@ -531,20 +503,21 @@ class DTCommand(DTCommandAbs):
                 sd_card.mount_partition(ROOT_PARTITION)
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
+                    # copy QEMU, resolvconf
+                    transfer_file(ROOT_PARTITION, ['usr', 'bin', 'qemu-aarch64-static'])
+                    transfer_file(ROOT_PARTITION, ['run', 'resolvconf', 'resolv.conf'])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
                     # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
+                    run_cmd([
+                        "docker",
+                        "run",
+                        "--rm",
+                        "--privileged",
+                        "multiarch/qemu-user-static:register",
+                        "--reset",
+                    ])
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -567,15 +540,51 @@ class DTCommand(DTCommandAbs):
                         exit(2)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
+                        # run full-upgrade on the new root
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "apt update && "
+                            "apt-mark hold nvidia-l4t-bootloader && "
+                            "apt --yes --force-yes --no-install-recommends"
+                            ' -o Dpkg::Options::="--force-confdef"'
+                            ' -o Dpkg::Options::="--force-confold"'
+                            " full-upgrade && "
+                            "apt-mark unhold nvidia-l4t-bootloader",
+                        )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
-                                "apt update && "
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
+                        # add symlink between arm64 and aarch64
+                        k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            f"ln -s {k}/arch/arm64 {k}/arch/aarch64"
+                        )
+                        # clone the wifi driver source
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "git clone "
+                            "https://github.com/duckietown/rtl88x2bu"
+                            " /usr/src/rtl88x2bu-5.6.1"
+                        )
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "git clone "
+                            "https://github.com/duckietown/rtl8821CU"
+                            " /usr/src/rtl8821CU-5.4.1"
+                        )
+                        # setup the camera pipeline
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            f"mkdir -p {k}/v4l2loopback && "
+                            f"git clone https://github.com/duckietown/v4l2loopback"
+                            f" {k}/v4l2loopback"
+                        )
                     except Exception as e:
                         raise e
                     # unomunt bind /dev
@@ -589,6 +598,8 @@ class DTCommand(DTCommandAbs):
             except Exception as e:
                 sd_card.umount()
                 raise e
+            # ---
+            cache_step('upgrade')
             dtslogger.info("Step END: upgrade\n")
         # Step: upgrade
         # <------
@@ -614,7 +625,8 @@ class DTCommand(DTCommandAbs):
                 # pull dind image
                 pull_docker_image(local_docker, "docker:dind")
                 # run auxiliary Docker engine
-                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
+                remote_docker_dir = os.path.join(
+                    PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
                     image="docker:dind",
                     detach=True,
@@ -661,8 +673,149 @@ class DTCommand(DTCommandAbs):
                 # unmount disk
                 sd_card.umount()
                 raise e
+            # ---
+            cache_step('docker')
             dtslogger.info("Step END: docker\n")
         # Step: docker
+        # <------
+        #
+        # ------>
+        # Step: setup
+        if "setup" in parsed.steps:
+            dtslogger.info("Step BEGIN: setup")
+            # from this point on, if anything weird happens, unmount the disk
+            try:
+                # make sure that the disk is mounted
+                if not sd_card.is_mounted():
+                    dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
+                    return
+                # find partitions to update
+                partitions = disk_template_partitions(DISK_TEMPLATE_DIR)
+                # put template objects inside the stats object
+                for partition in partitions:
+                    stats["template"]["directories"] = list(
+                        map(
+                            lambda u: u["relative"],
+                            disk_template_objects(DISK_TEMPLATE_DIR, partition, "directory"),
+                        )
+                    )
+                    stats["template"]["files"] = list(
+                        map(
+                            lambda u: u["relative"],
+                            disk_template_objects(DISK_TEMPLATE_DIR, partition, "file"),
+                        )
+                    )
+                # make sure that all the partitions are there
+                for partition in partitions:
+                    # check if the partition defined in the disk_template dir exists
+                    if partition not in DISK_IMAGE_PARTITION_TABLE:
+                        raise ValueError(f"Partition {partition} not declared in partition table")
+                    # check if the corresponding disk device exists
+                    partition_disk = sd_card.partition_device(partition)
+                    if not os.path.exists(partition_disk):
+                        raise ValueError(f"Disk device {partition_disk} not found")
+                    # mount device
+                    sd_card.mount_partition(partition)
+                    # from this point on, if anything weird happens, unmount the disk
+                    try:
+                        dtslogger.info(f'Updating partition "{partition}":')
+                        # create directory structure from disk template
+                        dirs = disk_template_objects(DISK_TEMPLATE_DIR, partition, "directory")
+                        for update in dirs:
+                            dtslogger.info(f"- Creating directory [{update['relative']}]")
+                            # create destination
+                            run_cmd(["sudo", "mkdir", "-p", update["destination"]])
+                        # apply changes from disk_template
+                        files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
+                        for update in files:
+                            # validate file
+                            validator = _get_validator_fcn(partition, update["relative"])
+                            if validator:
+                                dtslogger.debug(f"Validating file {update['relative']}...")
+                                validator(shell, update["origin"], update["relative"])
+                            # create or modify file
+                            effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
+                            dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
+                            # copy new file
+                            run_cmd(["sudo", "cp", update["origin"], update["destination"]])
+                            # get first line of file
+                            file_first_line = get_file_first_line(update["destination"])
+                            # only files containing a known placeholder will be part of the surgery
+                            if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
+                                # get stats about file
+                                real_bytes, max_bytes = get_file_length(update["destination"])
+                                # saturate file so that it occupies the entire pagefile
+                                run_cmd(["sudo", "truncate",
+                                         f"--size={max_bytes}", update["destination"]])
+                                # store preliminary info about the surgery
+                                surgery_plan.append(
+                                    {
+                                        "partition": partition,
+                                        "partition_id": DISK_IMAGE_PARTITION_TABLE[partition],
+                                        "path": update["relative"],
+                                        "placeholder": placeholder,
+                                        "offset_bytes": None,
+                                        "used_bytes": real_bytes,
+                                        "length_bytes": max_bytes,
+                                    }
+                                )
+                        # special handling of the ROOT partition
+                        if partition == ROOT_PARTITION:
+                            # store stats before closing the [root] partition
+                            stats_filepath = os.path.join(
+                                PARTITION_MOUNTPOINT(partition), DISK_IMAGE_STATS_LOCATION
+                            )
+                            with open(out_file_path("stats"), "wt") as fout:
+                                json.dump(stats, fout, indent=4, sort_keys=True)
+                            run_cmd(["sudo", "cp", out_file_path("stats"), stats_filepath])
+                            # setup services
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "ln"
+                                " -s"
+                                " /etc/systemd/system/dt_init.service"
+                                " /etc/systemd/system/multi-user.target.wants/dt_init.service"
+                            )
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "ln"
+                                " -s"
+                                " /etc/systemd/system/gstpipeline.service"
+                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service"
+                            )
+                        # flush I/O buffer
+                        dtslogger.info("Flushing I/O buffer...")
+                        run_cmd(["sync"])
+                        # ---
+                        dtslogger.info(f"Partition {partition} updated!")
+                    except Exception as e:
+                        sd_card.umount_partition(partition)
+                        raise e
+                    # umount partition
+                    sd_card.umount_partition(partition)
+                # ---
+            except Exception as e:
+                sd_card.umount()
+                raise e
+            # finalize surgery plan
+            dtslogger.info("Locating files for surgery in the disk image...")
+            placeholders = find_placeholders_on_disk(out_file_path("img"))
+            for i in range(len(surgery_plan)):
+                full_placeholder = f"{FILE_PLACEHOLDER_SIGNATURE}{surgery_plan[i]['placeholder']}"
+                # check if the placeholder was found
+                if full_placeholder not in placeholders:
+                    raise ValueError(
+                        f'The string "{full_placeholder}" '
+                        f"was not found in the disk image {out_file_path('img')}"
+                    )
+                # update surgery plan
+                surgery_plan[i]["offset_bytes"] = placeholders[full_placeholder]
+            dtslogger.info("All files located successfully!")
+            # ---
+            cache_step('setup')
+            dtslogger.info("Step END: setup\n")
+        # Step: setup
         # <------
         #
         # ------>
@@ -676,7 +829,7 @@ class DTCommand(DTCommandAbs):
             # store surgery plan and other info
             dtslogger.info(f"Storing metadata in {out_file_path('json')}...")
             metadata = {
-                "version": DISK_IMAGE_FORMAT_VERSION,
+                "version": DISK_IMAGE_VERSION,
                 "disk_image": os.path.basename(out_file_path("img")),
                 "sha256": disk_image_sha256,
                 "surgery_plan": surgery_plan,
@@ -684,6 +837,8 @@ class DTCommand(DTCommandAbs):
             with open(out_file_path("json"), "wt") as fout:
                 json.dump(metadata, fout, indent=4, sort_keys=True)
             dtslogger.info("Done!")
+            # ---
+            cache_step('finalize')
             dtslogger.info("Step END: finalize\n")
         # Step: finalize
         # <------
@@ -693,6 +848,7 @@ class DTCommand(DTCommandAbs):
         if "unmount" in parsed.steps:
             dtslogger.info("Step BEGIN: unmount")
             sd_card.umount()
+            cache_step('unmount')
             dtslogger.info("Step END: unmount\n")
         # Step: unmount
         # <------
@@ -702,8 +858,10 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
+            run_cmd(["zip", "-j", out_file_path("zip"),
+                     out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
+            cache_step('compress')
             dtslogger.info("Step END: compress\n")
         # Step: compress
         # <------
@@ -729,6 +887,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Step END: push\n")
         # Step: push
         # <------
+        dtslogger.info(f'Completed in {human_time(time.time() - stime)}')
 
     @staticmethod
     def complete(shell, word, line):
@@ -741,3 +900,17 @@ def _get_validator_fcn(partition, path):
         if fnmatch.fnmatch(key, _k):
             return _f
     return None
+
+
+def _copy_file(origin, destination):
+    # create destination directory
+    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
+    # make copy of the file
+    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
+    run_cmd(["cp", origin, destination])
+
+
+def transfer_file(partition, location):
+    _local_filepath = os.path.join(DISK_TEMPLATE_DIR, partition, *location)
+    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
+    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])

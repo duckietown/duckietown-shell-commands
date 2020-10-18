@@ -2,4 +2,4 @@
 *installed.user.flag
 .updates-check
 .idea
-lib
+/lib
