@@ -41,8 +41,8 @@ class DTCommand(DTCommandAbs):
         client = check_docker_environment()
 
 
-        timestamp = "{:%Y_%m_%d_%H_%M_%S}".format(datetime.now())
-        container_name = f'challenges-docker-{timestamp}-{random.randint(0,10000)}'
+        timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
+        container_name = f'challenges_{timestamp}_{random.randint(0,10)}'
         logname = f'/tmp/{container_name}.txt'
 
 
