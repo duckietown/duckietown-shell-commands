@@ -541,10 +541,11 @@ def continuously_monitor(client, container_name: str, log: str = None):
         except KeyboardInterrupt:
             logger.info("Received CTRL-C. Stopping container...")
             try:
+                logger.info(f"Stopping container {container_name}")
                 container.stop()
-                logger.info("Removing container")
+                logger.info(f"Removing container {container_name}")
                 container.remove()
-                logger.info("Container removed.")
+                logger.info(f"Container {container_name} removed.")
             except NotFound:
                 pass
             except APIError as e:
