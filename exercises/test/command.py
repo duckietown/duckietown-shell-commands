@@ -414,6 +414,9 @@ class DTCommand(DTCommandAbs):
         if parsed.local:
             vnc_params["network"] = agent_network.name
 
+        if not running_on_mac:
+            vnc_params["network_mode"] = "host"
+
         if parsed.debug:
             dtslogger.info(vnc_params)
 
