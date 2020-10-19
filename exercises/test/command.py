@@ -388,10 +388,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
-#        if not parsed.local:
-#            vnc_env["VEHICLE_NAME"] = duckiebot_name
-#            vnc_env["ROS_MASTER"] = duckiebot_name
-#            vnc_env["HOSTNAME"] = duckiebot_name
+        if not parsed.local:
+            vnc_env["VEHICLE_NAME"] = duckiebot_name
+            vnc_env["ROS_MASTER"] = duckiebot_name
+            vnc_env["HOSTNAME"] = duckiebot_name
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
