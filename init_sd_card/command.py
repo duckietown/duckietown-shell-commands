@@ -16,6 +16,7 @@ from datetime import datetime
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, get_robot_hardware
+from utils.misc_utils import human_time
 
 from .constants import (
     TIPS_AND_TRICKS,
@@ -26,7 +27,7 @@ from .constants import (
     WPA_EAP_NETWORK_CONFIG,
 )
 
-INIT_SD_CARD_VERSION = "2.0.5"  # incremental number, semantic version
+INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
@@ -40,17 +41,35 @@ WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "town"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 
-def BASE_DISK_IMAGE(robot_configuration):
+def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
+    board_to_disk_image_version = {
+        "raspberry_pi": {
+            "stable": "1.1",
+            "experimental": "1.1",
+        },
+        "jetson_nano": {
+            "stable": "1.1",
+            "experimental": "1.1.1",
+        },
+    }
+    board, _ = get_robot_hardware(robot_configuration)
+    stream = 'stable' if not experimental else 'experimental'
+    return board_to_disk_image_version[board][stream]
+
+
+def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
-        "raspberry_pi": "dt-hypriotos-rpi-v1.11.1",
-        "jetson_nano": "dt-nvidia-jetpack-v4.4",
+        "raspberry_pi":
+            f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano":
+            f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
 
 
-def DISK_IMAGE_CLOUD_LOCATION(robot_configuration):
-    disk_image = BASE_DISK_IMAGE(robot_configuration)
+def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
+    disk_image = BASE_DISK_IMAGE(robot_configuration, experimental)
     return f"disk_image/{disk_image}.zip"
 
 
@@ -59,22 +78,13 @@ class InvalidUserInput(Exception):
 
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell: DTShell, args):
         parser = argparse.ArgumentParser()
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
         parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
-        parser.add_argument(
-            "--linux-username",
-            default="duckie",
-            help="Username of the linux user to create on the flashed device",
-        )
-        parser.add_argument(
-            "--linux-password",
-            default="quackquack",
-            help="Password to access the linux user profile created on the flashed device",
-        )
         parser.add_argument("--device", default=None, help="The SD card device to flash")
         parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument(
@@ -118,10 +128,22 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use cached ISO image"
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--experimental",
+            default=False,
+            action="store_true",
+            help="Use experimental disk image and parameters"
+        )
+        parser.add_argument(
+            "--workdir",
+            default=TMP_WORKDIR,
+            type=str,
+            help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -184,7 +206,7 @@ class DTCommand(DTCommandAbs):
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
         # compile hardware specific disk image name and url
-        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration)
+        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental)
         # compile files destinations
         in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
         # prepare data
@@ -255,7 +277,7 @@ def step_download(shell, parsed, data):
     if not os.path.isfile(data["disk_zip"]):
         dtslogger.info("Downloading ZIP image...")
         # get disk image location on the cloud
-        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration)
+        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental)
         # download zip
         shell.include.data.get.command(
             shell, [], parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public")
@@ -304,7 +326,8 @@ def step_flash(_, parsed, data):
                 exit(4)
 
     # use dd to flash
-    dtslogger.info("Flashing [{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
+    stime = time.time()
+    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
         "dd",
         "if={}".format(data["disk_img"]),
@@ -314,7 +337,7 @@ def step_flash(_, parsed, data):
     ]
 
     # create a progress bar to track the progress
-    pbar = ProgressBar()
+    pbar = ProgressBar(header='Flashing [ETA: ND]')
     tbytes = os.stat(data["disk_img"]).st_size
 
     # launch dd
@@ -324,7 +347,7 @@ def step_flash(_, parsed, data):
     # read status and update progress bar
     par = b""
     while dd.poll() is None:
-        time.sleep(0.5)
+        time.sleep(0.1)
         # consume everything from the buffer
         char = dd.stderr.read(1)
         while len(char) == 1:
@@ -337,6 +360,11 @@ def step_flash(_, parsed, data):
                     nbytes = float(par.decode("utf-8"))
                     progress = int(100 * (nbytes / tbytes))
                     pbar.update(progress)
+                    # compute ETA
+                    if progress > 0:
+                        elapsed = time.time() - stime
+                        eta = (100 - progress) * (elapsed / progress)
+                        pbar.set_header('Flashing [ETA: {}]'.format(human_time(eta, True)))
                 except ValueError:
                     pass
                 par = None
@@ -345,6 +373,7 @@ def step_flash(_, parsed, data):
     # jump to 100% if success
     if dd.returncode == 0:
         pbar.update(100)
+        dtslogger.info('Flashed in {}'.format(human_time(time.time() - stime)))
 
     # flush I/O buffer
     dtslogger.info("Flushing I/O buffer...")
@@ -359,9 +388,10 @@ def step_verify(_, parsed, data):
     dtslogger.info("Verifying {}[{}]...".format(data.get("sd_type", ""), parsed.device))
     buf_size = 16 * 1024
     # create a progress bar to track the progress
-    pbar = ProgressBar()
+    pbar = ProgressBar(header='Verifying [ETA: ND]')
     tbytes = os.stat(data["disk_img"]).st_size
     nbytes = 0
+    stime = time.time()
     # compare bytes
     try:
         with open(data["disk_img"], "rb") as origin:
@@ -378,6 +408,11 @@ def step_verify(_, parsed, data):
                     nbytes += buf1_len
                     progress = int(100 * (nbytes / tbytes))
                     pbar.update(progress)
+                    # compute ETA
+                    if progress > 0:
+                        elapsed = time.time() - stime
+                        eta = (100 - progress) * (elapsed / progress)
+                        pbar.set_header('Verifying [ETA: {}]'.format(human_time(eta, True)))
                     # read another chunk
                     buffer1 = origin.read(buf_size)
     except IOError as e:
@@ -387,6 +422,7 @@ def step_verify(_, parsed, data):
             "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(str(e))
         )
         exit(5)
+    dtslogger.info('Verified in {}'.format(human_time(time.time() - stime)))
     # ---
     dtslogger.info("{}[{}] successfully flashed!".format(data.get("sd_type", ""), parsed.device))
     return {}
@@ -406,14 +442,16 @@ def step_setup(shell, parsed, data):
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
-        "files_sanitize": None,
-        "linux_username": parsed.linux_username,
-        "linux_password": parsed.linux_password,
+        "sanitize_files": None,
         "stats": json.dumps(
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-                "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration),
-                "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration),
+                "base_disk_name":
+                    BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
+                "base_disk_version":
+                    DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
+                "base_disk_location":
+                    DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental),
                 "environment": {
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
@@ -436,7 +474,7 @@ def step_setup(shell, parsed, data):
     surgery_plan = disk_metadata["surgery_plan"]
     # compile list of files to sanitize at first boot
     sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
-    surgery_data["files_sanitize"] = "\n".join(map(lambda f: f"  - sanitize-file {f}", sanitize))
+    surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f'v{disk_metadata["version"]}')
     # perform surgery
@@ -462,8 +500,8 @@ def step_setup(shell, parsed, data):
         # make sure the content does not exceed the block size
         if used_bytes > block_size:
             dtslogger.error(
-                f"Content for placeholder {surgery_bit['placeholder']} exceeding the "
-                f"allocated space of {block_size} bytes."
+                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
+                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
             )
             exit(7)
         # create masked content (content is padded with new lines)
@@ -471,12 +509,6 @@ def step_setup(shell, parsed, data):
         # debug only
         assert len(masked_content) == block_size
         block_usage = int(100 * (used_bytes / float(block_size)))
-        if used_bytes >= block_size:
-            dtslogger.error(
-                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
-                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
-            )
-            exit(3)
         dtslogger.debug(
             "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
             + "into [{partition}]:{path}.".format(**surgery_bit)
@@ -490,19 +522,21 @@ def step_setup(shell, parsed, data):
             "seek={}".format(block_offset),
             "conv=notrunc",
         ]
-        # launch dd
-        dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        dtslogger.debug(f"$ {dd_cmd}")
-        # write
-        dd.stdin.write(masked_content)
-        dd.stdin.flush()
-        dd.stdin.close()
-        dd.wait()
-        # flush I/O buffer
-        _run_cmd(["sync"])
+        # write twice (found to increase success rate)
+        for wpass in range(2):
+            # launch dd
+            dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            dtslogger.debug(f"[{wpass+1}/2] $ {dd_cmd}")
+            # write
+            dd.stdin.write(masked_content)
+            dd.stdin.flush()
+            dd.stdin.close()
+            dd.wait()
+            # flush I/O buffer
+            _run_cmd(["sync"])
     dtslogger.info("Surgery went OK!")
     # flush I/O buffer
-    dtslogger.info("Flushing I/O buffer (this can take a while)...")
+    dtslogger.info("Flushing I/O buffer...")
     _run_cmd(["sync"])
     dtslogger.info("Done!")
     # ---

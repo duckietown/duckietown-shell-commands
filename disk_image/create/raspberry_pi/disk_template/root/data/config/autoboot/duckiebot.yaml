@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   portainer:
-    image: portainer/portainer:linux-arm
+    image: portainer/portainer:linux-arm-1.24.1
     container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
@@ -77,6 +77,7 @@ services:
     network_mode: host
     volumes:
       - /data:/data
+      - /secrets:/secrets
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 

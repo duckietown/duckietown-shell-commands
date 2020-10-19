@@ -16,12 +16,6 @@ from utils.docker_utils import sanitize_docker_baseurl
 
 REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
-ARCH_MAP = {
-    "arm32v7": ["arm", "arm32v7", "armv7l", "armhf"],
-    "amd64": ["x64", "x86_64", "amd64", "Intel 64"],
-    "arm64v8": ["arm64", "arm64v8", "armv8", "aarch64"],
-}
-
 CANONICAL_ARCH = {
     "arm": "arm32v7",
     "arm32v7": "arm32v7",
@@ -31,13 +25,26 @@ CANONICAL_ARCH = {
     "x86_64": "amd64",
     "amd64": "amd64",
     "Intel 64": "amd64",
-    "arm64": "arm64v8",
-    "arm64v8": "arm64v8",
-    "armv8": "arm64v8",
-    "aarch64": "arm64v8",
+
+    # TODO: @afdaniele. Forward arm64v8 -> arm32v7 until the arm64v8 family of images is fixed
+    # "arm64": "arm64v8",
+    # "arm64v8": "arm64v8",
+    # "armv8": "arm64v8",
+    # "aarch64": "arm64v8",
+
+    "arm64": "arm32v7",
+    "arm64v8": "arm32v7",
+    "armv8": "arm32v7",
+    "aarch64": "arm32v7",
+
+    "FAKE": "arm64v8"
 }
 
-BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
+BUILD_COMPATIBILITY_MAP = {
+    "arm32v7": ["arm32v7"],
+    "arm64v8": ["arm32v7", "arm64v8"],
+    "amd64": ["amd64"]
+}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -186,7 +193,7 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.version_name)
@@ -195,7 +202,7 @@ class DTProject:
     def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{owner}/{self.name}:{version}{docs}-{arch}"
@@ -265,7 +272,7 @@ class DTProject:
             return None
 
     def remote_image_metadata(self, arch: str, owner: str = "duckietown"):
-        arch = canonical_arch(arch)
+        assert_canonical_arch(arch)
         image = f"{owner}/{self.name}"
         tag = f"{self.version_name}-{arch}"
         return self.inspect_remote_image(image, tag)
@@ -370,10 +377,19 @@ class DTProject:
         return res
 
 
+def assert_canonical_arch(arch):
+    if arch not in CANONICAL_ARCH.values():
+        raise ValueError(
+            f"Given architecture {arch} is not supported. " 
+            f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
+        )
+
+
 def canonical_arch(arch):
     if arch not in CANONICAL_ARCH:
         raise ValueError(
-            f"Given architecture {arch} is not supported. " f"Valid choices are: {', '.join(ARCH_MAP.keys())}"
+            f"Given architecture {arch} is not supported. " 
+            f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
         )
     # ---
     return CANONICAL_ARCH[arch]
