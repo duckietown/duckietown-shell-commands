@@ -11,7 +11,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version('duckietown-docker-utils-daffy', '6.0.9')
+        check_package_version('duckietown-docker-utils-daffy', '6.0.15')
         from duckietown_docker_utils.docker_run import generic_docker_run
 
         parser = argparse.ArgumentParser()
