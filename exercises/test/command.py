@@ -396,6 +396,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
+        if not parsed.local:
+            vnc_env["VEHICLE_NAME"] = duckiebot_name
+            vnc_env["ROS_MASTER"] = duckiebot_name
+            vnc_env["HOSTNAME"] = duckiebot_name
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
@@ -409,6 +413,9 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             vnc_params["network"] = agent_network.name
+        else:
+            if not running_on_mac:
+                vnc_params["network_mode"] = "host"
 
         if parsed.debug:
             dtslogger.info(vnc_params)
