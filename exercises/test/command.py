@@ -344,10 +344,12 @@ class DTCommand(DTCommandAbs):
             # let's launch the middleware_manager
             dtslogger.info("Running %s" % middleware_container_name)
             middleware_env = load_yaml(env_dir + "middleware_env.yaml")
+            middleware_port = {"8090/tcp": ("0.0.0.0", 8090)}
             mw_params = {
                 "image": middle_image,
                 "name": middleware_container_name,
                 "environment": middleware_env,
+                "ports": middleware_port,
                 "network": agent_network.name, # always local
                 "volumes": fifos_bind,
                 "detach": True,
