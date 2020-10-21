@@ -387,7 +387,7 @@ class DTCommand(DTCommandAbs):
         # - launchers info
         if len(launchers) > 0:
             extra_info.append('Image launchers:')
-            for launcher in launchers:
+            for launcher in sorted(launchers):
                 extra_info.append(' - {:s}'.format(launcher))
             extra_info.append(EXTRA_INFO_SEPARATOR)
         # - timing
