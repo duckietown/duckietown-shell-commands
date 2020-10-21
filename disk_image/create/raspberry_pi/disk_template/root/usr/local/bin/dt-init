@@ -83,6 +83,11 @@ run_on_first_boot () {
   cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
   cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 
+  # reload systemctl and restart docker
+  systemctl daemon-reload
+  systemctl enable docker
+  systemctl restart docker
+
   while ! timeout --signal=INT 5s docker ps; do
     echo 'Waiting for Docker to start...'
     sleep 2
