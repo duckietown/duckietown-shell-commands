@@ -9,14 +9,14 @@ from utils.misc_utils import human_size
 from dt_data_api import DataClient, TransferStatus
 
 
-VALID_SPACES = ["public", "private"]
+VALID_SPACES = ["user", "public", "private"]
 
 
 class DTCommand(DTCommandAbs):
 
     help = "Uploads a file to the Duckietown Cloud Storage space"
 
-    usage = """
+    usage = f"""
 Usage:
 
     dts data push --space <space> <file> <object>
@@ -25,7 +25,7 @@ OR
 
     dts data push <file> [<space>:]<object>
     
-Where <space> can be one of [public, private].
+Where <space> can be one of {str(VALID_SPACES)}.
 """
 
     @staticmethod
@@ -82,8 +82,8 @@ Where <space> can be one of [public, private].
             print(DTCommand.usage)
             exit(3)
         # validate space
-        if space is not None and space not in ["public", "private"]:
-            dtslogger.error("Storage space (short format) can be either 'public' or 'private'.")
+        if space is not None and space not in VALID_SPACES:
+            dtslogger.error(f"Storage space (short format) can be one of {str(VALID_SPACES)}.")
             print(DTCommand.usage)
             exit(4)
         # sanitize object path (remove leading `/`)
