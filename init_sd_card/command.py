@@ -57,6 +57,24 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     return board_to_disk_image_version[board][stream]
 
 
+def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
+    board_to_placeholders_version = {
+        "raspberry_pi": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1"
+        },
+        "jetson_nano": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1"
+        },
+    }
+    board, _ = get_robot_hardware(robot_configuration)
+    version = DISK_IMAGE_VERSION(robot_configuration, experimental)
+    return board_to_placeholders_version[board][version]
+
+
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi":
@@ -476,7 +494,8 @@ def step_setup(shell, parsed, data):
     sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f'v{disk_metadata["version"]}')
+    placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
+    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f'v{placeholders_version}')
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
     for surgery_bit in surgery_plan:
