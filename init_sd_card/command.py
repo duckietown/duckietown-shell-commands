@@ -45,7 +45,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {
             "stable": "1.1",
-            "experimental": "1.1",
+            "experimental": "1.1.1",
         },
         "jetson_nano": {
             "stable": "1.1",
