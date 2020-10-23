@@ -2,6 +2,7 @@ import argparse
 
 # from git import Repo # pip install gitpython
 import os
+import signal
 import platform
 import subprocess
 import nbformat  # install before?
@@ -209,27 +210,7 @@ class DTCommand(DTCommandAbs):
         ros_template_container_name = "agent"
         bridge_container_name = "dt-duckiebot-fifos-bridge"
 
-        if parsed.restart_agent:
-            remove_if_running(agent_client, ros_template_container_name)
-            remove_if_running(agent_client, bridge_container_name)
-        else:
-            remove_if_running(agent_client, sim_container_name)
-            remove_if_running(agent_client, ros_container_name)
-            remove_if_running(local_client, vnc_container_name)  # vnc always local
-            remove_if_running(agent_client, middleware_container_name)
-            remove_if_running(agent_client, ros_template_container_name)
-            remove_if_running(agent_client, bridge_container_name)
-            try:
-                dict = agent_client.networks.prune()
-                dtslogger.info("Successfully removed network %s" % dict)
-            except Exception as e:
-                dtslogger.warn("error removing volume: %s" % e)
-
-            try:
-                dict = agent_client.volumes.prune()
-                dtslogger.info("Successfully removed volume %s" % dict)
-            except Exception as e:
-                dtslogger.warn("error removing volume: %s" % e)
+        cleanUp(agent_client,local_client,parsed.restart_agent,sim_container_name,ros_container_name,vnc_container_name,middleware_container_name,ros_template_container_name,bridge_container_name)
 
         if parsed.stop:
             exit(0)
@@ -431,7 +412,36 @@ class DTCommand(DTCommandAbs):
                      agent_client, duckiebot_name)
 
 
-        dtslogger.info("All done")
+        signal.signal(signal.SIGINT,lambda *args: None)
+        dtslogger.info("All done, press CRTL+C terminate.")
+        signal.pause()
+        if str(input("Do you want to clean the containers?"+' (y/n): ')).lower().strip()=='y':
+            cleanUp(agent_client,local_client,parsed.restart_agent,sim_container_name,ros_container_name,vnc_container_name,middleware_container_name,ros_template_container_name,bridge_container_name)
+        
+        exit(0)
+
+def cleanUp(agent_client,local_client,restart_agent,sim_container_name,ros_container_name,vnc_container_name,middleware_container_name,ros_template_container_name,bridge_container_name):
+    if restart_agent:
+        remove_if_running(agent_client, ros_template_container_name)
+        remove_if_running(agent_client, bridge_container_name)
+    else:
+        remove_if_running(agent_client, sim_container_name)
+        remove_if_running(agent_client, ros_container_name)
+        remove_if_running(local_client, vnc_container_name)  # vnc always local
+        remove_if_running(agent_client, middleware_container_name)
+        remove_if_running(agent_client, ros_template_container_name)
+        remove_if_running(agent_client, bridge_container_name)
+        try:
+            dict = agent_client.networks.prune()
+            dtslogger.info("Successfully removed network %s" % dict)
+        except Exception as e:
+            dtslogger.warn("error removing volume: %s" % e)
+
+        try:
+            dict = agent_client.volumes.prune()
+            dtslogger.info("Successfully removed volume %s" % dict)
+        except Exception as e:
+            dtslogger.warn("error removing volume: %s" % e)
 
 
 def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
