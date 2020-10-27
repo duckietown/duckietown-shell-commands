@@ -1,4 +1,5 @@
 import argparse
+import random
 from datetime import datetime
 from typing import List
 
@@ -10,7 +11,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version('duckietown-docker-utils-daffy', '6.0.9')
+        check_package_version('duckietown-docker-utils-daffy', '6.0.15')
         from duckietown_docker_utils.docker_run import generic_docker_run
 
         parser = argparse.ArgumentParser()
@@ -40,9 +41,9 @@ class DTCommand(DTCommandAbs):
         client = check_docker_environment()
 
 
-        timestamp = "{:%Y_%m_%d_%H_%M_%S}.txt".format(datetime.now())
-        container_name = f'challenges-docker-{timestamp}'
-        logname = f'/tmp/{container_name}'
+        timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
+        container_name = f'challenges_{timestamp}_{random.randint(0,10)}'
+        logname = f'/tmp/{container_name}.txt'
 
 
         gdr = \

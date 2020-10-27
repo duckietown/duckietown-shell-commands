@@ -344,10 +344,12 @@ class DTCommand(DTCommandAbs):
             # let's launch the middleware_manager
             dtslogger.info("Running %s" % middleware_container_name)
             middleware_env = load_yaml(env_dir + "middleware_env.yaml")
+            middleware_port = {"8090/tcp": ("0.0.0.0", 8090)}
             mw_params = {
                 "image": middle_image,
                 "name": middleware_container_name,
                 "environment": middleware_env,
+                "ports": middleware_port,
                 "network": agent_network.name, # always local
                 "volumes": fifos_bind,
                 "detach": True,
@@ -396,6 +398,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Running %s" % vnc_container_name)
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
+        if not parsed.local:
+            vnc_env["VEHICLE_NAME"] = duckiebot_name
+            vnc_env["ROS_MASTER"] = duckiebot_name
+            vnc_env["HOSTNAME"] = duckiebot_name
         vnc_params = {
             "image": VNC_IMAGE,
             "name": vnc_container_name,
@@ -409,6 +415,9 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             vnc_params["network"] = agent_network.name
+        else:
+            if not running_on_mac:
+                vnc_params["network_mode"] = "host"
 
         if parsed.debug:
             dtslogger.info(vnc_params)

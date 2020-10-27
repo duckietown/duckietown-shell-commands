@@ -60,7 +60,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.1"
+DISK_IMAGE_VERSION = "1.1.1"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
@@ -559,21 +559,31 @@ class DTCommand(DTCommandAbs):
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
+                        # add symlink between arm64 and aarch64
+                        k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            f"ln -s {k}/arch/arm64 {k}/arch/aarch64"
+                        )
                         # clone the wifi driver source
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "git clone "
-                            "https://github.com/duckietown/rtl88x2bu.git"
+                            "https://github.com/duckietown/rtl88x2bu"
                             " /usr/src/rtl88x2bu-5.6.1"
+                        )
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "git clone "
+                            "https://github.com/duckietown/rtl8821CU"
+                            " /usr/src/rtl8821CU-5.4.1"
                         )
                         # setup the camera pipeline
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "mkdir -p /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/"
-                            "kernel-4.9/v4l2loopback && "
-                            "git clone https://github.com/duckietown/v4l2loopback.git"
-                            " /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/"
-                            "kernel-4.9/v4l2loopback"
+                            f"mkdir -p {k}/v4l2loopback && "
+                            f"git clone https://github.com/duckietown/v4l2loopback"
+                            f" {k}/v4l2loopback"
                         )
                     except Exception as e:
                         raise e
