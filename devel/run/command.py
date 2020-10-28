@@ -11,12 +11,10 @@ from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTPro
 from utils.misc_utils import human_size
 
 LAUNCHER_FMT = "dt-launcher-%s"
-
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
-
 DEFAULT_NETWORK_MODE = "host"
-
 DEFAULT_REMOTE_USER = "duckie"
+DEFAULT_CMD = "bash"
 
 
 class DTCommand(DTCommandAbs):
@@ -154,7 +152,7 @@ class DTCommand(DTCommandAbs):
             dest="use_x_docker",
             default=False,
             action="store_true",
-            help="Use x-docker as runtime (needs to be installed separately)",
+            help="Use x-docker as runtime",
         )
         parser.add_argument(
             "-s",
@@ -176,7 +174,8 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         # x-docker runtime
         if parsed.use_x_docker:
-            parsed.runtime = "x-docker"
+            command_dir = os.path.dirname(os.path.abspath(__file__))
+            parsed.runtime = os.path.join(command_dir, "x-docker")
         # check runtime
         if shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
@@ -343,7 +342,7 @@ class DTCommand(DTCommandAbs):
             raise ValueError("You cannot use the option --launcher together with --cmd.")
         if parsed.launcher:
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
-        cmd_option = [] if not parsed.cmd else [parsed.cmd]
+        cmd_option = [DEFAULT_CMD] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
             [] if not parsed.arguments else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
