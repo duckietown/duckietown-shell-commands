@@ -51,6 +51,12 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
+            "-R",
+            "--ros",
+            default=None,
+            help="Hostname of the machine hosting the ROS Master node",
+        )
+        parser.add_argument(
             "-n",
             "--name",
             default=None,
@@ -207,6 +213,10 @@ class DTCommand(DTCommandAbs):
         module_configuration_args = []
         # apply default module configuration
         module_configuration_args.append(f"--net={DEFAULT_NETWORK_MODE}")
+        # environment
+        if parsed.ros is not None:
+            # parsed.ros = parsed.ros if parsed.ros.endswith('.local') else f'{parsed.ros}.local'
+            module_configuration_args.append(f"-e=VEHICLE_NAME={parsed.ros}")
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []
