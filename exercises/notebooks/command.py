@@ -1,7 +1,9 @@
-
-from dt_shell import DTCommandAbs, dtslogger
-from utils.cli_utils import start_command_in_subprocess
 import os
+
+from dt_shell import DTCommandAbs
+
+from utils.cli_utils import start_command_in_subprocess
+
 usage = """
 
 ## Basic usage
@@ -14,13 +16,10 @@ usage = """
 
 """
 
-
-
-BRANCH="daffy"
-ARCH="amd64"
-AIDO_REGISTRY="registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
-
+BRANCH = "daffy"
+ARCH = "amd64"
+# AIDO_REGISTRY = "registry-stage.duckietown.org"
+ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
 
 
 class InvalidUserInput(Exception):

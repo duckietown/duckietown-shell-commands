@@ -1,19 +1,15 @@
 import argparse
-
 # from git import Repo # pip install gitpython
 import os
 
-import docker
 import nbformat  # install before?
-from nbconvert.exporters import PythonExporter
 import yaml
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
-from utils.docker_utils import build_if_not_exist, \
-    default_env, remove_if_running, get_remote_client, \
-    pull_if_not_exist
-from utils.networking_utils import get_duckiebot_ip
+from nbconvert.exporters import PythonExporter
+
 from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import pull_if_not_exist, remove_if_running
 
 usage = """
 
@@ -27,13 +23,10 @@ usage = """
 
 """
 
-
-
-BRANCH="daffy"
-ARCH="amd64"
-AIDO_REGISTRY="registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
-
+BRANCH = "daffy"
+ARCH = "amd64"
+AIDO_REGISTRY = "registry-stage.duckietown.org"
+ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
 
 
 class InvalidUserInput(Exception):
@@ -121,6 +114,7 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info("Build complete")
 
+
 def convertNotebook(filepath, export_path) -> bool:
     if not os.path.exists(filepath):
         return False
@@ -137,6 +131,7 @@ def convertNotebook(filepath, export_path) -> bool:
         return False
 
     return True
+
 
 def load_yaml(file_name):
     with open(file_name) as f:

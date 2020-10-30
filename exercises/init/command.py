@@ -1,17 +1,7 @@
 import argparse
-
-import docker
-from dt_shell import DTCommandAbs, dtslogger
-from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, pull_if_not_exist, build_if_not_exist
-from utils.networking_utils import get_duckiebot_ip
-
-#from git import Repo # pip install gitpython 
 import os
-from shutil import copyfile
 
-import yaml
+from dt_shell import DTCommandAbs, dtslogger
 
 usage = """
 
@@ -23,6 +13,7 @@ usage = """
         $ dts duckiebot mooc init
 
 """
+
 
 class InvalidUserInput(Exception):
     pass
@@ -43,18 +34,17 @@ class DTCommand(DTCommandAbs):
         working_dir = os.getcwd()
         cloneRepo(working_dir)
 
-
-        os.system('cd '+working_dir+'/mooc-exercises && make start')
+        os.system('cd ' + working_dir + '/mooc-exercises && make start')
 
         dtslogger.info("Exercise repo initialized sucessfully")
 
 
 def cloneRepo(full_path) -> bool:
-    from git import Repo # pip install gitpython 
+    from git import Repo  # pip install gitpython
 
     name = "mooc-exercises"
     team = "duckietown"
-    
+
     clone_path = os.path.abspath(os.path.join(full_path, name))
 
     if os.path.exists(clone_path):
