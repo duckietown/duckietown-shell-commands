@@ -18,7 +18,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
 
         parser.add_argument('--image',
-                            default='${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:daffy',
+                            default='${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:daffy-amd64',
                             help="Which image to use")
 
         # parser.add_argument('--entrypoint', default=None)
