@@ -27,18 +27,16 @@ usage = """
 
 """
 
-
-
-BRANCH="daffy"
-DEFAULT_ARCH="amd64"
-REMOTE_ARCH="arm32v7"
-AIDO_REGISTRY="registry-stage.duckietown.org"
-ROSCORE_IMAGE="duckietown/dt-commons:" + BRANCH
-SIMULATOR_IMAGE="duckietown/challenge-aido_lf-simulator-gym:" + BRANCH  + '-amd64'# no arch
-ROS_TEMPLATE_IMAGE="duckietown/challenge-aido_lf-baseline-duckietown:" + BRANCH
-VNC_IMAGE="duckietown/dt-gui-tools:" + BRANCH + "-amd64" # always on amd64
-MIDDLEWARE_IMAGE="duckietown/mooc-fifos-connector:" + BRANCH  + '-amd64'# no arch
-BRIDGE_IMAGE="duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
+BRANCH = "daffy"
+DEFAULT_ARCH = "amd64"
+REMOTE_ARCH = "arm32v7"
+AIDO_REGISTRY = "registry-stage.duckietown.org"
+ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
+SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + '-amd64'  # no arch
+ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-baseline-duckietown:" + BRANCH
+VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
+MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + '-amd64'  # no arch
+BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
@@ -309,7 +307,7 @@ class DTCommand(DTCommandAbs):
 
             sim_env = load_yaml(env_dir + "sim_env.yaml")
 
-            dtslogger.info("Running %s" % sim_container_name)
+            dtslogger.info(f"Running simulator {sim_container_name} from {sim_image}")
             sim_params = {
                 "image": sim_image,
                 "name": sim_container_name,
@@ -327,7 +325,7 @@ class DTCommand(DTCommandAbs):
             sim_container = agent_client.containers.run(**sim_params)
 
             # let's launch the middleware_manager
-            dtslogger.info("Running %s" % middleware_container_name)
+            dtslogger.info(f"Running middleware {middleware_container_name} from {middle_image}")
             middleware_env = load_yaml(env_dir + "middleware_env.yaml")
             middleware_port = {"8090/tcp": ("0.0.0.0", 8090)}
             mw_params = {
@@ -355,7 +353,7 @@ class DTCommand(DTCommandAbs):
 
         # let's launch the ros-core
 
-        dtslogger.info("Running %s" % ros_container_name)
+        dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
         ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
         ros_params = {
@@ -379,7 +377,7 @@ class DTCommand(DTCommandAbs):
         ros_container = agent_client.containers.run(**ros_params)
 
         # let's launch vnc
-        dtslogger.info("Running %s" % vnc_container_name)
+        dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
         if not parsed.local:
@@ -422,7 +420,7 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
                  agent_client, duckiebot_name):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
-    dtslogger.info("Running the %s" % ros_template_container_name)
+    dtslogger.info(f"Running the {ros_template_container_name} from {ros_template_image}")
 
     ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
     ros_template_env = {**ros_env, **ros_template_env}
@@ -477,7 +475,7 @@ def launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_imag
                   running_on_mac, agent_client):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
-    dtslogger.info(f"Running {bridge_container_name}")
+    dtslogger.info(f"Running {bridge_container_name} from {bridge_image}")
     bridge_env = {
         "HOSTNAME": f"{duckiebot_name}",
         "VEHICLE_NAME": f"{duckiebot_name}",
