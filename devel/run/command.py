@@ -63,6 +63,7 @@ class DTCommand(DTCommandAbs):
             help="Name of the container"
         )
         parser.add_argument(
+            "-c",
             "--cmd",
             default=None,
             help="Command to run in the Docker container"
