@@ -6,7 +6,7 @@ from dt_shell import DTCommandAbs, dtslogger
 usage = """
 
 ## Basic usage
-    This is an helper for the MOOC classes, it download and initialize the repository for the MOOC exercises. 
+    This is an helper for the MOOC classes, it download and initialize the repository for the MOOC exercises.
 
     To know more on the `mooc` commands, use `dts duckiebot mooc -h`.
 
@@ -34,7 +34,7 @@ class DTCommand(DTCommandAbs):
         working_dir = os.getcwd()
         cloneRepo(working_dir)
 
-        os.system('cd ' + working_dir + '/mooc-exercises && make start')
+        os.system("cd " + working_dir + "/mooc-exercises && make start")
 
         dtslogger.info("Exercise repo initialized sucessfully")
 
@@ -51,13 +51,13 @@ def cloneRepo(full_path) -> bool:
         dtslogger.info("Repo already exists")
         return True
     else:
-        print('Cloning repo {}'.format(name))
+        print("Cloning repo {}".format(name))
         try:
-            git_repo = 'https://github.com/{}/{}.git'.format(team, name)
+            git_repo = "https://github.com/{}/{}.git".format(team, name)
             Repo.clone_from(git_repo, clone_path, branch="daffy", recursive=True)
-            dtslogger.info('Cloning complete for repo {}'.format(name))
+            dtslogger.info("Cloning complete for repo {}".format(name))
             return True
         except Exception as e:
-            dtslogger.error('Unable to clone repo {}. Reason: {} '.format(name, str(e)))
+            dtslogger.error("Unable to clone repo {}. Reason: {} ".format(name, str(e)))
 
     return False

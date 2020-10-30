@@ -18,14 +18,15 @@ from datetime import datetime
 from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
 
-from disk_image.create.constants import \
-    PARTITION_MOUNTPOINT, \
-    FILE_PLACEHOLDER_SIGNATURE, \
-    TMP_WORKDIR, \
-    DISK_IMAGE_STATS_LOCATION, \
-    DOCKER_IMAGE_TEMPLATE, \
-    MODULES_TO_LOAD, \
-    DATA_STORAGE_DISK_IMAGE_DIR
+from disk_image.create.constants import (
+    PARTITION_MOUNTPOINT,
+    FILE_PLACEHOLDER_SIGNATURE,
+    TMP_WORKDIR,
+    DISK_IMAGE_STATS_LOCATION,
+    DOCKER_IMAGE_TEMPLATE,
+    MODULES_TO_LOAD,
+    DATA_STORAGE_DISK_IMAGE_DIR,
+)
 
 from disk_image.create.utils import (
     VirtualSDCard,
@@ -69,16 +70,10 @@ SUPPORTED_STEPS = [
     "unmount",
     "compress",
 ]
-MANDATORY_STEPS = [
-    "create",
-    "mount",
-    "unmount"
-]
+MANDATORY_STEPS = ["create", "mount", "unmount"]
 
-APT_PACKAGES_TO_INSTALL = [
-    'rsync',
-    'libnss-mdns'
-]
+APT_PACKAGES_TO_INSTALL = ["rsync", "libnss-mdns"]
+
 
 class DTCommand(DTCommandAbs):
 
@@ -95,41 +90,22 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps",
-            type=str,
-            default="",
-            help="List of steps to skip (comma-separated)",
+            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
-            "-o",
-            "--output",
-            type=str,
-            default=None,
-            help="The destination directory for the output file"
+            "-o", "--output", type=str, default=None, help="The destination directory for the output file"
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use cached ISO image"
+            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
         )
         parser.add_argument(
-            "--workdir",
-            default=TMP_WORKDIR,
-            type=str,
-            help="(Optional) temporary working directory to use"
+            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target",
-            type=str,
-            default=None,
-            help="Target (cached) step to start from",
+            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record",
-            type=str,
-            default=None,
-            help="Step to cache",
+            "--cache-record", type=str, default=None, help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -161,10 +137,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check steps caching
         if parsed.cache_target not in [None] + SUPPORTED_STEPS:
-            dtslogger.error(f'Unknown step `{parsed.cache_target}`')
+            dtslogger.error(f"Unknown step `{parsed.cache_target}`")
             return
         if parsed.cache_record not in [None] + SUPPORTED_STEPS:
-            dtslogger.error(f'Unknown step `{parsed.cache_record}`')
+            dtslogger.error(f"Unknown step `{parsed.cache_record}`")
             return
         # check dependencies
         check_cli_tools()
@@ -179,8 +155,9 @@ class DTCommand(DTCommandAbs):
         output_image_name = input_image_name.replace(HYPRIOTOS_VERSION, DISK_IMAGE_VERSION)
         out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
         out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
-        cached_step_file_path = lambda step, ex: \
-            os.path.join(parsed.output, 'cache', out_file_name(ex) + f'.{step}')
+        cached_step_file_path = lambda step, ex: os.path.join(
+            parsed.output, "cache", out_file_name(ex) + f".{step}"
+        )
         # get version
         distro = get_distro_version(shell)
         # create a virtual SD card object
@@ -188,7 +165,7 @@ class DTCommand(DTCommandAbs):
         # this is the surgey plan that will be performed by the init_sd_card command
         surgery_plan = []
         # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
-        disk_image_origin = in_file_path('img')
+        disk_image_origin = in_file_path("img")
         using_cached_step = False
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
         stats = {
@@ -225,17 +202,17 @@ class DTCommand(DTCommandAbs):
                 return
             # cache step
             dtslogger.info(f"Caching step '{step}'...")
-            cache_file_path = cached_step_file_path(step, 'img')
-            _copy_file(out_file_path('img'), cache_file_path)
+            cache_file_path = cached_step_file_path(step, "img")
+            _copy_file(out_file_path("img"), cache_file_path)
             dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
         if parsed.cache_target is not None:
-            disk_image_origin = cached_step_file_path(parsed.cache_target, 'img')
+            disk_image_origin = cached_step_file_path(parsed.cache_target, "img")
             if not os.path.isfile(disk_image_origin):
-                dtslogger.error(f'No cached artifact found for step `{parsed.cache_target}`')
+                dtslogger.error(f"No cached artifact found for step `{parsed.cache_target}`")
                 return
-            for step in SUPPORTED_STEPS[:SUPPORTED_STEPS.index(parsed.cache_target)+1]:
+            for step in SUPPORTED_STEPS[: SUPPORTED_STEPS.index(parsed.cache_target) + 1]:
                 if step in MANDATORY_STEPS:
                     continue
                 parsed.steps.remove(step)
@@ -295,7 +272,7 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
             # ---
-            cache_step('download')
+            cache_step("download")
             dtslogger.info("Step END: download\n")
         # Step: download
         # <------
@@ -336,14 +313,14 @@ class DTCommand(DTCommandAbs):
                     f"if={disk_image_origin}",
                     f"of={out_file_path('img')}",
                     f"bs={1024 * 1024}",
-                    "" if using_cached_step else "conv=notrunc"
+                    "" if using_cached_step else "conv=notrunc",
                 ]
             )
             # flush buffer
             dtslogger.info("Flushing I/O buffer...")
             run_cmd(["sync"])
             # ---
-            cache_step('create')
+            cache_step("create")
             dtslogger.info("Step END: create\n")
         # Step: create
         # <------
@@ -366,7 +343,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.mount()
                 dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
             # ---
-            cache_step('mount')
+            cache_step("mount")
             dtslogger.info("Step END: mount\n")
         # Step: mount
         # <------
@@ -411,7 +388,7 @@ class DTCommand(DTCommandAbs):
             sd_card.set_disk_identifier(disk_identifier)
             assert sd_card.get_disk_identifier() == disk_identifier
             # ---
-            cache_step('resize')
+            cache_step("resize")
             dtslogger.info("Step END: resize\n")
         # Step: resize
         # <------
@@ -439,21 +416,23 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy resolvconf
-                    _rcf = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), 'etc', 'resolv.conf')
+                    _rcf = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "etc", "resolv.conf")
                     run_cmd(["sudo", "rm", "-f", _rcf])
-                    transfer_file(ROOT_PARTITION, ['etc', 'resolv.conf'])
+                    transfer_file(ROOT_PARTITION, ["etc", "resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
                     # configure the kernel for QEMU
-                    run_cmd([
-                        "docker",
-                        "run",
-                        "--rm",
-                        "--privileged",
-                        "multiarch/qemu-user-static:register",
-                        "--reset",
-                    ])
+                    run_cmd(
+                        [
+                            "docker",
+                            "run",
+                            "--rm",
+                            "--privileged",
+                            "multiarch/qemu-user-static:register",
+                            "--reset",
+                        ]
+                    )
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -486,7 +465,7 @@ class DTCommand(DTCommandAbs):
                             "apt --yes --force-yes --no-install-recommends"
                             ' -o Dpkg::Options::="--force-confdef"'
                             ' -o Dpkg::Options::="--force-confold"'
-                            " full-upgrade"
+                            " full-upgrade",
                         )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
@@ -502,7 +481,7 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
-                            "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb"
+                            "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb",
                         )
                     except Exception as e:
                         run_cmd(["sudo", "umount", _boot])
@@ -521,7 +500,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.umount()
                 raise e
             # ---
-            cache_step('upgrade')
+            cache_step("upgrade")
             dtslogger.info("Step END: upgrade\n")
         # Step: upgrade
         # <------
@@ -594,7 +573,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.umount()
                 raise e
             # ---
-            cache_step('docker')
+            cache_step("docker")
             dtslogger.info("Step END: docker\n")
         # Step: docker
         # <------
@@ -692,7 +671,7 @@ class DTCommand(DTCommandAbs):
                                 "ln"
                                 " -s"
                                 " /etc/systemd/system/dt_init.service"
-                                " /etc/systemd/system/multi-user.target.wants/dt_init.service"
+                                " /etc/systemd/system/multi-user.target.wants/dt_init.service",
                             )
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
@@ -723,7 +702,7 @@ class DTCommand(DTCommandAbs):
                 surgery_plan[i]["offset_bytes"] = placeholders[full_placeholder]
             dtslogger.info("All files located successfully!")
             # ---
-            cache_step('setup')
+            cache_step("setup")
             dtslogger.info("Step END: setup\n")
         # Step: setup
         # <------
@@ -748,7 +727,7 @@ class DTCommand(DTCommandAbs):
                 json.dump(metadata, fout, indent=4, sort_keys=True)
             dtslogger.info("Done!")
             # ---
-            cache_step('finalize')
+            cache_step("finalize")
             dtslogger.info("Step END: finalize\n")
         # Step: finalize
         # <------
@@ -758,7 +737,7 @@ class DTCommand(DTCommandAbs):
         if "unmount" in parsed.steps:
             dtslogger.info("Step BEGIN: unmount")
             sd_card.umount()
-            cache_step('unmount')
+            cache_step("unmount")
             dtslogger.info("Step END: unmount\n")
         # Step: unmount
         # <------
@@ -770,7 +749,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Compressing disk image...")
             run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
-            cache_step('compress')
+            cache_step("compress")
             dtslogger.info("Step END: compress\n")
         # Step: compress
         # <------

@@ -20,11 +20,11 @@ class DTCommand(DTCommandAbs):
 Usage:
 
     dts data push --space <space> <file> <object>
-    
+
 OR
 
     dts data push <file> [<space>:]<object>
-    
+
 Where <space> can be one of {str(VALID_SPACES)}.
 """
 
@@ -39,16 +39,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
             choices=VALID_SPACES,
             help="Storage space the object should be uploaded to",
         )
-        parser.add_argument(
-            "file",
-            nargs=1,
-            help="File to upload"
-        )
-        parser.add_argument(
-            "object",
-            nargs=1,
-            help="Destination path of the object"
-        )
+        parser.add_argument("file", nargs=1, help="File to upload")
+        parser.add_argument("object", nargs=1, help="Destination path of the object")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -87,7 +79,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
             print(DTCommand.usage)
             exit(4)
         # sanitize object path (remove leading `/`)
-        object_path = object_path[1:] if object_path.startswith('/') else object_path
+        object_path = object_path[1:] if object_path.startswith("/") else object_path
         # converge args to parsed
         parsed.object = object_path
         if space:

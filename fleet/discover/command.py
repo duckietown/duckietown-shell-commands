@@ -133,7 +133,6 @@ class DiscoverListener:
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell, args):
         prog = "dts fleet discover"

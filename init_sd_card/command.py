@@ -43,32 +43,18 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
-        "raspberry_pi": {
-            "stable": "1.1",
-            "experimental": "1.1.1",
-        },
-        "jetson_nano": {
-            "stable": "1.1",
-            "experimental": "1.1.1",
-        },
+        "raspberry_pi": {"stable": "1.1", "experimental": "1.1.1",},
+        "jetson_nano": {"stable": "1.1", "experimental": "1.1.1",},
     }
     board, _ = get_robot_hardware(robot_configuration)
-    stream = 'stable' if not experimental else 'experimental'
+    stream = "stable" if not experimental else "experimental"
     return board_to_disk_image_version[board][stream]
 
 
 def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
     board_to_placeholders_version = {
-        "raspberry_pi": {
-            "1.0": "1.0",
-            "1.1": "1.1",
-            "1.1.1": "1.1"
-        },
-        "jetson_nano": {
-            "1.0": "1.0",
-            "1.1": "1.1",
-            "1.1.1": "1.1"
-        },
+        "raspberry_pi": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
+        "jetson_nano": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
@@ -77,10 +63,8 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
-        "raspberry_pi":
-            f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "jetson_nano":
-            f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -96,7 +80,6 @@ class InvalidUserInput(Exception):
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
         parser = argparse.ArgumentParser()
@@ -111,25 +94,25 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="""
             Can specify one or more networks: "network:password,network:password,..."
-            Default for watchtower and traffic_light is no wifi config. 
+            Default for watchtower and traffic_light is no wifi config.
             Default for other robot types is "duckietown:quackquack"
-            
+
             Each network defined in the list can have between 1 and 3 arguments:
-            
+
                 - Open networks (no password)
 
                     network:    "ssid"
-            
-            
+
+
                 - PSK (Pre-shared key) protected networks (no password)
 
                     network:    "ssid:psk"
-            
-            
+
+
                 - EAP (Extensible Authentication Protocol) protected networks
 
                     network:    "ssid:username:password"
-            
+
             """,
         )
         parser.add_argument(
@@ -146,22 +129,16 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use cached ISO image"
+            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
         )
         parser.add_argument(
             "--experimental",
             default=False,
             action="store_true",
-            help="Use experimental disk image and parameters"
+            help="Use experimental disk image and parameters",
         )
         parser.add_argument(
-            "--workdir",
-            default=TMP_WORKDIR,
-            type=str,
-            help="(Optional) temporary working directory to use"
+            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -355,7 +332,7 @@ def step_flash(_, parsed, data):
     ]
 
     # create a progress bar to track the progress
-    pbar = ProgressBar(header='Flashing [ETA: ND]')
+    pbar = ProgressBar(header="Flashing [ETA: ND]")
     tbytes = os.stat(data["disk_img"]).st_size
 
     # launch dd
@@ -382,7 +359,7 @@ def step_flash(_, parsed, data):
                     if progress > 0:
                         elapsed = time.time() - stime
                         eta = (100 - progress) * (elapsed / progress)
-                        pbar.set_header('Flashing [ETA: {}]'.format(human_time(eta, True)))
+                        pbar.set_header("Flashing [ETA: {}]".format(human_time(eta, True)))
                 except ValueError:
                     pass
                 par = None
@@ -391,7 +368,7 @@ def step_flash(_, parsed, data):
     # jump to 100% if success
     if dd.returncode == 0:
         pbar.update(100)
-        dtslogger.info('Flashed in {}'.format(human_time(time.time() - stime)))
+        dtslogger.info("Flashed in {}".format(human_time(time.time() - stime)))
 
     # flush I/O buffer
     dtslogger.info("Flushing I/O buffer...")
@@ -406,7 +383,7 @@ def step_verify(_, parsed, data):
     dtslogger.info("Verifying {}[{}]...".format(data.get("sd_type", ""), parsed.device))
     buf_size = 16 * 1024
     # create a progress bar to track the progress
-    pbar = ProgressBar(header='Verifying [ETA: ND]')
+    pbar = ProgressBar(header="Verifying [ETA: ND]")
     tbytes = os.stat(data["disk_img"]).st_size
     nbytes = 0
     stime = time.time()
@@ -430,7 +407,7 @@ def step_verify(_, parsed, data):
                     if progress > 0:
                         elapsed = time.time() - stime
                         eta = (100 - progress) * (elapsed / progress)
-                        pbar.set_header('Verifying [ETA: {}]'.format(human_time(eta, True)))
+                        pbar.set_header("Verifying [ETA: {}]".format(human_time(eta, True)))
                     # read another chunk
                     buffer1 = origin.read(buf_size)
     except IOError as e:
@@ -440,7 +417,7 @@ def step_verify(_, parsed, data):
             "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(str(e))
         )
         exit(5)
-    dtslogger.info('Verified in {}'.format(human_time(time.time() - stime)))
+    dtslogger.info("Verified in {}".format(human_time(time.time() - stime)))
     # ---
     dtslogger.info("{}[{}] successfully flashed!".format(data.get("sd_type", ""), parsed.device))
     return {}
@@ -464,12 +441,11 @@ def step_setup(shell, parsed, data):
         "stats": json.dumps(
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-                "base_disk_name":
-                    BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
-                "base_disk_version":
-                    DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
-                "base_disk_location":
-                    DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental),
+                "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
+                "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
+                "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(
+                    parsed.robot_configuration, parsed.experimental
+                ),
                 "environment": {
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
@@ -495,7 +471,7 @@ def step_setup(shell, parsed, data):
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f'v{placeholders_version}')
+    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f"v{placeholders_version}")
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
     for surgery_bit in surgery_plan:
@@ -519,8 +495,8 @@ def step_setup(shell, parsed, data):
         # make sure the content does not exceed the block size
         if used_bytes > block_size:
             dtslogger.error(
-                'File [{partition}]:{path} exceeding '.format(**surgery_bit)
-                + f'budget of {block_size} bytes (by {used_bytes - block_size} bytes).'
+                "File [{partition}]:{path} exceeding ".format(**surgery_bit)
+                + f"budget of {block_size} bytes (by {used_bytes - block_size} bytes)."
             )
             exit(7)
         # create masked content (content is padded with new lines)

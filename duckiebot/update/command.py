@@ -44,7 +44,7 @@ class DTCommand(DTCommandAbs):
         # open Docker client
         duckiebot_ip = get_duckiebot_ip(hostname)
         docker = get_remote_client(duckiebot_ip)
-#        docker = get_client(hostname)
+        #        docker = get_client(hostname)
         arch = get_endpoint_architecture_from_ip(duckiebot_ip)
         image_pattern = re.compile(f"^duckietown/.+:{get_distro_version(shell)}-{arch}$")
 

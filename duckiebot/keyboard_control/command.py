@@ -77,14 +77,14 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
     container_name = "joystick_gui_%s" % hostname
     remove_if_running(client, container_name)
 
-    machine = (f"{hostname}.local" if not hostname.endswith(".local") else hostname)
-    
+    machine = f"{hostname}.local" if not hostname.endswith(".local") else hostname
+
     env = {
         "VEHICLE_NAME": hostname,
         "ROS_MASTER": hostname,
         "DUCKIEBOT_NAME": hostname,
         "ROS_MASTER_URI": "http://%s:11311" % machine,
-        "HOSTNAME": hostname
+        "HOSTNAME": hostname,
     }
     volumes = {}
     env["QT_X11_NO_MITSHM"] = 1

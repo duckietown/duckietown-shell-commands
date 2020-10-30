@@ -54,13 +54,12 @@ class DTCommand(DTCommandAbs):
             "name": project.name,
             "version_name": project.version_name,
             "distro": project.distro,
-            "index": tc.colored("Clean", "green") if project.is_clean() else
-            tc.colored("Dirty", "yellow"),
+            "index": tc.colored("Clean", "green") if project.is_clean() else tc.colored("Dirty", "yellow"),
             "path": project.path,
             "type": project.type,
             "type_version": project.type_version,
             "version": project.version,
-            "adapters": ' '.join(project.adapters),
+            "adapters": " ".join(project.adapters),
             "space": tc.colored("  ", "grey", "on_white"),
             "end": tc.colored("________", "grey", "on_white"),
         }

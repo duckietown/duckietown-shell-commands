@@ -74,15 +74,18 @@ def get_client(endpoint=None):
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     return docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
 
+
 # TODO quick hack to make this work - duplication of code above bad
 def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     from utils.dtproject_utils import CANONICAL_ARCH
+
     client = get_remote_client(duckiebot_ip, port)
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
         exit(1)
     return CANONICAL_ARCH[epoint_arch]
+
 
 def pull_image(image, endpoint=None, progress=True):
     client = get_client(endpoint)
@@ -326,7 +329,7 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["DISPLAY"] = ":0"
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'", ]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -368,7 +371,7 @@ def start_gui_tools(duckiebot_name):
         )
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'", ]
+            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -479,7 +482,7 @@ def build_logs_to_string(build_logs):
 IMPORTANT_ENVS = {
     "AIDO_REGISTRY": "docker.io",
     "PIP_INDEX_URL": "https://pypi.org/simple",
-    'DTSERVER': "https://challenges.duckietown.org/v4",
+    "DTSERVER": "https://challenges.duckietown.org/v4",
 }
 
 
@@ -490,11 +493,14 @@ def replace_important_env_vars(s: str) -> str:
             value = os.environ.get(vname, vdefault)
             s = s.replace(vref, value)
     return s
+
+
 logger = dtslogger
+
 
 def continuously_monitor(client, container_name: str, log: str = None):
     if log is None:
-        log = f'{container_name}.log'
+        log = f"{container_name}.log"
     from docker.errors import NotFound, APIError
 
     logger.debug(f"Monitoring container {container_name}; logs at {log}")

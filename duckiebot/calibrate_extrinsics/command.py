@@ -20,21 +20,15 @@ class DTCommand(DTCommandAbs):
 
         prog = "dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME"
         usage = """
-Calibrate: 
+Calibrate:
 
     %(prog)s
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "hostname",
-            default=None,
-            help="Name of the Duckiebot to calibrate"
-        )
-        parser.add_argument(
-            "--base_image",
-            dest="image",
-            default="duckietown/dt-core:daffy-arm32v7",
+            "--base_image", dest="image", default="duckietown/dt-core:daffy-arm32v7",
         )
         parser.add_argument(
             "--no_verification",

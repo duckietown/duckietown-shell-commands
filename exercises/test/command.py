@@ -1,4 +1,5 @@
 import argparse
+
 # from git import Repo # pip install gitpython
 import os
 import platform
@@ -18,8 +19,8 @@ from utils.networking_utils import get_duckiebot_ip
 usage = """
 
 ## Basic usage
-    This is an helper for the exercises. 
-    You must run this command inside an exercise folder. 
+    This is an helper for the exercises.
+    You must run this command inside an exercise folder.
 
     To know more on the `exercise` commands, use `dts duckiebot exercise -h`.
 
@@ -32,10 +33,10 @@ DEFAULT_ARCH = "amd64"
 REMOTE_ARCH = "arm32v7"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
-SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + '-amd64'  # no arch
+SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
 ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-baseline-duckietown:" + BRANCH
 VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
-MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + '-amd64'  # no arch
+MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + "-amd64"  # no arch
 BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
@@ -73,11 +74,7 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--stop",
-            dest="stop",
-            action="store_true",
-            default=False,
-            help="just stop all the containers",
+            "--stop", dest="stop", action="store_true", default=False, help="just stop all the containers",
         )
 
         parser.add_argument(
@@ -96,23 +93,15 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-                 + "this is not expected to work on MacOSX",
+            + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
-            "--debug",
-            dest="debug",
-            action="store_true",
-            default=False,
-            help="See extra debugging output",
+            "--debug", dest="debug", action="store_true", default=False, help="See extra debugging output",
         )
 
         parser.add_argument(
-            "--pull",
-            dest="pull",
-            action="store_true",
-            default=False,
-            help="Should we pull all of the images"
+            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
         parser.add_argument(
@@ -122,7 +111,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Flag to only restart the agent container and nothing else. Useful when you are developing "
-                 "your agent"
+            "your agent",
         )
 
         parser.add_argument(
@@ -131,7 +120,7 @@ class DTCommand(DTCommandAbs):
             dest="interactive",
             action="store_true",
             default=False,
-            help="Will run the agent in interactive mode with the code mounted"
+            help="Will run the agent in interactive mode with the code mounted",
         )
 
         parsed = parser.parse_args(args)
@@ -181,7 +170,7 @@ class DTCommand(DTCommandAbs):
             arch = DEFAULT_ARCH
         else:
             # let's set some things up to run on the Duckiebot
-            check_program_dependency('rsync')
+            check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             #            exercise_ws_dir = working_dir + "/exercise_ws"
@@ -235,9 +224,7 @@ class DTCommand(DTCommandAbs):
                 "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
             }
         else:
-            ros_env = {
-                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"
-            }
+            ros_env = {"ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"}
             if parsed.sim:
                 ros_env["VEHICLE_NAME"] = "agent"
                 ros_env["HOSTNAME"] = "agent"
@@ -264,8 +251,7 @@ class DTCommand(DTCommandAbs):
 
         if not parsed.restart_agent:
             try:
-                agent_network = agent_client.networks.create(
-                    "agent-network", driver="bridge")
+                agent_network = agent_client.networks.create("agent-network", driver="bridge")
             except Exception as e:
                 dtslogger.warn("error creating network: %s" % e)
 
@@ -293,11 +279,28 @@ class DTCommand(DTCommandAbs):
             running_on_mac = False  # if we aren't running on mac we're on Linux
 
         if parsed.restart_agent:
-            launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
-                          running_on_mac, agent_client)
-            launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
-                         parsed, working_dir, exercise_name, ros_template_image, agent_network,
-                         agent_client, duckiebot_name)
+            launch_bridge(
+                bridge_container_name,
+                duckiebot_name,
+                fifos_bind,
+                bridge_image,
+                parsed,
+                running_on_mac,
+                agent_client,
+            )
+            launch_agent(
+                ros_template_container_name,
+                env_dir,
+                ros_env,
+                fifos_bind,
+                parsed,
+                working_dir,
+                exercise_name,
+                ros_template_image,
+                agent_network,
+                agent_client,
+                duckiebot_name,
+            )
             exit(0)
 
         # Launch things one by one
@@ -346,8 +349,15 @@ class DTCommand(DTCommandAbs):
             mw_container = agent_client.containers.run(**mw_params)
 
         else:  # we are running on a duckiebot
-            launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
-                          running_on_mac, agent_client)
+            launch_bridge(
+                bridge_container_name,
+                duckiebot_name,
+                fifos_bind,
+                bridge_image,
+                parsed,
+                running_on_mac,
+                agent_client,
+            )
 
         # done with sim/duckiebot specific stuff.
 
@@ -408,16 +418,36 @@ class DTCommand(DTCommandAbs):
         pull_if_not_exist(local_client, vnc_params["image"])
         vnc_container = local_client.containers.run(**vnc_params)
 
-        launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
-                     parsed, working_dir, exercise_name, ros_template_image, agent_network,
-                     agent_client, duckiebot_name)
+        launch_agent(
+            ros_template_container_name,
+            env_dir,
+            ros_env,
+            fifos_bind,
+            parsed,
+            working_dir,
+            exercise_name,
+            ros_template_image,
+            agent_network,
+            agent_client,
+            duckiebot_name,
+        )
 
         dtslogger.info("All done")
 
 
-def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
-                 parsed, working_dir, exercise_name, ros_template_image, agent_network,
-                 agent_client, duckiebot_name):
+def launch_agent(
+    ros_template_container_name,
+    env_dir,
+    ros_env,
+    fifos_bind,
+    parsed,
+    working_dir,
+    exercise_name,
+    ros_template_image,
+    agent_network,
+    agent_client,
+    duckiebot_name,
+):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
     dtslogger.info(f"Running the {ros_template_container_name} from {ros_template_image}")
@@ -434,7 +464,8 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
         ros_template_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
         ros_template_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
         ros_template_volumes[f"/code/{exercise_name}/exercise_ws"] = {
-            "bind": "/code/exercise_ws", "mode": "rw"
+            "bind": "/code/exercise_ws",
+            "mode": "rw",
         }
 
     if parsed.local and not parsed.sim:
@@ -448,7 +479,7 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
         "environment": ros_template_env,
         "detach": True,
         "tty": True,
-        "command": ["/code/launchers/run_all.sh"]
+        "command": ["/code/launchers/run_all.sh"],
     }
 
     if parsed.local:
@@ -467,19 +498,22 @@ def launch_agent(ros_template_container_name, env_dir, ros_env, fifos_bind,
     ros_template_container = agent_client.containers.run(**ros_template_params)
 
     attach_cmd = "docker %s attach %s" % (
-        "" if parsed.local else f"-H {duckiebot_name}.local", ros_template_container_name)
+        "" if parsed.local else f"-H {duckiebot_name}.local",
+        ros_template_container_name,
+    )
     start_command_in_subprocess(attach_cmd)
 
 
-def launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed,
-                  running_on_mac, agent_client):
+def launch_bridge(
+    bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
+):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
     dtslogger.info(f"Running {bridge_container_name} from {bridge_image}")
     bridge_env = {
         "HOSTNAME": f"{duckiebot_name}",
         "VEHICLE_NAME": f"{duckiebot_name}",
-        "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311"
+        "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
     }
     bridge_volumes = fifos_bind
     bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
@@ -500,7 +534,8 @@ def launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_imag
     if parsed.local and running_on_mac:
         dtslogger.warn(
             "WARNING: Running agent locally not in simulator is not expected to work. Suggest to remove the "
-            "--local flag")
+            "--local flag"
+        )
 
     if parsed.debug:
         dtslogger.info(bridge_params)
@@ -579,9 +614,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
         if res.status_code != 200:
             dtslogger.warn(
                 "Could not get the calibration file {:s} from the robot {:s}. Is your Duckiebot calibrated? "
-                "".format(
-                    calib_file, duckiebot_name
-                )
+                "".format(calib_file, duckiebot_name)
             )
             continue
         # make destination directory

@@ -19,14 +19,15 @@ from utils.cli_utils import ask_confirmation
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_time
 
-from disk_image.create.constants import \
-    PARTITION_MOUNTPOINT, \
-    FILE_PLACEHOLDER_SIGNATURE, \
-    TMP_WORKDIR, \
-    DISK_IMAGE_STATS_LOCATION, \
-    DOCKER_IMAGE_TEMPLATE, \
-    MODULES_TO_LOAD, \
-    DATA_STORAGE_DISK_IMAGE_DIR
+from disk_image.create.constants import (
+    PARTITION_MOUNTPOINT,
+    FILE_PLACEHOLDER_SIGNATURE,
+    TMP_WORKDIR,
+    DISK_IMAGE_STATS_LOCATION,
+    DOCKER_IMAGE_TEMPLATE,
+    MODULES_TO_LOAD,
+    DATA_STORAGE_DISK_IMAGE_DIR,
+)
 
 from disk_image.create.utils import (
     VirtualSDCard,
@@ -65,14 +66,11 @@ ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" 
-    f"{JETPACK_DISK_IMAGE_NAME}.zip"
+    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" f"{JETPACK_DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/config/autoboot/*.yaml":
-        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "APP:/data/config/calibrations/*/default.yaml":
-        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    "APP:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
@@ -91,21 +89,16 @@ SUPPORTED_STEPS = [
     "unmount",
     "compress",
 ]
-MANDATORY_STEPS = [
-    "license",
-    "create",
-    "mount",
-    "unmount"
-]
+MANDATORY_STEPS = ["license", "create", "mount", "unmount"]
 
 APT_PACKAGES_TO_INSTALL = [
-    'rsync',
-    'nano',
-    'htop',
-    'dkms',  # needed for Jetson WiFi drivers
-    'docker-compose',
+    "rsync",
+    "nano",
+    "htop",
+    "dkms",  # needed for Jetson WiFi drivers
+    "docker-compose",
     # 'v4l2loopback-dkms',
-    'v4l2loopback-utils'
+    "v4l2loopback-utils",
 ]
 
 
@@ -124,40 +117,25 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps",
-            type=str,
-            default="",
-            help="List of steps to skip (comma-separated)",
+            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
-            "-o", "--output",
-            type=str,
-            default=None,
-            help="The destination directory for the output files"
+            "-o", "--output", type=str, default=None, help="The destination directory for the output files"
         )
         parser.add_argument(
             "--no-cache",
             default=False,
             action="store_true",
-            help="Whether to use previously downloaded base ISO image/zip archive (download step)"
+            help="Whether to use previously downloaded base ISO image/zip archive (download step)",
         )
         parser.add_argument(
-            "--workdir",
-            type=str,
-            default=TMP_WORKDIR,
-            help="(Optional) temporary working directory to use"
+            "--workdir", type=str, default=TMP_WORKDIR, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target",
-            type=str,
-            default=None,
-            help="Target (cached) step to start from",
+            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record",
-            type=str,
-            default=None,
-            help="Step to cache",
+            "--cache-record", type=str, default=None, help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -190,10 +168,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check steps caching
         if parsed.cache_target not in [None] + SUPPORTED_STEPS:
-            dtslogger.error(f'Unknown step `{parsed.cache_target}`')
+            dtslogger.error(f"Unknown step `{parsed.cache_target}`")
             return
         if parsed.cache_record not in [None] + SUPPORTED_STEPS:
-            dtslogger.error(f'Unknown step `{parsed.cache_record}`')
+            dtslogger.error(f"Unknown step `{parsed.cache_record}`")
             return
         # check dependencies
         check_cli_tools()
@@ -208,8 +186,9 @@ class DTCommand(DTCommandAbs):
         output_image_name = input_image_name.replace(JETPACK_VERSION, DISK_IMAGE_VERSION)
         out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
         out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
-        cached_step_file_path = lambda step, ex: \
-            os.path.join(parsed.output, 'cache', out_file_name(ex) + f'.{step}')
+        cached_step_file_path = lambda step, ex: os.path.join(
+            parsed.output, "cache", out_file_name(ex) + f".{step}"
+        )
         # get version
         distro = get_distro_version(shell)
         # create a virtual SD card object
@@ -217,7 +196,7 @@ class DTCommand(DTCommandAbs):
         # this is the surgey plan that will be performed by the init_sd_card command
         surgery_plan = []
         # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
-        disk_image_origin = in_file_path('img')
+        disk_image_origin = in_file_path("img")
         using_cached_step = False
         # this holds the stats that will be stored in /data/stats/disk_image/build.json
         stats = {
@@ -254,17 +233,17 @@ class DTCommand(DTCommandAbs):
                 return
             # cache step
             dtslogger.info(f"Caching step '{step}'...")
-            cache_file_path = cached_step_file_path(step, 'img')
-            _copy_file(out_file_path('img'), cache_file_path)
+            cache_file_path = cached_step_file_path(step, "img")
+            _copy_file(out_file_path("img"), cache_file_path)
             dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
         if parsed.cache_target is not None:
-            disk_image_origin = cached_step_file_path(parsed.cache_target, 'img')
+            disk_image_origin = cached_step_file_path(parsed.cache_target, "img")
             if not os.path.isfile(disk_image_origin):
-                dtslogger.error(f'No cached artifact found for step `{parsed.cache_target}`')
+                dtslogger.error(f"No cached artifact found for step `{parsed.cache_target}`")
                 return
-            for step in SUPPORTED_STEPS[:SUPPORTED_STEPS.index(parsed.cache_target)+1]:
+            for step in SUPPORTED_STEPS[: SUPPORTED_STEPS.index(parsed.cache_target) + 1]:
                 if step in MANDATORY_STEPS:
                     continue
                 parsed.steps.remove(step)
@@ -272,7 +251,7 @@ class DTCommand(DTCommandAbs):
 
         # ---
         print()
-        dtslogger.info(f'Steps to perform: {[s for s in SUPPORTED_STEPS if s in parsed.steps]}')
+        dtslogger.info(f"Steps to perform: {[s for s in SUPPORTED_STEPS if s in parsed.steps]}")
         #
         # STEPS:
         # ------>
@@ -300,11 +279,13 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error("You must agree to the License first.")
                     exit(9)
             # ---
-            cache_step('license')
+            cache_step("license")
             dtslogger.info("Step END: license\n")
         else:
-            dtslogger.warning('Skipping "license" step. You are implicitly agreeing to the terms '
-                              'and conditions of the License For Customer Use of NVIDIA Software.')
+            dtslogger.warning(
+                'Skipping "license" step. You are implicitly agreeing to the terms '
+                "and conditions of the License For Customer Use of NVIDIA Software."
+            )
         # Step: license
         # <------
         #
@@ -359,7 +340,7 @@ class DTCommand(DTCommandAbs):
             else:
                 dtslogger.info(f"Reusing cached DISK image file [{in_file_path('img')}].")
             # ---
-            cache_step('download')
+            cache_step("download")
             dtslogger.info("Step END: download\n")
         # Step: download
         # <------
@@ -381,28 +362,32 @@ class DTCommand(DTCommandAbs):
             # create empty disk image
             if not using_cached_step:
                 dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
-                run_cmd([
-                    "dd",
-                    "if=/dev/zero",
-                    f"of={out_file_path('img')}",
-                    f"bs={1024 * 1024}",
-                    f"count={1024 * DISK_IMAGE_SIZE_GB}",
-                ])
+                run_cmd(
+                    [
+                        "dd",
+                        "if=/dev/zero",
+                        f"of={out_file_path('img')}",
+                        f"bs={1024 * 1024}",
+                        f"count={1024 * DISK_IMAGE_SIZE_GB}",
+                    ]
+                )
                 dtslogger.info("Empty disk image created!")
             # make copy of the disk image
             dtslogger.info(f"Copying [{disk_image_origin}] -> [{out_file_path('img')}]")
-            run_cmd([
-                "dd",
-                f"if={disk_image_origin}",
-                f"of={out_file_path('img')}",
-                f"bs={1024 * 1024}",
-                "" if using_cached_step else "conv=notrunc"
-            ])
+            run_cmd(
+                [
+                    "dd",
+                    f"if={disk_image_origin}",
+                    f"of={out_file_path('img')}",
+                    f"bs={1024 * 1024}",
+                    "" if using_cached_step else "conv=notrunc",
+                ]
+            )
             # flush buffer
             dtslogger.info("Flushing I/O buffer...")
             run_cmd(["sync"])
             # ---
-            cache_step('create')
+            cache_step("create")
             dtslogger.info("Step END: create\n")
         # Step: create
         # <------
@@ -423,10 +408,9 @@ class DTCommand(DTCommandAbs):
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
                 sd_card.mount()
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " 
-                               f"on {sd_card.loopdev}")
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
             # ---
-            cache_step('mount')
+            cache_step("mount")
             dtslogger.info("Step END: mount\n")
         # Step: mount
         # <------
@@ -444,7 +428,7 @@ class DTCommand(DTCommandAbs):
             p.communicate("w\ny\n".encode("ascii"))
             dtslogger.info("Done!")
             # ---
-            cache_step('fix')
+            cache_step("fix")
             dtslogger.info("Step END: fix\n")
         # Step: fix
         # <------
@@ -480,7 +464,7 @@ class DTCommand(DTCommandAbs):
             # resize file system
             run_cmd(["sudo", "resize2fs", root_device])
             # ---
-            cache_step('resize')
+            cache_step("resize")
             dtslogger.info("Step END: resize\n")
         # Step: resize
         # <------
@@ -504,20 +488,22 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
-                    transfer_file(ROOT_PARTITION, ['usr', 'bin', 'qemu-aarch64-static'])
-                    transfer_file(ROOT_PARTITION, ['run', 'resolvconf', 'resolv.conf'])
+                    transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
                     # configure the kernel for QEMU
-                    run_cmd([
-                        "docker",
-                        "run",
-                        "--rm",
-                        "--privileged",
-                        "multiarch/qemu-user-static:register",
-                        "--reset",
-                    ])
+                    run_cmd(
+                        [
+                            "docker",
+                            "run",
+                            "--rm",
+                            "--privileged",
+                            "multiarch/qemu-user-static:register",
+                            "--reset",
+                        ]
+                    )
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -561,29 +547,26 @@ class DTCommand(DTCommandAbs):
                             )
                         # add symlink between arm64 and aarch64
                         k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            f"ln -s {k}/arch/arm64 {k}/arch/aarch64"
-                        )
+                        run_cmd_in_partition(ROOT_PARTITION, f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
                         # clone the wifi driver source
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "git clone "
                             "https://github.com/duckietown/rtl88x2bu"
-                            " /usr/src/rtl88x2bu-5.6.1"
+                            " /usr/src/rtl88x2bu-5.6.1",
                         )
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "git clone "
                             "https://github.com/duckietown/rtl8821CU"
-                            " /usr/src/rtl8821CU-5.4.1"
+                            " /usr/src/rtl8821CU-5.4.1",
                         )
                         # setup the camera pipeline
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             f"mkdir -p {k}/v4l2loopback && "
                             f"git clone https://github.com/duckietown/v4l2loopback"
-                            f" {k}/v4l2loopback"
+                            f" {k}/v4l2loopback",
                         )
                     except Exception as e:
                         raise e
@@ -599,7 +582,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.umount()
                 raise e
             # ---
-            cache_step('upgrade')
+            cache_step("upgrade")
             dtslogger.info("Step END: upgrade\n")
         # Step: upgrade
         # <------
@@ -625,8 +608,7 @@ class DTCommand(DTCommandAbs):
                 # pull dind image
                 pull_docker_image(local_docker, "docker:dind")
                 # run auxiliary Docker engine
-                remote_docker_dir = os.path.join(
-                    PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
+                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
                     image="docker:dind",
                     detach=True,
@@ -674,7 +656,7 @@ class DTCommand(DTCommandAbs):
                 sd_card.umount()
                 raise e
             # ---
-            cache_step('docker')
+            cache_step("docker")
             dtslogger.info("Step END: docker\n")
         # Step: docker
         # <------
@@ -742,12 +724,11 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate",
-                                         f"--size={max_bytes}", update["destination"]])
+                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
                                 # store preliminary info about the surgery
                                 surgery_plan.append(
                                     {
@@ -775,14 +756,14 @@ class DTCommand(DTCommandAbs):
                                 "ln"
                                 " -s"
                                 " /etc/systemd/system/dt_init.service"
-                                " /etc/systemd/system/multi-user.target.wants/dt_init.service"
+                                " /etc/systemd/system/multi-user.target.wants/dt_init.service",
                             )
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
                                 "ln"
                                 " -s"
                                 " /etc/systemd/system/gstpipeline.service"
-                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service"
+                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service",
                             )
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
@@ -813,7 +794,7 @@ class DTCommand(DTCommandAbs):
                 surgery_plan[i]["offset_bytes"] = placeholders[full_placeholder]
             dtslogger.info("All files located successfully!")
             # ---
-            cache_step('setup')
+            cache_step("setup")
             dtslogger.info("Step END: setup\n")
         # Step: setup
         # <------
@@ -838,7 +819,7 @@ class DTCommand(DTCommandAbs):
                 json.dump(metadata, fout, indent=4, sort_keys=True)
             dtslogger.info("Done!")
             # ---
-            cache_step('finalize')
+            cache_step("finalize")
             dtslogger.info("Step END: finalize\n")
         # Step: finalize
         # <------
@@ -848,7 +829,7 @@ class DTCommand(DTCommandAbs):
         if "unmount" in parsed.steps:
             dtslogger.info("Step BEGIN: unmount")
             sd_card.umount()
-            cache_step('unmount')
+            cache_step("unmount")
             dtslogger.info("Step END: unmount\n")
         # Step: unmount
         # <------
@@ -858,10 +839,9 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"),
-                     out_file_path("img"), out_file_path("json")])
+            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
-            cache_step('compress')
+            cache_step("compress")
             dtslogger.info("Step END: compress\n")
         # Step: compress
         # <------
@@ -887,7 +867,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Step END: push\n")
         # Step: push
         # <------
-        dtslogger.info(f'Completed in {human_time(time.time() - stime)}')
+        dtslogger.info(f"Completed in {human_time(time.time() - stime)}")
 
     @staticmethod
     def complete(shell, word, line):

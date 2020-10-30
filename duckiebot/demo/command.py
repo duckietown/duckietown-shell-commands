@@ -43,11 +43,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "--demo_name",
-            "-d",
-            dest="demo_name",
-            default=None,
-            help="Name of the demo to run"
+            "--demo_name", "-d", dest="demo_name", default=None, help="Name of the demo to run"
         )
 
         parser.add_argument(
@@ -67,16 +63,14 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--robot_type", '-t',
-            dest="robot_type",
-            default='auto',
-            help="The robot type",
+            "--robot_type", "-t", dest="robot_type", default="auto", help="The robot type",
         )
 
         parser.add_argument(
-            "--robot_configuration", '-c',
+            "--robot_configuration",
+            "-c",
             dest="robot_configuration",
-            default='auto',
+            default="auto",
             help="The robot configuration",
         )
 
@@ -127,7 +121,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(msg)
                 exit(1)
             else:
-                parsed.demo_name = 'default'
+                parsed.demo_name = "default"
 
         # if we run in experimental mode - change the default
         # image and package. Note: in experimental mode you cannot
@@ -157,29 +151,26 @@ class DTCommand(DTCommandAbs):
         remove_if_running(duckiebot_client, container_name)
         image_base = parsed.image_to_run
         env_vars = default_env(duckiebot_name, duckiebot_ip)
-        env_vars.update({
-            "VEHICLE_NAME": duckiebot_name,
-            "VEHICLE_IP": duckiebot_ip
-        })
+        env_vars.update({"VEHICLE_NAME": duckiebot_name, "VEHICLE_IP": duckiebot_ip})
 
         # get robot_type
-        if parsed.robot_type == 'auto':
+        if parsed.robot_type == "auto":
             # retrieve robot type from device
             dtslogger.info(f'Waiting for device "{duckiebot_name}"...')
-            hostname = duckiebot_name.replace('.local', '')
-            _, _, data = wait_for_service('DT::ROBOT_TYPE', hostname)
-            parsed.robot_type = data['type']
+            hostname = duckiebot_name.replace(".local", "")
+            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
+            parsed.robot_type = data["type"]
             dtslogger.info(f'Detected device type is "{parsed.robot_type}".')
         else:
             dtslogger.info(f'Device type forced to "{parsed.robot_type}".')
 
         # get robot_configuration
-        if parsed.robot_configuration == 'auto':
+        if parsed.robot_configuration == "auto":
             # retrieve robot configuration from device
             dtslogger.info(f'Waiting for device "{duckiebot_name}"...')
-            hostname = duckiebot_name.replace('.local', '')
-            _, _, data = wait_for_service('DT::ROBOT_CONFIGURATION', hostname)
-            parsed.robot_configuration = data['configuration']
+            hostname = duckiebot_name.replace(".local", "")
+            _, _, data = wait_for_service("DT::ROBOT_CONFIGURATION", hostname)
+            parsed.robot_configuration = data["configuration"]
             dtslogger.info(f'Detected device configuration is "{parsed.robot_configuration}".')
         else:
             dtslogger.info(f'Device configuration forced to "{parsed.robot_configuration}".')
@@ -193,12 +184,14 @@ class DTCommand(DTCommandAbs):
                     parsed.demo_name,
                     duckiebot_name,
                     parsed.robot_type,
-                    parsed.robot_configuration
+                    parsed.robot_configuration,
                 )
-                dtslogger.warning('You are using the option --package_name (-p) to run the demo. '
-                                  'This is obsolete. Please, provide a launcher name instead.')
+                dtslogger.warning(
+                    "You are using the option --package_name (-p) to run the demo. "
+                    "This is obsolete. Please, provide a launcher name instead."
+                )
             else:
-                cmd = f'dt-launcher-{parsed.demo_name}'
+                cmd = f"dt-launcher-{parsed.demo_name}"
 
         pull_if_not_exist(duckiebot_client, image_base)
 
@@ -219,8 +212,5 @@ class DTCommand(DTCommandAbs):
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s.local attach %s" % (
-                duckiebot_name,
-                container_name,
-            )
+            attach_cmd = "docker -H %s.local attach %s" % (duckiebot_name, container_name,)
             start_command_in_subprocess(attach_cmd)

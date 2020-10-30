@@ -13,7 +13,7 @@ from utils.duckietown_utils import get_distro_version
 DEFAULT_IMAGE_FMT = "duckietown/dt-gui-tools:{}-{}"
 AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 USAGE = """
-GUI Tools: 
+GUI Tools:
 
     {}
 """
@@ -119,12 +119,9 @@ class DTCommand(DTCommandAbs):
         if parsed.vnc:
             params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
 
-
         # print some info
         if parsed.vnc:
-            dtslogger.info(
-                "Running novnc. Navigate to http://localhost:8087/ in your browser. "
-            )
+            dtslogger.info("Running novnc. Navigate to http://localhost:8087/ in your browser. ")
         dtslogger.debug(
             f"Running container with configuration:\n\n" f"{json.dumps(params, sort_keys=True, indent=4)}\n"
         )

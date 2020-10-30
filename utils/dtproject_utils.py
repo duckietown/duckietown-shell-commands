@@ -25,26 +25,19 @@ CANONICAL_ARCH = {
     "x86_64": "amd64",
     "amd64": "amd64",
     "Intel 64": "amd64",
-
     # TODO: @afdaniele. Forward arm64v8 -> arm32v7 until the arm64v8 family of images is fixed
     # "arm64": "arm64v8",
     # "arm64v8": "arm64v8",
     # "armv8": "arm64v8",
     # "aarch64": "arm64v8",
-
     "arm64": "arm32v7",
     "arm64v8": "arm32v7",
     "armv8": "arm32v7",
     "aarch64": "arm32v7",
-
-    "FAKE": "arm64v8"
+    "FAKE": "arm64v8",
 }
 
-BUILD_COMPATIBILITY_MAP = {
-    "arm32v7": ["arm32v7"],
-    "arm64v8": ["arm32v7", "arm64v8"],
-    "amd64": ["amd64"]
-}
+BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -67,9 +60,7 @@ TEMPLATE_TO_SRC = {
         "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
     },
-    "template-exercise": {
-        "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo))
-    },
+    "template-exercise": {"1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo))},
 }
 
 TEMPLATE_TO_LAUNCHFILE = {
@@ -85,9 +76,7 @@ TEMPLATE_TO_LAUNCHFILE = {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {
-        "1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
-    },
+    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),},
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}
@@ -100,21 +89,20 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
-
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
         # use `fs` adapter by default
         self._path = os.path.abspath(path)
-        self._adapters.append('fs')
+        self._adapters.append("fs")
         # use `dtproject` adapter (required)
         self._project_info = self._get_project_info(self._path)
         self._type = self._project_info["TYPE"]
         self._type_version = self._project_info["TYPE_VERSION"]
         self._version = self._project_info["VERSION"]
-        self._adapters.append('dtproject')
+        self._adapters.append("dtproject")
         # use `git` adapter if available
-        if os.path.isdir(os.path.join(self._path, '.git')):
+        if os.path.isdir(os.path.join(self._path, ".git")):
             repo_info = self._get_repo_info(self._path)
             self._repository = SimpleNamespace(
                 name=repo_info["REPOSITORY"],
@@ -128,7 +116,7 @@ class DTProject:
                 index_nmodified=repo_info["INDEX_NUM_MODIFIED"],
                 index_nadded=repo_info["INDEX_NUM_ADDED"],
             )
-            self._adapters.append('git')
+            self._adapters.append("git")
 
     @property
     def path(self):
@@ -148,7 +136,7 @@ class DTProject:
 
     @property
     def distro(self):
-        return self._repository.branch.split("-")[0] if self._repository else 'latest'
+        return self._repository.branch.split("-")[0] if self._repository else "latest"
 
     @property
     def version(self):
@@ -156,15 +144,15 @@ class DTProject:
 
     @property
     def head_version(self):
-        return self._repository.head_version if self._repository else 'latest'
+        return self._repository.head_version if self._repository else "latest"
 
     @property
     def closest_version(self):
-        return self._repository.closest_version if self._repository else 'latest'
+        return self._repository.closest_version if self._repository else "latest"
 
     @property
     def version_name(self):
-        return self._repository.branch if self._repository else 'latest'
+        return self._repository.branch if self._repository else "latest"
 
     @property
     def url(self):
@@ -172,7 +160,7 @@ class DTProject:
 
     @property
     def sha(self):
-        return self._repository.sha if self._repository else 'ND'
+        return self._repository.sha if self._repository else "ND"
 
     @property
     def adapters(self):
@@ -380,7 +368,7 @@ class DTProject:
 def assert_canonical_arch(arch):
     if arch not in CANONICAL_ARCH.values():
         raise ValueError(
-            f"Given architecture {arch} is not supported. " 
+            f"Given architecture {arch} is not supported. "
             f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
         )
 
@@ -388,7 +376,7 @@ def assert_canonical_arch(arch):
 def canonical_arch(arch):
     if arch not in CANONICAL_ARCH:
         raise ValueError(
-            f"Given architecture {arch} is not supported. " 
+            f"Given architecture {arch} is not supported. "
             f"Valid choices are: {', '.join(list(set(CANONICAL_ARCH.values())))}"
         )
     # ---

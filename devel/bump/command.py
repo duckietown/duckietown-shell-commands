@@ -16,17 +16,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to build"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
         )
         parser.add_argument(
-            "-n",
-            "--dry-run",
-            default=False,
-            action="store_true",
-            help="Don't write any files, just pretend."
+            "-n", "--dry-run", default=False, action="store_true", help="Don't write any files, just pretend."
         )
         parser.add_argument(
             "part",

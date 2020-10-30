@@ -24,17 +24,9 @@ class DTCommand(DTCommandAbs):
     def command(shell, args: list):
         # configure arguments
         parser = argparse.ArgumentParser()
+        parser.add_argument("subcommand", nargs="?", default=None, help="(Optional) Subcommand to execute")
         parser.add_argument(
-            "subcommand",
-            nargs='?',
-            default=None,
-            help="(Optional) Subcommand to execute"
-        )
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to run"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
         )
         parser.add_argument(
             "-a",
@@ -50,28 +42,12 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
-            "-R",
-            "--ros",
-            default=None,
-            help="Hostname of the machine hosting the ROS Master node",
+            "-R", "--ros", default=None, help="Hostname of the machine hosting the ROS Master node",
         )
+        parser.add_argument("-n", "--name", default=None, help="Name of the container")
+        parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
         parser.add_argument(
-            "-n",
-            "--name",
-            default=None,
-            help="Name of the container"
-        )
-        parser.add_argument(
-            "-c",
-            "--cmd",
-            default=None,
-            help="Command to run in the Docker container"
-        )
-        parser.add_argument(
-            "--pull",
-            default=False,
-            action="store_true",
-            help="Whether to pull the image of the project"
+            "--pull", default=False, action="store_true", help="Whether to pull the image of the project"
         )
         parser.add_argument(
             "--force-pull",
@@ -80,10 +56,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to force pull the image of the project",
         )
         parser.add_argument(
-            "--build",
-            default=False,
-            action="store_true",
-            help="Whether to build the image of the project"
+            "--build", default=False, action="store_true", help="Whether to build the image of the project"
         )
         parser.add_argument(
             "--plain",
@@ -122,22 +95,16 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username that owns the Docker image",
         )
         parser.add_argument(
-            "--rm",
-            default=True,
-            action="store_true",
-            help="Whether to remove the container once done"
+            "--rm", default=True, action="store_true", help="Whether to remove the container once done"
         )
         parser.add_argument(
             "-L",
             "--launcher",
             default=None,
-            help="Launcher to invoke inside the container (template v2 or newer)"
+            help="Launcher to invoke inside the container (template v2 or newer)",
         )
         parser.add_argument(
-            "--loop",
-            default=False,
-            action="store_true",
-            help="(Experimental) Whether to run the LOOP image"
+            "--loop", default=False, action="store_true", help="(Experimental) Whether to run the LOOP image"
         )
         parser.add_argument(
             "-A",
@@ -148,30 +115,19 @@ class DTCommand(DTCommandAbs):
             help="Arguments for the container command",
         )
         parser.add_argument(
-            "--runtime",
-            default="docker",
-            type=str,
-            help="Docker runtime to use to run the container"
+            "--runtime", default="docker", type=str, help="Docker runtime to use to run the container"
         )
         parser.add_argument(
-            "-X",
-            dest="use_x_docker",
-            default=False,
-            action="store_true",
-            help="Use x-docker as runtime",
+            "-X", dest="use_x_docker", default=False, action="store_true", help="Use x-docker as runtime",
         )
         parser.add_argument(
-            "-s",
-            "--sync",
-            default=False,
-            action="store_true",
-            help="Sync code from local project to remote"
+            "-s", "--sync", default=False, action="store_true", help="Sync code from local project to remote"
         )
         parser.add_argument("docker_args", nargs="*", default=[])
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
-            idx = args.index('--')
-            args = args[:idx] + ['--', '--fake'] + args[idx+1:]
+            idx = args.index("--")
+            args = args[:idx] + ["--", "--fake"] + args[idx + 1 :]
         except ValueError:
             pass
         # parse arguments
@@ -193,16 +149,22 @@ class DTCommand(DTCommandAbs):
         project = DTProject(parsed.workdir)
         # container name
         if not parsed.name:
-            parsed.name = 'dts-run-{:s}'.format(project.name)
+            parsed.name = "dts-run-{:s}".format(project.name)
         # subcommands
-        if parsed.subcommand == 'attach':
-            dtslogger.info(f'Attempting to attach to container {parsed.name}...')
+        if parsed.subcommand == "attach":
+            dtslogger.info(f"Attempting to attach to container {parsed.name}...")
             # run
-            _run_cmd([
-                parsed.runtime,
-                '-H=%s' % parsed.machine,
-                'exec', '-it', parsed.name, '/entrypoint.sh', 'bash']
-                , suppress_errors=True
+            _run_cmd(
+                [
+                    parsed.runtime,
+                    "-H=%s" % parsed.machine,
+                    "exec",
+                    "-it",
+                    parsed.name,
+                    "/entrypoint.sh",
+                    "bash",
+                ],
+                suppress_errors=True,
             )
             return
         # pick the right architecture if not set
@@ -354,8 +316,7 @@ class DTCommand(DTCommandAbs):
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments
-            else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
+            [] if not parsed.arguments else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:
@@ -373,13 +334,13 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
                 exit(2)
             # make sure rsync is installed
-            check_program_dependency('rsync')
+            check_program_dependency("rsync")
             # get project locations
             local_path = project.path
             remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
             # run rsync
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            cmd = f'rsync --archive {local_path} {remote_path}'
+            cmd = f"rsync --archive {local_path} {remote_path}"
             _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
         # run

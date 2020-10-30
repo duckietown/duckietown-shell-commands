@@ -20,11 +20,11 @@ class DTCommand(DTCommandAbs):
 Usage:
 
     dts data get --space <space> <object> <file>
-    
+
 OR
 
     dts data get [<space>:]<object> <file>
-    
+
 Where <space> can be one of [public, private].
 """
 
@@ -40,22 +40,10 @@ Where <space> can be one of [public, private].
             help="Storage space the object should be downloaded from",
         )
         parser.add_argument(
-            "-f",
-            "--force",
-            default=False,
-            action="store_true",
-            help="Overwrites local file if it exists"
+            "-f", "--force", default=False, action="store_true", help="Overwrites local file if it exists"
         )
-        parser.add_argument(
-            "object",
-            nargs=1,
-            help="Destination path of the object"
-        )
-        parser.add_argument(
-            "file",
-            nargs=1,
-            help="File to download"
-        )
+        parser.add_argument("object", nargs=1, help="Destination path of the object")
+        parser.add_argument("file", nargs=1, help="File to download")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -94,7 +82,7 @@ Where <space> can be one of [public, private].
             print(DTCommand.usage)
             exit(4)
         # sanitize object path (remove leading `/`)
-        object_path = object_path[1:] if object_path.startswith('/') else object_path
+        object_path = object_path[1:] if object_path.startswith("/") else object_path
         # converge args to parsed
         parsed.object = object_path
         if space:
