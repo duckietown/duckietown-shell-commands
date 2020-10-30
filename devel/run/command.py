@@ -14,7 +14,6 @@ LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 DEFAULT_NETWORK_MODE = "host"
 DEFAULT_REMOTE_USER = "duckie"
-DEFAULT_CMD = "bash"
 
 
 class DTCommand(DTCommandAbs):
@@ -353,9 +352,10 @@ class DTCommand(DTCommandAbs):
             raise ValueError("You cannot use the option --launcher together with --cmd.")
         if parsed.launcher:
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
-        cmd_option = [DEFAULT_CMD] if not parsed.cmd else [parsed.cmd]
+        cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
+            [] if not parsed.arguments
+            else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:
