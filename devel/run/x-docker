@@ -84,6 +84,8 @@ while [ $# -gt 0 ]; do
                 -e DISPLAY=$NET_IP$DISPLAY_NO \
                 -e QT_X11_NO_MITSHM=1 \
                 -v /tmp/.X11-unix:/tmp/.X11-unix \
+                # TODO: this is temporary until Docker and Qt agree on which syscalls to whitelist
+                --security-opt apparmor:unconfined \
             )
             break
         ;;
