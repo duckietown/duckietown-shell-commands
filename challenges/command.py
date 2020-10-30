@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 from datetime import datetime
 from typing import List
@@ -11,7 +12,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version('duckietown-docker-utils-daffy', '6.0.15')
+        check_package_version('duckietown-docker-utils-daffy', '6.0.33')
         from duckietown_docker_utils.docker_run import generic_docker_run
 
         parser = argparse.ArgumentParser()
@@ -23,15 +24,14 @@ class DTCommand(DTCommandAbs):
         parser.add_argument('--entrypoint', default=None)
         parser.add_argument('--shell', default=False, action='store_true')
         parser.add_argument('--root', default=False, action='store_true')
-        parser.add_argument('--dev', default=False, action='store_true')
         parser.add_argument("--no-pull", action="store_true", default=False, help="")
         # parser.add_argument('cmd', nargs='*')
         parsed, rest = parser.parse_known_args(args=args)
-        if not rest:
-            # TODO: help
-            print('need a command')
-            return
-        if rest[0] == 'config':
+        # if not rest:
+        #     # TODO: help
+        #     print('need a command')
+        #     return
+        if rest and (rest[0] == 'config'):
             return command_config(shell, rest[1:])
 
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
@@ -39,6 +39,11 @@ class DTCommand(DTCommandAbs):
         username, secret = get_dockerhub_username_and_password()
         check_docker_environment()
         client = check_docker_environment()
+
+        if 'DT_MOUNT' in os.environ:
+            development = True
+        else:
+            development = False
 
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
@@ -56,10 +61,11 @@ class DTCommand(DTCommandAbs):
                                docker_secret=secret,
                                docker_username=username,
                                dt1_token=dt1_token,
-                               development=parsed.dev,
+                               development=development,
                                container_name=container_name,
                                pull=not parsed.no_pull,
-                               logname=logname)
+                               logname=logname,
+                               read_only=False)
         if gdr.retcode:
             msg = 'Execution of docker image failed.'
             msg += f'\n\nThe log is available at {logname}'
