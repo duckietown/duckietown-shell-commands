@@ -11,7 +11,7 @@ from dt_shell.env_checks import check_docker_environment, get_dockerhub_username
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version("duckietown-docker-utils-daffy", "6.0.48")
+        check_package_version("duckietown-docker-utils-daffy", "6.0.49")
         from duckietown_docker_utils.docker_run import generic_docker_run
 
         parser = argparse.ArgumentParser(prog="dts challenges")
