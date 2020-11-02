@@ -124,7 +124,7 @@ class DTProject:
 
     @property
     def name(self):
-        return self._repository.name if self._repository else os.path.basename(self.path)
+        return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
 
     @property
     def type(self):
