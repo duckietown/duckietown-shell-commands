@@ -600,14 +600,14 @@ def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
 
     calib_files = [
-        "config/calibrations/camera_intrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/camera_extrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/kinematics/{duckiebot:s}.yaml",
+        "calibrations/camera_intrinsic/{duckiebot:s}.yaml",
+        "calibrations/camera_extrinsic/{duckiebot:s}.yaml",
+        "calibrations/kinematics/{duckiebot:s}.yaml",
     ]
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/{:s}".format(duckiebot_name, calib_file)
+        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
