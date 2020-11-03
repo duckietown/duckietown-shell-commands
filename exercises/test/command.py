@@ -516,7 +516,8 @@ def launch_bridge(
         "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
     }
     bridge_volumes = fifos_bind
-    bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+    if not running_on_mac:
+        bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
 
     bridge_params = {
         "image": bridge_image,
