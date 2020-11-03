@@ -4,17 +4,17 @@ import random
 from datetime import datetime
 from typing import List
 
-from dt_shell import DTCommandAbs, DTShell, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment, get_dockerhub_username_and_password
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version("duckietown-docker-utils-daffy", "6.0.40")
+        check_package_version("duckietown-docker-utils-daffy", "6.0.49")
         from duckietown_docker_utils.docker_run import generic_docker_run
 
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(prog="dts challenges")
 
         parser.add_argument(
             "--image",
@@ -27,7 +27,20 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--root", default=False, action="store_true")
         parser.add_argument("--no-pull", action="store_true", default=False, help="")
         # parser.add_argument('cmd', nargs='*')
-        parsed, rest = parser.parse_known_args(args=args)
+        # find the first non- "-" entry
+        parse_here = []
+        parse_later = []
+
+        for i, arg in enumerate(args):
+            if not arg.startswith("-"):
+                parse_later = args[i:]
+                break
+            else:
+                parse_here.append(arg)
+
+        parsed, rest = parser.parse_known_args(args=parse_here)
+        rest += parse_later
+        # dtslogger.info(f'rest: {rest}')
         # if not rest:
         #     # TODO: help
         #     print('need a command')

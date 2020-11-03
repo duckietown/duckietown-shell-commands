@@ -124,7 +124,7 @@ class DTProject:
 
     @property
     def name(self):
-        return self._repository.name if self._repository else os.path.basename(self.path)
+        return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
 
     @property
     def type(self):
@@ -270,7 +270,7 @@ class DTProject:
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
-            msg = "The path '%s' does not appear to be a Duckietown project. " % (metafile)
+            msg = f"The path '{metafile}' does not appear to be a Duckietown project. "
             msg += "\nThe metadata file '.dtproject' is missing."
             raise UserError(msg)
         # load '.dtproject'
@@ -285,7 +285,7 @@ class DTProject:
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
-                msg = "The metadata file '.dtproject' does not contain the key '%s'." % key
+                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
                 raise UserError(msg)
         # validate version
         version = metadata["TYPE_VERSION"]
@@ -295,7 +295,7 @@ class DTProject:
         # validate metadata
         for key in REQUIRED_METADATA_KEYS[version]:
             if key not in metadata:
-                msg = "The metadata file '.dtproject' does not contain the key '%s'." % key
+                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
                 raise UserError(msg)
         # metadata is valid
         metadata["PATH"] = path
