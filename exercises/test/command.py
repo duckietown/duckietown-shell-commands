@@ -486,7 +486,7 @@ def launch_agent(
 
     if parsed.local:
         ros_template_params["network"] = agent_network.name
-        ros_template_params["ports"] = ros_port
+        #ros_template_params["ports"] = ros_port
     else:
         ros_template_params["network_mode"] = "host"
 
