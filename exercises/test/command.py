@@ -430,7 +430,6 @@ class DTCommand(DTCommandAbs):
             agent_network,
             agent_client,
             duckiebot_name,
-            ros_port,
         )
 
         dtslogger.info("All done")
@@ -448,7 +447,6 @@ def launch_agent(
     agent_network,
     agent_client,
     duckiebot_name,
-    ros_port,
 ):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
@@ -486,7 +484,6 @@ def launch_agent(
 
     if parsed.local:
         ros_template_params["network"] = agent_network.name
-        ros_template_params["ports"] = ros_port
     else:
         ros_template_params["network_mode"] = "host"
 
