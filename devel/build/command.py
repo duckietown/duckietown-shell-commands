@@ -12,7 +12,17 @@ from docker.errors import ImageNotFound, ContainerError, APIError
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture, get_client, pull_image
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    DOCKER_INFO,
+    get_endpoint_architecture,
+    get_client,
+    pull_image
+)
+
+from utils.pip_utils import DEFAULT_INDEX_URL
+
 from utils.dtproject_utils import (
     CANONICAL_ARCH,
     BUILD_COMPATIBILITY_MAP,
@@ -357,6 +367,18 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
             dtslogger.warn(msg)
+
+        # custom Docker registry
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+        if docker_registry != DEFAULT_REGISTRY:
+            dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+            buildargs["buildargs"]["DOCKER_REGISTRY"] = docker_registry
+
+        # custom Pip registry
+        pip_index_url = os.environ.get("PIP_INDEX_URL", DEFAULT_INDEX_URL)
+        if pip_index_url != DEFAULT_INDEX_URL:
+            dtslogger.warning(f"Using custom PIP_INDEX_URL='{pip_index_url}'.")
+            buildargs["buildargs"]["PIP_INDEX_URL"] = pip_index_url
 
         # cache
         if not parsed.no_cache:
