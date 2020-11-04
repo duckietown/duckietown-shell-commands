@@ -25,6 +25,7 @@ SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = "2375"
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
+DEFAULT_REGISTRY = "docker.io"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
