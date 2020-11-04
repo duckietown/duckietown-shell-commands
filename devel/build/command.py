@@ -42,7 +42,7 @@ class DTCommand(DTCommandAbs):
     help = "Builds the current project"
 
     @staticmethod
-    def command(shell, args):
+    def command(shell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -94,6 +94,15 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Whether to force the build when the git index is not clean",
+        )
+        parser.add_argument(
+            "-A",
+            "--build-arg",
+            default=[],
+            action="append",
+            nargs=2,
+            metavar=('key', 'value'),
+            help="Build arguments to pass to Docker build",
         )
         parser.add_argument(
             "--push",
@@ -170,7 +179,10 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Be verbose"
         )
-        parsed, _ = parser.parse_known_args(args=args)
+        # get pre-parsed or parse arguments
+        parsed = kwargs.get('parsed', None)
+        if not parsed:
+            parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -379,6 +391,10 @@ class DTCommand(DTCommandAbs):
         if pip_index_url != DEFAULT_INDEX_URL:
             dtslogger.warning(f"Using custom PIP_INDEX_URL='{pip_index_url}'.")
             buildargs["buildargs"]["PIP_INDEX_URL"] = pip_index_url
+
+        # custom build arguments
+        for key, value in parsed.build_arg:
+            buildargs["buildargs"][key] = value
 
         # cache
         if not parsed.no_cache:
