@@ -29,7 +29,6 @@ class InvalidUserInput(Exception):
 
 from dt_shell import DTShell
 
-
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
@@ -38,4 +37,6 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
-        start_command_in_subprocess("cd notebooks && jupyter notebook")
+        
+        os.system("cd notebooks && jupyter notebook")
+        dtslogger.info("All done.")

@@ -5,7 +5,6 @@ import os
 import signal
 import platform
 import subprocess
-import nbformat  # install before?
 from nbconvert.exporters import PythonExporter
 import yaml
 import requests
@@ -191,7 +190,11 @@ class DTCommand(DTCommandAbs):
             check_program_dependency('rsync')
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-#            exercise_ws_dir = working_dir + "/exercise_ws"
+
+            # exercise_ws_dir = working_dir + "/exercise_ws"
+
+            # convertNotebook(working_dir+"/notebooks",exercise_ws_dir)
+
             exercise_cmd = f"rsync --archive {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
 #            launcher_dir = working_dir + "/launchers"
@@ -537,19 +540,27 @@ def launch_bridge(bridge_container_name, duckiebot_name, fifos_bind, bridge_imag
 
 
 def convertNotebook(filepath, export_path) -> bool:
+    import nbformat  # install before?
     if not os.path.exists(filepath):
         return False
-    nb = nbformat.read(filepath, as_version=4)
-    exporter = PythonExporter()
 
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-    try:
-        with open(export_path, "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        return False
+    for filename in os.listdir(filepath):
+
+        if not os.path.isfile(os.path.join(filepath, filename)):
+            continue
+
+        nb = nbformat.read(filepath+"/"+filename, as_version=4)
+        exporter = PythonExporter()
+
+        # source is a tuple of python source code
+        # meta contains metadata
+        source, _ = exporter.from_notebook_node(nb)
+        try:
+            name, ext = os.path.splitext(filename)
+            with open(export_path+"/"+name+".py", "w+") as fh:
+                fh.writelines(source)
+        except Exception:
+            return False
 
     return True
 
