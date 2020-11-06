@@ -8,7 +8,7 @@ if sys.version_info < (3, 6):
     raise UserError(msg)
 
 min_duckietown_shell = ".".join(["5", "1", "16"])
-duckietown_shell_commands_version = "5.1.2"
+duckietown_shell_commands_version = "5.1.3"
 
 
 def parse_version(x):

@@ -44,8 +44,14 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
-        "raspberry_pi": {"stable": "1.1", "experimental": "1.1.1",},
-        "jetson_nano": {"stable": "1.1", "experimental": "1.1.1",},
+        "raspberry_pi": {
+            "stable": "1.1.1",
+            "experimental": "1.1.2"
+        },
+        "jetson_nano": {
+            "stable": "1.1",
+            "experimental": "1.1.1"
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -54,8 +60,17 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
 
 def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
     board_to_placeholders_version = {
-        "raspberry_pi": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
-        "jetson_nano": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
+        "raspberry_pi": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1",
+            "1.1.2": "1.1"
+        },
+        "jetson_nano": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1"
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
