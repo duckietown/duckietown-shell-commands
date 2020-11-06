@@ -7,7 +7,12 @@ import subprocess
 
 import nbformat  # install before?
 import requests
+import time
+import threading
 import yaml
+
+from typing import List
+
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from nbconvert.exporters import PythonExporter
@@ -127,6 +132,11 @@ class DTCommand(DTCommandAbs):
 
         # get the local docker client
         local_client = check_docker_environment()
+
+        # Keep track of the container to monitor
+        # (only detached containers)
+        # we will stop if one crashes
+        containers_to_monitor = []
 
         # let's do all the input checks
 
@@ -326,6 +336,7 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, sim_params["image"])
             sim_container = agent_client.containers.run(**sim_params)
+            containers_to_monitor.append(sim_container)
 
             # let's launch the middleware_manager
             dtslogger.info(f"Running middleware {middleware_container_name} from {middle_image}")
@@ -347,9 +358,10 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
+            containers_to_monitor.append(mw_container)
 
         else:  # we are running on a duckiebot
-            launch_bridge(
+            bridge_container = launch_bridge(
                 bridge_container_name,
                 duckiebot_name,
                 fifos_bind,
@@ -358,6 +370,7 @@ class DTCommand(DTCommandAbs):
                 running_on_mac,
                 agent_client,
             )
+            containers_to_monitor.append(bridge_container)
 
         # done with sim/duckiebot specific stuff.
 
@@ -385,6 +398,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(ros_params)
         pull_if_not_exist(agent_client, ros_params["image"])
         ros_container = agent_client.containers.run(**ros_params)
+        containers_to_monitor.append(ros_container)
 
         # let's launch vnc
         dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
@@ -417,23 +431,86 @@ class DTCommand(DTCommandAbs):
         # vnc always runs on local client
         pull_if_not_exist(local_client, vnc_params["image"])
         vnc_container = local_client.containers.run(**vnc_params)
+        containers_to_monitor.append(vnc_container)
 
-        launch_agent(
-            ros_template_container_name,
-            env_dir,
-            ros_env,
-            fifos_bind,
-            parsed,
-            working_dir,
-            exercise_name,
-            ros_template_image,
-            agent_network,
-            agent_client,
-            duckiebot_name,
-        )
+
+        stop_attached_container = lambda: agent_client.containers.get(ros_template_container_name).kill()
+        launch_container_monitor(containers_to_monitor, stop_attached_container)
+
+        dtslogger.info("Starting attached container")
+
+        try:
+            ros_template_container = launch_agent(
+                ros_template_container_name,
+                env_dir,
+                ros_env,
+                fifos_bind,
+                parsed,
+                working_dir,
+                exercise_name,
+                ros_template_image,
+                agent_network,
+                agent_client,
+                duckiebot_name,
+            )
+        except Exception as e:
+            dtslogger.info("Attached container terminated")
+
+
+
+        # TODO when we reach here we should stop all containers and clean shutdown
+        # the shutdown function should also be hooked to sigint/sigterm
+        # what happens for --restart-agent and --interactive ?
 
         dtslogger.info("All done")
 
+def launch_container_monitor(containers_to_monitor, stop_attached_container):
+    """
+    Start a daemon thread that will exit when the application exits.
+    Monitor should Stop everything if a containers exits and display logs
+    """
+    monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
+    dtslogger.info("Starting monitor thread")
+    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
+    monitor_thread.start()
+
+
+def monitor_containers(containers_to_monitor: List, stop_attached_container):
+    """
+    When an error is found, we display info and kill the attached thread to stop main process
+    """
+    while True:
+        errors = []
+        dtslogger.debug(f"{len(containers_to_monitor)} container to monitor")
+        for container in containers_to_monitor:
+            container.reload()
+            status = container.status
+            dtslogger.debug(f"container {container.name} in state {status}")
+            if(status in ["exited","dead"]):
+                errors.append({
+                    "name":container.name,
+                    "id":container.id,
+                    "status":container.status,
+                    "image":container.image.attrs["RepoTags"],
+                    "logs":container.logs()
+                })
+            else:
+                dtslogger.debug("Containers monitor check passed.")
+        
+        if errors:
+            dtslogger.info(f"Monitor found {len(errors)} exited containers")
+            for e in errors:
+                dtslogger.error(f"""Monitored container exited:
+                container: {e['name']}
+                id: {e['id']}
+                status: {e['status']}
+                image: {e['image']}
+                logs: {e['logs'].decode()}
+                """)
+            dtslogger.info("Sending kill to container attached container")
+            stop_attached_container()
+
+        time.sleep(5)
 
 def launch_agent(
     ros_template_container_name,
@@ -503,6 +580,8 @@ def launch_agent(
     )
     start_command_in_subprocess(attach_cmd)
 
+    return ros_template_container
+
 
 def launch_bridge(
     bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
@@ -543,6 +622,7 @@ def launch_bridge(
 
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
+    return bridge_container
 
 
 def convertNotebook(filepath, export_path) -> bool:
