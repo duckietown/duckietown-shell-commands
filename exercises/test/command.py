@@ -9,6 +9,7 @@ import nbformat  # install before?
 import requests
 import time
 import threading
+import signal
 import yaml
 
 from typing import List
@@ -434,8 +435,12 @@ class DTCommand(DTCommandAbs):
         containers_to_monitor.append(vnc_container)
 
 
+        # Setup functions for monitor and cleanup
         stop_attached_container = lambda: agent_client.containers.get(ros_template_container_name).kill()
         launch_container_monitor(containers_to_monitor, stop_attached_container)
+
+        # We will catch CTRL+C and cleanup containers
+        signal.signal(signal.SIGINT, lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container))
 
         dtslogger.info("Starting attached container")
 
@@ -454,15 +459,27 @@ class DTCommand(DTCommandAbs):
                 duckiebot_name,
             )
         except Exception as e:
-            dtslogger.info("Attached container terminated")
-
-
-
-        # TODO when we reach here we should stop all containers and clean shutdown
-        # the shutdown function should also be hooked to sigint/sigterm
-        # what happens for --restart-agent and --interactive ?
+            dtslogger.info(f"Attached container terminated {e}")
+        finally:
+            clean_shutdown(containers_to_monitor, stop_attached_container)
 
         dtslogger.info("All done")
+
+
+def clean_shutdown(containers, stop_attached_container):
+    dtslogger.info("Cleaning containers")
+    for container in containers:
+        dtslogger.info(f"Killing container {container.name}")
+        try:
+            container.kill()
+        except:
+            dtslogger.info(f"Container {container.name} already stopped.")
+    try:
+        stop_attached_container()
+    except:
+        dtslogger.info(f"attached container already stopped.")
+
+
 
 def launch_container_monitor(containers_to_monitor, stop_attached_container):
     """
