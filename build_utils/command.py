@@ -95,9 +95,10 @@ def check_package_version(PKG: str, min_version: str):
 
         You can install it with a command like:
 
-            pip install -U "{PKG}>={min_version}"
+            pip3 install -U "{PKG}>={min_version}"
 
-        (Note: your configuration might require a different command.)
+        (Note: your configuration might require a different command.
+         You might need to use "pip" instead of "pip3".)
         """
         raise UserError(msg)
 
@@ -112,9 +113,10 @@ def check_package_version(PKG: str, min_version: str):
 
        Please update {PKG} using pip.
 
-           pip install -U  "{PKG}>={min_version}"
+           pip3 install -U  "{PKG}>={min_version}"
 
-       (Note: your configuration might require a different command.)
+       (Note: your configuration might require a different command.
+        You might need to use "pip" instead of "pip3".)
        """
         raise UserError(msg)
 
