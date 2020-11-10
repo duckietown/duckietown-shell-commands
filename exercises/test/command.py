@@ -163,7 +163,11 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
+
+        config = load_yaml(working_dir + "/config.yaml")
         env_dir = working_dir + "/assets/setup/"
+
+
 
         if parsed.local:
             agent_client = local_client
@@ -173,12 +177,8 @@ class DTCommand(DTCommandAbs):
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-            #            exercise_ws_dir = working_dir + "/exercise_ws"
             exercise_cmd = f"rsync --archive {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
-            #            launcher_dir = working_dir + "/launchers"
-            #            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
-            #            _run_cmd(launcher_cmd, shell=True)
 
             # arch
             arch = REMOTE_ARCH
@@ -300,6 +300,7 @@ class DTCommand(DTCommandAbs):
                 agent_network,
                 agent_client,
                 duckiebot_name,
+                config,
             )
             exit(0)
 
@@ -430,6 +431,7 @@ class DTCommand(DTCommandAbs):
             agent_network,
             agent_client,
             duckiebot_name,
+            config,
         )
 
         dtslogger.info("All done")
@@ -447,6 +449,7 @@ def launch_agent(
     agent_network,
     agent_client,
     duckiebot_name,
+    config,
 ):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
@@ -456,15 +459,17 @@ def launch_agent(
     ros_template_env = {**ros_env, **ros_template_env}
     ros_template_volumes = fifos_bind
 
+    ws_dir = "/" + config['ws_dir']
+
     if parsed.sim or parsed.local:
         ros_template_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
         ros_template_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        ros_template_volumes[working_dir + "/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
+        ros_template_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
     else:
         ros_template_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
         ros_template_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        ros_template_volumes[f"/code/{exercise_name}/exercise_ws"] = {
-            "bind": "/code/exercise_ws",
+        ros_template_volumes[f"/code/{exercise_name}{ws_dir}"] = {
+            "bind": f"/code{ws_dir}",
             "mode": "rw",
         }
 
@@ -479,7 +484,7 @@ def launch_agent(
         "environment": ros_template_env,
         "detach": True,
         "tty": True,
-        "command": ["/code/launchers/run_all.sh"],
+        "command": [f"/code/launchers/{config['agent_run_cmd']}"],
     }
 
     if parsed.local:
