@@ -2,6 +2,7 @@ import argparse
 import getpass
 import json
 import os
+import pathlib
 import sys
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-DD_BLOCK_SIZE = "1M"
+BLOCK_SIZE = 1024**2
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,8 +44,14 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
-        "raspberry_pi": {"stable": "1.1", "experimental": "1.1.1",},
-        "jetson_nano": {"stable": "1.1", "experimental": "1.1.1",},
+        "raspberry_pi": {
+            "stable": "1.1.1",
+            "experimental": "1.1.2"
+        },
+        "jetson_nano": {
+            "stable": "1.1",
+            "experimental": "1.1.1"
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -53,8 +60,17 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
 
 def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
     board_to_placeholders_version = {
-        "raspberry_pi": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
-        "jetson_nano": {"1.0": "1.0", "1.1": "1.1", "1.1.1": "1.1"},
+        "raspberry_pi": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1",
+            "1.1.2": "1.1"
+        },
+        "jetson_nano": {
+            "1.0": "1.0",
+            "1.1": "1.1",
+            "1.1.1": "1.1"
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
@@ -291,10 +307,9 @@ def step_download(shell, parsed, data):
 
 def step_flash(_, parsed, data):
     # check if dependencies are met
-    check_program_dependency("dd")
     check_program_dependency("sudo")
     check_program_dependency("lsblk")
-    check_program_dependency("sync")
+    check_program_dependency("umount")
 
     # ask for a device if not set already
     if parsed.device is None:
@@ -320,60 +335,28 @@ def step_flash(_, parsed, data):
                 dtslogger.info("Please retry while specifying a valid device. Bye bye!")
                 exit(4)
 
+    # unmount all partitions if SD card
+    if sd_type == "SD":
+        # noinspection PyBroadException
+        try:
+            dtslogger.info(f'Trying to unmount all partitions from device {parsed.device}')
+            cmd = f"for n in {parsed.device}* ; do umount $n || . ; done"
+            _run_cmd(cmd, shell=True, quiet=True)
+            dtslogger.info('All partitions unmounted.')
+        except BaseException:
+            dtslogger.warn("An error occurred while unmounting the partitions of your SD card. "
+                           "Though this is not critical, you might experience issues with your SD "
+                           "card after flashing is complete. If that is the case, make sure to "
+                           "unmount all disks from your SD card before flashing the next time.")
+
     # use dd to flash
-    stime = time.time()
     dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
+    dd_py = os.path.join(pathlib.Path(__file__).parent.absolute(), 'dd.py')
+    bsize = str(BLOCK_SIZE)
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
-        "dd",
-        "if={}".format(data["disk_img"]),
-        "of={}".format(parsed.device),
-        "bs={}".format(DD_BLOCK_SIZE),
-        "status=progress",
+        dd_py, "--input", data["disk_img"], "--output", parsed.device, "--block-size", bsize
     ]
-
-    # create a progress bar to track the progress
-    pbar = ProgressBar(header="Flashing [ETA: ND]")
-    tbytes = os.stat(data["disk_img"]).st_size
-
-    # launch dd
-    dd = subprocess.Popen(dd_cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    dtslogger.debug(f"$ {dd_cmd}")
-
-    # read status and update progress bar
-    par = b""
-    while dd.poll() is None:
-        time.sleep(0.1)
-        # consume everything from the buffer
-        char = dd.stderr.read(1)
-        while len(char) == 1:
-            if par is not None:
-                par += char
-            if char == b"\r":
-                par = b""
-            if char == b" " and par is not None:
-                try:
-                    nbytes = float(par.decode("utf-8"))
-                    progress = int(100 * (nbytes / tbytes))
-                    pbar.update(progress)
-                    # compute ETA
-                    if progress > 0:
-                        elapsed = time.time() - stime
-                        eta = (100 - progress) * (elapsed / progress)
-                        pbar.set_header("Flashing [ETA: {}]".format(human_time(eta, True)))
-                except ValueError:
-                    pass
-                par = None
-            # get next char
-            char = dd.stderr.read(1)
-    # jump to 100% if success
-    if dd.returncode == 0:
-        pbar.update(100)
-        dtslogger.info("Flashed in {}".format(human_time(time.time() - stime)))
-
-    # flush I/O buffer
-    dtslogger.info("Flushing I/O buffer...")
-    _run_cmd(["sync"])
-    dtslogger.info("Done!")
+    _run_cmd(dd_cmd)
     # ---
     dtslogger.info("{}[{}] flashed!".format(sd_type, parsed.device))
     return {"sd_type": sd_type}
@@ -599,13 +582,18 @@ def _get_wpa_networks(parsed):
     return wpa_networks
 
 
-def _run_cmd(cmd, get_output=False, shell=False):
+def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     dtslogger.debug("$ %s" % cmd)
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
+    # manage output
+    if quiet:
+        outputs = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
+    else:
+        outputs = {}
     # ---
     if get_output:
         return subprocess.check_output(cmd, shell=shell).decode("utf-8")
     else:
-        subprocess.check_call(cmd, shell=shell)
+        subprocess.check_call(cmd, shell=shell, **outputs)

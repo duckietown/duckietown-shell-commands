@@ -22,6 +22,7 @@ MODULES_TO_LOAD = [
     {"owner": "duckietown", "module": "dt-ros-commons"},
     {"owner": "duckietown", "module": "dt-duckiebot-interface"},
     {"owner": "duckietown", "module": "dt-car-interface"},
+    {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-rosbridge-websocket"},
     {"owner": "duckietown", "module": "dt-core"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
