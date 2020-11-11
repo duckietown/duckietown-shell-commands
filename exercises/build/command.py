@@ -96,7 +96,7 @@ class DTCommand(DTCommandAbs):
         container_name = "ros_template_catkin_build"
         remove_if_running(client, container_name)
         ros_template_volumes = {}
-        ros_template_volumes[working_dir + "/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
+        ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
 
         ros_template_params = {
             "image": ros_template_image,
