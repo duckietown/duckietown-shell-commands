@@ -46,7 +46,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
+            default=None,
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
@@ -181,6 +181,8 @@ class DTCommand(DTCommandAbs):
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
+        else:
+            parsed.machine = DEFAULT_MACHINE
         # x-docker runtime
         if parsed.use_x_docker:
             command_dir = os.path.dirname(os.path.abspath(__file__))
