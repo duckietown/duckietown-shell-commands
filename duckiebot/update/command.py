@@ -4,7 +4,6 @@ import math
 import argparse
 import functools
 import requests
-import simplejson
 
 import docker as dockerlib
 
@@ -71,15 +70,27 @@ class DTCommand(DTCommandAbs):
         code_api_image = f"duckietown/dt-code-api:{distro}-{endpoint_arch}"
         dtslogger.debug(f"Working with code-api image `{code_api_image}`")
 
+        # full?
+        if parsed.full:
+            parsed.codeapi_pull = True
+            parsed.codeapi_recreate = True
+
         if parsed.codeapi_pull:
+            num_trials = 5
             # pull newest version of code-api container
-            try:
-                dtslogger.info('Pulling new image for module `dt-code-api`.')
-                pull_image(code_api_image, endpoint=docker)
-            except dockerlib.errors.APIError:
-                dtslogger.error("An error occurred while pulling the moudle dt-code-api. "
-                                "Aborting.")
-                return
+            for trial_no in range(1, num_trials + 1, 1):
+                try:
+                    if trial_no == 0:
+                        dtslogger.info('Pulling new image for module `dt-code-api`.')
+                    # ---
+                    pull_image(code_api_image, endpoint=docker)
+                except dockerlib.errors.APIError:
+                    if trial_no == num_trials:
+                        dtslogger.error("An error occurred while pulling the module dt-code-api. "
+                                        "Aborting.")
+                        return
+                    else:
+                        time.sleep(1)
 
         if parsed.codeapi_recreate:
             # get old code-api container
@@ -170,7 +181,7 @@ class DTCommand(DTCommandAbs):
                     break
             except requests.exceptions.RequestException:
                 pass
-            except simplejson.errors.JSONDecodeError:
+            except BaseException:
                 pass
             new_checkpoint = int(math.floor((time.time() - stime) / checkpoint_every_sec))
             if new_checkpoint > checkpoint:
