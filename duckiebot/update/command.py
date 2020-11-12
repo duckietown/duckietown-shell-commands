@@ -52,12 +52,10 @@ class DTCommand(DTCommandAbs):
             help="Recreate the code-api container",
         )
         parser.add_argument(
-            "-D",
-            "--distro",
-            default=get_distro_version(shell),
-            help="Only update images of this Duckietown distro",
+            "vehicle",
+            nargs=1,
+            help="Name of the Duckiebot to check software status for"
         )
-        parser.add_argument("hostname", nargs=1, help="Name of the Duckiebot to check software status for")
         # parse arguments
         parsed = parser.parse_args(args)
         vehicle = parsed.vehicle[0].rstrip('.local')
