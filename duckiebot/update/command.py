@@ -76,12 +76,13 @@ class DTCommand(DTCommandAbs):
             parsed.codeapi_recreate = True
 
         if parsed.codeapi_pull:
-            num_trials = 5
+            num_trials = 10
             # pull newest version of code-api container
             for trial_no in range(1, num_trials + 1, 1):
                 try:
                     if trial_no == 0:
                         dtslogger.info('Pulling new image for module `dt-code-api`.')
+                    dtslogger.debug(f'Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.')
                     # ---
                     pull_image(code_api_image, endpoint=docker)
                 except dockerlib.errors.APIError:
@@ -89,8 +90,7 @@ class DTCommand(DTCommandAbs):
                         dtslogger.error("An error occurred while pulling the module dt-code-api. "
                                         "Aborting.")
                         return
-                    else:
-                        time.sleep(1)
+                    time.sleep(2)
 
         if parsed.codeapi_recreate:
             # get old code-api container
