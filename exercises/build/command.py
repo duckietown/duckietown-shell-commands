@@ -76,6 +76,9 @@ class DTCommand(DTCommandAbs):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
 
+        config = load_yaml(working_dir + "/config.yaml")
+        ws_dir = config['ws_dir']
+
         client = check_docker_environment()
 
         if parsed.staging:
@@ -86,14 +89,14 @@ class DTCommand(DTCommandAbs):
         if parsed.debug:
             cmd = "bash"
         elif parsed.clean:
-            cmd = ["catkin", "clean", "--workspace", "exercise_ws"]
+            cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
         else:
-            cmd = ["catkin", "build", "--workspace", "exercise_ws"]
+            cmd = ["catkin", "build", "--workspace", f"{ws_dir}"]
 
         container_name = "ros_template_catkin_build"
         remove_if_running(client, container_name)
         ros_template_volumes = {}
-        ros_template_volumes[working_dir + "/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
+        ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
 
         ros_template_params = {
             "image": ros_template_image,
