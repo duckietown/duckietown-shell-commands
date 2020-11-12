@@ -85,6 +85,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.debug(f'Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.')
                     # ---
                     pull_image(code_api_image, endpoint=docker)
+                    break
                 except dockerlib.errors.APIError:
                     if trial_no == num_trials:
                         dtslogger.error("An error occurred while pulling the module dt-code-api. "
