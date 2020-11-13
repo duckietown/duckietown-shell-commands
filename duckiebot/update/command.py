@@ -80,8 +80,8 @@ class DTCommand(DTCommandAbs):
             # pull newest version of code-api container
             for trial_no in range(1, num_trials + 1, 1):
                 try:
-                    if trial_no == 0:
-                        dtslogger.info('Pulling new image for module `dt-code-api`.')
+                    if trial_no == 1:
+                        dtslogger.info('Pulling new image for module `dt-code-api`. Be patient...')
                     dtslogger.debug(f'Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.')
                     # ---
                     pull_image(code_api_image, endpoint=docker)
