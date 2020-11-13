@@ -174,7 +174,7 @@ class DTCommand(DTCommandAbs):
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             #            exercise_ws_dir = working_dir + "/exercise_ws"
-            exercise_cmd = f"rsync --archive {working_dir} {remote_base_path}"
+            exercise_cmd = f"rsync  {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
             #            launcher_dir = working_dir + "/launchers"
             #            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
