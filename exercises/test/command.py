@@ -7,7 +7,13 @@ import subprocess
 
 import nbformat  # install before?
 import requests
+import time
+import threading
+import signal
 import yaml
+
+from typing import List
+
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from nbconvert.exporters import PythonExporter
@@ -128,6 +134,11 @@ class DTCommand(DTCommandAbs):
         # get the local docker client
         local_client = check_docker_environment()
 
+        # Keep track of the container to monitor
+        # (only detached containers)
+        # we will stop if one crashes
+        containers_to_monitor = []
+
         # let's do all the input checks
 
         duckiebot_name = parsed.duckiebot_name
@@ -163,7 +174,11 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
+
+        config = load_yaml(working_dir + "/config.yaml")
         env_dir = working_dir + "/assets/setup/"
+
+
 
         if parsed.local:
             agent_client = local_client
@@ -173,12 +188,8 @@ class DTCommand(DTCommandAbs):
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-            #            exercise_ws_dir = working_dir + "/exercise_ws"
             exercise_cmd = f"rsync  {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
-            #            launcher_dir = working_dir + "/launchers"
-            #            launcher_cmd = f"rsync --archive {launcher_dir} {remote_base_path}"
-            #            _run_cmd(launcher_cmd, shell=True)
 
             # arch
             arch = REMOTE_ARCH
@@ -300,6 +311,7 @@ class DTCommand(DTCommandAbs):
                 agent_network,
                 agent_client,
                 duckiebot_name,
+                config,
             )
             exit(0)
 
@@ -326,6 +338,7 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, sim_params["image"])
             sim_container = agent_client.containers.run(**sim_params)
+            containers_to_monitor.append(sim_container)
 
             # let's launch the middleware_manager
             dtslogger.info(f"Running middleware {middleware_container_name} from {middle_image}")
@@ -347,9 +360,10 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
+            containers_to_monitor.append(mw_container)
 
         else:  # we are running on a duckiebot
-            launch_bridge(
+            bridge_container = launch_bridge(
                 bridge_container_name,
                 duckiebot_name,
                 fifos_bind,
@@ -358,6 +372,7 @@ class DTCommand(DTCommandAbs):
                 running_on_mac,
                 agent_client,
             )
+            containers_to_monitor.append(bridge_container)
 
         # done with sim/duckiebot specific stuff.
 
@@ -385,6 +400,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(ros_params)
         pull_if_not_exist(agent_client, ros_params["image"])
         ros_container = agent_client.containers.run(**ros_params)
+        containers_to_monitor.append(ros_container)
 
         # let's launch vnc
         dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
@@ -417,23 +433,103 @@ class DTCommand(DTCommandAbs):
         # vnc always runs on local client
         pull_if_not_exist(local_client, vnc_params["image"])
         vnc_container = local_client.containers.run(**vnc_params)
+        containers_to_monitor.append(vnc_container)
 
-        launch_agent(
-            ros_template_container_name,
-            env_dir,
-            ros_env,
-            fifos_bind,
-            parsed,
-            working_dir,
-            exercise_name,
-            ros_template_image,
-            agent_network,
-            agent_client,
-            duckiebot_name,
-        )
+
+        # Setup functions for monitor and cleanup
+        stop_attached_container = lambda: agent_client.containers.get(ros_template_container_name).kill()
+        launch_container_monitor(containers_to_monitor, stop_attached_container)
+
+        # We will catch CTRL+C and cleanup containers
+        signal.signal(signal.SIGINT, lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container))
+
+        dtslogger.info("Starting attached container")
+
+        try:
+            ros_template_container = launch_agent(
+                ros_template_container_name,
+                env_dir,
+                ros_env,
+                fifos_bind,
+                parsed,
+                working_dir,
+                exercise_name,
+                ros_template_image,
+                agent_network,
+                agent_client,
+                duckiebot_name,
+                config,
+            )
+        except Exception as e:
+            dtslogger.info(f"Attached container terminated {e}")
+        finally:
+            clean_shutdown(containers_to_monitor, stop_attached_container)
 
         dtslogger.info("All done")
 
+
+def clean_shutdown(containers, stop_attached_container):
+    dtslogger.info("Cleaning containers")
+    for container in containers:
+        dtslogger.info(f"Killing container {container.name}")
+        try:
+            container.kill()
+        except:
+            dtslogger.info(f"Container {container.name} already stopped.")
+    try:
+        stop_attached_container()
+    except:
+        dtslogger.info(f"attached container already stopped.")
+
+
+
+def launch_container_monitor(containers_to_monitor, stop_attached_container):
+    """
+    Start a daemon thread that will exit when the application exits.
+    Monitor should Stop everything if a containers exits and display logs
+    """
+    monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
+    dtslogger.info("Starting monitor thread")
+    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
+    monitor_thread.start()
+
+
+def monitor_containers(containers_to_monitor: List, stop_attached_container):
+    """
+    When an error is found, we display info and kill the attached thread to stop main process
+    """
+    while True:
+        errors = []
+        dtslogger.debug(f"{len(containers_to_monitor)} container to monitor")
+        for container in containers_to_monitor:
+            container.reload()
+            status = container.status
+            dtslogger.debug(f"container {container.name} in state {status}")
+            if(status in ["exited","dead"]):
+                errors.append({
+                    "name":container.name,
+                    "id":container.id,
+                    "status":container.status,
+                    "image":container.image.attrs["RepoTags"],
+                    "logs":container.logs()
+                })
+            else:
+                dtslogger.debug("Containers monitor check passed.")
+        
+        if errors:
+            dtslogger.info(f"Monitor found {len(errors)} exited containers")
+            for e in errors:
+                dtslogger.error(f"""Monitored container exited:
+                container: {e['name']}
+                id: {e['id']}
+                status: {e['status']}
+                image: {e['image']}
+                logs: {e['logs'].decode()}
+                """)
+            dtslogger.info("Sending kill to container attached container")
+            stop_attached_container()
+
+        time.sleep(5)
 
 def launch_agent(
     ros_template_container_name,
@@ -447,6 +543,7 @@ def launch_agent(
     agent_network,
     agent_client,
     duckiebot_name,
+    config,
 ):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
@@ -456,15 +553,17 @@ def launch_agent(
     ros_template_env = {**ros_env, **ros_template_env}
     ros_template_volumes = fifos_bind
 
+    ws_dir = "/" + config['ws_dir']
+
     if parsed.sim or parsed.local:
         ros_template_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
         ros_template_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        ros_template_volumes[working_dir + "/exercise_ws"] = {"bind": "/code/exercise_ws", "mode": "rw"}
+        ros_template_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
     else:
         ros_template_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
         ros_template_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        ros_template_volumes[f"/code/{exercise_name}/exercise_ws"] = {
-            "bind": "/code/exercise_ws",
+        ros_template_volumes[f"/code/{exercise_name}{ws_dir}"] = {
+            "bind": f"/code{ws_dir}",
             "mode": "rw",
         }
 
@@ -479,7 +578,7 @@ def launch_agent(
         "environment": ros_template_env,
         "detach": True,
         "tty": True,
-        "command": ["/code/launchers/run_all.sh"],
+        "command": [f"/code/launchers/{config['agent_run_cmd']}"],
     }
 
     if parsed.local:
@@ -503,6 +602,8 @@ def launch_agent(
     )
     start_command_in_subprocess(attach_cmd)
 
+    return ros_template_container
+
 
 def launch_bridge(
     bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
@@ -516,7 +617,8 @@ def launch_bridge(
         "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
     }
     bridge_volumes = fifos_bind
-    bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+    if not running_on_mac or not parsed.local:
+        bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
 
     bridge_params = {
         "image": bridge_image,
@@ -542,6 +644,7 @@ def launch_bridge(
 
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
+    return bridge_container
 
 
 def convertNotebook(filepath, export_path) -> bool:
@@ -623,9 +726,8 @@ def get_calibration_files(destination_dir, duckiebot_name):
             dtslogger.debug('Creating directory "{:s}"'.format(dirname))
             os.makedirs(dirname)
         # save calibration file to disk
-        # NOTE: all agent names in evaluations are "agent" so need to copy
-        #       the robot specific calibration to default
-        destination_file = os.path.join(dirname, "agent.yaml")
+        # Also save them to specific robot name for local evaluation
+        destination_file = os.path.join(dirname, f"{duckiebot_name}.yaml")
         dtslogger.debug(
             'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
                 duckiebot_name, calib_file, destination_file

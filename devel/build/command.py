@@ -12,7 +12,17 @@ from docker.errors import ImageNotFound, ContainerError, APIError
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, DOCKER_INFO, get_endpoint_architecture, get_client, pull_image
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    DOCKER_INFO,
+    get_endpoint_architecture,
+    get_client,
+    pull_image
+)
+
+from utils.pip_utils import DEFAULT_INDEX_URL
+
 from utils.dtproject_utils import (
     CANONICAL_ARCH,
     BUILD_COMPATIBILITY_MAP,
@@ -21,7 +31,7 @@ from utils.dtproject_utils import (
     dtlabel,
     DISTRO_KEY,
 )
-from utils.misc_utils import human_time, human_size
+from utils.misc_utils import human_time, human_size, sanitize_hostname
 from utils.cli_utils import start_command_in_subprocess
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -32,11 +42,14 @@ class DTCommand(DTCommandAbs):
     help = "Builds the current project"
 
     @staticmethod
-    def command(shell, args):
+    def command(shell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -46,7 +59,10 @@ class DTCommand(DTCommandAbs):
             help="Target architecture for the image to build",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -55,7 +71,10 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -77,7 +96,19 @@ class DTCommand(DTCommandAbs):
             help="Whether to force the build when the git index is not clean",
         )
         parser.add_argument(
-            "--push", default=False, action="store_true", help="Whether to push the resulting image"
+            "-A",
+            "--build-arg",
+            default=[],
+            action="append",
+            nargs=2,
+            metavar=('key', 'value'),
+            help="Build arguments to pass to Docker build",
+        )
+        parser.add_argument(
+            "--push",
+            default=False,
+            action="store_true",
+            help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--rm",
@@ -101,7 +132,8 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image. " "Use when the base image is also a development version",
+            help="Docker tag for the base image. "
+                 "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -117,19 +149,40 @@ class DTCommand(DTCommandAbs):
             help="Forces CI to build on a specific architecture node",
         )
         parser.add_argument(
-            "--cloud", default=False, action="store_true", help="Build the image on the cloud"
+            "--cloud",
+            default=False,
+            action="store_true",
+            help="Build the image on the cloud"
         )
         parser.add_argument(
-            "--stamp", default=False, action="store_true", help="Stamp image with the build time"
+            "--stamp",
+            default=False,
+            action="store_true",
+            help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
+            "-D",
+            "--destination",
+            default=None,
+            help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs", default=False, action="store_true", help="Build the code documentation as well"
+            "--docs",
+            default=False,
+            action="store_true",
+            help="Build the code documentation as well"
         )
-        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
-        parsed, _ = parser.parse_known_args(args=args)
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            default=False,
+            action="store_true",
+            help="Be verbose"
+        )
+        # get pre-parsed or parse arguments
+        parsed = kwargs.get('parsed', None)
+        if not parsed:
+            parsed, _ = parser.parse_known_args(args=args)
         # ---
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -148,6 +201,9 @@ class DTCommand(DTCommandAbs):
                 "before continuing. Aborting."
             )
             exit(8)
+        # sanitize hostname
+        if parsed.machine is not None:
+            parsed.machine = sanitize_hostname(parsed.machine)
         # define build-args
         buildargs = {"buildargs": {}, "labels": {}}
         # CI builds
@@ -186,7 +242,8 @@ class DTCommand(DTCommandAbs):
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(
-                    f"No cloud machines found for target architecture {parsed.arch}. " f"Aborting..."
+                    f"No cloud machines found for target architecture {parsed.arch}. "
+                    f"Aborting..."
                 )
                 exit(3)
             # update machine parameter
@@ -236,16 +293,15 @@ class DTCommand(DTCommandAbs):
         # check if the index is clean
         if project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
-            dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to " + "force the execution of the command."
-            )
+            dtslogger.warning("If you know what you are doing, use --force (-f) to force.")
             if not parsed.force:
                 exit(1)
             dtslogger.warning("Forced!")
         # add configuration labels (template v2+)
         if project_template_ver >= 2:
             for cfg_name, cfg_data in project.configurations().items():
-                buildargs["labels"][dtlabel(f"image.configuration.{cfg_name}")] = json.dumps(cfg_data)
+                label = dtlabel(f"image.configuration.{cfg_name}")
+                buildargs["labels"][label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
         # get info about docker endpoint
@@ -301,7 +357,8 @@ class DTCommand(DTCommandAbs):
                     )
                     dtslogger.info("Multiarch Enabled!")
                 except (ContainerError, ImageNotFound, APIError) as e:
-                    msg = "Multiarch cannot be enabled on the target machine. " "This might create issues."
+                    msg = "Multiarch cannot be enabled on the target machine. "\
+                          "This might create issues."
                     dtslogger.warning(msg)
                     dtslogger.debug(f"The error reads:\n\t{str(e)}\n")
             else:
@@ -325,6 +382,22 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
             dtslogger.warn(msg)
+
+        # custom Docker registry
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+        if docker_registry != DEFAULT_REGISTRY:
+            dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+            buildargs["buildargs"]["DOCKER_REGISTRY"] = docker_registry
+
+        # custom Pip registry
+        pip_index_url = os.environ.get("PIP_INDEX_URL", DEFAULT_INDEX_URL)
+        if pip_index_url != DEFAULT_INDEX_URL:
+            dtslogger.warning(f"Using custom PIP_INDEX_URL='{pip_index_url}'.")
+            buildargs["buildargs"]["PIP_INDEX_URL"] = pip_index_url
+
+        # custom build arguments
+        for key, value in parsed.build_arg:
+            buildargs["buildargs"][key] = value
 
         # cache
         if not parsed.no_cache:
