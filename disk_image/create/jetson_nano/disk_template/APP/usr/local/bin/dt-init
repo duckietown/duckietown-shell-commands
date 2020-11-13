@@ -72,10 +72,17 @@ run_on_first_boot () {
   # setup docker
   echo "Adding the user to the docker group..."
   adduser duckie docker
+  
+  # store the MAC addresses for future reference
+  echo "Storing debug information..."
+  cp /proc/*info /data/proc
+  cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
+  cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 
   # make sure the user owns its folders
   echo "Changing the ownership of the user directories..."
   chown -R 1000:1000 /data /code /home/duckie/
+  chmod -R 775 /data /code /home/duckie/
 
   # create swap
   echo "Setting up swap..."
@@ -84,12 +91,6 @@ run_on_first_boot () {
   mkswap /swap0
   echo "/swap0 swap swap" >> /etc/fstab
   swapon -a
-
-  # store the MAC addresses for future reference
-  echo "Storing debug information..."
-  cp /proc/*info /data/proc
-  cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
-  cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 
   # reload systemctl and restart docker
   systemctl daemon-reload

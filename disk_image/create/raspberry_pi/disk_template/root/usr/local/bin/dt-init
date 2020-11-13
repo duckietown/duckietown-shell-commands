@@ -65,9 +65,16 @@ run_on_first_boot () {
   adduser ${DT_USER} users
   adduser ${DT_USER} video
 
+  # store the MAC addresses for future reference
+  echo "Storing debug information..."
+  cp /proc/*info /data/proc
+  cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
+  cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
+
   # make sure the user owns its folders
   echo "Changing the ownership of the user directories..."
   chown -R ${DT_USER_ID}:${DT_USER_ID} /data /code /home/${DT_USER}/
+  chmod -R 775 /data /code /home/${DT_USER}/
 
   # create swap
   echo "Setting up swap..."
@@ -76,12 +83,6 @@ run_on_first_boot () {
   mkswap /swap0
   echo "/swap0 swap swap" >> /etc/fstab
   swapon -a
-
-  # store the MAC addresses for future reference
-  echo "Storing debug information..."
-  cp /proc/*info /data/proc
-  cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
-  cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
 
   # reload systemctl and restart docker
   systemctl daemon-reload
