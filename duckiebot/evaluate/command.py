@@ -314,3 +314,13 @@ def get_calibration_files(destination_dir, duckiebot_name):
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
+
+        destination_file2 = os.path.join(dirname, "default.yaml")
+        dtslogger.debug(
+            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
+                duckiebot_name, calib_file, destination_file2
+            )
+        )
+        with open(destination_file2, "wb") as fd:
+            for chunk in res.iter_content(chunk_size=128):
+                fd.write(chunk)
