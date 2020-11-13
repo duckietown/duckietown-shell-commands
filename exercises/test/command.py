@@ -726,25 +726,13 @@ def get_calibration_files(destination_dir, duckiebot_name):
             dtslogger.debug('Creating directory "{:s}"'.format(dirname))
             os.makedirs(dirname)
         # save calibration file to disk
-        # NOTE: all agent names in evaluations are "agent" so need to copy
-        #       the robot specific calibration to default
-        destination_file = os.path.join(dirname, "agent.yaml")
+        # Also save them to specific robot name for local evaluation
+        destination_file = os.path.join(dirname, f"{duckiebot_name}.yaml")
         dtslogger.debug(
             'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
                 duckiebot_name, calib_file, destination_file
             )
         )
         with open(destination_file, "wb") as fd:
-            for chunk in res.iter_content(chunk_size=128):
-                fd.write(chunk)
-                
-        # Also save them to specific robot name for local evaluation
-        destination_file2 = os.path.join(dirname, f"{duckiebot_name}.yaml")
-        dtslogger.debug(
-            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
-                duckiebot_name, calib_file, destination_file2
-            )
-        )
-        with open(destination_file2, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
