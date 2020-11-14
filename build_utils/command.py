@@ -63,7 +63,7 @@ class DTCommand(DTCommandAbs):
             logname=logname,
         )
         if gdr.retcode:
-            msg = "Execution of docker image failed."
+            msg = f"Execution of docker image failed. Return code: {gdr.retcode}."
             msg += f"\n\nThe log is available at {logname}"
             raise UserError(msg)
 

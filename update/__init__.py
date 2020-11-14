@@ -20,7 +20,7 @@ def render_version(t):
 
 
 def check_compatible():
-    dtslogger.info("duckietown-shell-commands %s" % duckietown_shell_commands_version)
+    dtslogger.debug(f"duckietown-shell-commands version {duckietown_shell_commands_version}")
     from dt_shell import OtherVersions
 
     OtherVersions.name2versions["duckietown-shell-commands"] = duckietown_shell_commands_version
