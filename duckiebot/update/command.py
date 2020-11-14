@@ -1,233 +1,298 @@
-import io
-import re
-import sys
-import copy
+import json
+import time
+import math
 import argparse
+import functools
+import requests
 
-from collections import OrderedDict
-from termcolor import colored
-from datetime import datetime
-from threading import Thread, Semaphore
+import docker as dockerlib
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_client, get_endpoint_architecture_from_ip, get_remote_client
-from utils.dtproject_utils import dtlabel, DTProject
+from utils.docker_utils import pull_image, get_endpoint_architecture_from_ip, get_remote_client
 from utils.cli_utils import ProgressBar, ask_confirmation
 from utils.duckietown_utils import get_distro_version
 from utils.networking_utils import get_duckiebot_ip
 
 
 class DTCommand(DTCommandAbs):
+
+    CODE_API_CONTAINER_CONFIG = {
+        "restart_policy": {"Name": "always"},
+        "network_mode": "host",
+        "volumes": [
+            "/data:/data",
+            "/code:/user_code",
+            "/var/run/docker.sock:/var/run/docker.sock",
+            "/var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket"
+        ]
+    }
+
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts duckiebot update"
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
-            "-a",
-            "--all",
+            "--full",
             default=False,
             action="store_true",
-            help="Update all Duckietown modules (only official code is updated by default)",
+            help="Pull and recreate the code-api container as well.",
         )
         parser.add_argument(
-            "-D",
-            "--distro",
-            default=get_distro_version(shell),
-            help="Only update images of this Duckietown distro",
+            "--codeapi-pull",
+            default=False,
+            action="store_true",
+            help="Pull new image for code-api container",
         )
-        parser.add_argument("hostname", nargs=1, help="Name of the Duckiebot to check software status for")
+        parser.add_argument(
+            "--codeapi-recreate",
+            default=False,
+            action="store_true",
+            help="Recreate the code-api container",
+        )
+        parser.add_argument(
+            "vehicle",
+            nargs=1,
+            help="Name of the Duckiebot to check software status for"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
-        hostname = parsed.hostname[0]
+        vehicle = parsed.vehicle[0].rstrip('.local')
+        hostname = f"{vehicle}.local"
 
         # open Docker client
-        duckiebot_ip = get_duckiebot_ip(hostname)
+        duckiebot_ip = get_duckiebot_ip(vehicle)
         docker = get_remote_client(duckiebot_ip)
-        #        docker = get_client(hostname)
-        arch = get_endpoint_architecture_from_ip(duckiebot_ip)
-        image_pattern = re.compile(f"^duckietown/.+:{get_distro_version(shell)}-{arch}$")
 
-        # fetch list of images at the Docker endpoint
-        dtslogger.info("Fetching software status from your Duckiebot...")
-        images = docker.images.list()
+        # define code-api image name
+        distro = get_distro_version(shell)
+        endpoint_arch = get_endpoint_architecture_from_ip(duckiebot_ip)
+        code_api_image = f"duckietown/dt-code-api:{distro}-{endpoint_arch}"
+        dtslogger.debug(f"Working with code-api image `{code_api_image}`")
 
-        # we only update official duckietown images
-        images = [
-            image
-            for image in images
-            if len(image.tags) > 0
-            and image_pattern.match(image.tags[0])
-            and (parsed.all or image.labels.get(dtlabel("image.authoritative"), "0") == "1")
-        ]
-        dtslogger.info(f"Found {len(images)} Duckietown software modules. " f"Looking for updates...")
-        print()
+        # full?
+        if parsed.full:
+            parsed.codeapi_pull = True
+            parsed.codeapi_recreate = True
 
-        updates_monitor = UpdatesMonitor()
-        for image in images:
-            updates_monitor[image.tags[0]] = ("...", None)
+        if parsed.codeapi_pull:
+            num_trials = 10
+            # pull newest version of code-api container
+            for trial_no in range(1, num_trials + 1, 1):
+                try:
+                    if trial_no == 1:
+                        dtslogger.info('Pulling new image for module `dt-code-api`. Be patient...')
+                    dtslogger.debug(f'Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.')
+                    # ---
+                    pull_image(code_api_image, endpoint=docker)
+                    break
+                except dockerlib.errors.APIError:
+                    if trial_no == num_trials:
+                        dtslogger.error("An error occurred while pulling the module dt-code-api. "
+                                        "Aborting.")
+                        return
+                    time.sleep(2)
 
-        # check which images need update
-        need_update = []
-        try:
-            for image in images:
-                # get image name
-                name = image.tags[0]
-                # fetch remote image labels
-                labels = _get_remote_labels(name)
-                if labels is None:
-                    # image is not available online
-                    updates_monitor[name] = ("not found", None)
-                    continue
-                # fetch local and remote build time
-                updates_monitor[name] = ("checking", None)
-                image_time_str = image.labels.get(dtlabel("time"), "ND")
-                image_time = _parse_time(image_time_str)
-                remote_time = _parse_time(labels[dtlabel("time")]) if dtlabel("time") in labels else "ND"
-                # show error, up-to-date or to update
-                if remote_time is None:
-                    # remote build time could not be fetched, error
-                    updates_monitor[name] = ("error", "red")
-                    continue
-                if image_time is None or image_time < remote_time:
-                    # the remote copy is newer than the local, fetch versions
-                    version_lbl = dtlabel("code.version.head")
-                    local_version = image.labels.get(version_lbl, "devel")
-                    remote_version = labels[version_lbl] if version_lbl in labels else "ND"
-                    # show OLDv -> NEWv
-                    version_transition = (
-                        f"({local_version} -> {remote_version})" if remote_version != "ND" else ""
-                    )
-                    # update monitor
-                    updates_monitor[name] = (f"update available {version_transition}", "yellow")
-                    need_update.append(name)
-                    continue
-                else:
-                    # module is up-to-date
-                    updates_monitor[name] = ("up-to-date", "green")
-        except KeyboardInterrupt:
-            dtslogger.info("Aborted")
-            exit(0)
-        print()
+        if parsed.codeapi_recreate:
+            # get old code-api container
+            container = None
+            try:
+                container = docker.containers.get('code-api')
+            except dockerlib.errors.NotFound:
+                # container not found, this is ok
+                pass
 
-        # nothing to do
-        if len(need_update) == 0:
-            dtslogger.info("Everything up to date!")
-            exit(0)
+            # get docker-compose labels
+            compose_labels = {}
+            if container is not None:
+                compose_labels = {
+                    key: value for key, value in container.labels.items()
+                    if key.startswith("com.docker.compose.")
+                }
 
-        # ask for confirmation
-        granted = ask_confirmation(f" {len(need_update)} module(s) will be updated.")
+            # stop old code-api container
+            if container is not None:
+                try:
+                    if container.status in ['running', 'restarting', 'paused']:
+                        dtslogger.info('Stopping container `code-api`.')
+                        container.stop()
+                except dockerlib.errors.APIError:
+                    dtslogger.error("An error occurred while stopping the code-api container. "
+                                    "Aborting.")
+                    return
+
+            # remove old code-api container
+            if container is not None:
+                try:
+                    dtslogger.info('Removing container `code-api`.')
+                    container.remove()
+                except dockerlib.errors.APIError:
+                    dtslogger.error("An error occurred while removing the code-api container. "
+                                    "Aborting.")
+                    return
+
+            # run new code-api container
+            try:
+                dtslogger.info("Running new version of `dt-code-api` module.")
+                docker.containers.run(
+                    code_api_image,
+                    labels=compose_labels,
+                    detach=True,
+                    name="code-api",
+                    **DTCommand.CODE_API_CONTAINER_CONFIG
+                )
+            except dockerlib.errors.ImageNotFound:
+                # this should not have happened
+                dtslogger.info("Image for module `dt-code-api` not found. Contact administrator.")
+                return
+            except dockerlib.errors.APIError as e:
+                # this should not have happened
+                dtslogger.info("An error occurred while running the code-api container. "
+                               f"The error reads:\n\n{str(e)}")
+                return
+
+        # wait for the code-api to boot up
+        stime = time.time()
+        checkpoint = 0
+        max_checkpoints = 6
+        checkpoint_every_sec = 10
+        first_contact_time = None
+        code_status = {}
+        code_api_url = functools.partial(DTCommand.get_code_api_url, hostname)
+        dtslogger.info("Waiting for the new code-api container to boot up...")
+        while True:
+            try:
+                url = code_api_url("modules/status")
+                dtslogger.debug(f'GET: "{url}"')
+                res = requests.get(url, timeout=5)
+                if first_contact_time is None:
+                    first_contact_time = time.time()
+                code_status = res.json()['data']
+                # ---
+                need_to_wait_more = False
+                # make sure we are monitoring something
+                if len(code_status) == 0:
+                    need_to_wait_more = True
+                # check status of every module, make sure they are all checked out
+                for _, module in code_status.items():
+                    if module["status"] in ["UNKNOWN"]:
+                        need_to_wait_more = True
+                # wait a little longer if necessary
+                if not need_to_wait_more:
+                    break
+            except requests.exceptions.RequestException:
+                pass
+            except BaseException:
+                pass
+            new_checkpoint = int(math.floor((time.time() - stime) / checkpoint_every_sec))
+            if new_checkpoint > checkpoint:
+                dtslogger.info("Still waiting...")
+                checkpoint = new_checkpoint
+            if checkpoint > max_checkpoints:
+                dtslogger.error("The code-api container took too long to boot up, "
+                                "something must be wrong. Contact administrator.")
+                return
+            time.sleep(2)
+        dtslogger.debug("Status:\n\n" + json.dumps(code_status, sort_keys=True, indent=4))
+
+        # ask the user for confirmation
+        modules = {}
+        for status in ["UPDATED", "BEHIND", "AHEAD", "NOT_FOUND", "UPDATING", "ERROR"]:
+            modules[status] = {
+                k: m for k, m in code_status.items() if m['status'] == status
+            }
+
+        # talk to the user
+        print(
+            f"\n"
+            f"Status:\n"
+            f"\t- Modules to update ({len(modules['BEHIND'])}):" +
+            f"\n\t\t-".join([''] + list(modules['BEHIND'].keys())) +
+            f"\n"
+            f"\t- Modules up-to-date ({len(modules['UPDATED'])}):" +
+            f"\n\t\t-".join([''] + list(modules['UPDATED'].keys())) +
+            f"\n"
+            f"\t- Modules ahead of the remote counterpart ({len(modules['AHEAD'])}):" +
+            f"\n\t\t-".join([''] + list(modules['AHEAD'].keys())) +
+            f"\n"
+        )
+        if len(modules['BEHIND']) == 0:
+            dtslogger.info('Nothing to do.')
+            return
+
+        # there is something to update
+        granted = ask_confirmation(
+            f"{len(modules['BEHIND'])} modules will be updated",
+            question="Do you want to continue?",
+            default='n'
+        )
+
         if not granted:
-            dtslogger.info("Bye!")
-            exit(0)
-        dtslogger.info("Updating:\n")
-        sys.stdout.flush()
-        updates_monitor.forget()
-
-        # remove packages that do not need update from the monitor
-        for name, (status, _) in copy.deepcopy(list(updates_monitor.items())):
-            if status in ["error", "not found", "up-to-date"]:
-                del updates_monitor[name]
-            else:
-                updates_monitor[name] = ("waiting", "yellow")
+            dtslogger.info("Sure, I won't update then.")
+            return
 
         # start update
-        workers = []
-        for image in need_update:
-            t = Thread(target=_pull_docker_image, args=(docker, image, updates_monitor))
-            workers.append(t)
-
-        # wait for the update to finish
         try:
-            for t in workers:
-                t.start()
-                t.join()
+            for module in modules['BEHIND']:
+                try:
+                    dtslogger.info(f"Updating module `{module}`...")
+                    update_url = DTCommand.get_code_api_url(hostname, f'module/update/{module}')
+                    try:
+                        dtslogger.debug(f'GET: "{update_url}"')
+                        res = requests.get(update_url, timeout=5)
+                        data = res.json()
+                        if data['status'] == 'error':
+                            dtslogger.warning(data['message'])
+                            dtslogger.warning(f"Skipping update for module `{module}`.")
+                            continue
+                        if data['status'] != 'ok':
+                            dtslogger.warning(f'Error occurred while updating module `{module}`.')
+                            dtslogger.warning(f"Skipping update for module `{module}`.")
+                            continue
+                    except requests.exceptions.RequestException:
+                        pass
+                    # allow some time for the code-api to pick up the action
+                    time.sleep(2)
+                    # start monitoring update
+                    res = DTCommand.monitor_update(hostname, module)
+                    if not res:
+                        raise requests.exceptions.RequestException()
+                    dtslogger.info(f"Module `{module}` successfully updated!")
+                except requests.exceptions.RequestException:
+                    dtslogger.error(f"An error occurred while updating the module `{module}`.")
+                    continue
         except KeyboardInterrupt:
-            exit(0)
-        print()
-        dtslogger.info("Update complete!")
-
-
-def _parse_time(time_iso):
-    time = None
-    try:
-        time = datetime.strptime(time_iso, "%Y-%m-%dT%H:%M:%S.%f")
-    except ValueError:
-        pass
-    return time
-
-
-def _get_remote_labels(image):
-    labels = None
-    metadata = None
-    try:
-        metadata = DTProject.inspect_remote_image(*image.split(":"))
-    except KeyboardInterrupt as e:
-        raise e
-    except BaseException:
-        pass
-    # ---
-    if metadata is not None and isinstance(metadata, dict):
-        remote_config = metadata["config"] if "config" in metadata else {}
-        labels = remote_config["Labels"] if "Labels" in remote_config else None
-    return labels
-
-
-def _pull_docker_image(client, image, monitor):
-    try:
-        repository, tag = image.split(":")
-        buffer = io.StringIO()
-        pbar = ProgressBar(scale=0.3, buf=buffer)
-        total_layers = set()
-        completed_layers = set()
-        for step in client.api.pull(repository, tag, stream=True, decode=True):
-            if "status" not in step or "id" not in step:
-                continue
-            total_layers.add(step["id"])
-            if step["status"] in ["Pull complete", "Already exists"]:
-                completed_layers.add(step["id"])
-            # compute progress
-            if len(total_layers) > 0:
-                progress = int(100 * len(completed_layers) / len(total_layers))
-                pbar.update(progress)
-                monitor[image] = (buffer.getvalue().strip("\n"), None)
-        pbar.update(100)
-        monitor[image] = ("updated", "green")
-    except KeyboardInterrupt:
-        return
-
-
-class UpdatesMonitor(OrderedDict):
-    def __init__(self):
-        super().__init__()
-        self._buffer = []
-        self._semaphore = Semaphore(1)
-        self._quiet = False
-
-    def __setitem__(self, key, value):
-        self._semaphore.acquire()
-        super(UpdatesMonitor, self).__setitem__(key, value)
-        # render
-        self._render()
-        self._semaphore.release()
-
-    def forget(self):
-        self._buffer = []
-
-    def _render(self):
-        if self._quiet:
+            dtslogger.info("Aborted")
             return
-        # clean buffer
-        sys.stdout.write("\033[F\033[K" * len(self._buffer))
-        sys.stdout.flush()
-        self._buffer = []
-        # get longest key
-        width = max(map(len, self.keys())) + 2
-        # populate buffer
-        for module, (status, color) in self.items():
-            padding = " " * (width - len(module))
-            self._buffer.append(f"    {module}:{padding}{colored(status, color)}")
-        # write buffer
-        print("\n".join(self._buffer))
-        sys.stdout.flush()
-        sys.stdout.flush()
+        print()
+
+    @staticmethod
+    def get_code_api_url(hostname, resource):
+        return f"http://{hostname}/code/{resource}"
+
+    @staticmethod
+    def monitor_update(hostname, module):
+        url = DTCommand.get_code_api_url(hostname, f"modules/status")
+        dtslogger.debug(f'GET(loop): "{url}"')
+        pbar = ProgressBar()
+        while True:
+            try:
+                res = requests.get(url, timeout=5)
+                code_status = res.json()['data']
+                if module not in code_status:
+                    dtslogger.error(f"Module `{module}` not found. Skipping.")
+                    return False
+                if code_status[module]['status'] == 'UPDATED':
+                    pbar.done()
+                    return True
+                if code_status[module]['status'] != 'UPDATING' or \
+                        'progress' not in code_status[module]:
+                    time.sleep(1)
+                    continue
+                pbar.set_header(code_status[module]['status_txt'] or 'Updating')
+                pbar.update(code_status[module]['progress'])
+            except requests.exceptions.RequestException:
+                pass
+            time.sleep(1)
+        pbar.done()
+        return False

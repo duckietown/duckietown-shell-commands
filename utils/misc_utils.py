@@ -1,3 +1,6 @@
+import ipaddress
+
+
 def human_time(time_secs, compact=False):
     label = lambda s: s[0] if compact else " " + s
     days = int(time_secs // 86400)
@@ -21,3 +24,11 @@ def human_size(value, suffix="B", precision=2):
             return f"%3.{precision}f %s%s" % (value, unit, suffix)
         value /= 1024.0
     return f"%.{precision}f%s%s".format(value, "Yi", suffix)
+
+
+def sanitize_hostname(hostname):
+    try:
+        ipaddress.ip_address(hostname)
+        return hostname
+    except ValueError:
+        return f"{hostname}.local" if not hostname.endswith(".local") else hostname

@@ -43,7 +43,10 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         group = parser.add_argument_group("Basic")
         group.add_argument(
-            "--duckiebot_name", default=None, help="Name of the Duckiebot on which to perform evaluation",
+            "--duckiebot_name",
+            "-b",
+            default=None,
+            help="Name of the Duckiebot on which to perform evaluation",
         )
         group.add_argument(
             "--image",
@@ -219,11 +222,13 @@ class DTCommand(DTCommandAbs):
         agent_env = {
             "AIDONODE_DATA_IN": "/fifos/agent-in",
             "AIDONODE_DATA_OUT": "fifo:/fifos/agent-out",
+            "HOSTNAME": parsed.duckiebot_name,
+            "VEHICLE_NAME": parsed.duckiebot_name,
         }
 
         agent_volumes = {
             fifo2_volume.name: {"bind": "/fifos", "mode": "rw"},
-            dir_fake_home: {"bind": "/data", "mode": "rw"},
+            dir_fake_home: {"bind": "/data/config", "mode": "rw"},
         }
 
         params = {
@@ -274,17 +279,14 @@ def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
 
     calib_files = [
-        "config/calibrations/camera_intrinsic/default.yaml",
-        "config/calibrations/camera_extrinsic/default.yaml",
-        "config/calibrations/kinematics/default.yaml"
-        "config/calibrations/camera_intrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/camera_extrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/kinematics/{duckiebot:s}.yaml",
+        "calibrations/camera_intrinsic/{duckiebot:s}.yaml",
+        "calibrations/camera_extrinsic/{duckiebot:s}.yaml",
+        "calibrations/kinematics/{duckiebot:s}.yaml",
     ]
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/{:s}".format(duckiebot_name, calib_file)
+        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
@@ -294,7 +296,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
                     calib_file, duckiebot_name
                 )
             )
-            continue
+            exit(-2)
         # make destination directory
         dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
         if not os.path.isdir(dirname):
@@ -303,12 +305,22 @@ def get_calibration_files(destination_dir, duckiebot_name):
         # save calibration file to disk
         # NOTE: all agent names in evaluations are "default" so need to copy
         #       the robot specific calibration to default
-        destination_file = os.path.join(dirname, "default.yaml")
+        destination_file = os.path.join(dirname, f"{duckiebot_name}.yaml")
         dtslogger.debug(
             'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
                 duckiebot_name, calib_file, destination_file
             )
         )
         with open(destination_file, "wb") as fd:
+            for chunk in res.iter_content(chunk_size=128):
+                fd.write(chunk)
+
+        destination_file2 = os.path.join(dirname, "default.yaml")
+        dtslogger.debug(
+            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
+                duckiebot_name, calib_file, destination_file2
+            )
+        )
+        with open(destination_file2, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
