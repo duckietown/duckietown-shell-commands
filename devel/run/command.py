@@ -122,10 +122,10 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username that owns the Docker image",
         )
         parser.add_argument(
-            "--rm",
-            default=True,
+            "--no-rm",
+            default=False,
             action="store_true",
-            help="Whether to remove the container once done"
+            help="Whether to NOT remove the container once stopped"
         )
         parser.add_argument(
             "-L",
@@ -370,7 +370,7 @@ class DTCommand(DTCommandAbs):
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
-        if parsed.rm:
+        if not parsed.no_rm:
             parsed.docker_args += ["--rm"]
         # add container name to docker args
         parsed.docker_args += ["--name", parsed.name]
