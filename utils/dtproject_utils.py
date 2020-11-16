@@ -167,7 +167,11 @@ class DTProject:
         return copy.copy(self._adapters)
 
     def is_release(self):
-        return self.head_version != "ND" if self._repository else False
+        if not self.is_clean():
+            return False
+        if self._repository and self.head_version != "ND":
+            return True
+        return False
 
     def is_clean(self):
         if self._repository:
