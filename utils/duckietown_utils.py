@@ -2,7 +2,15 @@ import re
 
 
 def get_robot_types():
-    return ["duckiebot", "duckiedrone", "watchtower", "greenstation", "workstation", "traffic_light"]
+    return [
+        "duckiebot",
+        "duckiedrone",
+        "watchtower",
+        "greenstation",
+        "workstation",
+        "traffic_light",
+        "duckietown"
+    ]
 
 
 def get_robot_configurations(robot_type):
@@ -13,6 +21,7 @@ def get_robot_configurations(robot_type):
         "greenstation": ["GS17"],
         "workstation": [None],
         "traffic_light": ["TL18", "TL19"],
+        "duckietown": ["DT20"]
     }
     if robot_type not in configurations:
         raise ValueError(f"Robot type {robot_type} not recognized!")
@@ -36,6 +45,7 @@ def get_robot_hardware(robot_configuration):
         "GS17": ("raspberry_pi", "3B+"),
         "TL18": ("raspberry_pi", "3B+"),
         "TL19": ("raspberry_pi", "3B+"),
+        "DT20": ("raspberry_pi", "4B2G"),
     }
     # ---
     if robot_configuration not in configuration_to_hardware:
