@@ -3,6 +3,7 @@ import getpass
 import json
 import os
 import pathlib
+import re
 import sys
 import shutil
 import subprocess
@@ -38,7 +39,7 @@ DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
-WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "town"]
+WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 
@@ -158,6 +159,9 @@ class DTCommand(DTCommandAbs):
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
+        # validate hostname
+        if not _validate_hostname(parsed.hostname):
+            return
         # default WiFi
         if parsed.wifi is None:
             if parsed.robot_type in WIRED_ROBOT_TYPES:
@@ -519,6 +523,13 @@ def step_setup(shell, parsed, data):
     dtslogger.info("Done!")
     # ---
     return {}
+
+
+def _validate_hostname(hostname):
+    if not re.match('^[a-zA-Z0-9]+$', hostname):
+        dtslogger.error('The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].')
+        return False
+    return True
 
 
 def _sudo_open(filepath, *_, **__):
