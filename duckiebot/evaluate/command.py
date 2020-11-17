@@ -262,7 +262,7 @@ class DTCommand(DTCommandAbs):
         duration = int(parsed.duration)
         # should we record a bag?
         if parsed.record_bag:
-            bag_container = record_bag(parsed.hostname, duration)
+            bag_container = record_bag(parsed.duckiebot_name, duration)
         else:
             bag_container = None
         dtslogger.info("Running for %d s" % duration)
