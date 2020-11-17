@@ -53,7 +53,9 @@ class DTCommand(DTCommandAbs):
             command=command,
             detach=False,
             stdout=True,
-            stderr=False
+            stderr=False,
+            auto_remove=True,
+            remove=True
         )
 
         # show only relevant lines
