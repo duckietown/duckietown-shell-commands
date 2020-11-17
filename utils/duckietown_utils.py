@@ -37,7 +37,7 @@ def get_robot_hardware(robot_configuration):
         "DB18": ("raspberry_pi", "3B+"),
         "DB19": ("raspberry_pi", "3B+"),
         "DB20": ("raspberry_pi", "4B2G"),
-        "DB-beta": ("jetson_nano", "1"),
+        "DB-beta": ("jetson_nano", "4GB"),
         "DD18": ("raspberry_pi", "3B+"),
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
