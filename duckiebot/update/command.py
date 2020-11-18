@@ -154,7 +154,7 @@ class DTCommand(DTCommandAbs):
         # wait for the code-api to boot up
         stime = time.time()
         checkpoint = 0
-        max_checkpoints = 6
+        max_checkpoints = 12
         checkpoint_every_sec = 10
         first_contact_time = None
         code_status = {}
