@@ -275,7 +275,8 @@ class DTCommand(DTCommandAbs):
         if parsed.mount and project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
             dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to force " "the execution of the command."
+                "If you know what you are doing, use --force (-f) to force " 
+                "the execution of the command."
             )
             if not parsed.force:
                 exit(1)
@@ -384,13 +385,20 @@ class DTCommand(DTCommandAbs):
                 exit(2)
             # make sure rsync is installed
             check_program_dependency("rsync")
-            # get project locations
-            local_path = project.path
-            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
-            # run rsync
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            cmd = f"rsync --archive {local_path} {remote_path}"
-            _run_cmd(cmd, shell=True)
+            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+            # get projects' locations
+            projects_to_sync = [parsed.workdir] if parsed.mount is True else []
+            # sync secondary projects
+            if isinstance(parsed.mount, str):
+                projects_to_sync.extend([
+                    os.path.abspath(os.path.join(os.getcwd(), p.strip()))
+                    for p in parsed.mount.split(",")
+                ])
+            # run rsync
+            for project_path in projects_to_sync:
+                cmd = f"rsync --archive {project_path} {remote_path}"
+                _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
         # run
         _run_cmd(
