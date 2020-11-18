@@ -54,7 +54,6 @@ class DTCommand(DTCommandAbs):
             detach=False,
             stdout=True,
             stderr=False,
-            auto_remove=True,
             remove=True
         )
 
