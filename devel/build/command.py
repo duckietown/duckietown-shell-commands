@@ -358,7 +358,6 @@ class DTCommand(DTCommandAbs):
                     docker.containers.run(
                         "multiarch/qemu-user-static:register",
                         remove=True,
-                        auto_remove=True,
                         privileged=True,
                         command="--reset",
                     )
