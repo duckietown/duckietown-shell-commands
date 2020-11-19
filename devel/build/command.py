@@ -31,7 +31,7 @@ from utils.dtproject_utils import (
     dtlabel,
     DISTRO_KEY,
 )
-from utils.misc_utils import human_time, human_size, sanitize_hostname
+from utils.misc_utils import human_time, human_size, sanitize_hostname, MultiCommand
 from utils.cli_utils import start_command_in_subprocess
 
 from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
@@ -181,6 +181,12 @@ class DTCommand(DTCommandAbs):
         )
         # get pre-parsed or parse arguments
         parsed = kwargs.get('parsed', None)
+        if not parsed:
+            # try to interpret it as a multi-command
+            multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+            if multi.is_multicommand:
+                multi.execute()
+                return
         if not parsed:
             parsed, _ = parser.parse_known_args(args=args)
         # ---
