@@ -59,6 +59,9 @@ run_on_first_boot () {
   chmod 600 /home/${DT_USER}/.ssh/authorized_keys
   chown -R ${DT_USER}:${DT_USER} /home/${DT_USER}/.ssh
 
+  # add user to the `root` group
+  adduser ${DT_USER} root
+
   # setup docker
   echo "Adding the user to the groups..."
   adduser ${DT_USER} docker
