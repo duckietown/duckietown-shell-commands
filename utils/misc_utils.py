@@ -41,7 +41,7 @@ class MultiCommand(object):
 
     @property
     def is_multicommand(self):
-        return len(self._values) > 0
+        return len(self._values) > 1
 
     def execute(self):
         workers = []
