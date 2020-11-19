@@ -8,7 +8,8 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
-from utils.misc_utils import human_size, sanitize_hostname, MultiCommand
+from utils.misc_utils import human_size, sanitize_hostname
+from utils.multi_command_utils import MultiCommand
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
