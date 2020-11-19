@@ -112,5 +112,15 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+  core:
+    image: duckietown/dt-core:daffy-arm32v7
+    container_name: core
+    restart: on-failure
+    network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
 volumes:
   compose-data:
