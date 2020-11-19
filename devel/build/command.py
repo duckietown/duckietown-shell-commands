@@ -215,7 +215,7 @@ class DTCommand(DTCommandAbs):
             parsed.stamp = True
             parsed.force_cache = True
             # check that the env variables are set
-            for key in ["ARCH", "DT_TOKEN"]:
+            for key in ["ARCH", "DT_TOKEN", "DOCKERHUB_PULL_USER", "DOCKERHUB_PULL_TOKEN"]:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -304,6 +304,13 @@ class DTCommand(DTCommandAbs):
                 buildargs["labels"][label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
+        # login (CI only)
+        if parsed.ci:
+            dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
+            docker.login(
+                username=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"],
+                password=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_TOKEN"]
+            )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()
