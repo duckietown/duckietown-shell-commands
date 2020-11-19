@@ -8,7 +8,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
-from utils.misc_utils import human_size, sanitize_hostname
+from utils.misc_utils import human_size, sanitize_hostname, MultiCommand
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
@@ -168,10 +168,15 @@ class DTCommand(DTCommandAbs):
             help="Sync code from local project to remote"
         )
         parser.add_argument("docker_args", nargs="*", default=[])
+        # try to interpret it as a multi-command
+        multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+        if multi.is_multicommand:
+            multi.execute()
+            return
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
             idx = args.index("--")
-            args = args[:idx] + ["--", "--fake"] + args[idx + 1 :]
+            args = args[:idx] + ["--", "--fake"] + args[idx + 1:]
         except ValueError:
             pass
         # parse arguments
