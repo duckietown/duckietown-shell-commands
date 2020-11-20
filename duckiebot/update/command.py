@@ -51,6 +51,12 @@ class DTCommand(DTCommandAbs):
             help="Recreate the code-api container",
         )
         parser.add_argument(
+            "--check",
+            default=False,
+            action="store_true",
+            help="Force re-check",
+        )
+        parser.add_argument(
             "vehicle",
             nargs=1,
             help="Name of the Duckiebot to check software status for"
@@ -93,7 +99,7 @@ class DTCommand(DTCommandAbs):
                         return
                     time.sleep(2)
 
-        if parsed.codeapi_recreate:
+        if parsed.codeapi_recreate or parsed.check:
             # get old code-api container
             container = None
             try:
@@ -159,7 +165,7 @@ class DTCommand(DTCommandAbs):
         first_contact_time = None
         code_status = {}
         code_api_url = functools.partial(DTCommand.get_code_api_url, hostname)
-        dtslogger.info("Waiting for the new code-api container to boot up...")
+        dtslogger.info("Waiting for the code-api module...")
         while True:
             try:
                 url = code_api_url("modules/status")
