@@ -188,7 +188,7 @@ class DTCommand(DTCommandAbs):
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-            exercise_cmd = f"rsync  {working_dir} {remote_base_path}"
+            exercise_cmd = f"rsync -r {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
 
             # arch
