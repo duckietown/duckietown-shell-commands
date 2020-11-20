@@ -17,6 +17,7 @@ from utils.docker_utils import (
     DEFAULT_REGISTRY,
     DOCKER_INFO,
     get_endpoint_architecture,
+    get_endpoint_ncpus,
     get_client,
     pull_image
 )
@@ -311,6 +312,8 @@ class DTCommand(DTCommandAbs):
                 buildargs["labels"][label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
+        # build-arg NCPUS
+        buildargs['buildargs']['NCPUS'] = str(get_endpoint_ncpus(parsed.machine))
         # login (CI only)
         if parsed.ci:
             dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
