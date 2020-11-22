@@ -209,6 +209,7 @@ class DTCommand(DTCommandAbs):
             tty=True,
             detach=True,
             environment=env_vars,
+            remove=True
         )
 
         if parsed.demo_name == "base" or parsed.debug:
