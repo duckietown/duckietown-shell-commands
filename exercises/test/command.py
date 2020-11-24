@@ -16,7 +16,7 @@ from typing import List
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
-from nbconvert.exporters import PythonExporter
+# from nbconvert.exporters import PythonExporter
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
@@ -647,22 +647,22 @@ def launch_bridge(
     return bridge_container
 
 
-def convertNotebook(filepath, export_path) -> bool:
-    if not os.path.exists(filepath):
-        return False
-    nb = nbformat.read(filepath, as_version=4)
-    exporter = PythonExporter()
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-    try:
-        with open(export_path, "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        return False
-
-    return True
+#def convertNotebook(filepath, export_path) -> bool:
+#    if not os.path.exists(filepath):
+#        return False
+#    nb = nbformat.read(filepath, as_version=4)
+#    exporter = PythonExporter()
+#
+#    # source is a tuple of python source code
+#    # meta contains metadata
+#    source, _ = exporter.from_notebook_node(nb)
+#    try:
+#        with open(export_path, "w+") as fh:
+#            fh.writelines(source)
+#    except Exception:
+#        return False
+#
+#    return True
 
 
 def load_yaml(file_name):
