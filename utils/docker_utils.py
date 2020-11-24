@@ -38,6 +38,18 @@ Docker Endpoint:
 """
 
 
+def get_endpoint_ncpus(epoint=None):
+    client = get_client(epoint)
+    epoint_ncpus = 1
+    try:
+        epoint_ncpus = client.info()["NCPU"]
+        dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
+    except BaseException:
+        dtslogger.warning(f"Failed to retrieve the number of CPUs on the Docker endpoint. "
+                          f"Using default value of {epoint_ncpus}.")
+    return epoint_ncpus
+
+
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     from utils.dtproject_utils import CANONICAL_ARCH
 
@@ -64,16 +76,34 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
 
 def get_client(endpoint=None):
     if endpoint is None:
-        return docker.from_env()
-    return (
-        endpoint
-        if isinstance(endpoint, docker.DockerClient)
-        else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
-    )
+        client = docker.from_env()
+    else:
+        # create client
+        client = endpoint if isinstance(endpoint, docker.DockerClient) \
+            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+    # (try to) login
+    try:
+        _login_client(client)
+    except BaseException:
+        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+    # ---
+    return client
 
 
 def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
-    return docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
+    client = docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
+    try:
+        _login_client(client)
+    except BaseException:
+        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+    return client
+
+
+def _login_client(client):
+    username = os.environ.get('DOCKERHUB_USERNAME', None)
+    password = os.environ.get('DOCKERHUB_PASSWORD', None)
+    if username is not None and password is not None:
+        client.login(username=username, password=password)
 
 
 # TODO quick hack to make this work - duplication of code above bad

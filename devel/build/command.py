@@ -17,6 +17,7 @@ from utils.docker_utils import (
     DEFAULT_REGISTRY,
     DOCKER_INFO,
     get_endpoint_architecture,
+    get_endpoint_ncpus,
     get_client,
     pull_image
 )
@@ -174,6 +175,12 @@ class DTCommand(DTCommandAbs):
             help="Build the code documentation as well"
         )
         parser.add_argument(
+            "--ncpus",
+            default=None,
+            type=int,
+            help="Value to pass as build-arg `NCPUS` to docker build."
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -311,6 +318,9 @@ class DTCommand(DTCommandAbs):
                 buildargs["labels"][label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
+        # build-arg NCPUS
+        buildargs['buildargs']['NCPUS'] = \
+            str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         # login (CI only)
         if parsed.ci:
             dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
