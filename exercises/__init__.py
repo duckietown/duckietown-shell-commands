@@ -22,12 +22,12 @@ def import_or_install(package, name):
         pip.main(["install", package])
 
 
-# to clone the mooc repo
-import_or_install("gitpyhton", "git")
+# # to clone the mooc repo
+# import_or_install("gitpyhton", "git")
 
-# to convert the notebook into a python script
-import_or_install("nbformat", "nbformat")
-import_or_install("nbconvert", "nbconvert")
+# # to convert the notebook into a python script
+# import_or_install("nbformat", "nbformat")
+# import_or_install("nbconvert", "nbconvert")
 
 
 # constants
