@@ -21,6 +21,7 @@ from nbconvert.exporters import PythonExporter
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
 from utils.networking_utils import get_duckiebot_ip
+from utils.exercise_utils import BASELINE_IMAGES
 
 usage = """
 
@@ -40,7 +41,6 @@ REMOTE_ARCH = "arm32v7"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
 SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-baseline-duckietown:" + BRANCH
 VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
 MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + "-amd64"  # no arch
 BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
@@ -131,6 +131,25 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
+        #
+        #   get current working directory to check if it is an exercise directory
+        #
+        working_dir = os.getcwd()
+        exercise_name = os.path.basename(working_dir)
+        dtslogger.info(f"Running exercise {exercise_name}")
+        if not os.path.exists(working_dir + "/config.yaml"):
+            msg = "You must run this command inside the exercise directory"
+            raise InvalidUserInput(msg)
+
+        config = load_yaml(working_dir + "/config.yaml")
+        env_dir = working_dir + "/assets/setup/"
+
+        try:
+            agent_base_image = BASELINE_IMAGES[config['agent_base']]
+        except Exception as e:
+            dtslogger.error(f"Check config.yaml. Unknown base image {config['agent_base']}. " 
+                            f"Available base images are {BASELINE_IMAGES}")
+
         # get the local docker client
         local_client = check_docker_environment()
 
@@ -157,26 +176,13 @@ class DTCommand(DTCommandAbs):
         if parsed.staging:
             sim_image = AIDO_REGISTRY + "/" + SIMULATOR_IMAGE
             middle_image = AIDO_REGISTRY + "/" + MIDDLEWARE_IMAGE
-            ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
+            agent_base_image = AIDO_REGISTRY + "/" + agent_base_image
         else:
             sim_image = SIMULATOR_IMAGE
             middle_image = MIDDLEWARE_IMAGE
-            ros_template_image = ROS_TEMPLATE_IMAGE
 
         # done input checks
 
-        #
-        #   get current working directory to check if it is an exercise directory
-        #
-        working_dir = os.getcwd()
-        exercise_name = os.path.basename(working_dir)
-        dtslogger.info(f"Running exercise {exercise_name}")
-        if not os.path.exists(working_dir + "/config.yaml"):
-            msg = "You must run this command inside the exercise directory"
-            raise InvalidUserInput(msg)
-
-        config = load_yaml(working_dir + "/config.yaml")
-        env_dir = working_dir + "/assets/setup/"
 
 
 
@@ -200,18 +206,18 @@ class DTCommand(DTCommandAbs):
         ros_container_name = "ros_core"
         vnc_container_name = "dt-gui-tools"
         middleware_container_name = "mooc-fifos-connector"
-        ros_template_container_name = "agent"
+        agent_container_name = "agent"
         bridge_container_name = "dt-duckiebot-fifos-bridge"
 
         if parsed.restart_agent:
-            remove_if_running(agent_client, ros_template_container_name)
+            remove_if_running(agent_client, agent_container_name)
             remove_if_running(agent_client, bridge_container_name)
         else:
             remove_if_running(agent_client, sim_container_name)
             remove_if_running(agent_client, ros_container_name)
             remove_if_running(local_client, vnc_container_name)  # vnc always local
             remove_if_running(agent_client, middleware_container_name)
-            remove_if_running(agent_client, ros_template_container_name)
+            remove_if_running(agent_client, agent_container_name)
             remove_if_running(agent_client, bridge_container_name)
             try:
                 dict = agent_client.networks.prune()
@@ -245,12 +251,12 @@ class DTCommand(DTCommandAbs):
 
         # let's update the images based on arch
         ros_image = f"{ROSCORE_IMAGE}-{arch}"
-        ros_template_image = f"{ros_template_image}-{arch}"
+        agent_base_image = f"{agent_base_image}-{arch}"
         bridge_image = f"{BRIDGE_IMAGE}-{arch}"
 
         # let's see if we should pull the images
         local_images = [VNC_IMAGE, middle_image, sim_image]
-        agent_images = [bridge_image, ros_image, ros_template_image]
+        agent_images = [bridge_image, ros_image, agent_base_image]
 
         if parsed.pull:
             for image in local_images:
@@ -300,14 +306,14 @@ class DTCommand(DTCommandAbs):
                 agent_client,
             )
             launch_agent(
-                ros_template_container_name,
+                agent_container_name,
                 env_dir,
                 ros_env,
                 fifos_bind,
                 parsed,
                 working_dir,
                 exercise_name,
-                ros_template_image,
+                agent_base_image,
                 agent_network,
                 agent_client,
                 duckiebot_name,
@@ -437,7 +443,7 @@ class DTCommand(DTCommandAbs):
 
 
         # Setup functions for monitor and cleanup
-        stop_attached_container = lambda: agent_client.containers.get(ros_template_container_name).kill()
+        stop_attached_container = lambda: agent_client.containers.get(agent_container_name).kill()
         launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
@@ -447,14 +453,14 @@ class DTCommand(DTCommandAbs):
 
         try:
             ros_template_container = launch_agent(
-                ros_template_container_name,
+                agent_container_name,
                 env_dir,
                 ros_env,
                 fifos_bind,
                 parsed,
                 working_dir,
                 exercise_name,
-                ros_template_image,
+                agent_base_image,
                 agent_network,
                 agent_client,
                 duckiebot_name,
@@ -532,14 +538,14 @@ def monitor_containers(containers_to_monitor: List, stop_attached_container):
         time.sleep(5)
 
 def launch_agent(
-    ros_template_container_name,
+    agent_container_name,
     env_dir,
     ros_env,
     fifos_bind,
     parsed,
     working_dir,
     exercise_name,
-    ros_template_image,
+    agent_base_image,
     agent_network,
     agent_client,
     duckiebot_name,
@@ -547,7 +553,7 @@ def launch_agent(
 ):
     # Let's launch the ros template
     # TODO read from the config.yaml file which template we should launch
-    dtslogger.info(f"Running the {ros_template_container_name} from {ros_template_image}")
+    dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
 
     ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
     ros_template_env = {**ros_env, **ros_template_env}
@@ -572,8 +578,8 @@ def launch_agent(
         get_calibration_files(working_dir + "/assets", parsed.duckiebot_name)
 
     ros_template_params = {
-        "image": ros_template_image,
-        "name": ros_template_container_name,
+        "image": agent_base_image,
+        "name": agent_container_name,
         "volumes": ros_template_volumes,
         "environment": ros_template_env,
         "detach": True,
@@ -598,7 +604,7 @@ def launch_agent(
 
     attach_cmd = "docker %s attach %s" % (
         "" if parsed.local else f"-H {duckiebot_name}.local",
-        ros_template_container_name,
+        agent_container_name,
     )
     start_command_in_subprocess(attach_cmd)
 
