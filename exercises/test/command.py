@@ -391,7 +391,6 @@ class DTCommand(DTCommandAbs):
             "image": ros_image,
             "name": ros_container_name,
             "environment": ros_env,
-            "ports": ros_port,
             "detach": True,
             "tty": True,
             "command": f"roscore -p {AGENT_ROS_PORT}",
@@ -399,6 +398,7 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             ros_params["network"] = agent_network.name
+            ros_params["ports"] = ros_port
         else:
             ros_params["network_mode"] = "host"
 
