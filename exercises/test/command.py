@@ -377,38 +377,40 @@ class DTCommand(DTCommandAbs):
         ros_container = agent_client.containers.run(**ros_params)
         containers_to_monitor.append(ros_container)
 
-        # let's launch vnc
-        dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
-        vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = ros_env
-        if not parsed.local:
-            vnc_env["VEHICLE_NAME"] = duckiebot_name
-            vnc_env["ROS_MASTER"] = duckiebot_name
-            vnc_env["HOSTNAME"] = duckiebot_name
-        vnc_params = {
-            "image": vnc_image,
-            "name": vnc_container_name,
-            "command": "dt-launcher-vnc",
-            "environment": vnc_env,
-            "stream": True,
-            "ports": vnc_port,
-            "detach": True,
-            "tty": True,
-        }
+        if parsed.source_arch is DEFAULT_ARCH:
 
-        if parsed.local:
-            vnc_params["network"] = agent_network.name
-        else:
-            if not running_on_mac:
-                vnc_params["network_mode"] = "host"
+            # let's launch vnc
+            dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
+            vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
+            vnc_env = ros_env
+            if not parsed.local:
+                vnc_env["VEHICLE_NAME"] = duckiebot_name
+                vnc_env["ROS_MASTER"] = duckiebot_name
+                vnc_env["HOSTNAME"] = duckiebot_name
+            vnc_params = {
+                "image": vnc_image,
+                "name": vnc_container_name,
+                "command": "dt-launcher-vnc",
+                "environment": vnc_env,
+                "stream": True,
+                "ports": vnc_port,
+                "detach": True,
+                "tty": True,
+            }
 
-        if parsed.debug:
-            dtslogger.info(vnc_params)
+            if parsed.local:
+                vnc_params["network"] = agent_network.name
+            else:
+                if not running_on_mac:
+                    vnc_params["network_mode"] = "host"
 
-        # vnc always runs on local client
-        pull_if_not_exist(local_client, vnc_params["image"])
-        vnc_container = local_client.containers.run(**vnc_params)
-        containers_to_monitor.append(vnc_container)
+            if parsed.debug:
+                dtslogger.info(vnc_params)
+
+            # vnc always runs on local client
+            pull_if_not_exist(local_client, vnc_params["image"])
+            vnc_container = local_client.containers.run(**vnc_params)
+            containers_to_monitor.append(vnc_container)
 
 
         # Setup functions for monitor and cleanup
