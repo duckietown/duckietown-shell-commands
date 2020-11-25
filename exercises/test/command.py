@@ -270,26 +270,16 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Pulling {image}")
                 pull_image(image, agent_client)
 
-        if not parsed.restart_agent:
-            try:
-                agent_network = agent_client.networks.create("agent-network", driver="bridge")
-            except Exception as e:
-                dtslogger.warn("error creating network: %s" % e)
+        try:
+            agent_network = agent_client.networks.create("agent-network", driver="bridge")
+        except Exception as e:
+            dtslogger.warn("error creating network: %s" % e)
 
-            try:
-                fifos_volume = agent_client.volumes.create(name="fifos")
-            except Exception as e:
-                dtslogger.warn("error creating volume: %s" % e)
-                raise
-        else:
-            try:
-                agent_network = agent_client.networks.get("agent-network")
-            except Exception as e:
-                dtslogger.warn("error getting network: %s" % e)
-            try:
-                fifos_volume = agent_client.volumes.get("fifos")
-            except Exception as e:
-                dtslogger.warn("error getting volume: %s" % e)
+        try:
+            fifos_volume = agent_client.volumes.create(name="fifos")
+        except Exception as e:
+            dtslogger.warn("error creating volume: %s" % e)
+            raise
 
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
 
@@ -298,32 +288,6 @@ class DTCommand(DTCommandAbs):
             running_on_mac = True
         else:
             running_on_mac = False  # if we aren't running on mac we're on Linux
-
-        if parsed.restart_agent:
-            launch_bridge(
-                bridge_container_name,
-                duckiebot_name,
-                fifos_bind,
-                bridge_image,
-                parsed,
-                running_on_mac,
-                agent_client,
-            )
-            launch_agent(
-                agent_container_name,
-                env_dir,
-                ros_env,
-                fifos_bind,
-                parsed,
-                working_dir,
-                exercise_name,
-                agent_base_image,
-                agent_network,
-                agent_client,
-                duckiebot_name,
-                config,
-            )
-            exit(0)
 
         # Launch things one by one
 
