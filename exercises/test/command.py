@@ -263,9 +263,10 @@ class DTCommand(DTCommandAbs):
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         if parsed.pull:
-            for image in local_images:
-                dtslogger.info(f"Pulling {image}")
-                pull_image(image, local_client)
+            if parsed.source_arch is DEFAULT_ARCH:
+                for image in local_images:
+                    dtslogger.info(f"Pulling {image}")
+                    pull_image(image, local_client)
             for image in agent_images:
                 dtslogger.info(f"Pulling {image}")
                 pull_image(image, agent_client)
