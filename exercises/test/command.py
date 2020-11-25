@@ -40,9 +40,9 @@ DEFAULT_ARCH = "amd64"
 REMOTE_ARCH = "arm32v7"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
-SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
-VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
-MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + "-amd64"  # no arch
+SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH
+VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH
+MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH
 BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
@@ -111,22 +111,33 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--restart_agent",
-            "-r",
-            dest="restart_agent",
-            action="store_true",
-            default=False,
-            help="Flag to only restart the agent container and nothing else. Useful when you are developing "
-            "your agent",
-        )
-
-        parser.add_argument(
             "--interactive",
             "-i",
             dest="interactive",
             action="store_true",
             default=False,
             help="Will run the agent in interactive mode with the code mounted",
+        )
+
+        parser.add_argument(
+            "--source_arch",
+            dest="source_arch",
+            default=DEFAULT_ARCH,
+            help="The architecture of the "
+        )
+
+        parser.add_argument(
+            "--source_arch",
+            dest="source_arch",
+            default="amd64",
+            help="The architecture of the machine that we are running this command on (e.g., the laptop)"
+        )
+
+        parser.add_argument(
+            "--remote_arch",
+            dest="remote_arch",
+            default=REMOTE_ARCH,
+            help="The architecture of the machine that we are running the agent on (e.g., the laptop)"
         )
 
         parsed = parser.parse_args(args)
@@ -188,7 +199,7 @@ class DTCommand(DTCommandAbs):
 
         if parsed.local:
             agent_client = local_client
-            arch = DEFAULT_ARCH
+            arch = parsed.source_arch
         else:
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
@@ -198,7 +209,7 @@ class DTCommand(DTCommandAbs):
             _run_cmd(exercise_cmd, shell=True)
 
             # arch
-            arch = REMOTE_ARCH
+            arch = parsed.remote_arch
             agent_client = duckiebot_client
 
         # let's clean up any mess from last time
@@ -209,27 +220,23 @@ class DTCommand(DTCommandAbs):
         agent_container_name = "agent"
         bridge_container_name = "dt-duckiebot-fifos-bridge"
 
-        if parsed.restart_agent:
-            remove_if_running(agent_client, agent_container_name)
-            remove_if_running(agent_client, bridge_container_name)
-        else:
-            remove_if_running(agent_client, sim_container_name)
-            remove_if_running(agent_client, ros_container_name)
-            remove_if_running(local_client, vnc_container_name)  # vnc always local
-            remove_if_running(agent_client, middleware_container_name)
-            remove_if_running(agent_client, agent_container_name)
-            remove_if_running(agent_client, bridge_container_name)
-            try:
-                dict = agent_client.networks.prune()
-                dtslogger.info("Successfully removed network %s" % dict)
-            except Exception as e:
-                dtslogger.warn("error removing volume: %s" % e)
+        remove_if_running(agent_client, sim_container_name)
+        remove_if_running(agent_client, ros_container_name)
+        remove_if_running(local_client, vnc_container_name)  # vnc always local
+        remove_if_running(agent_client, middleware_container_name)
+        remove_if_running(agent_client, agent_container_name)
+        remove_if_running(agent_client, bridge_container_name)
+        try:
+            dict = agent_client.networks.prune()
+            dtslogger.info("Successfully removed network %s" % dict)
+        except Exception as e:
+            dtslogger.warn("error removing volume: %s" % e)
 
-            try:
-                dict = agent_client.volumes.prune()
-                dtslogger.info("Successfully removed volume %s" % dict)
-            except Exception as e:
-                dtslogger.warn("error removing volume: %s" % e)
+        try:
+            dict = agent_client.volumes.prune()
+            dtslogger.info("Successfully removed volume %s" % dict)
+        except Exception as e:
+            dtslogger.warn("error removing volume: %s" % e)
 
         if parsed.stop:
             exit(0)
@@ -254,8 +261,12 @@ class DTCommand(DTCommandAbs):
         agent_base_image = f"{agent_base_image}-{arch}"
         bridge_image = f"{BRIDGE_IMAGE}-{arch}"
 
+        vnc_image = f"{VNC_IMAGE}-{parsed.source_arch}"
+        middle_image = f"{middle_image}-{parsed.source_arch}"
+        sim_image = f"{sim_image}-{parsed.source_arch}"
+
         # let's see if we should pull the images
-        local_images = [VNC_IMAGE, middle_image, sim_image]
+        local_images = [vnc_image, middle_image, sim_image]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         if parsed.pull:
@@ -409,7 +420,7 @@ class DTCommand(DTCommandAbs):
         containers_to_monitor.append(ros_container)
 
         # let's launch vnc
-        dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
+        dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
         if not parsed.local:
@@ -417,7 +428,7 @@ class DTCommand(DTCommandAbs):
             vnc_env["ROS_MASTER"] = duckiebot_name
             vnc_env["HOSTNAME"] = duckiebot_name
         vnc_params = {
-            "image": VNC_IMAGE,
+            "image": vnc_image,
             "name": vnc_container_name,
             "command": "dt-launcher-vnc",
             "environment": vnc_env,
