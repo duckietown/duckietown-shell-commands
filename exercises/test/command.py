@@ -122,13 +122,6 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--source_arch",
             dest="source_arch",
-            default=DEFAULT_ARCH,
-            help="The architecture of the "
-        )
-
-        parser.add_argument(
-            "--source_arch",
-            dest="source_arch",
             default="amd64",
             help="The architecture of the machine that we are running this command on (e.g., the laptop)"
         )
