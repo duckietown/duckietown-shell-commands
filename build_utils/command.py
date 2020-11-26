@@ -42,7 +42,7 @@ class DTCommand(DTCommandAbs):
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
         container_name = f"build_utils_{timestamp}_{random.randint(0,10)}"
-        logname = f"/tmp/{container_name}.txt"
+        logname = f"/tmp/duckietown/dt-shell-commands/build_utils/{container_name}.txt"
 
         no_pull = parsed.no_pull
         gdr = generic_docker_run(
