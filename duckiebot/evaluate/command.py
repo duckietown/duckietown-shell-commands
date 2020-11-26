@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
             
-       if not parsed.duckiebot_name:
+        if not parsed.duckiebot_name:
             dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
