@@ -431,7 +431,7 @@ class DTCommand(DTCommandAbs):
             except (ImageNotFound, BaseException):
                 is_present = False
             # ---
-            if not is_present:
+            if not is_present and parsed.pull:
                 # try to pull the same image so Docker can use it as cache source
                 dtslogger.info(f'Pulling image "{image}" to use as cache...')
                 try:

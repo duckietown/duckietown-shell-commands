@@ -23,7 +23,7 @@ def import_or_install(package, name):
 
 
 # to clone the mooc repo
-import_or_install("gitpyhton", "git")
+import_or_install("gitpython", "git")
 
 # to convert the notebook into a python script
 import_or_install("nbformat", "nbformat")

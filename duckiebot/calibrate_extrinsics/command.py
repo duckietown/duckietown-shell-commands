@@ -66,6 +66,7 @@ Calibrate:
             volumes=bind_duckiebot_data_dir(),
             command="dt-launcher-calibrate-extrinsics",
             environment=env,
+            remove=True
         )
         dtslogger.info("Done!")
 
@@ -81,5 +82,6 @@ Calibrate:
                 volumes=bind_duckiebot_data_dir(),
                 command="dt-launcher-validate-extrinsics",
                 environment=env,
+                remove=True
             )
             dtslogger.info("Done!")

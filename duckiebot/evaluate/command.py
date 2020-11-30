@@ -100,6 +100,9 @@ class DTCommand(DTCommandAbs):
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
+            
+        if not parsed.duckiebot_name:
+            dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
             # if we are running remotely then we need to copy over the calibration
