@@ -57,6 +57,12 @@ class DTCommand(DTCommandAbs):
             help="Force re-check",
         )
         parser.add_argument(
+            "--yes", "-y",
+            default=False,
+            action="store_true",
+            help="Don't ask for confirmation",
+        )
+        parser.add_argument(
             "vehicle",
             nargs=1,
             help="Name of the Duckiebot to check software status for"
@@ -75,6 +81,7 @@ class DTCommand(DTCommandAbs):
         endpoint_arch = get_endpoint_architecture_from_ip(duckiebot_ip)
         code_api_image = f"duckietown/dt-code-api:{distro}-{endpoint_arch}"
         dtslogger.debug(f"Working with code-api image `{code_api_image}`")
+        version_str = ""
 
         # full?
         if parsed.full:
@@ -91,6 +98,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.debug(f'Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.')
                     # ---
                     pull_image(code_api_image, endpoint=docker)
+                    version_str = " new version of"
                     break
                 except dockerlib.errors.APIError:
                     if trial_no == num_trials:
@@ -139,7 +147,7 @@ class DTCommand(DTCommandAbs):
 
             # run new code-api container
             try:
-                dtslogger.info("Running new version of `dt-code-api` module.")
+                dtslogger.info(f"Running{version_str} `dt-code-api` module.")
                 docker.containers.run(
                     code_api_image,
                     labels=compose_labels,
@@ -227,7 +235,7 @@ class DTCommand(DTCommandAbs):
             return
 
         # there is something to update
-        granted = ask_confirmation(
+        granted = parsed.yes or ask_confirmation(
             f"{len(modules['BEHIND'])} modules will be updated",
             question="Do you want to continue?",
             default='n'
