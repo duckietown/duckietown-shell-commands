@@ -61,13 +61,13 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.1.1"
+DISK_IMAGE_VERSION = "1.2.0"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "4.4"
-JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
-INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" f"{JETPACK_DISK_IMAGE_NAME}.zip"
-)
+JETPACK_VERSION = "4.4.1"
+JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
+INPUT_DISK_IMAGE_URL = lambda v: \
+    f"https://duckietown-public-storage.s3.amazonaws.com/" \
+    f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
 TEMPLATE_FILE_VALIDATOR = {
     "APP:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
@@ -100,6 +100,10 @@ APT_PACKAGES_TO_INSTALL = [
     # 'v4l2loopback-dkms',
     "v4l2loopback-utils",
 ]
+APT_PACKAGES_TO_HOLD = [
+    "nvidia-l4t-bootloader",
+    "blueman"
+]
 
 
 class DTCommand(DTCommandAbs):
@@ -107,41 +111,64 @@ class DTCommand(DTCommandAbs):
     help = "Prepares an .img disk file for an Nvidia Jetson Nano"
 
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args, **kwargs):
         parser = argparse.ArgumentParser()
         # define parser arguments
         parser.add_argument(
             "--steps",
             type=str,
             default=",".join(SUPPORTED_STEPS),
-            help="List of steps to perform (comma-separated)",
+            help="List of steps to perform (comma-separated)"
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps",
+            type=str,
+            default="",
+            help="List of steps to skip (comma-separated)"
         )
         parser.add_argument(
-            "-o", "--output", type=str, default=None, help="The destination directory for the output files"
+            "-o",
+            "--output",
+            type=str,
+            default=None,
+            help="The destination directory for the output files"
         )
         parser.add_argument(
             "--no-cache",
             default=False,
             action="store_true",
-            help="Whether to use previously downloaded base ISO image/zip archive (download step)",
+            help="Whether to use previously downloaded base ISO image/zip archive (download step)"
         )
         parser.add_argument(
-            "--workdir", type=str, default=TMP_WORKDIR, help="(Optional) temporary working directory to use"
+            "--workdir",
+            type=str,
+            default=TMP_WORKDIR,
+            help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
             default=False,
             action="store_true",
             help="Whether to push the final compressed image to the Duckietown Cloud Storage",
+        )
+        parser.add_argument(
+            "-J",
+            "--jetson_version",
+            required=True,
+            choices=["2gb", "4gb"],
+            help="Nvidia Jetson Nano Developer Kit version",
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -181,7 +208,8 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(parsed.output):
             os.makedirs(parsed.output)
         # define output file template
-        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{JETPACK_DISK_IMAGE_NAME}.{ex}")
+        jetpack_disk_image_name = JETPACK_DISK_IMAGE_NAME(parsed.jetson_version)
+        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{jetpack_disk_image_name}.{ex}")
         input_image_name = pathlib.Path(in_file_path("img")).stem
         output_image_name = input_image_name.replace(JETPACK_VERSION, DISK_IMAGE_VERSION)
         out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
@@ -203,7 +231,7 @@ class DTCommand(DTCommandAbs):
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
-            "input_url": INPUT_DISK_IMAGE_URL,
+            "input_url": INPUT_DISK_IMAGE_URL(parsed.jetson_version),
             "base_type": "Nvidia Jetpack",
             "base_version": JETPACK_VERSION,
             "environment": {
@@ -310,22 +338,16 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Looking for ZIP image file...")
             if not os.path.isfile(in_file_path("zip")):
                 dtslogger.info("Downloading ZIP image...")
-                try:
-                    run_cmd(
-                        [
-                            "wget",
-                            "--no-verbose",
-                            "--show-progress",
-                            "--continue",
-                            "--output-document",
-                            in_file_path("zip"),
-                            INPUT_DISK_IMAGE_URL,
-                        ]
-                    )
-                except KeyboardInterrupt as e:
-                    dtslogger.info("Cleaning up...")
-                    run_cmd(["rm", "-f", in_file_path("zip")])
-                    raise e
+                shell.include.data.get.command(
+                    shell,
+                    [],
+                    parsed=SimpleNamespace(
+                        file=[in_file_path("zip")],
+                        object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR,
+                                f"{jetpack_disk_image_name}.zip")],
+                        space="public",
+                    ),
+                )
             else:
                 dtslogger.info(f"Reusing cached ZIP image file [{in_file_path('zip')}].")
             # unzip (if necessary)
@@ -425,7 +447,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug("$ %s" % cmd)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
             time.sleep(1)
-            p.communicate("w\ny\n".encode("ascii"))
+            p.communicate("x\ne\nw\ny\n".encode("ascii"))
             dtslogger.info("Done!")
             # ---
             cache_step("fix")
@@ -524,18 +546,20 @@ class DTCommand(DTCommandAbs):
                             "The full error is:\n\t%s" % str(e)
                         )
                         exit(2)
+                    # compile list of packages to hold
+                    to_hold = ' '.join(APT_PACKAGES_TO_HOLD)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
                         # run full-upgrade on the new root
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "apt update && "
-                            "apt-mark hold nvidia-l4t-bootloader && "
+                            f"apt-mark hold {to_hold} && "
                             "apt --yes --force-yes --no-install-recommends"
                             ' -o Dpkg::Options::="--force-confdef"'
                             ' -o Dpkg::Options::="--force-confold"'
                             " full-upgrade && "
-                            "apt-mark unhold nvidia-l4t-bootloader",
+                            f"apt-mark unhold {to_hold}",
                         )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
