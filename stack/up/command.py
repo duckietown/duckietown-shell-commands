@@ -96,7 +96,7 @@ class DTCommand(DTCommandAbs):
             [
                 'docker-compose',
                 f"-H={H}",
-                "--project-name", parsed.stack,
+                "--project-name", parsed.stack.replace('/', '_'),
                 "--file", stack_file,
                 "up"
             ]
