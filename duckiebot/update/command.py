@@ -1,14 +1,23 @@
 import json
+import os
 import time
 import math
 import argparse
 import functools
+import random
+
 import requests
 
 import docker as dockerlib
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import pull_image, get_endpoint_architecture_from_ip, get_remote_client
+from utils.docker_utils import \
+    pull_image, \
+    get_endpoint_architecture_from_ip, \
+    get_remote_client, \
+    get_client, \
+    get_endpoint_architecture, \
+    DEFAULT_DOCKER_TCP_PORT
 from utils.cli_utils import ProgressBar, ask_confirmation
 from utils.duckietown_utils import get_distro_version
 from utils.networking_utils import get_duckiebot_ip
@@ -26,6 +35,8 @@ class DTCommand(DTCommandAbs):
             "/var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket"
         ]
     }
+
+    CODE_API_PORT = 8086
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -57,10 +68,16 @@ class DTCommand(DTCommandAbs):
             help="Force re-check",
         )
         parser.add_argument(
-            "--yes", "-y",
+            "-y", "--yes",
             default=False,
             action="store_true",
             help="Don't ask for confirmation",
+        )
+        parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run the updater module locally",
         )
         parser.add_argument(
             "vehicle",
@@ -71,14 +88,21 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
         vehicle = parsed.vehicle[0].rstrip('.local')
         hostname = f"{vehicle}.local"
+        code_api_port = DTCommand.CODE_API_PORT
 
         # open Docker client
-        duckiebot_ip = get_duckiebot_ip(vehicle)
-        docker = get_remote_client(duckiebot_ip)
+        if parsed.local:
+            docker = get_client()
+            endpoint_arch = get_endpoint_architecture()
+            container_name = f"code-api-{vehicle}"
+        else:
+            duckiebot_ip = get_duckiebot_ip(vehicle)
+            docker = get_remote_client(duckiebot_ip)
+            endpoint_arch = get_endpoint_architecture_from_ip(duckiebot_ip)
+            container_name = "code-api"
 
         # define code-api image name
         distro = get_distro_version(shell)
-        endpoint_arch = get_endpoint_architecture_from_ip(duckiebot_ip)
         code_api_image = f"duckietown/dt-code-api:{distro}-{endpoint_arch}"
         dtslogger.debug(f"Working with code-api image `{code_api_image}`")
         version_str = ""
@@ -87,6 +111,16 @@ class DTCommand(DTCommandAbs):
         if parsed.full:
             parsed.codeapi_pull = True
             parsed.codeapi_recreate = True
+            if parsed.local:
+                dtslogger.error('You cannot use the option `--full` together with `--local`.')
+                DTCommand.cleanup(parsed)
+                return
+
+        # local?
+        if parsed.local:
+            parsed.check = True
+            # get a random port within the range [10000, 20000
+            code_api_port = random.randint(10000, 20000)
 
         if parsed.codeapi_pull:
             num_trials = 10
@@ -104,6 +138,7 @@ class DTCommand(DTCommandAbs):
                     if trial_no == num_trials:
                         dtslogger.error("An error occurred while pulling the module dt-code-api. "
                                         "Aborting.")
+                        DTCommand.cleanup(parsed)
                         return
                     time.sleep(2)
 
@@ -111,7 +146,7 @@ class DTCommand(DTCommandAbs):
             # get old code-api container
             container = None
             try:
-                container = docker.containers.get('code-api')
+                container = docker.containers.get(container_name)
             except dockerlib.errors.NotFound:
                 # container not found, this is ok
                 pass
@@ -128,41 +163,70 @@ class DTCommand(DTCommandAbs):
             if container is not None:
                 try:
                     if container.status in ['running', 'restarting', 'paused']:
-                        dtslogger.info('Stopping container `code-api`.')
+                        dtslogger.info(f'Stopping container `{container_name}`.')
                         container.stop()
                 except dockerlib.errors.APIError:
-                    dtslogger.error("An error occurred while stopping the code-api container. "
-                                    "Aborting.")
+                    dtslogger.error(f"An error occurred while stopping the {container_name} "
+                                    f"container. Aborting.")
+                    DTCommand.cleanup(parsed)
                     return
 
             # remove old code-api container
             if container is not None:
                 try:
-                    dtslogger.info('Removing container `code-api`.')
+                    dtslogger.info(f'Removing container `{container_name}`.')
                     container.remove()
                 except dockerlib.errors.APIError:
                     dtslogger.error("An error occurred while removing the code-api container. "
                                     "Aborting.")
+                    DTCommand.cleanup(parsed)
                     return
 
             # run new code-api container
+            container_cfg = {
+                **DTCommand.CODE_API_CONTAINER_CONFIG,
+                **({
+                    'environment': {
+                        'TARGET_ENDPOINT': f"{hostname}:{DEFAULT_DOCKER_TCP_PORT}"
+                    },
+                    'volumes': {
+                        os.path.expanduser('~/.docker/'): {
+                            'bind': '/root/.docker/',
+                            'mode': 'rw'
+                        },
+                        '/var/run/avahi-daemon/socket': {
+                            'bind': '/var/run/avahi-daemon/socket',
+                            'mode': 'rw'
+                        }
+                    },
+                    'ports': {
+                        f'{DTCommand.CODE_API_PORT}/tcp': ('127.0.0.1', code_api_port)
+                    }
+                } if parsed.local else {})
+            }
+            if parsed.local:
+                del container_cfg['restart_policy']
+                del container_cfg['network_mode']
+
             try:
                 dtslogger.info(f"Running{version_str} `dt-code-api` module.")
                 docker.containers.run(
                     code_api_image,
                     labels=compose_labels,
                     detach=True,
-                    name="code-api",
-                    **DTCommand.CODE_API_CONTAINER_CONFIG
+                    name=container_name,
+                    **container_cfg
                 )
             except dockerlib.errors.ImageNotFound:
                 # this should not have happened
                 dtslogger.info("Image for module `dt-code-api` not found. Contact administrator.")
+                DTCommand.cleanup(parsed)
                 return
             except dockerlib.errors.APIError as e:
                 # this should not have happened
-                dtslogger.info("An error occurred while running the code-api container. "
+                dtslogger.info(f"An error occurred while running the {container_name} container. "
                                f"The error reads:\n\n{str(e)}")
+                DTCommand.cleanup(parsed)
                 return
 
         # wait for the code-api to boot up
@@ -172,8 +236,8 @@ class DTCommand(DTCommandAbs):
         checkpoint_every_sec = 10
         first_contact_time = None
         code_status = {}
-        code_api_url = functools.partial(DTCommand.get_code_api_url, hostname)
-        dtslogger.info("Waiting for the code-api module...")
+        code_api_url = functools.partial(DTCommand.get_code_api_url, parsed, code_api_port)
+        dtslogger.info("Waiting for the dt-code-api module...")
         while True:
             try:
                 url = code_api_url("modules/status")
@@ -203,8 +267,9 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Still waiting...")
                 checkpoint = new_checkpoint
             if checkpoint > max_checkpoints:
-                dtslogger.error("The code-api container took too long to boot up, "
+                dtslogger.error("The dt-code-api module took too long to boot up, "
                                 "something must be wrong. Contact administrator.")
+                DTCommand.cleanup(parsed)
                 return
             time.sleep(2)
         dtslogger.debug("Status:\n\n" + json.dumps(code_status, sort_keys=True, indent=4))
@@ -226,12 +291,19 @@ class DTCommand(DTCommandAbs):
             f"\t- Modules up-to-date ({len(modules['UPDATED'])}):" +
             f"\n\t\t-".join([''] + list(modules['UPDATED'].keys())) +
             f"\n"
+            f"\t- Modules with errors ({len(modules['ERROR'])}):" +
+            f"\n\t\t-".join([''] + list(modules['ERROR'].keys())) +
+            f"\n"
+            f"\t- Modules not found ({len(modules['NOT_FOUND'])}):" +
+            f"\n\t\t-".join([''] + list(modules['NOT_FOUND'].keys())) +
+            f"\n"
             f"\t- Modules ahead of the remote counterpart ({len(modules['AHEAD'])}):" +
             f"\n\t\t-".join([''] + list(modules['AHEAD'].keys())) +
             f"\n"
         )
         if len(modules['BEHIND']) == 0:
             dtslogger.info('Nothing to do.')
+            DTCommand.cleanup(parsed)
             return
 
         # there is something to update
@@ -243,6 +315,7 @@ class DTCommand(DTCommandAbs):
 
         if not granted:
             dtslogger.info("Sure, I won't update then.")
+            DTCommand.cleanup(parsed)
             return
 
         # start update
@@ -250,7 +323,7 @@ class DTCommand(DTCommandAbs):
             for module in modules['BEHIND']:
                 try:
                     dtslogger.info(f"Updating module `{module}`...")
-                    update_url = DTCommand.get_code_api_url(hostname, f'module/update/{module}')
+                    update_url = DTCommand.get_code_api_url(parsed, code_api_port, f'module/update/{module}')
                     try:
                         dtslogger.debug(f'GET: "{update_url}"')
                         res = requests.get(update_url, timeout=5)
@@ -268,25 +341,49 @@ class DTCommand(DTCommandAbs):
                     # allow some time for the code-api to pick up the action
                     time.sleep(2)
                     # start monitoring update
-                    res = DTCommand.monitor_update(hostname, module)
+                    res = DTCommand.monitor_update(parsed, code_api_port, module)
                     if not res:
                         raise requests.exceptions.RequestException()
                     dtslogger.info(f"Module `{module}` successfully updated!")
                 except requests.exceptions.RequestException:
                     dtslogger.error(f"An error occurred while updating the module `{module}`.")
                     continue
+                finally:
+                    print()
         except KeyboardInterrupt:
             dtslogger.info("Aborted")
+            DTCommand.cleanup(parsed)
             return
         print()
+        DTCommand.cleanup(parsed)
 
     @staticmethod
-    def get_code_api_url(hostname, resource):
-        return f"http://{hostname}/code/{resource}"
+    def cleanup(parsed):
+        if parsed.local:
+            dtslogger.info('Cleaning up...')
+            vehicle = parsed.vehicle[0].rstrip('.local')
+            client = get_client()
+            container_name = f"code-api-{vehicle}"
+            try:
+                container = client.containers.get(container_name)
+                container.stop()
+                container.remove()
+            except BaseException:
+                dtslogger.warning('We had issues cleaning up the containers before exiting. '
+                                  'Be aware there might be some leftover somewhere. Sorry!')
 
     @staticmethod
-    def monitor_update(hostname, module):
-        url = DTCommand.get_code_api_url(hostname, f"modules/status")
+    def get_code_api_url(parsed, port, resource):
+        if parsed.local:
+            return f"http://localhost:{port}/{resource}"
+        else:
+            vehicle = parsed.vehicle[0].rstrip('.local')
+            hostname = f"{vehicle}.local"
+            return f"http://{hostname}/code/{resource}"
+
+    @staticmethod
+    def monitor_update(parsed, port, module):
+        url = DTCommand.get_code_api_url(parsed, port, f"modules/status")
         dtslogger.debug(f'GET(loop): "{url}"')
         pbar = ProgressBar()
         while True:
