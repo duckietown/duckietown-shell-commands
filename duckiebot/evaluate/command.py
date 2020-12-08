@@ -223,8 +223,8 @@ class DTCommand(DTCommandAbs):
 
         # start to build the agent stuff
         agent_env = {
-            "AIDONODE_DATA_IN": "/fifos/agent-in",
-            "AIDONODE_DATA_OUT": "fifo:/fifos/agent-out",
+            "AIDONODE_DATA_IN": "/fifos/ego0-in",
+            "AIDONODE_DATA_OUT": "fifo:/fifos/ego0-out",
             "HOSTNAME": parsed.duckiebot_name,
             "VEHICLE_NAME": parsed.duckiebot_name,
         }
