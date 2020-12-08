@@ -65,9 +65,10 @@ run_on_first_boot () {
   mkdir -p /home/duckie/.ssh
   touch /home/duckie/.ssh/authorized_keys
   echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDFiaiFeU0Pc3ZjiGbjJOIx28ghcWPoem8jU1OSeJnbTkKT79vrzjIbYjkBg7uBlXb6kLnbHLWHUnPlLk2IUQTxHHvakubEJkJxePdN6XO+q1sKpEvz+1GL60iBKhRljCZ9h/CcJ78kkyNQkexHT15ZDMhOnUd8c9zxwUHxSjzPSOH5ns8bxjU3oSjmzDEojPnQJmY6Evhf5DVcKXenxkzs4XgDEo+ldKo37i30iUoFCL30OsXCP2tPcn1j39qjL7vnaUBO9WqY8eOssOHAX7/K1dNN1lDvNCKspq/2f05Ss8LopSpe6hOiMnPB0RlotJbZn+784kV1B4nJpqLj+EQr DT2018key" | tee -a /home/duckie/.ssh/authorized_keys
+  chmod 755 /home/duckie
   chmod 700 /home/duckie/.ssh
   chmod 600 /home/duckie/.ssh/authorized_keys
-  chown -R duckie:duckie /home/duckie/.ssh
+  chown -R duckie:duckie /home/duckie
 
   # add user `duckie` to the `root` group
   adduser duckie root
@@ -84,8 +85,8 @@ run_on_first_boot () {
 
   # make sure the user owns its folders
   echo "Changing the ownership of the user directories..."
-  chown -R 1000:1000 /data /code /home/duckie/
-  chmod -R 775 /data /code /home/duckie/
+  chown -R 1000:1000 /data /code
+  chmod -R 775 /data /code
 
   # create swap
   echo "Setting up swap..."
