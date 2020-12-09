@@ -23,10 +23,10 @@ usage = """
 
 """
 
-BRANCH = "daffy"
-ARCH = "amd64"
+DEFAULT_BRANCH = "daffy"
+DEFAULT_ARCH = "amd64"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
+ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH
 
 
 class InvalidUserInput(Exception):
@@ -69,6 +69,13 @@ class DTCommand(DTCommandAbs):
             help="Will clean the build",
         )
 
+        parser.add_argument(
+            "--arch",
+            dest="arch",
+            default=DEFAULT_ARCH,
+            help="The architecture of the machine that we are running this command on (e.g., the laptop)"
+        )
+
         parsed = parser.parse_args(args)
 
         working_dir = os.getcwd()
@@ -85,6 +92,8 @@ class DTCommand(DTCommandAbs):
             ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
         else:
             ros_template_image = ROS_TEMPLATE_IMAGE
+
+        ros_template_image = ros_template_image + "-" + parsed.arch
 
         if parsed.debug:
             cmd = "bash"
