@@ -375,7 +375,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
             continue
         # no images found
         msg = (
-            f"The autoboot stack '{remote_path}' requires the "
+            f"The 'duckietown' stack '{remote_path}' requires the "
             f"Docker image '{srv_image}' for the service '{srv_name}' but "
             f"no candidates were found in the list of modules to load."
         )
