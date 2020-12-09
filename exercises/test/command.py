@@ -303,6 +303,7 @@ class DTCommand(DTCommandAbs):
         if parsed.restart_agent:
             launch_bridge(
                 bridge_container_name,
+                env_dir,
                 duckiebot_name,
                 fifos_bind,
                 bridge_image,
@@ -376,6 +377,7 @@ class DTCommand(DTCommandAbs):
         else:  # we are running on a duckiebot
             bridge_container = launch_bridge(
                 bridge_container_name,
+                env_dir,
                 duckiebot_name,
                 fifos_bind,
                 bridge_image,
@@ -617,15 +619,17 @@ def launch_agent(
 
 
 def launch_bridge(
-    bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
+    bridge_container_name, env_dir, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
 ):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
+
     dtslogger.info(f"Running {bridge_container_name} from {bridge_image}")
     bridge_env = {
         "HOSTNAME": f"{duckiebot_name}",
         "VEHICLE_NAME": f"{duckiebot_name}",
         "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
+        **load_yaml(env_dir + "duckiebot_bridge_env.yaml")
     }
     bridge_volumes = fifos_bind
     if not running_on_mac or not parsed.local:
