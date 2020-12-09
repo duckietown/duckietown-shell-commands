@@ -296,33 +296,6 @@ class DTCommand(DTCommandAbs):
         else:
             running_on_mac = False  # if we aren't running on mac we're on Linux
 
-        if parsed.restart_agent:
-            launch_bridge(
-                bridge_container_name,
-                env_dir,
-                duckiebot_name,
-                fifos_bind,
-                bridge_image,
-                parsed,
-                running_on_mac,
-                agent_client,
-            )
-            launch_agent(
-                agent_container_name,
-                env_dir,
-                ros_env,
-                fifos_bind,
-                parsed,
-                working_dir,
-                exercise_name,
-                agent_base_image,
-                agent_network,
-                agent_client,
-                duckiebot_name,
-                config,
-            )
-            exit(0)
-
         # Launch things one by one
 
         if parsed.sim:
