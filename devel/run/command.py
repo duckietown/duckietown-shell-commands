@@ -169,6 +169,13 @@ class DTCommand(DTCommandAbs):
             help="Sync code from local project to remote"
         )
         parser.add_argument(
+            "--net", "--network_mode",
+            dest="network_mode",
+            default=DEFAULT_NETWORK_MODE,
+            type=str,
+            help="Docker network mode"
+        )
+        parser.add_argument(
             "-d",
             "--detach",
             default=False,
@@ -236,7 +243,7 @@ class DTCommand(DTCommandAbs):
         # get the module configuration
         module_configuration_args = []
         # apply default module configuration
-        module_configuration_args.append(f"--net={DEFAULT_NETWORK_MODE}")
+        module_configuration_args.append(f"--net={parsed.network_mode}")
         # environment
         if parsed.ros is not None:
             # parsed.ros = parsed.ros if parsed.ros.endswith('.local') else f'{parsed.ros}.local'
