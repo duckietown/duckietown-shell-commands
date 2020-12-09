@@ -13,11 +13,11 @@ BOOT_STACKS=(
 
 for BOOT_STACK in "${BOOT_STACKS[@]}"; do
   if [ -f "${BOOT_STACK}" ]; then
-    echo "Launching autoboot stack ${BOOT_STACK}..."
+    echo "Launching 'duckietown' stack ${BOOT_STACK}..."
     set -e
     docker-compose \
         --host "${DOCKER_SOCKET}" \
-        --project-name "autoboot" \
+        --project-name "duckietown" \
         --file "${BOOT_STACK}" \
         up \
             -d
