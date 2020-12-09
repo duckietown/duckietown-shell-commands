@@ -26,7 +26,7 @@ usage = """
 DEFAULT_BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH
+ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + DEFAULT_BRANCH
 
 
 class InvalidUserInput(Exception):
