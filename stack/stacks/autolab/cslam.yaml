@@ -1,0 +1,13 @@
+version: '3.2'
+services:
+
+  autolab-cslam-rest-api:
+    image: duckietown/dt-autolab-localization:daffy-${ARCH}
+    container_name: autolab-cslam-rest-api
+    restart: unless-stopped
+    network_mode: host
+    command: dt-launcher-REST
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket

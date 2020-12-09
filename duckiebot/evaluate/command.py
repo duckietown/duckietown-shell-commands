@@ -100,6 +100,9 @@ class DTCommand(DTCommandAbs):
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
+            
+        if not parsed.duckiebot_name:
+            dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
             # if we are running remotely then we need to copy over the calibration
@@ -220,8 +223,8 @@ class DTCommand(DTCommandAbs):
 
         # start to build the agent stuff
         agent_env = {
-            "AIDONODE_DATA_IN": "/fifos/agent-in",
-            "AIDONODE_DATA_OUT": "fifo:/fifos/agent-out",
+            "AIDONODE_DATA_IN": "/fifos/ego0-in",
+            "AIDONODE_DATA_OUT": "fifo:/fifos/ego0-out",
             "HOSTNAME": parsed.duckiebot_name,
             "VEHICLE_NAME": parsed.duckiebot_name,
         }
