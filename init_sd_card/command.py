@@ -102,6 +102,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
+        parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
         parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
         parser.add_argument("--device", default=None, help="The SD card device to flash")
         parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
@@ -208,6 +209,7 @@ class DTCommand(DTCommandAbs):
 
         # fetch given steps
         steps = parsed.steps.split(",")
+        no_steps = parsed.no_steps.split(",")
         step2function = {
             "license": step_license,
             "download": step_download,
@@ -216,7 +218,7 @@ class DTCommand(DTCommandAbs):
             "setup": step_setup,
         }
         # validate steps
-        for step_name in steps:
+        for step_name in [s for s in steps if s not in no_steps]:
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
