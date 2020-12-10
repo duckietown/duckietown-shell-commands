@@ -4,6 +4,7 @@ import argparse
 
 import yaml
 
+from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
@@ -13,6 +14,7 @@ from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = 'default'
+BOOT_STACK = 'autoboot'
 
 
 class DTCommand(DTCommandAbs):
@@ -53,6 +55,17 @@ class DTCommand(DTCommandAbs):
             return
         # ---
         parsed.stack = parsed.stack[0]
+        project_name = parsed.stack.replace('/', '_')
+        # special stack is `base`
+        if parsed.stack == 'base':
+            # retrieve robot type from device
+            dtslogger.info(f'Waiting for device "{parsed.machine}"...')
+            hostname = parsed.machine.replace(".local", "")
+            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
+            rtype = data['type']
+            dtslogger.info(f'Detected device type is "{rtype}".')
+            parsed.stack = f'base/{rtype}'
+            project_name = BOOT_STACK
         # sanitize stack
         stack = parsed.stack if '/' in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
@@ -69,6 +82,7 @@ class DTCommand(DTCommandAbs):
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
+        dtslogger.info(f'Detected device architecture is "{endpoint_arch}".')
         # pull images
         if parsed.pull:
             with open(stack_file, 'r') as fin:
@@ -96,7 +110,7 @@ class DTCommand(DTCommandAbs):
             [
                 'docker-compose',
                 f"-H={H}",
-                "--project-name", parsed.stack.replace('/', '_'),
+                "--project-name", project_name,
                 "--file", stack_file,
                 "up"
             ]
