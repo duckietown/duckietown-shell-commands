@@ -42,7 +42,7 @@ AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
 SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
 VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
-MIDDLEWARE_IMAGE = "duckietown/mooc-fifos-connector:" + BRANCH + "-amd64"  # no arch
+EXPERIMENT_MANAGER_IMAGE = "duckietown/challenge-aido_lf-experiment_manager:" + BRANCH + "-amd64"
 BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
@@ -175,11 +175,11 @@ class DTCommand(DTCommandAbs):
 
         if parsed.staging:
             sim_image = AIDO_REGISTRY + "/" + SIMULATOR_IMAGE
-            middle_image = AIDO_REGISTRY + "/" + MIDDLEWARE_IMAGE
+            expman_image = AIDO_REGISTRY + "/" + EXPERIMENT_MANAGER_IMAGE
             agent_base_image = AIDO_REGISTRY + "/" + agent_base_image
         else:
             sim_image = SIMULATOR_IMAGE
-            middle_image = MIDDLEWARE_IMAGE
+            expman_image = EXPERIMENT_MANAGER_IMAGE
 
         # done input checks
 
@@ -205,7 +205,7 @@ class DTCommand(DTCommandAbs):
         sim_container_name = "challenge-aido_lf-simulator-gym"
         ros_container_name = "ros_core"
         vnc_container_name = "dt-gui-tools"
-        middleware_container_name = "mooc-fifos-connector"
+        exp_manager_container_name = "experiment-manager"
         agent_container_name = "agent"
         bridge_container_name = "dt-duckiebot-fifos-bridge"
 
@@ -216,7 +216,7 @@ class DTCommand(DTCommandAbs):
             remove_if_running(agent_client, sim_container_name)
             remove_if_running(agent_client, ros_container_name)
             remove_if_running(local_client, vnc_container_name)  # vnc always local
-            remove_if_running(agent_client, middleware_container_name)
+            remove_if_running(agent_client, exp_manager_container_name)
             remove_if_running(agent_client, agent_container_name)
             remove_if_running(agent_client, bridge_container_name)
             try:
@@ -255,7 +255,7 @@ class DTCommand(DTCommandAbs):
         bridge_image = f"{BRIDGE_IMAGE}-{arch}"
 
         # let's see if we should pull the images
-        local_images = [VNC_IMAGE, middle_image, sim_image]
+        local_images = [VNC_IMAGE, expman_image, sim_image]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         if parsed.pull:
@@ -288,6 +288,11 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warn("error getting volume: %s" % e)
 
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
+        experiment_manager_bind = {
+            fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
+            os.path.join(working_dir,"assets/setup/challenges"): {'bind': '/challenges', 'mode': 'rw'},
+            os.path.join(working_dir,"assets/setup/scenarios"): {'bind': '/scenarios', 'mode': 'rw'}
+        }
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -298,6 +303,7 @@ class DTCommand(DTCommandAbs):
         if parsed.restart_agent:
             launch_bridge(
                 bridge_container_name,
+                env_dir,
                 duckiebot_name,
                 fifos_bind,
                 bridge_image,
@@ -346,17 +352,17 @@ class DTCommand(DTCommandAbs):
             sim_container = agent_client.containers.run(**sim_params)
             containers_to_monitor.append(sim_container)
 
-            # let's launch the middleware_manager
-            dtslogger.info(f"Running middleware {middleware_container_name} from {middle_image}")
-            middleware_env = load_yaml(env_dir + "middleware_env.yaml")
-            middleware_port = {"8090/tcp": ("0.0.0.0", 8090)}
+            # let's launch the experiment_manager
+            dtslogger.info(f"Running experiment_manager {exp_manager_container_name} from {expman_image}")
+            expman_env = load_yaml(env_dir + "exp_manager_env.yaml")
+            expman_port = {"8090/tcp": ("0.0.0.0", 8090)}
             mw_params = {
-                "image": middle_image,
-                "name": middleware_container_name,
-                "environment": middleware_env,
-                "ports": middleware_port,
+                "image": expman_image,
+                "name": exp_manager_container_name,
+                "environment": expman_env,
+                "ports": expman_port,
                 "network": agent_network.name,  # always local
-                "volumes": fifos_bind,
+                "volumes": experiment_manager_bind,
                 "detach": True,
                 "tty": True,
             }
@@ -371,6 +377,7 @@ class DTCommand(DTCommandAbs):
         else:  # we are running on a duckiebot
             bridge_container = launch_bridge(
                 bridge_container_name,
+                env_dir,
                 duckiebot_name,
                 fifos_bind,
                 bridge_image,
@@ -612,15 +619,17 @@ def launch_agent(
 
 
 def launch_bridge(
-    bridge_container_name, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
+    bridge_container_name, env_dir, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
 ):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
+
     dtslogger.info(f"Running {bridge_container_name} from {bridge_image}")
     bridge_env = {
         "HOSTNAME": f"{duckiebot_name}",
         "VEHICLE_NAME": f"{duckiebot_name}",
         "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
+        **load_yaml(env_dir + "duckiebot_bridge_env.yaml")
     }
     bridge_volumes = fifos_bind
     if not running_on_mac or not parsed.local:

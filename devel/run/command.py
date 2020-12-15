@@ -168,6 +168,20 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Sync code from local project to remote"
         )
+        parser.add_argument(
+            "--net", "--network_mode",
+            dest="network_mode",
+            default=DEFAULT_NETWORK_MODE,
+            type=str,
+            help="Docker network mode"
+        )
+        parser.add_argument(
+            "-d",
+            "--detach",
+            default=False,
+            action="store_true",
+            help="Detach from the container and let it run"
+        )
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
@@ -229,7 +243,7 @@ class DTCommand(DTCommandAbs):
         # get the module configuration
         module_configuration_args = []
         # apply default module configuration
-        module_configuration_args.append(f"--net={DEFAULT_NETWORK_MODE}")
+        module_configuration_args.append(f"--net={parsed.network_mode}")
         # environment
         if parsed.ros is not None:
             # parsed.ros = parsed.ros if parsed.ros.endswith('.local') else f'{parsed.ros}.local'
@@ -377,8 +391,10 @@ class DTCommand(DTCommandAbs):
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
-        if not parsed.no_rm:
+        if (not parsed.no_rm) or (not parsed.detach):
             parsed.docker_args += ["--rm"]
+        if parsed.detach:
+            parsed.docker_args += ["-d"]
         # add container name to docker args
         parsed.docker_args += ["--name", parsed.name]
         # escape spaces in arguments
@@ -417,6 +433,8 @@ class DTCommand(DTCommandAbs):
             + cmd_arguments,
             suppress_errors=True,
         )
+        if parsed.detach:
+            dtslogger.info("Your container is running in detached mode!")
 
     @staticmethod
     def complete(shell, word, line):
