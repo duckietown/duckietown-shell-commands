@@ -14,7 +14,6 @@ from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = 'default'
-BOOT_STACK = 'autoboot'
 
 
 class DTCommand(DTCommandAbs):
@@ -56,16 +55,16 @@ class DTCommand(DTCommandAbs):
         # ---
         parsed.stack = parsed.stack[0]
         project_name = parsed.stack.replace('/', '_')
-        # special stack is `base`
-        if parsed.stack == 'base':
+        # special stack is `duckietown`
+        if parsed.stack == 'duckietown':
             # retrieve robot type from device
             dtslogger.info(f'Waiting for device "{parsed.machine}"...')
             hostname = parsed.machine.replace(".local", "")
             _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
             rtype = data['type']
             dtslogger.info(f'Detected device type is "{rtype}".')
-            parsed.stack = f'base/{rtype}'
-            project_name = BOOT_STACK
+            parsed.stack = f'duckietown/{rtype}'
+            project_name = 'duckietown'
         # sanitize stack
         stack = parsed.stack if '/' in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
