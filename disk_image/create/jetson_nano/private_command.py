@@ -782,13 +782,6 @@ class DTCommand(DTCommandAbs):
                                 " /etc/systemd/system/dt_init.service"
                                 " /etc/systemd/system/multi-user.target.wants/dt_init.service",
                             )
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "ln"
-                                " -s"
-                                " /etc/systemd/system/gstpipeline.service"
-                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service",
-                            )
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
                         run_cmd(["sync"])

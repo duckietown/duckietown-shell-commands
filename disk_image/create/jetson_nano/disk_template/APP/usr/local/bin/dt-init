@@ -51,15 +51,6 @@ run_on_first_boot () {
   dkms build -m rtl8821CU -v 5.4.1
   dkms install -m rtl8821CU -v 5.4.1
 
-  # install camera drivers
-  cd /usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9/v4l2loopback || exit
-  find . -exec touch \{\} \;
-  make
-  make install
-  depmod -a
-  modprobe v4l2loopback devices=1 video_nr=2 exclusive_caps=1
-  update-initramfs -u
-
   # setup ssh access
   echo "Setting up ssh..."
   mkdir -p /home/duckie/.ssh
