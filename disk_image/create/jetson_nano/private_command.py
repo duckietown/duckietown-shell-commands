@@ -95,10 +95,9 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    "dkms",  # needed for Jetson WiFi drivers
-    "docker-compose",
-    # 'v4l2loopback-dkms',
-    "v4l2loopback-utils",
+    # needed for Jetson WiFi drivers
+    "dkms",
+    "docker-compose"
 ]
 APT_PACKAGES_TO_HOLD = [
     "nvidia-l4t-bootloader",

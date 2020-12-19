@@ -72,7 +72,12 @@ SUPPORTED_STEPS = [
 ]
 MANDATORY_STEPS = ["create", "mount", "unmount"]
 
-APT_PACKAGES_TO_INSTALL = ["rsync", "libnss-mdns"]
+APT_PACKAGES_TO_INSTALL = [
+    "rsync",
+    "nano",
+    "htop",
+    "libnss-mdns"
+]
 
 
 class DTCommand(DTCommandAbs):
