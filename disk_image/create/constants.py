@@ -5,9 +5,8 @@ TMP_WORKDIR = "/tmp/duckietown/dts/disk_image"
 DISK_IMAGE_STATS_LOCATION = "data/stats/disk_image/build.json"
 DATA_STORAGE_DISK_IMAGE_DIR = "disk_image/disk_template/"
 DEVICE_ARCH = "arm32v7"
-DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None: f"{owner}/{module}:" + (
-    (f"{version}-%s" % DEVICE_ARCH) if tag is None else tag
-)
+DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None, arch=DEVICE_ARCH: \
+    f"{owner}/{module}:" + (f"{version}-{arch}" if tag is None else tag)
 
 MODULES_TO_LOAD = [
     {"owner": "portainer", "module": "portainer", "tag": "linux-arm-1.24.1"},

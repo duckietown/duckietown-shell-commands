@@ -64,6 +64,7 @@ DISK_IMAGE_SIZE_GB = 20
 DISK_IMAGE_VERSION = "1.2.0"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4.1"
+DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
 INPUT_DISK_IMAGE_URL = lambda v: \
     f"https://duckietown-public-storage.s3.amazonaws.com/" \
@@ -100,8 +101,7 @@ APT_PACKAGES_TO_INSTALL = [
     "docker-compose"
 ]
 APT_PACKAGES_TO_HOLD = [
-    "nvidia-l4t-bootloader",
-    "blueman"
+    # list here packages that cannot be updated through `chroot`
 ]
 
 
@@ -245,6 +245,7 @@ class DTCommand(DTCommandAbs):
                     module=module["module"],
                     version=distro,
                     tag=module["tag"] if "tag" in module else None,
+                    arch=DEVICE_ARCH
                 )
                 for module in MODULES_TO_LOAD
             ],
@@ -553,12 +554,12 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "apt update && "
-                            f"apt-mark hold {to_hold} && "
+                            + (f"apt-mark hold {to_hold}" if len(to_hold) else ":") + " && " +
                             "apt --yes --force-yes --no-install-recommends"
                             ' -o Dpkg::Options::="--force-confdef"'
                             ' -o Dpkg::Options::="--force-confold"'
                             " full-upgrade && "
-                            f"apt-mark unhold {to_hold}",
+                            + (f"apt-mark unhold {to_hold}" if len(to_hold) else ":"),
                         )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
@@ -568,6 +569,11 @@ class DTCommand(DTCommandAbs):
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
+                        # clean packages
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            f"apt autoremove --yes",
+                        )
                         # add symlink between arm64 and aarch64
                         k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
                         run_cmd_in_partition(ROOT_PARTITION, f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
@@ -583,13 +589,6 @@ class DTCommand(DTCommandAbs):
                             "git clone "
                             "https://github.com/duckietown/rtl8821CU"
                             " /usr/src/rtl8821CU-5.4.1",
-                        )
-                        # setup the camera pipeline
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            f"mkdir -p {k}/v4l2loopback && "
-                            f"git clone https://github.com/duckietown/v4l2loopback"
-                            f" {k}/v4l2loopback",
                         )
                     except Exception as e:
                         raise e
@@ -641,15 +640,17 @@ class DTCommand(DTCommandAbs):
                     privileged=True,
                     name="dts-disk-image-aux-docker",
                     volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
-                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375"],
+                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
                 )
-                time.sleep(2)
+                dtslogger.info('Waiting 20 seconds for DIND to start...')
+                time.sleep(20)
                 # get IP address of the container
                 container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
                 container_ip = container_info["NetworkSettings"]["IPAddress"]
                 # create remote docker client
-                time.sleep(2)
-                remote_docker = docker.DockerClient(base_url=f"tcp://{container_ip}:2375")
+                endpoint_url = f"tcp://{container_ip}:2375"
+                dtslogger.info(f'DIND should now be up, using endpoint URL `{endpoint_url}`.')
+                remote_docker = docker.DockerClient(base_url=endpoint_url)
                 # from this point on, if anything weird happens, stop container and unmount disk
                 try:
                     dtslogger.info("Transferring Docker images...")
@@ -660,6 +661,7 @@ class DTCommand(DTCommandAbs):
                             module=module["module"],
                             version=distro,
                             tag=module["tag"] if "tag" in module else None,
+                            arch=DEVICE_ARCH
                         )
                         pull_docker_image(remote_docker, image)
                     # ---
