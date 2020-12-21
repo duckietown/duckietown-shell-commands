@@ -21,6 +21,7 @@ from disk_image.create.constants import (
     DOCKER_IMAGE_TEMPLATE,
     MODULES_TO_LOAD,
     CLI_TOOLS_NEEDED,
+    DEVICE_ARCH
 )
 from utils.cli_utils import ProgressBar, check_program_dependency
 
@@ -349,7 +350,7 @@ def wait_for_disk(disk, timeout):
         time.sleep(1.0)
 
 
-def validator_autoboot_stack(shell, local_path, remote_path, data=None):
+def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
     # get version
     distro = get_distro_version(shell)
     modules = {
@@ -358,6 +359,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
             module=module["module"],
             version=distro,
             tag=module["tag"] if "tag" in module else None,
+            arch=kwargs.get('arch', DEVICE_ARCH)
         )
         for module in MODULES_TO_LOAD
     }
@@ -383,7 +385,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
         raise ValueError(msg)
 
 
-def validator_yaml_syntax(shell, local_path, remote_path, data=None):
+def validator_yaml_syntax(shell, local_path, remote_path, **kwargs):
     # simply load the YAML file
     try:
         yaml.load(open(local_path, "rt"), yaml.SafeLoader)

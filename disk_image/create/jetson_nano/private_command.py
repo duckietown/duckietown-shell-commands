@@ -576,7 +576,8 @@ class DTCommand(DTCommandAbs):
                         )
                         # add symlink between arm64 and aarch64
                         k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
-                        run_cmd_in_partition(ROOT_PARTITION, f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
+                        run_cmd_in_partition(ROOT_PARTITION,
+                                             f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
                         # clone the wifi driver source
                         run_cmd_in_partition(
                             ROOT_PARTITION,
@@ -739,7 +740,8 @@ class DTCommand(DTCommandAbs):
                             validator = _get_validator_fcn(partition, update["relative"])
                             if validator:
                                 dtslogger.debug(f"Validating file {update['relative']}...")
-                                validator(shell, update["origin"], update["relative"])
+                                validator(shell, update["origin"], update["relative"],
+                                          arch=DEVICE_ARCH)
                             # create or modify file
                             effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
                             dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
