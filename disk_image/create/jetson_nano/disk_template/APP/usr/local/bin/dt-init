@@ -41,16 +41,6 @@ run_on_first_boot () {
   # sudo without a password
   echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
 
-  # install wifi driver
-  dkms add -m rtl88x2bu -v 5.6.1
-  dkms build -m rtl88x2bu -v 5.6.1
-  dkms install -m rtl88x2bu -v 5.6.1
-
-  # install wifi driver
-  dkms add -m rtl8821CU -v 5.4.1
-  dkms build -m rtl8821CU -v 5.4.1
-  dkms install -m rtl8821CU -v 5.4.1
-
   # setup ssh access
   echo "Setting up ssh..."
   mkdir -p /home/duckie/.ssh

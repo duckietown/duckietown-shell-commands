@@ -96,8 +96,6 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    # needed for Jetson WiFi drivers
-    "dkms",
     "docker-compose"
 ]
 APT_PACKAGES_TO_HOLD = [
@@ -573,23 +571,6 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             f"apt autoremove --yes",
-                        )
-                        # add symlink between arm64 and aarch64
-                        k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
-                        run_cmd_in_partition(ROOT_PARTITION,
-                                             f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
-                        # clone the wifi driver source
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "git clone "
-                            "https://github.com/duckietown/rtl88x2bu"
-                            " /usr/src/rtl88x2bu-5.6.1",
-                        )
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "git clone "
-                            "https://github.com/duckietown/rtl8821CU"
-                            " /usr/src/rtl8821CU-5.4.1",
                         )
                     except Exception as e:
                         raise e
