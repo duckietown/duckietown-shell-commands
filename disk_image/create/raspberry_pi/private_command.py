@@ -54,7 +54,7 @@ INPUT_DISK_IMAGE_URL = (
     f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "root:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "root:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     "root:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 DISK_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "disk_template")

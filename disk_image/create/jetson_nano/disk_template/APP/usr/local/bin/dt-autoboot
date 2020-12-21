@@ -5,10 +5,10 @@ ROBOT_TYPE=$(head -1 /data/config/robot_type)
 DOCKER_SOCKET=unix:///var/run/docker.sock
 
 BOOT_STACKS=(
-  "/data/config/autoboot/${ROBOT_TYPE}.yml"
-  "/data/config/autoboot/${ROBOT_TYPE}.yaml"
-  "/data/config/autoboot/${ROBOT_TYPE}.YML"
-  "/data/config/autoboot/${ROBOT_TYPE}.YAML"
+  "/data/autoboot/${ROBOT_TYPE}.yml"
+  "/data/autoboot/${ROBOT_TYPE}.yaml"
+  "/data/autoboot/${ROBOT_TYPE}.YML"
+  "/data/autoboot/${ROBOT_TYPE}.YAML"
 )
 
 for BOOT_STACK in "${BOOT_STACKS[@]}"; do
@@ -26,4 +26,4 @@ for BOOT_STACK in "${BOOT_STACKS[@]}"; do
   fi
 done
 
-echo "Autoboot stack /data/config/autoboot/${ROBOT_TYPE}.[yml|yaml] not found!"
+echo "Autoboot stack /data/autoboot/${ROBOT_TYPE}.[yml|yaml] not found!"

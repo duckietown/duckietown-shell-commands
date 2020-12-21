@@ -70,7 +70,7 @@ INPUT_DISK_IMAGE_URL = lambda v: \
     f"https://duckietown-public-storage.s3.amazonaws.com/" \
     f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
