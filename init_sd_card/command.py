@@ -210,6 +210,7 @@ class DTCommand(DTCommandAbs):
         # fetch given steps
         steps = parsed.steps.split(",")
         no_steps = parsed.no_steps.split(",")
+        steps = [s for s in steps if s not in no_steps]
         step2function = {
             "license": step_license,
             "download": step_download,
@@ -218,7 +219,7 @@ class DTCommand(DTCommandAbs):
             "setup": step_setup,
         }
         # validate steps
-        for step_name in [s for s in steps if s not in no_steps]:
+        for step_name in steps:
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)

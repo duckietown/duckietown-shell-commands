@@ -5,7 +5,8 @@ from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, pull_if_not_exist
+from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, \
+    pull_if_not_exist, bind_avahi_socket
 from utils.networking_utils import get_duckiebot_ip
 
 from dt_shell import DTShell
@@ -200,7 +201,10 @@ class DTCommand(DTCommandAbs):
             image=image_base,
             command=cmd,
             network_mode="host",
-            volumes=bind_duckiebot_data_dir(),
+            volumes={
+                **bind_duckiebot_data_dir(),
+                **bind_avahi_socket(),
+            },
             privileged=True,
             name=container_name,
             mem_limit="800m",

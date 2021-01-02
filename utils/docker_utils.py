@@ -435,6 +435,10 @@ def bind_duckiebot_data_dir():
     return {"/data": {"bind": "/data"}}
 
 
+def bind_avahi_socket():
+    return {"/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket"}}
+
+
 def stop_container(container):
     try:
         container.stop()
