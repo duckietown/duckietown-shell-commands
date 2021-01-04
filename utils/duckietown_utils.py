@@ -18,7 +18,7 @@ def get_robot_types():
 
 def get_robot_configurations(robot_type):
     configurations = {
-        "duckiebot": ["DB18", "DB19", "DB20", "DB-beta", "DB-MOOC"],
+        "duckiebot": ["DB18", "DB19", "DB20", "DB21M"],
         "duckiedrone": ["DD18"],
         "watchtower": ["WT18", "WT19A", "WT19B"],
         "greenstation": ["GS17"],
