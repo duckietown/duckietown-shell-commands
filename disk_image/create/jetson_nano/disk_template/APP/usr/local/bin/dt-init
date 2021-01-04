@@ -41,6 +41,10 @@ run_on_first_boot () {
   # sudo without a password
   echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
 
+  # add "Duckietown Front Bumper" to the device tree
+  dtc -I dts -O dtb -@ -o /boot/duckietown_front_bumper_2_v1.dtbo /boot/duckietown_front_bumper_2_v1.dts
+  /opt/nvidia/jetson-io/config-by-hardware.py -n "Duckietown Front Bumper 2 V1"
+
   # setup ssh access
   echo "Setting up ssh..."
   mkdir -p /home/duckie/.ssh
