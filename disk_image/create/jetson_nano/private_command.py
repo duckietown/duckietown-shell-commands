@@ -341,7 +341,7 @@ class DTCommand(DTCommandAbs):
                     [],
                     parsed=SimpleNamespace(
                         file=[in_file_path("zip")],
-                        object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR,
+                        object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, "disk_template",
                                 f"{jetpack_disk_image_name}.zip")],
                         space="public",
                     ),

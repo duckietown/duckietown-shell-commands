@@ -3,7 +3,7 @@ DISK_DEVICE = lambda device, partition_id: f"{device}p{partition_id}"
 FILE_PLACEHOLDER_SIGNATURE = "DT_DUCKIETOWN_PLACEHOLDER_"
 TMP_WORKDIR = "/tmp/duckietown/dts/disk_image"
 DISK_IMAGE_STATS_LOCATION = "data/stats/disk_image/build.json"
-DATA_STORAGE_DISK_IMAGE_DIR = "disk_image/disk_template/"
+DATA_STORAGE_DISK_IMAGE_DIR = "disk_image"
 DEVICE_ARCH = "arm32v7"
 DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None, arch=DEVICE_ARCH: \
     f"{owner}/{module}:" + (f"{version}-{arch}" if tag is None else tag)
