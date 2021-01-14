@@ -37,18 +37,23 @@ def get_distro_version(shell):
 
 def get_robot_hardware(robot_configuration):
     configuration_to_hardware = {
+        # Duckiebot
         "DB18": ("raspberry_pi", "3B+"),
         "DB19": ("raspberry_pi", "3B+"),
         "DB20": ("raspberry_pi", "4B2G"),
-        "DB-beta": ("jetson_nano", "4GB"),
-        "DB-MOOC": ("jetson_nano_2gb", "2GB"),
+        "DB21M": ("jetson_nano_2gb", "2GB"),
+        # Duckiedrone
         "DD18": ("raspberry_pi", "3B+"),
+        # Watchtower
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
         "WT19B": ("raspberry_pi", "4B2G"),
+        # Green Station
         "GS17": ("raspberry_pi", "3B+"),
+        # Traffic Light
         "TL18": ("raspberry_pi", "3B+"),
         "TL19": ("raspberry_pi", "3B+"),
+        # Duckietown
         "DT20": ("raspberry_pi", "4B2G"),
     }
     # ---
