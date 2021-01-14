@@ -4,9 +4,8 @@
 CONFIG_DIR=/data/config
 ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
 ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
+# Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
 HUT_RESET_SYSFS_PIN_NO=149
-
-# Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive robot_type
 
 ## robot_type
 if [ ${#ROBOT_TYPE} -le 0 ]; then
