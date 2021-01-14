@@ -67,6 +67,7 @@ run_on_first_boot () {
   cp /proc/*info /data/proc
   cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
   cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
+  cp /etc/nv_tegra_release /data/stats/os-release
 
   # make sure the user owns its folders
   echo "Changing the ownership of the user directories..."
