@@ -1,35 +1,3 @@
 #!/usr/bin/env bash
 
-# constants
-CONFIG_DIR=/data/config
-ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
-ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
-# Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
-HUT_RESET_SYSFS_PIN_NO=149
-
-## robot_type
-if [ ${#ROBOT_TYPE} -le 0 ]; then
-  if [ -f "${ROBOT_TYPE_FILE}" ]; then
-      ROBOT_TYPE=$(cat "${ROBOT_TYPE_FILE}")
-  else
-      ROBOT_TYPE="duckiebot"
-  fi
-fi
-
-## robot_hardware
-if [ ${#ROBOT_HARDWARE} -le 0 ]; then
-  if [ -f "${ROBOT_HARDWARE_FILE}" ]; then
-      ROBOT_HARDWARE=$(cat "${ROBOT_HARDWARE_FILE}")
-  else
-      ROBOT_HARDWARE="__NOTSET__"
-  fi
-fi
-
-## set pin to HIGH
-if [ $ROBOT_TYPE == "duckiebot" ] && [ $ROBOT_HARDWARE == "jetson_nano" ]; then
-    pin="gpio${HUT_RESET_SYSFS_PIN_NO}"
-    echo ${HUT_RESET_SYSFS_PIN_NO} > /sys/class/gpio/export
-    echo out > /sys/class/gpio/${pin}/direction
-    echo 1 > /sys/class/gpio/${pin}/value
-    echo ${HUT_RESET_SYSFS_PIN_NO} > /sys/class/gpio/unexport
-fi
+# empty
