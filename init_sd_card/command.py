@@ -17,7 +17,11 @@ from datetime import datetime
 
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-from utils.duckietown_utils import get_robot_types, get_robot_configurations, get_robot_hardware
+from utils.duckietown_utils import \
+    get_robot_types, \
+    get_robot_configurations, \
+    get_robot_hardware, \
+    WIRED_ROBOT_TYPES
 from utils.misc_utils import human_time
 
 from .constants import (
@@ -39,7 +43,6 @@ DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
-WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 
 
@@ -49,9 +52,13 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
             "stable": "1.1.1",
             "experimental": "1.1.2"
         },
-        "jetson_nano": {
-            "stable": "1.1",
-            "experimental": "1.1.1"
+        "jetson_nano_4gb": {
+            "stable": "1.2.0",
+            "experimental": "1.2.0"
+        },
+        "jetson_nano_2gb": {
+            "stable": "1.2.0",
+            "experimental": "1.2.0"
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -67,10 +74,11 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.1.1": "1.1",
             "1.1.2": "1.1"
         },
-        "jetson_nano": {
-            "1.0": "1.0",
-            "1.1": "1.1",
-            "1.1.1": "1.1"
+        "jetson_nano_4gb": {
+            "1.2.0": "1.1"
+        },
+        "jetson_nano_2gb": {
+            "1.2.0": "1.1"
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -81,7 +89,8 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "jetson_nano": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
+        "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -249,7 +258,7 @@ class DTCommand(DTCommandAbs):
 
 def step_license(_, parsed, __):
     board, _ = get_robot_hardware(parsed.robot_configuration)
-    if board == "jetson_nano":
+    if board.startswith("jetson_nano"):
         # ask to either agree or go away
         while True:
             answer = ask_confirmation(

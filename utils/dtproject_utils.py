@@ -26,16 +26,10 @@ CANONICAL_ARCH = {
     "x86_64": "amd64",
     "amd64": "amd64",
     "Intel 64": "amd64",
-    # TODO: @afdaniele. Forward arm64v8 -> arm32v7 until the arm64v8 family of images is fixed
-    # "arm64": "arm64v8",
-    # "arm64v8": "arm64v8",
-    # "armv8": "arm64v8",
-    # "aarch64": "arm64v8",
-    "arm64": "arm32v7",
-    "arm64v8": "arm32v7",
-    "armv8": "arm32v7",
-    "aarch64": "arm32v7",
-    "FAKE": "arm64v8",
+    "arm64": "arm64v8",
+    "arm64v8": "arm64v8",
+    "armv8": "arm64v8",
+    "aarch64": "arm64v8",
 }
 
 BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"],
