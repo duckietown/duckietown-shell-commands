@@ -7,6 +7,7 @@ from utils.duckietown_utils import get_robot_types, get_distro_version
 from utils.avahi_utils import wait_for_service
 from utils.dtproject_utils import CANONICAL_ARCH
 from utils.docker_utils import DEFAULT_MACHINE
+from utils.misc_utils import sanitize_hostname
 
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -113,6 +114,9 @@ class DTCommand(DTCommandAbs):
             parsed.app_id = LOG_DEFAULT_APP_ID
         if parsed.app_secret is None:
             parsed.app_secret = LOG_DEFAULT_APP_SECRET
+        # sanitize hostname
+        if parsed.machine is not None:
+            parsed.machine = sanitize_hostname(parsed.machine)
         # we can't get the type if we are running locally
         fetch_type_from = None
         if parsed.machine == DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET and parsed.type == "auto":
