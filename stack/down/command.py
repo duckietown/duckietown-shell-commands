@@ -19,7 +19,7 @@ DUCKIETOWN_STACK = 'duckietown'
 
 class DTCommand(DTCommandAbs):
 
-    help = "Easy way to run code on Duckietown robots"
+    help = "Easy way to remove code from Duckietown robots"
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -30,19 +30,6 @@ class DTCommand(DTCommandAbs):
             "--machine",
             default=None,
             help="Docker socket or hostname where to run the image",
-        )
-        parser.add_argument(
-            "-d",
-            "--detach",
-            action='store_true',
-            default=False,
-            help="Detach from running containers",
-        )
-        parser.add_argument(
-            "--pull",
-            action='store_true',
-            default=False,
-            help="Pull images before running",
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
@@ -82,27 +69,14 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f'Detected device architecture is "{endpoint_arch}".')
-        # pull images
-        if parsed.pull:
-            with open(stack_file, 'r') as fin:
-                stack_content = yaml.safe_load(fin)
-            for service in stack_content['services'].values():
-                image_name = service['image'].replace('${ARCH}', endpoint_arch)
-                dtslogger.info(f"Pulling image `{image_name}`...")
-                pull_image(image_name, parsed.machine)
         # print info
-        dtslogger.info(f"Running stack [{stack}]...")
+        dtslogger.info(f"Stopping stack [{stack}]...")
         print("------>")
-        # collect arguments
-        docker_arguments = []
         # get copy of environment
         env = {}
         env.update(os.environ)
         # add ARCH
         env['ARCH'] = endpoint_arch
-        # -d/--detach
-        if parsed.detach:
-            docker_arguments.append("--detach")
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
@@ -111,9 +85,8 @@ class DTCommand(DTCommandAbs):
                 f"-H={H}",
                 "--project-name", project_name,
                 "--file", stack_file,
-                "up"
-            ]
-            + docker_arguments,
+                "down"
+            ],
             env=env
         )
         # ---
