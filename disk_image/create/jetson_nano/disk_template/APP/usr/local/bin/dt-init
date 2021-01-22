@@ -38,9 +38,7 @@ run_on_first_boot() {
 
     # resize root partition
     sgdisk --move-second-header ${SD_DEVICE}
-    sgdisk --delete=${ROOT_PART_ID} ${SD_DEVICE}
-    sgdisk --largest-new=${ROOT_PART_ID} ${SD_DEVICE}
-    parted ${SD_DEVICE} name ${ROOT_PART_ID} ${ROOT_PART_NAME}
+    growpart ${SD_DEVICE} ${ROOT_PART_ID}
     resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
     partprobe
 

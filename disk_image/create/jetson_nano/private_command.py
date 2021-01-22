@@ -96,7 +96,8 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    "docker-compose"
+    "docker-compose",
+    "cloud-guest-utils"
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
