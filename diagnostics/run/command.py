@@ -96,6 +96,12 @@ class DTCommand(DTCommandAbs):
             help="Specify regexes used to filter the monitored containers",
         )
         parser.add_argument(
+            '--system',
+            default=False,
+            action='store_true',
+            help="Log system processes as well"
+        )
+        parser.add_argument(
             "-m", "--notes", default="(empty)", type=str, help="Custom notes to attach to the log"
         )
         parser.add_argument(
@@ -115,8 +121,10 @@ class DTCommand(DTCommandAbs):
         if parsed.app_secret is None:
             parsed.app_secret = LOG_DEFAULT_APP_SECRET
         # sanitize hostname
-        if parsed.machine is not None:
+        if parsed.machine is not None and parsed.machine != DEFAULT_MACHINE:
             parsed.machine = sanitize_hostname(parsed.machine)
+        if parsed.target is not None and parsed.target != DEFAULT_TARGET:
+            parsed.target = sanitize_hostname(parsed.target)
         # we can't get the type if we are running locally
         fetch_type_from = None
         if parsed.machine == DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET and parsed.type == "auto":
@@ -124,6 +132,13 @@ class DTCommand(DTCommandAbs):
                 "You have to specify a device type (--type) when the target " + "is the local Docker endpoint"
             )
             sys.exit(1)
+        # we can't run in `system` mode from remote
+        is_remote = parsed.target != DEFAULT_TARGET and parsed.machine != parsed.target
+        if parsed.system and is_remote:
+            dtslogger.error(
+                "You cannot run with option --system when the target is monitored remotely"
+            )
+            sys.exit(2)
         if parsed.machine == DEFAULT_MACHINE and parsed.target != DEFAULT_TARGET:
             fetch_type_from = parsed.target
         if parsed.machine != DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET:
@@ -181,6 +196,9 @@ class DTCommand(DTCommandAbs):
             cli_args += ["--debug"]
         if parsed.verbose:
             cli_args += ["--verbose"]
+        if parsed.system:
+            cli_args += ["--system"]
+            options += ["--pid=host"]
         # container name
         container_name = "dts-run-diagnostics-system-monitor"
         options += ["--name", container_name]
