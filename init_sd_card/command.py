@@ -86,7 +86,9 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
     return board_to_placeholders_version[board][version]
 
 
-def BASE_DISK_IMAGE(robot_configuration, experimental=False):
+def BASE_DISK_IMAGE(robot_configuration, experimental=False, override=None):
+    if override is not None:
+        return override
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
@@ -96,8 +98,8 @@ def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     return board_to_disk_image[board]
 
 
-def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
-    disk_image = BASE_DISK_IMAGE(robot_configuration, experimental)
+def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False, override=None):
+    disk_image = BASE_DISK_IMAGE(robot_configuration, experimental, override=override)
     return f"disk_image/{disk_image}.zip"
 
 
@@ -163,6 +165,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Use experimental disk image and parameters",
+        )
+        parser.add_argument(
+            "--disk-image",
+            default=None,
+            type=str,
+            help="Custom image disk to use",
         )
         parser.add_argument(
             "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
@@ -233,7 +241,7 @@ class DTCommand(DTCommandAbs):
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
         # compile hardware specific disk image name and url
-        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental)
+        base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental, override=parsed.disk_image)
         # compile files destinations
         in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
         # prepare data
@@ -304,7 +312,7 @@ def step_download(shell, parsed, data):
     if not os.path.isfile(data["disk_zip"]):
         dtslogger.info("Downloading ZIP image...")
         # get disk image location on the cloud
-        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental)
+        disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental, override=parsed.disk_image)
         # download zip
         shell.include.data.get.command(
             shell, [], parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public")
@@ -440,10 +448,10 @@ def step_setup(shell, parsed, data):
         "stats": json.dumps(
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
-                "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
+                "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental, override=parsed.disk_image),
                 "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
                 "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(
-                    parsed.robot_configuration, parsed.experimental
+                    parsed.robot_configuration, parsed.experimental, override=parsed.disk_image
                 ),
                 "environment": {
                     "hostname": socket.gethostname(),
