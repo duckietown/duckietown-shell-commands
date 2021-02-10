@@ -46,7 +46,7 @@ from disk_image.create.utils import (
 DISK_IMAGE_PARTITION_TABLE = {"HypriotOS": 1, "root": 2}
 ROOT_PARTITION = "root"
 DISK_IMAGE_SIZE_GB = 8
-DISK_IMAGE_VERSION = "1.1.2"
+DISK_IMAGE_VERSION = "1.2.0"
 HYPRIOTOS_VERSION = "1.11.1"
 HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
 INPUT_DISK_IMAGE_URL = (
@@ -427,69 +427,76 @@ class DTCommand(DTCommandAbs):
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
-                    # try running a simple echo from the new chroot, if an error occurs, we need
-                    # to check the QEMU configuration
+                    # from this point on, if anything weird happens, unmount the `root/dev` disk
                     try:
-                        output = run_cmd_in_partition(
-                            ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                        # configure the kernel for QEMU
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
                         )
-                        if "Exec format error" in output:
-                            raise Exception("Exec format error")
-                    except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
-                        exit(2)
-                    # mount the partition HypriotOS as root:/boot
-                    _boot = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "boot")
-                    run_cmd(["sudo", "mount", "-t", "auto", hypriotos_partition_disk, _boot])
-                    # from this point on, if anything weird happens, unmount the `root` disk
-                    try:
-                        # run full-upgrade on the new root
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "apt update && "
-                            "apt --yes --force-yes --no-install-recommends"
-                            ' -o Dpkg::Options::="--force-confdef"'
-                            ' -o Dpkg::Options::="--force-confold"'
-                            " full-upgrade",
-                        )
-                        # install packages
-                        if APT_PACKAGES_TO_INSTALL:
-                            pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
+                        # try running a simple echo from the new chroot, if an error occurs, we need
+                        # to check the QEMU configuration
+                        try:
+                            output = run_cmd_in_partition(
+                                ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                            )
+                            if "Exec format error" in output:
+                                raise Exception("Exec format error")
+                        except (BaseException, subprocess.CalledProcessError) as e:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                            exit(2)
+                        # mount the partition HypriotOS as root:/boot
+                        _boot = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "boot")
+                        run_cmd(["sudo", "mount", "-t", "auto", hypriotos_partition_disk, _boot])
+                        # from this point on, if anything weird happens, unmount the `root` disk
+                        try:
+                            # run full-upgrade on the new root
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
-                                f"DEBIAN_FRONTEND=noninteractive "
-                                f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                "apt update && "
+                                "apt --yes --force-yes --no-install-recommends"
+                                ' -o Dpkg::Options::="--force-confdef"'
+                                ' -o Dpkg::Options::="--force-confold"'
+                                " full-upgrade",
                             )
-                        # upgrade libseccomp
-                        # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                        transfer_file(ROOT_PARTITION, ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
-                            "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb",
-                        )
+                            # install packages
+                            if APT_PACKAGES_TO_INSTALL:
+                                pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    f"DEBIAN_FRONTEND=noninteractive "
+                                    f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                )
+                            # upgrade libseccomp
+                            # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
+                            transfer_file(ROOT_PARTITION, ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
+                                "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb",
+                            )
+                        except Exception as e:
+                            # on exception, unmount 'HypriotOS'
+                            run_cmd(["sudo", "umount", _boot])
+                            raise e
                     except Exception as e:
-                        run_cmd(["sudo", "umount", _boot])
+                        # on exception, unomunt bind /dev
+                        run_cmd(["sudo", "umount", _dev])
                         raise e
                     # unomunt bind /dev
                     run_cmd(["sudo", "umount", _dev])
@@ -540,15 +547,17 @@ class DTCommand(DTCommandAbs):
                     privileged=True,
                     name="dts-disk-image-aux-docker",
                     volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
-                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375"],
+                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
                 )
-                time.sleep(2)
+                dtslogger.info('Waiting 20 seconds for DIND to start...')
+                time.sleep(20)
                 # get IP address of the container
                 container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
                 container_ip = container_info["NetworkSettings"]["IPAddress"]
                 # create remote docker client
-                time.sleep(2)
-                remote_docker = docker.DockerClient(base_url=f"tcp://{container_ip}:2375")
+                endpoint_url = f"tcp://{container_ip}:2375"
+                dtslogger.info(f'DIND should now be up, using endpoint URL `{endpoint_url}`.')
+                remote_docker = docker.DockerClient(base_url=endpoint_url)
                 # from this point on, if anything weird happens, stop container and unmount disk
                 try:
                     dtslogger.info("Transferring Docker images...")
