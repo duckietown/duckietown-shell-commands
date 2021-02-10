@@ -49,8 +49,8 @@ NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {
-            "stable": "1.1.1",
-            "experimental": "1.1.2"
+            "stable": "1.2.0",
+            "experimental": "1.2.0"
         },
         "jetson_nano_4gb": {
             "stable": "1.2.0",
@@ -72,7 +72,8 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.0": "1.0",
             "1.1": "1.1",
             "1.1.1": "1.1",
-            "1.1.2": "1.1"
+            "1.1.2": "1.1",
+            "1.2.0": "1.1"
         },
         "jetson_nano_4gb": {
             "1.2.0": "1.1"
