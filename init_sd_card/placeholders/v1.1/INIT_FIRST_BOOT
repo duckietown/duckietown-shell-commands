@@ -1,3 +1,8 @@
 #!/usr/bin/env bash
 
-# empty
+# compute 75% of the total memory
+PHYMEM_SIZE=$(free --mega | awk '/^Mem:/{print $2}')
+TMPFS_SIZE=$(python3 -c "print(int(0.75 * ${PHYMEM_SIZE}))")
+
+# create tmpfs
+echo "tmpfs /data/ramdisk tmpfs  defaults,noatime,nosuid,nodev,noexec,mode=0777,size=${TMPFS_SIZE}M 0 0" >> /etc/fstab
