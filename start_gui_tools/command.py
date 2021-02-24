@@ -10,6 +10,7 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
+from utils.networking_utils import get_duckiebot_ip
 
 DEFAULT_IMAGE_FMT = "duckietown/dt-gui-tools:{}-{}"
 AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
@@ -39,8 +40,8 @@ class DTCommand(DTCommandAbs):
             "--vnc", action="store_true", default=False, help="Run the novnc server",
         )
         parser.add_argument(
-            "--ip", type=str, default=None, help="(Optional) Use this IP address to reach the "
-                                                 "robot instead of mDNS",
+            "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
+                                              "robot instead of mDNS",
         )
         # parse arguments
         parsed = parser.parse_args(args)
@@ -48,7 +49,8 @@ class DTCommand(DTCommandAbs):
         if parsed.sim or parsed.hostname is None:
             robot_host = parsed.hostname = "localhost"
         else:
-            robot_host = sanitize_hostname(parsed.hostname if parsed.ip is None else parsed.ip)
+            hostname = parsed.hostname if not parsed.ip else get_duckiebot_ip(parsed.hostname)
+            robot_host = sanitize_hostname(hostname)
 
         # pick the right architecture if not set
         arch = get_endpoint_architecture()
