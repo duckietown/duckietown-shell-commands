@@ -1,7 +1,6 @@
 import ipaddress
 import subprocess
-
-from utils.cli_utils import check_program_dependency
+from shutil import which
 
 
 def human_time(time_secs, compact=False):
@@ -43,7 +42,8 @@ def sudo_open(path, mode, *_, **__):
     mode = mode[0]
     tool = "cat" if mode == "r" else "tee"
     # check if dependencies are met
-    check_program_dependency(tool)
+    if which(tool) is None:
+        raise ValueError(f"The command `{tool}` could not be found. Please, install it first.")
     # ---
     proc = subprocess.Popen(["sudo", tool, path], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     return proc.stdout if mode == "r" else proc.stdin
