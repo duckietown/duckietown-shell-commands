@@ -22,7 +22,7 @@ from utils.duckietown_utils import \
     get_robot_configurations, \
     get_robot_hardware, \
     WIRED_ROBOT_TYPES
-from utils.misc_utils import human_time
+from utils.misc_utils import human_time, sudo_open
 
 from .constants import (
     TIPS_AND_TRICKS,
@@ -390,7 +390,7 @@ def step_verify(_, parsed, data):
     # compare bytes
     try:
         with open(data["disk_img"], "rb") as origin:
-            with _sudo_open(parsed.device, "rb") as destination:
+            with sudo_open(parsed.device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
                     buf1_len = len(buffer1)
@@ -543,14 +543,6 @@ def _validate_hostname(hostname):
         dtslogger.error('The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].')
         return False
     return True
-
-
-def _sudo_open(filepath, *_, **__):
-    # check if dependencies are met
-    check_program_dependency("cat")
-    # ---
-    proc = subprocess.Popen(["sudo", "cat", filepath], stdout=subprocess.PIPE)
-    return proc.stdout
 
 
 def _interpret_wifi_string(s):
