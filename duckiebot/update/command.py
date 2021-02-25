@@ -13,6 +13,13 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
+            "-s",
+            "--stack",
+            type=str,
+            default=DEFAULT_STACK,
+            help="Name of the Stack to update"
+        )
+        parser.add_argument(
             "robot",
             nargs=1,
             help="Name of the Robot to update"
@@ -26,5 +33,5 @@ class DTCommand(DTCommandAbs):
             "--machine", parsed.robot,
             "--detach",
             "--pull",
-            DEFAULT_STACK
+            parsed.stack
         ])
