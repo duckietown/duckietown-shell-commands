@@ -401,6 +401,7 @@ class DTCommand(DTCommandAbs):
         parsed.docker_args = [a.replace(" ", "\\ ") for a in parsed.docker_args]
         # sync
         if parsed.sync:
+            # TODO: this can just become a call to devel.sync
             # only allowed when mounting remotely
             if parsed.machine == DEFAULT_MACHINE:
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
