@@ -1,4 +1,5 @@
 import argparse
+import copy
 import getpass
 import json
 import os
@@ -10,9 +11,10 @@ import subprocess
 import time
 import socket
 from collections import namedtuple
+from math import log2, floor
 from types import SimpleNamespace
+from typing import List
 
-from future import builtins
 from datetime import datetime
 
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
@@ -27,7 +29,6 @@ from utils.misc_utils import human_time, sudo_open
 from .constants import (
     TIPS_AND_TRICKS,
     LIST_DEVICES_CMD,
-    INPUT_DEVICE_MSG,
     WPA_OPEN_NETWORK_CONFIG,
     WPA_PSK_NETWORK_CONFIG,
     WPA_EAP_NETWORK_CONFIG,
@@ -39,6 +40,8 @@ Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
 BLOCK_SIZE = 1024 ** 2
+SAFE_SD_SIZE_MIN = 16
+SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,9 +95,12 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
-        "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
-        "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
+        "raspberry_pi":
+            f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano_4gb":
+            f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
+        "jetson_nano_2gb":
+            f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -169,6 +175,13 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Use experimental disk image and parameters",
+        )
+        parser.add_argument(
+            "-S",
+            "--size",
+            default=None,
+            type=int,
+            help="(Optional) Size of the SD card you are flashing",
         )
         parser.add_argument(
             "--workdir", default=TMP_WORKDIR, type=str,
@@ -334,13 +347,57 @@ def step_flash(_, parsed, data):
     check_program_dependency("sudo")
     check_program_dependency("lsblk")
     check_program_dependency("umount")
+    print("=" * 30)
 
     # ask for a device if not set already
     if parsed.device is None:
-        dtslogger.info(INPUT_DEVICE_MSG)
-        _run_cmd(LIST_DEVICES_CMD, shell=True)
-        msg = "Type the name of your device (include the '/dev' part):   "
-        parsed.device = builtins.input(msg)
+        sd_size = 0 if parsed.size is None else parsed.size
+        # ask user first what is their desired device size as a confirmation.
+        while sd_size <= 0:
+            msg = "Please, enter the size of your SD card (in GB), 'q' to quit: "
+            # noinspection PyBroadException
+            try:
+                txt = input(msg)
+                if txt.strip() == 'q':
+                    dtslogger.info('Exiting')
+                    exit()
+                sd_size = int(txt)
+                assert sd_size > 0
+            except (ValueError, AssertionError):
+                continue
+            standard = log2(sd_size) - floor(log2(sd_size)) == 0
+            if not (SAFE_SD_SIZE_MIN <= sd_size <= SAFE_SD_SIZE_MAX) or not standard:
+                answer = ask_confirmation(f"You are indicating a non standard size: {sd_size}GB",
+                                          default="n", question="Proceed?")
+                if not answer:
+                    dtslogger.info('Exiting')
+                    exit()
+            break
+        # get all available devices
+        devices_all = _get_devices()
+        # all device with size within 20% of the given size are a match
+        devices_fit = list(filter(
+            lambda d: abs(d.size_gb - sd_size) < (0.2 * sd_size), devices_all
+        ))
+        # if there is any fit, show them
+        if devices_fit:
+            print(f"The following devices were found (size ~{sd_size}GB):")
+            _print_devices_table(devices_fit)
+        else:
+            answer = ask_confirmation(f"No devices were found with a size of ~{sd_size}GB.",
+                                      question="Do you want to see all the disks available?",
+                                      default="n")
+            if not answer:
+                dtslogger.info("Sounds good! Exiting...")
+                exit()
+            # show all
+            dtslogger.warn("Be aware that picking the wrong device might result in irreversible "
+                           "damage to your operating system or data loss.")
+            print("\nThe following devices are available:")
+            _print_devices_table(devices_all)
+
+        msg = "Type the name of your device (include the '/dev' part): "
+        parsed.device = input(msg)
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
@@ -351,9 +408,7 @@ def step_flash(_, parsed, data):
     else:
         sd_type = "File"
         if os.path.exists(parsed.device):
-            msg = (
-                    "File %s already exists, " % parsed.device + "if you continue, the file will be overwritten."
-            )
+            msg = f"File {parsed.device} already exists, it will be overwritten."
             granted = ask_confirmation(msg)
             if not granted:
                 dtslogger.info("Please retry while specifying a valid device. Bye bye!")
@@ -422,7 +477,8 @@ def step_verify(_, parsed, data):
         sys.stdout.write("\n")
         sys.stdout.flush()
         dtslogger.error(
-            "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(
+            "The verification step failed. Please, try re-flashing.\n" 
+            "The error reads:\n\n{}".format(
                 str(e))
         )
         exit(5)
@@ -610,6 +666,9 @@ def _get_wpa_networks(parsed):
 
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     dtslogger.debug("$ %s" % cmd)
+    env = copy.deepcopy(os.environ)
+    # force English language
+    env["LC_ALL"] = "C"
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
@@ -620,6 +679,41 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         outputs = {}
     # ---
     if get_output:
-        return subprocess.check_output(cmd, shell=shell).decode("utf-8")
+        return subprocess.check_output(cmd, shell=shell, env=env).decode("utf-8")
     else:
-        subprocess.check_call(cmd, shell=shell, **outputs)
+        subprocess.check_call(cmd, shell=shell, env=env, **outputs)
+
+
+def _get_devices() -> List[SimpleNamespace]:
+    units = {
+        'K': 1024, 'M': 1024 ** 2, 'G': 1024 ** 3, 'T': 1024 ** 4
+    }
+    lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
+    out = []
+    for line in lsblk.split('\n'):
+        findings = re.findall(r"^(/dev/[\w\d]+)\s+disk\s+(\d+(?:[.]\d+)?)([KMGT])\s+", line)
+        if findings:
+            device, size, unit, *_ = findings[0]
+            if unit not in units:
+                continue
+            try:
+                size = float(size)
+            except ValueError:
+                continue
+            size_b = size * units[unit]
+            size_gb = size_b / units['G']
+            out.append(SimpleNamespace(
+                device=device,
+                size_b=size_b,
+                size_gb=size_gb
+            ))
+    return out
+
+
+def _print_devices_table(devices: List[SimpleNamespace]):
+    row_fmt = "{:15s}{}"
+    print()
+    print("{:15s}{}".format("Name", "Size"))
+    for device in devices:
+        print(row_fmt.format(device.device, f"{device.size_gb}GB"))
+    print()
