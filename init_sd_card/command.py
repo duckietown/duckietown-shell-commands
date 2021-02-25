@@ -38,7 +38,7 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-BLOCK_SIZE = 1024**2
+BLOCK_SIZE = 1024 ** 2
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -118,7 +118,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
         parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
         parser.add_argument("--device", default=None, help="The SD card device to flash")
-        parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
+        parser.add_argument("--country", default="US",
+                            help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument(
             "--wifi",
             dest="wifi",
@@ -160,7 +161,8 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache", default=False, action="store_true",
+            help="Whether to use cached ISO image"
         )
         parser.add_argument(
             "--experimental",
@@ -169,7 +171,8 @@ class DTCommand(DTCommandAbs):
             help="Use experimental disk image and parameters",
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--workdir", default=TMP_WORKDIR, type=str,
+            help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -311,7 +314,8 @@ def step_download(shell, parsed, data):
         disk_image = DISK_IMAGE_CLOUD_LOCATION(parsed.robot_configuration, parsed.experimental)
         # download zip
         shell.include.data.get.command(
-            shell, [], parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public")
+            shell, [],
+            parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public")
         )
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{data['disk_zip']}].")
@@ -348,7 +352,7 @@ def step_flash(_, parsed, data):
         sd_type = "File"
         if os.path.exists(parsed.device):
             msg = (
-                "File %s already exists, " % parsed.device + "if you continue, the file will be overwritten."
+                    "File %s already exists, " % parsed.device + "if you continue, the file will be overwritten."
             )
             granted = ask_confirmation(msg)
             if not granted:
@@ -401,7 +405,8 @@ def step_verify(_, parsed, data):
                     buf2_len = len(buffer2)
                     # check lengths, then content
                     if buf1_len != buf2_len or buffer1 != buffer2:
-                        raise IOError("Mismatch in range position [{}-{}]".format(nbytes, nbytes + buf1_len))
+                        raise IOError(
+                            "Mismatch in range position [{}-{}]".format(nbytes, nbytes + buf1_len))
                     # update progress bar
                     nbytes += buf1_len
                     progress = int(100 * (nbytes / tbytes))
@@ -417,7 +422,8 @@ def step_verify(_, parsed, data):
         sys.stdout.write("\n")
         sys.stdout.flush()
         dtslogger.error(
-            "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(str(e))
+            "The verification step failed. Please, try re-flashing.\n" "The error reads:\n\n{}".format(
+                str(e))
         )
         exit(5)
     dtslogger.info("Verified in {}".format(human_time(time.time() - stime)))
@@ -445,7 +451,8 @@ def step_setup(shell, parsed, data):
             {
                 "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
                 "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
-                "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
+                "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration,
+                                                        parsed.experimental),
                 "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(
                     parsed.robot_configuration, parsed.experimental
                 ),
@@ -524,7 +531,7 @@ def step_setup(shell, parsed, data):
         for wpass in range(2):
             # launch dd
             dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            dtslogger.debug(f"[{wpass+1}/2] $ {dd_cmd}")
+            dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
             # write
             dd.stdin.write(masked_content)
             dd.stdin.flush()
