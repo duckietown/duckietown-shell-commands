@@ -54,8 +54,10 @@ INPUT_DISK_IMAGE_URL = (
     f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "root:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "root:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    "root:/data/autoboot/*.yaml":
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "root:/data/config/calibrations/*/default.yaml":
+        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 DISK_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "disk_template")
 SUPPORTED_STEPS = [
@@ -95,22 +97,28 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps", type=str, default="",
+            help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
-            "-o", "--output", type=str, default=None, help="The destination directory for the output file"
+            "-o", "--output", type=str, default=None,
+            help="The destination directory for the output file"
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache", default=False, action="store_true",
+            help="Whether to use cached ISO image"
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--workdir", default=TMP_WORKDIR, type=str,
+            help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target", type=str, default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record", type=str, default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -141,9 +149,11 @@ class DTCommand(DTCommandAbs):
             parsed.steps = set(parsed.steps).difference(skipped)
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check steps caching
+        # noinspection PyTypeChecker
         if parsed.cache_target not in [None] + SUPPORTED_STEPS:
             dtslogger.error(f"Unknown step `{parsed.cache_target}`")
             return
+        # noinspection PyTypeChecker
         if parsed.cache_record not in [None] + SUPPORTED_STEPS:
             dtslogger.error(f"Unknown step `{parsed.cache_record}`")
             return
@@ -346,7 +356,8 @@ class DTCommand(DTCommandAbs):
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
                 sd_card.mount()
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " 
+                               f"on {sd_card.loopdev}")
             # ---
             cache_step("mount")
             dtslogger.info("Step END: mount\n")
@@ -440,8 +451,8 @@ class DTCommand(DTCommandAbs):
                                 "--reset",
                             ]
                         )
-                        # try running a simple echo from the new chroot, if an error occurs, we need
-                        # to check the QEMU configuration
+                        # try running a simple echo from the new chroot, if an error occurs,
+                        # we need to check the QEMU configuration
                         try:
                             output = run_cmd_in_partition(
                                 ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
@@ -480,11 +491,12 @@ class DTCommand(DTCommandAbs):
                                 run_cmd_in_partition(
                                     ROOT_PARTITION,
                                     f"DEBIAN_FRONTEND=noninteractive "
-                                    f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                    f"apt install --yes --force-yes --no-install-recommends {pkgs}"
                                 )
-                            # upgrade libseccomp
-                            # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                            transfer_file(ROOT_PARTITION, ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
+                            # upgrade libseccomp. See:
+                            #   https://github.com/duckietown/duckietown-shell-commands/issues/200
+                            transfer_file(ROOT_PARTITION,
+                                          ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
                                 "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
@@ -538,7 +550,8 @@ class DTCommand(DTCommandAbs):
                 # pull dind image
                 pull_docker_image(local_docker, "docker:dind")
                 # run auxiliary Docker engine
-                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
+                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION),
+                                                 "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
                     image="docker:dind",
                     detach=True,
@@ -633,7 +646,8 @@ class DTCommand(DTCommandAbs):
                     try:
                         dtslogger.info(f'Updating partition "{partition}":')
                         # create directory structure from disk template
-                        for update in disk_template_objects(DISK_TEMPLATE_DIR, partition, "directory"):
+                        for update in disk_template_objects(DISK_TEMPLATE_DIR, partition,
+                                                            "directory"):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
                             run_cmd(["sudo", "mkdir", "-p", update["destination"]])
@@ -653,11 +667,12 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
+                                run_cmd(["sudo", "truncate", f"--size={max_bytes}",
+                                         update["destination"]])
                                 # store preliminary info about the surgery
                                 surgery_plan.append(
                                     {
@@ -761,7 +776,9 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
+            run_cmd(["zip", "-j",
+                     out_file_path("zip"),
+                     out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
             cache_step("compress")
             dtslogger.info("Step END: compress\n")
