@@ -35,7 +35,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-M",
             "--mount",
-            default=False,
+            default=True,
             const=True,
             action="store",
             nargs="?",
