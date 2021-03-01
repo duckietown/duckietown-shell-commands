@@ -47,6 +47,7 @@ DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+ROOT_PARTITIONS = ["root", "APP"]
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
@@ -533,7 +534,8 @@ def step_setup(shell, parsed, data):
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
     # compile list of files to sanitize at first boot
-    sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
+    sanitize = map(lambda s: s["path"],
+                   filter(lambda s: s["partition"] in ROOT_PARTITIONS, surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
