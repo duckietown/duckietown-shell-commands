@@ -506,7 +506,7 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     """
     monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
     dtslogger.info("Starting monitor thread")
-    dtslogger.info(f"Containedef convertNotebook(filepath, export_path) -> bool:
+    #dtslogger.info(f"Containedef convertNotebook(filepath, export_path) -> bool:
     if not os.path.exists(filepath):
         return False
     nb = nbformat.read(filepath, as_version=4)
