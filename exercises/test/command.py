@@ -23,6 +23,9 @@ from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image,
 from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
 
+
+import build.command as exe_build
+
 usage = """
 
 ## Basic usage
@@ -503,7 +506,22 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     """
     monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
     dtslogger.info("Starting monitor thread")
-    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
+    dtslogger.info(f"Containedef convertNotebook(filepath, export_path) -> bool:
+    if not os.path.exists(filepath):
+        return False
+    nb = nbformat.read(filepath, as_version=4)
+    exporter = PythonExporter()
+
+    # source is a tuple of python source code
+    # meta contains metadata
+    source, _ = exporter.from_notebook_node(nb)
+    try:
+        with open(export_path, "w+") as fh:
+            fh.writelines(source)
+    except Exception:
+        return False
+
+    return Truers to monitor: {[container.name for container in containers_to_monitor]}")
     monitor_thread.start()
 
 
@@ -567,6 +585,17 @@ def launch_agent(
     ros_template_volumes = fifos_bind
 
     ws_dir = "/" + config['ws_dir']
+
+    exercise_ws_src = working_dir + "/" + ws_dir+ "/src/"
+
+    # Convert all the notebooks listed in the config file to python scripts and
+    # move them in the specified package in the exercise ws.
+    for notebook in config["exercise"]["notebooks"]:
+        print(notebook['notebook'])
+        package_dir = exercise_ws_src + notebook['notebook']["package_name"]
+        notebook_name = notebook['notebook']["name"]
+        exe_build.convertNotebook(working_dir+f"/notebooks/{notebook_name}.ipynb", notebook_name, package_dir)
+
 
     if parsed.sim or parsed.local:
         ros_template_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
