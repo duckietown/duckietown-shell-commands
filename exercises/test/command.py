@@ -590,7 +590,7 @@ def launch_agent(
 
     # Convert all the notebooks listed in the config file to python scripts and
     # move them in the specified package in the exercise ws.
-    for notebook in config["exercise"]["notebooks"]:
+    for notebook in config["notebooks"]:
         print(notebook['notebook'])
         package_dir = exercise_ws_src + notebook['notebook']["package_name"]
         notebook_name = notebook['notebook']["name"]
@@ -689,24 +689,6 @@ def launch_bridge(
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
     return bridge_container
-
-
-def convertNotebook(filepath, export_path) -> bool:
-    if not os.path.exists(filepath):
-        return False
-    nb = nbformat.read(filepath, as_version=4)
-    exporter = PythonExporter()
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-    try:
-        with open(export_path, "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        return False
-
-    return True
 
 
 def load_yaml(file_name):

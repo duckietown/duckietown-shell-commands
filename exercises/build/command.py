@@ -83,7 +83,7 @@ class DTCommand(DTCommandAbs):
 
         # Convert all the notebooks listed in the config file to python scripts and
         # move them in the specified package in the exercise ws.
-        for notebook in config["exercise"]["notebooks"]:
+        for notebook in config["notebooks"]:
             print(notebook['notebook'])
             package_dir = exercise_ws_src + notebook['notebook']["package_name"]
             notebook_name = notebook['notebook']["name"]
