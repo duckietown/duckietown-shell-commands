@@ -503,22 +503,7 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     """
     monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
     dtslogger.info("Starting monitor thread")
-    dtslogger.info(f"Containedef convertNotebook(filepath, export_path) -> bool:
-    if not os.path.exists(filepath):
-        return False
-    nb = nbformat.read(filepath, as_version=4)
-    exporter = PythonExporter()
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-    try:
-        with open(export_path, "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        return False
-
-    return Truers to monitor: {[container.name for container in containers_to_monitor]}")
+    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
     monitor_thread.start()
 
 
