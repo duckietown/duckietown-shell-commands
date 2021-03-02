@@ -23,9 +23,6 @@ from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image,
 from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
 
-
-import build.command as exe_build
-
 usage = """
 
 ## Basic usage
@@ -594,7 +591,7 @@ def launch_agent(
         print(notebook['notebook'])
         package_dir = exercise_ws_src + notebook['notebook']["package_name"]
         notebook_name = notebook['notebook']["name"]
-        exe_build.convertNotebook(working_dir+f"/notebooks/{notebook_name}.ipynb", notebook_name, package_dir)
+        convertNotebook(working_dir+f"/notebooks/{notebook_name}.ipynb", notebook_name, package_dir)
 
 
     if parsed.sim or parsed.local:
@@ -689,6 +686,35 @@ def launch_bridge(
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
     return bridge_container
+
+
+def convertNotebook(filepath, filename, export_path) -> bool:
+    import nbformat  # install before?
+    from traitlets.config import Config
+
+    if not os.path.isfile(filepath):
+        dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
+        exit(0)
+
+    nb = nbformat.read(filepath, as_version=4)
+
+    # clean the notebook:
+    c = Config()
+    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
+
+    exporter = PythonExporter(config=c)
+
+    # source is a tuple of python source code
+    # meta contains metadata
+    source, _ = exporter.from_notebook_node(nb)
+
+    try:
+        with open(export_path+"/src/"+filename+".py", "w+") as fh:
+            fh.writelines(source)
+    except Exception:
+        return False
+
+    return True
 
 
 def load_yaml(file_name):
