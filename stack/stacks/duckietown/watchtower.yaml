@@ -33,6 +33,7 @@ services:
     network_mode: host
     volumes:
       - /data:/data
+      - /secrets:/secrets
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
