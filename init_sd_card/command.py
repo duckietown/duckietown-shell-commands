@@ -355,7 +355,7 @@ def step_flash(_, parsed, data):
         sd_size = 0 if parsed.size is None else parsed.size
         # ask user first what is their desired device size as a confirmation.
         while sd_size <= 0:
-            msg = "Please, enter the size of your SD card (in GB), 'q' to quit: "
+            msg = "Please, enter the size of your SD card (in GB): "
             # noinspection PyBroadException
             try:
                 txt = input(msg)
@@ -397,8 +397,13 @@ def step_flash(_, parsed, data):
             print("\nThe following devices are available:")
             _print_devices_table(devices_all)
 
-        msg = "Type the name of your device (include the '/dev' part): "
-        parsed.device = input(msg)
+        device = None
+        while device is None:
+            msg = "Type the name of your device: "
+            txt = input(msg)
+            if len(txt.strip()) > 0:
+                device = txt
+        parsed.device = device
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
@@ -713,9 +718,29 @@ def _get_devices() -> List[SimpleNamespace]:
 
 
 def _print_devices_table(devices: List[SimpleNamespace]):
-    row_fmt = "{:15s}{}"
+    row_fmt = "{:15s}{:12s}{}"
     print()
-    print("{:15s}{}".format("Name", "Size"))
+    print(row_fmt.format("Name", "Size", "Plugged in"))
     for device in devices:
-        print(row_fmt.format(device.device, f"{device.size_gb}GB"))
+        # try to get the creation time of the device file, that should be the plug-in time
+        device_file = pathlib.Path(device.device)
+        plugin_time = datetime.fromtimestamp(device_file.stat().st_ctime)
+        time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
+        print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
     print()
+
+
+def _time_diff_txt(d1, d2) -> str:
+    duration_in_s = (d2 - d1).total_seconds()
+    days = divmod(duration_in_s, 86400)  # Get days (without [0]!)
+    hours = divmod(days[1], 3600)  # Use remainder of days to calc hours
+    minutes = divmod(hours[1], 60)  # Use remainder of hours to calc minutes
+    seconds = divmod(minutes[1], 1)  # Use remainder of minutes to calc seconds
+    parts = []
+    for value, unit in zip([days, hours, minutes, seconds], ['day', 'hour', 'minute', 'second']):
+        value = int(value[0])
+        if value <= 0:
+            continue
+        unit = unit if value == 1 else f"{unit}s"
+        parts.append(f"{value} {unit}")
+    return ", ".join(parts)
