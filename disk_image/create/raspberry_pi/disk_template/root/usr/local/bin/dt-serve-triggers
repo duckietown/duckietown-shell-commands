@@ -17,5 +17,5 @@ log(){
 find ${TRIGGERS_DIR} -maxdepth 1 -mindepth 1 -type d -print0 | while read -d $'\0' trigger_dir; do
     trigger=$(basename "${trigger_dir}")
     log "Starting watcher for trigger '${trigger}'"
-    dt-serve-trigger "${trigger}" &
+    dt-serve-trigger "${trigger}" > /dev/null &
 done

@@ -32,7 +32,7 @@ log(){
 }
 
 while true; do
-    while inotifywait -e close_write "${TRIGGER_SOCKET}"; do
+    while inotifywait -e close_write -q -q "${TRIGGER_SOCKET}"; do
         signal=$(cat "${TRIGGER_SOCKET}")
         log "Received signal '${signal}'"
         ${TRIGGER_RUN} "$signal"
