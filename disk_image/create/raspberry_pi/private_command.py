@@ -87,7 +87,9 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    "libnss-mdns"
+    "libnss-mdns",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools"
 ]
 
 

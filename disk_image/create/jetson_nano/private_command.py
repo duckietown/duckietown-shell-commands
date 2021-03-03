@@ -104,7 +104,10 @@ APT_PACKAGES_TO_INSTALL = [
     "nano",
     "htop",
     "docker-compose",
-    "cloud-guest-utils"
+    # provides the command `growpart`, used to resize the root partition at first boot
+    "cloud-guest-utils",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools"
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
