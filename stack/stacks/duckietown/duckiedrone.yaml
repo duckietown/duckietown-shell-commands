@@ -68,6 +68,7 @@ services:
     privileged: true
     volumes:
       - /data:/data
+      - /triggers:/triggers
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
