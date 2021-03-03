@@ -152,6 +152,9 @@ run_on_every_boot() {
         echo ${HUT_RESET_SYSFS_PIN_NO} >/sys/class/gpio/unexport
     fi
 
+    # launch triggers handlers
+    dt-serve-triggers
+
     echo "Setting up completed!"
 }
 
