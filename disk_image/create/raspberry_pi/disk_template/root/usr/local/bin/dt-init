@@ -129,6 +129,9 @@ run_on_every_boot() {
     # remove `booting` service
     rm -f /etc/avahi/services/dt.booting.service
 
+    # launch triggers handlers
+    dt-serve-triggers
+
     echo "Setting up completed!"
 }
 
