@@ -53,7 +53,7 @@ ROOT_PARTITIONS = ["root", "APP"]
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {
-            "stable": "1.2.0",
+            "stable": "1.2.1",
             "experimental": "1.2.1"
         },
         "jetson_nano_4gb": {
@@ -61,7 +61,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
             "experimental": "1.2.0"
         },
         "jetson_nano_2gb": {
-            "stable": "1.2.0",
+            "stable": "1.2.1",
             "experimental": "1.2.1"
         },
     }
