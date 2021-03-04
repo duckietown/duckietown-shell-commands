@@ -199,6 +199,17 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error("You have not set a token for this shell.\n"
+                            "You can get a token from the following URL,\n\n"
+                            "\thttps://www.duckietown.org/site/your-token   \n\n"
+                            "and set it using the following command,\n\n"
+                            "\tdts tok set\n")
+            return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
