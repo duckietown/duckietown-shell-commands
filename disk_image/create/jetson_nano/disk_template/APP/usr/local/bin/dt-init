@@ -42,6 +42,9 @@ run_on_first_boot() {
     resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
     partprobe
 
+    # sanitize files
+    dt-sanitize-files
+
     # sudo without a password
     echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
 
@@ -100,6 +103,9 @@ run_on_first_boot() {
         echo 'Waiting for Docker to start...'
         sleep 2
     done
+
+    # disable ZRAM
+    systemctl disable nvzramconfig
 
     # run customizable first-boot script
     dt-init-first-boot
