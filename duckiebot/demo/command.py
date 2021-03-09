@@ -6,7 +6,7 @@ from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, \
-    pull_if_not_exist, bind_avahi_socket
+    pull_if_not_exist, bind_avahi_socket, get_endpoint_architecture
 from utils.networking_utils import get_duckiebot_ip
 
 from dt_shell import DTShell
@@ -29,7 +29,6 @@ usage = """
 ARCH = "arm32v7"
 BRANCH = "daffy"
 DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
-EXPERIMENTAL_IMAGE = "duckietown/dt-experimental:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 
 
@@ -124,20 +123,31 @@ class DTCommand(DTCommandAbs):
             else:
                 parsed.demo_name = "default"
 
+        duckiebot_name = parsed.duckiebot_name
+        if duckiebot_name is None:
+            msg = "You must specify a duckiebot_name"
+            raise InvalidUserInput(msg)
+
+        arch = get_endpoint_architecture(duckiebot_name)
+        dtslogger.info(f"Target architecture automatically set to {arch}.")
+
+        default_image = "duckietown/dt-core:" + BRANCH + "-" + arch
+        experimental_image = "duckietown/dt-experimental:" + BRANCH + "-" + arch
+
         # if we run in experimental mode - change the default
         # image and package. Note: in experimental mode you cannot
         # explicitly choose the default image and package because they will
         # be overwritten here.
         if parsed.experimental and parsed.image_to_run == DEFAULT_IMAGE:
-            parsed.image_to_run = EXPERIMENTAL_IMAGE
+            parsed.image_to_run = experimental_image
+        elif not parsed.experimental and parsed.image_to_run == DEFAULT_IMAGE:
+            # Update the architecture of the image to run according to the architecture
+            # of the endpoint
+            parsed.image_to_run=default_image
 
         if parsed.experimental and parsed.package_name is None:
             parsed.package_name = EXPERIMENTAL_PACKAGE
 
-        duckiebot_name = parsed.duckiebot_name
-        if duckiebot_name is None:
-            msg = "You must specify a duckiebot_name"
-            raise InvalidUserInput(msg)
 
         if parsed.package_name:
             dtslogger.info("Using package %s" % parsed.package_name)
