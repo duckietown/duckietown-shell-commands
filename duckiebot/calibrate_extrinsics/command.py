@@ -10,8 +10,12 @@ from utils.docker_utils import (
     remove_if_running,
     pull_if_not_exist,
     check_if_running,
+    get_endpoint_architecture,
 )
 from utils.networking_utils import get_duckiebot_ip
+
+
+DEFAULT_IMAGE="duckietown/dt-core:daffy-arm32v7"
 
 
 class DTCommand(DTCommandAbs):
@@ -28,7 +32,7 @@ Calibrate:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "--base_image", dest="image", default="duckietown/dt-core:daffy-arm32v7",
+            "--base_image", dest="image", default=DEFAULT_IMAGE,
         )
         parser.add_argument(
             "--no_verification",
@@ -50,6 +54,11 @@ Calibrate:
         check_if_running(duckiebot_client, "duckiebot-interface")
 
         image = parsed_args.image
+        
+        if image == DEFAULT_IMAGE:
+            arch =  get_endpoint_architecture(hostname)
+            dtslogger.info(f"Target architecture automatically set to {arch}.")
+            image = "duckietown/dt-core:daffy-"+arch
 
         raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration patterns and press ENTER.")
         dtslogger.info("Running extrinsics calibration...")
