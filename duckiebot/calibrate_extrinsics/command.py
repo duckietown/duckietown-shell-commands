@@ -46,7 +46,7 @@ Calibrate:
         parsed = parser.parse_args(args)
         # ---
         hostname = sanitize_hostname(parsed.duckiebot)
-        duckiebot_ip = get_duckiebot_ip(hostname)
+        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
         calibration_container_name = "extrinsic_calibration"
