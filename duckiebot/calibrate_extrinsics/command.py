@@ -12,10 +12,12 @@ from utils.docker_utils import (
     check_if_running,
     get_endpoint_architecture,
 )
+from utils.duckietown_utils import get_distro_version
+from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
 
-DEFAULT_IMAGE="duckietown/dt-core:daffy-arm32v7"
+CALIBRATE_IMAGE = "duckietown/dt-core:{distro}-{arch}"
 
 
 class DTCommand(DTCommandAbs):
@@ -30,9 +32,10 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "--base_image", dest="image", default=DEFAULT_IMAGE,
+            "duckiebot",
+            default=None,
+            help="Name of the Duckiebot to calibrate"
         )
         parser.add_argument(
             "--no_verification",
@@ -40,9 +43,9 @@ Calibrate:
             default=False,
             help="If you don't have a lane you can skip the verification step",
         )
-
-        parsed_args = parser.parse_args(args)
-        hostname = parsed_args.hostname
+        parsed = parser.parse_args(args)
+        # ---
+        hostname = sanitize_hostname(parsed.duckiebot)
         duckiebot_ip = get_duckiebot_ip(hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
@@ -53,17 +56,15 @@ Calibrate:
 
         check_if_running(duckiebot_client, "duckiebot-interface")
 
-        image = parsed_args.image
-        
-        if image == DEFAULT_IMAGE:
-            arch =  get_endpoint_architecture(hostname)
-            dtslogger.info(f"Target architecture automatically set to {arch}.")
-            image = "duckietown/dt-core:daffy-"+arch
+        arch = get_endpoint_architecture(hostname)
+        distro = get_distro_version(shell)
+        image = CALIBRATE_IMAGE.format(distro=distro, arch=arch)
+        dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration patterns and press ENTER.")
         dtslogger.info("Running extrinsics calibration...")
 
-        env = default_env(hostname, duckiebot_ip)
+        env = default_env(parsed.duckiebot, duckiebot_ip)
 
         pull_if_not_exist(duckiebot_client, image)
 
@@ -79,7 +80,7 @@ Calibrate:
         )
         dtslogger.info("Done!")
 
-        if not parsed_args.no_verification:
+        if not parsed.no_verification:
             raw_input(f"{'*' * 20}\nPlace the Duckiebot in a lane and press ENTER.")
             dtslogger.info("Running extrinsics calibration validation...")
 
