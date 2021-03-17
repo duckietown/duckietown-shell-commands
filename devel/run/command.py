@@ -424,7 +424,7 @@ class DTCommand(DTCommandAbs):
                 _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
         # run
-        _run_cmd(
+        exitcode = _run_cmd(
             [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
             + module_configuration_args
             + parsed.docker_args
@@ -433,7 +433,9 @@ class DTCommand(DTCommandAbs):
             + cmd_option
             + cmd_arguments,
             suppress_errors=True,
+            return_exitcode=True
         )
+        dtslogger.debug(f"Command exited with exit code [{exitcode}].")
         if parsed.detach:
             dtslogger.info("Your container is running in detached mode!")
 
@@ -442,7 +444,7 @@ class DTCommand(DTCommandAbs):
         return []
 
 
-def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
+def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False):
     if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
@@ -459,8 +461,12 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
             print(out)
         return out
     else:
-        try:
-            subprocess.check_call(cmd, shell=shell)
-        except subprocess.CalledProcessError as e:
-            if not suppress_errors:
-                raise e
+        if return_exitcode:
+            res = subprocess.run(cmd, shell=shell)
+            return res.returncode
+        else:
+            try:
+                subprocess.check_call(cmd, shell=shell)
+            except subprocess.CalledProcessError as e:
+                if not suppress_errors:
+                    raise e
