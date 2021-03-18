@@ -8,6 +8,7 @@ DT_USER=duckie
 DT_USER_PASSWORD=quackquack
 DT_USER_ID=1000
 SWAP_SIZE_MB=2048
+EVENTS_DIR=/data/stats/events
 
 setup_etc_hosts() {
     cat >/etc/hosts <<EOL
@@ -21,6 +22,13 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOL
+}
+
+store_event() {
+    type=$1
+    now=$(date +%s)
+    # collect event
+    echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
 run_on_first_boot() {
@@ -111,6 +119,9 @@ run_on_first_boot() {
     echo "Setting up the containers..."
     dt-autoboot
 
+    # mark event
+    store_event "first_boot"
+
     echo "Setting up completed!"
 }
 
@@ -131,6 +142,9 @@ run_on_every_boot() {
 
     # launch triggers handlers
     dt-serve-triggers
+
+    # mark event
+    store_event "boot"
 
     echo "Setting up completed!"
 }

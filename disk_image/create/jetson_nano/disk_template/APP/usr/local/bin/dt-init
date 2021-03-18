@@ -4,8 +4,8 @@ set -x
 
 SD_DEVICE=/dev/mmcblk0
 ROOT_PART_ID=1
-ROOT_PART_NAME=APP
 CONFIG_DIR=/data/config
+EVENTS_DIR=/data/stats/events
 ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
 ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
 # Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
@@ -24,6 +24,13 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOL
+}
+
+store_event() {
+    type=$1
+    now=$(date +%s)
+    # collect event
+    echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
 run_on_first_boot() {
@@ -113,6 +120,9 @@ run_on_first_boot() {
     echo "Setting up the containers..."
     dt-autoboot
 
+    # mark event
+    store_event "first_boot"
+
     echo "Setting up completed!"
 }
 
@@ -160,6 +170,9 @@ run_on_every_boot() {
 
     # launch triggers handlers
     dt-serve-triggers
+
+    # mark event
+    store_event "boot"
 
     echo "Setting up completed!"
 }
