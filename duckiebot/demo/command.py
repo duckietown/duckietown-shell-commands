@@ -154,7 +154,7 @@ class DTCommand(DTCommandAbs):
         if parsed.package_name:
             dtslogger.info("Using package %s" % parsed.package_name)
 
-        duckiebot_ip = get_duckiebot_ip(duckiebot_hostname)
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         if parsed.local:
             duckiebot_client = check_docker_environment()
         else:
