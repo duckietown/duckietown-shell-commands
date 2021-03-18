@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 EVENTS_DIR=/data/stats/events
-NOW=$(date +%s)
+NOW=$(date +%s%N)
 SIGNAL=$1
 
 # collect event
