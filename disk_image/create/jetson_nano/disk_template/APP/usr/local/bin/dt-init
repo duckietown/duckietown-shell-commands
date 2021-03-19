@@ -130,7 +130,6 @@ run_on_first_boot() {
     cp /data/stats/disk_image/build.json "${USAGE_DIR}/disk_image/$(date +%s%N).json"
     cp /data/stats/init_sd_card/build.json "${USAGE_DIR}/init_sd_card/$(date +%s%N).json"
 
-
     echo "Setting up completed!"
 }
 
