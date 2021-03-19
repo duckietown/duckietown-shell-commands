@@ -276,6 +276,21 @@ class DTCommand(DTCommandAbs):
             "disk_img": in_file("img"),
             "disk_metadata": in_file("json"),
         }
+        # notify about licenses
+        if "license" not in steps:
+            board, _ = get_robot_hardware(parsed.robot_configuration)
+            extra = "   - License For Customer Use of NVIDIA Software\n" \
+                if board.startswith("jetson_nano") else ""
+            dtslogger.warning(
+                "Skipping \"license\" step. You are implicitly agreeing to the following:\n"
+                + extra +
+                "   - Duckietown Terms and Conditions:\t"
+                "https://www.duckietown.org/about/terms-and-conditions\n"
+                "   - Duckietown Software License:\t"
+                "https://www.duckietown.org/about/sw-license\n"
+                "   - Duckietown Privacy Policy:\t\t"
+                "https://www.duckietown.org/about/privacy",
+            )
         # perform steps
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
@@ -290,16 +305,35 @@ class DTCommand(DTCommandAbs):
 
 
 def step_license(_, parsed, __):
+    print()
+    # Duckietown legal stuff
+    answer = ask_confirmation(
+        f"\nBy proceeding you agree to the following,\n"
+        f"   - Duckietown Terms and Conditions:\t"
+        f"https://www.duckietown.org/about/terms-and-conditions\n"
+        f"   - Duckietown Software License:\t"
+        f"https://www.duckietown.org/about/sw-license\n"
+        f"   - Duckietown Privacy Policy:\t\t"
+        f"https://www.duckietown.org/about/privacy",
+        question="Do you accept?",
+    )
+    if not answer:
+        dtslogger.error("You must explicitly agree to the Term and Conditions, Software License "
+                        "and Privacy Policy of Duckietown to continue.\n"
+                        "For additional information, please contact info@duckietown.com.")
+        exit(9)
+    # NVIDIA Software License
     board, _ = get_robot_hardware(parsed.robot_configuration)
     if board.startswith("jetson_nano"):
         # ask to either agree or go away
         while True:
+            print()
             answer = ask_confirmation(
-                f"This disk image uses the Nvidia Jetpack OS. By proceeding, "
+                f"\nThis disk image uses the Nvidia Jetpack OS.\nBy proceeding, "
                 f"you agree to the terms and conditions of the License For Customer Use of "
-                f'NVIDIA Software"',
+                f'NVIDIA Software',
                 default="n",
-                choices={"a": "Accept", "n": "Reject", "r": "Read License"},
+                choices={"y": "Yes", "n": "No", "r": "Read License"},
                 question="Do you accept?",
             )
             if answer == "r":
@@ -307,11 +341,12 @@ def step_license(_, parsed, __):
                 with open(NVIDIA_LICENSE_FILE, "rt") as fin:
                     nvidia_license = fin.read()
                 print(f"\n{nvidia_license}\n")
-            elif answer == "a":
+            elif answer == "y":
                 break
             elif answer == "n":
                 dtslogger.error("You must explicitly agree to the License first.")
                 exit(8)
+    print()
     return {}
 
 
@@ -513,8 +548,8 @@ def step_setup(shell, parsed, data):
     check_program_dependency("sync")
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
-    s = lambda w: w if ":" not in w else (w.split(":")[0] + "***")
-    params['wifi'] = ','.join(list(map(s, params['wifi'].split(','))))
+    wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
+    params['wifi'] = ','.join(list(map(wfstr, params['wifi'].split(','))))
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,
