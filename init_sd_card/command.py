@@ -511,7 +511,10 @@ def step_setup(shell, parsed, data):
     check_program_dependency("dd")
     check_program_dependency("sudo")
     check_program_dependency("sync")
-
+    # make a copy of the command parameters and remove wifi passwords
+    params = copy.deepcopy(parsed.__dict__)
+    s = lambda w: w if ":" not in w else (w.split(":")[0] + "***")
+    params['wifi'] = ','.join(list(map(s, params['wifi'].split(','))))
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,
@@ -537,7 +540,7 @@ def step_setup(shell, parsed, data):
                     "commands_version": shell.get_commands_version(),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
-                "parameters": parsed.__dict__,
+                "parameters": params,
                 "stamp": time.time(),
                 "stamp_human": datetime.now().isoformat(),
             },
