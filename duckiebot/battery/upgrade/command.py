@@ -127,6 +127,11 @@ class DTCommand(DTCommandAbs):
                 if status == ExitCode.FIRMWARE_UP_TO_DATE:
                     dtslogger.info(f"The battery on {parsed.duckiebot} does not need to be"
                                    f" updated. Enjoy the rest of your day.")
+                    # re-activate device-health
+                    if device_health:
+                        dtslogger.info("Re-engaging battery...")
+                        device_health.start()
+                        dtslogger.info("Battery returned to work!")
                     exit(0)
                 #
                 elif status == ExitCode.FIRMWARE_NEEDS_UPDATE:
