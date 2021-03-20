@@ -31,13 +31,6 @@ You can use --no-steps to exclude some steps:
 
 LIST_DEVICES_CMD = "lsblk -p --output NAME,TYPE,SIZE,VENDOR | grep --color=never 'disk\|TYPE'"
 
-INPUT_DEVICE_MSG = (
-    "Please type the device with your SD card. "
-    "Please be careful to pick the right device and to include '/dev/'. "
-    "Here's a list of the devices on your system:"
-)
-
-
 WPA_OPEN_NETWORK_CONFIG = """
 network={{
   id_str="{cname}"

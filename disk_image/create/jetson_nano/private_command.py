@@ -11,7 +11,6 @@ import subprocess
 import time
 import docker
 import socket
-import fnmatch
 import getpass
 from datetime import datetime
 
@@ -27,6 +26,8 @@ from disk_image.create.constants import (
     DOCKER_IMAGE_TEMPLATE,
     MODULES_TO_LOAD,
     DATA_STORAGE_DISK_IMAGE_DIR,
+    AUTOBOOT_STACKS_DIR,
+    DEFAULT_STACK,
 )
 
 from disk_image.create.utils import (
@@ -42,6 +43,9 @@ from disk_image.create.utils import (
     run_cmd_in_partition,
     validator_autoboot_stack,
     validator_yaml_syntax,
+    transfer_file,
+    replace_in_file,
+    list_files, copy_file, get_validator_fcn
 )
 
 DISK_IMAGE_PARTITION_TABLE = {
@@ -61,7 +65,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.2.0"
+DISK_IMAGE_VERSION = "1.2.2"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4.1"
 DEVICE_ARCH = "arm64v8"
@@ -70,12 +74,15 @@ INPUT_DISK_IMAGE_URL = lambda v: \
     f"https://duckietown-public-storage.s3.amazonaws.com/" \
     f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    "APP:/data/autoboot/*.yaml":
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/config/calibrations/*/default.yaml":
+        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+STACKS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..", "stack", "stacks", DEFAULT_STACK)
 SUPPORTED_STEPS = [
     "license",
     "download",
@@ -97,7 +104,10 @@ APT_PACKAGES_TO_INSTALL = [
     "nano",
     "htop",
     "docker-compose",
-    "cloud-guest-utils"
+    # provides the command `growpart`, used to resize the root partition at first boot
+    "cloud-guest-utils",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools"
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
@@ -200,6 +210,17 @@ class DTCommand(DTCommandAbs):
             return
         # check dependencies
         check_cli_tools()
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error("You have not set a token for this shell.\n"
+                            "You can get a token from the following URL,\n\n"
+                            "\thttps://www.duckietown.org/site/your-token   \n\n"
+                            "and set it using the following command,\n\n"
+                            "\tdts tok set\n")
+            return
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()
@@ -261,7 +282,7 @@ class DTCommand(DTCommandAbs):
             # cache step
             dtslogger.info(f"Caching step '{step}'...")
             cache_file_path = cached_step_file_path(step, "img")
-            _copy_file(out_file_path("img"), cache_file_path)
+            copy_file(out_file_path("img"), cache_file_path)
             dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
@@ -429,7 +450,8 @@ class DTCommand(DTCommandAbs):
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
                 sd_card.mount()
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " 
+                               f"on {sd_card.loopdev}")
             # ---
             cache_step("mount")
             dtslogger.info("Step END: mount\n")
@@ -509,8 +531,8 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
-                    transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
-                    transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
+                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    _transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
@@ -613,7 +635,8 @@ class DTCommand(DTCommandAbs):
                 # pull dind image
                 pull_docker_image(local_docker, "docker:dind")
                 # run auxiliary Docker engine
-                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
+                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION),
+                                                 "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
                     image="docker:dind",
                     detach=True,
@@ -715,6 +738,30 @@ class DTCommand(DTCommandAbs):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
                             run_cmd(["sudo", "mkdir", "-p", update["destination"]])
+                        # copy stacks (APP only)
+                        if partition == ROOT_PARTITION:
+                            for stack in list_files(STACKS_DIR, "yaml"):
+                                origin = os.path.join(STACKS_DIR, stack)
+                                destination = os.path.join(
+                                    PARTITION_MOUNTPOINT(partition),
+                                    AUTOBOOT_STACKS_DIR.lstrip('/'),
+                                    stack)
+                                relative = os.path.join(AUTOBOOT_STACKS_DIR, stack)
+                                # validate file
+                                validator = _get_validator_fcn(partition, relative)
+                                if validator:
+                                    dtslogger.debug(f"Validating file {relative}...")
+                                    validator(shell, origin, relative, arch=DEVICE_ARCH)
+                                # create or modify file
+                                effect = "MODIFY" if os.path.exists(destination) else "NEW"
+                                dtslogger.info(f"- Updating file ({effect}) [{relative}]")
+                                # copy new file
+                                run_cmd(["sudo", "cp", origin, destination])
+                                # add architecture as default value in the stack file
+                                dtslogger.debug("- Replacing '{ARCH}' with '{ARCH:-%s}' in %s" % (
+                                    DEVICE_ARCH, destination
+                                ))
+                                replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
@@ -733,11 +780,12 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
+                                run_cmd(["sudo", "truncate", f"--size={max_bytes}",
+                                         update["destination"]])
                                 # store preliminary info about the surgery
                                 surgery_plan.append(
                                     {
@@ -763,7 +811,7 @@ class DTCommand(DTCommandAbs):
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
                                 "ln"
-                                " -s"
+                                " -s -f"
                                 " /etc/systemd/system/dt_init.service"
                                 " /etc/systemd/system/multi-user.target.wants/dt_init.service",
                             )
@@ -841,7 +889,9 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
+            run_cmd(["zip", "-j",
+                     out_file_path("zip"),
+                     out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
             cache_step("compress")
             dtslogger.info("Step END: compress\n")
@@ -877,22 +927,8 @@ class DTCommand(DTCommandAbs):
 
 
 def _get_validator_fcn(partition, path):
-    key = f"{partition}:{path}"
-    for _k, _f in TEMPLATE_FILE_VALIDATOR.items():
-        if fnmatch.fnmatch(key, _k):
-            return _f
-    return None
+    return get_validator_fcn(TEMPLATE_FILE_VALIDATOR, partition, path)
 
 
-def _copy_file(origin, destination):
-    # create destination directory
-    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
-    # make copy of the file
-    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
-    run_cmd(["cp", origin, destination])
-
-
-def transfer_file(partition, location):
-    _local_filepath = os.path.join(DISK_TEMPLATE_DIR, partition, *location)
-    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
-    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])
+def _transfer_file(partition, location):
+    return transfer_file(DISK_TEMPLATE_DIR, partition, location)

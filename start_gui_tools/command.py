@@ -9,6 +9,8 @@ from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture
 from utils.duckietown_utils import get_distro_version
+from utils.misc_utils import sanitize_hostname
+from utils.networking_utils import get_duckiebot_ip
 
 DEFAULT_IMAGE_FMT = "duckietown/dt-gui-tools:{}-{}"
 AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
@@ -37,15 +39,19 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--vnc", action="store_true", default=False, help="Run the novnc server",
         )
+        parser.add_argument(
+            "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
+                                              "robot instead of mDNS",
+        )
         # parse arguments
         parsed = parser.parse_args(args)
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
-            machine = parsed.hostname = "localhost"
+            robot_host = parsed.hostname = "localhost"
         else:
-            machine = (
-                f"{parsed.hostname}.local" if not parsed.hostname.endswith(".local") else parsed.hostname
-            )
+            hostname = parsed.hostname if not parsed.ip else get_duckiebot_ip(parsed.hostname)
+            robot_host = sanitize_hostname(hostname)
+
         # pick the right architecture if not set
         arch = get_endpoint_architecture()
         dtslogger.info(f"Target architecture automatically set to {arch}.")
@@ -61,7 +67,7 @@ class DTCommand(DTCommandAbs):
             "VEHICLE_NAME": parsed.hostname,
             "ROS_MASTER": parsed.hostname,
             "DUCKIEBOT_NAME": parsed.hostname,
-            "ROS_MASTER_URI": "http://%s:11311" % machine,
+            "ROS_MASTER_URI": "http://%s:11311" % robot_host,
             "HOSTNAME": "default" if parsed.sim else parsed.hostname,
         }
         volumes = {}
@@ -116,7 +122,7 @@ class DTCommand(DTCommandAbs):
             params["privileged"] = True
             params["network_mode"] = parsed.network
 
-        if parsed.vnc:
+        if parsed.vnc and parsed.network != "host":
             params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
 
         # print some info

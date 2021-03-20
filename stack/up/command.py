@@ -1,6 +1,7 @@
 import os
 import pathlib
 import argparse
+from shutil import which
 
 import yaml
 
@@ -46,6 +47,13 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
+        # ---
+        # verify dependencies
+        if which("docker-compose") is None:
+            dtslogger.error("\nThis command requires the library `docker-compose`.\n"
+                            "Please, install it using the command:\n\n"
+                            "\tpip3 install docker-compose\n\n")
+            return
         # ---
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
