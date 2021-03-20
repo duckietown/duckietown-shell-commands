@@ -61,7 +61,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
             "experimental": "1.2.0"
         },
         "jetson_nano_2gb": {
-            "stable": "1.2.1",
+            "stable": "1.2.2",
             "experimental": "1.2.2"
         },
     }
