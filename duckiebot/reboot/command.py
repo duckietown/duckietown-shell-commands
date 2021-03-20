@@ -1,13 +1,10 @@
 import argparse
+import requests
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell import DTShell
 
-from utils.docker_utils import get_endpoint_architecture, get_client
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
-
-IMAGE_FMT = "duckietown/dt-commons:{DISTRO}-{ARCH}"
 
 
 class DTCommand(DTCommandAbs):
@@ -25,26 +22,18 @@ class DTCommand(DTCommandAbs):
         # ---
         robot = parsed.robot[0]
         hostname = sanitize_hostname(robot)
-        distro = get_distro_version(shell)
-        arch = get_endpoint_architecture(hostname)
-        image = IMAGE_FMT.format(DISTRO=distro, ARCH=arch)
-        container = f"dts-reboot-trigger-{robot}"
-        command = ['dt-set-trigger', 'reboot', 'dts']
-        # get docker client
-        client = get_client(hostname)
         # ---
         dtslogger.info(f"Shutting down {robot}...")
-        dtslogger.debug("Running command %s" % command)
+        url = f"http://{hostname}/health/trigger/reboot?token="
         try:
-            client.containers.run(
-                image=image,
-                command=command,
-                volumes={
-                    "/triggers": {"bind": "/triggers"}
-                },
-                name=container,
-                remove=True
-            )
+            dtslogger.debug(f"Calling URL '{url}'...")
+            data = requests.get(url).json()
+            assert data['status'] == 'needs-confirmation'
+            assert 'token' in data
+            url += data['token']
+            dtslogger.debug(f"Calling URL '{url}'...")
+            res = requests.get(url).json()
+            assert res['status'] == 'ok'
         except BaseException as e:
             dtslogger.error(str(e))
             return
