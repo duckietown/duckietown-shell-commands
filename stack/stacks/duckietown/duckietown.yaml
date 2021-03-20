@@ -125,3 +125,4 @@ services:
 
 volumes:
   compose-data:
+  portainer-data:
