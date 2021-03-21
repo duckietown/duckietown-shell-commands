@@ -65,7 +65,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.2.1"
+DISK_IMAGE_VERSION = "1.2.2"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4.1"
 DEVICE_ARCH = "arm64v8"
@@ -104,7 +104,10 @@ APT_PACKAGES_TO_INSTALL = [
     "nano",
     "htop",
     "docker-compose",
-    "cloud-guest-utils"
+    # provides the command `growpart`, used to resize the root partition at first boot
+    "cloud-guest-utils",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools"
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
@@ -207,6 +210,17 @@ class DTCommand(DTCommandAbs):
             return
         # check dependencies
         check_cli_tools()
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error("You have not set a token for this shell.\n"
+                            "You can get a token from the following URL,\n\n"
+                            "\thttps://www.duckietown.org/site/your-token   \n\n"
+                            "and set it using the following command,\n\n"
+                            "\tdts tok set\n")
+            return
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()

@@ -129,28 +129,17 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Build complete")
 
 
-def convertNotebook(filepath, filename, export_path) -> bool:
-    import nbformat  # install before?
-    from traitlets.config import Config
-
-    if not os.path.isfile(filepath):
-        dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
-        exit(0)
-
+def convertNotebook(filepath, export_path) -> bool:
+    if not os.path.exists(filepath):
+        return False
     nb = nbformat.read(filepath, as_version=4)
-
-    # clean the notebook:
-    c = Config()
-    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-
-    exporter = PythonExporter(config=c)
+    exporter = PythonExporter()
 
     # source is a tuple of python source code
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
-
     try:
-        with open(export_path+"/src/"+filename+".py", "w+") as fh:
+        with open(export_path, "w+") as fh:
             fh.writelines(source)
     except Exception:
         return False

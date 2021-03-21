@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# the value passed to the trigger is available as first parameter
+value=$1
+
+# replace this line with your host command
+echo "Template Trigger just run with argument '${value}'!"

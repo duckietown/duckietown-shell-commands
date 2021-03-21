@@ -11,7 +11,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.dtproject_utils import CANONICAL_ARCH
 from utils.docker_utils import DEFAULT_MACHINE
-
+from utils.misc_utils import sanitize_hostname
 
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
 DEFAULT_RUNTIME = "docker"
@@ -81,7 +81,7 @@ class DTCommand(DTCommandAbs):
         environ = []
         # ROS master
         if parsed.master:
-            master = parsed.master if parsed.master.endswith("local") else f"{parsed.master}.local"
+            master = sanitize_hostname(parsed.master)
             environ += ["--env", f"ROS_MASTER_URI=http://{master}:11311"]
         # environment variables
         environ += list(map(lambda e: "--env=%s" % e, parsed.environ))

@@ -101,7 +101,8 @@ class DiscoverListener:
             "Status",  # Booting [yellow], Ready [green]
             "Internet",  # No [grey], Yes [green]
             "Dashboard",  # Down [grey], Up [green]
-            "Busy",  # No [grey], Yes [green]
+            # TODO: Busy is not used at this time, disabling it
+            # "Busy",  # No [grey], Yes [green]
         ]
         columns = list(map(lambda c: " %s " % c, columns))
         header = ["Type", "Model"] + columns + ["Hostname"]

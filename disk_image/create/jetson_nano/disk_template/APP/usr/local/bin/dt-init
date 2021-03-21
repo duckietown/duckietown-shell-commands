@@ -4,8 +4,9 @@ set -x
 
 SD_DEVICE=/dev/mmcblk0
 ROOT_PART_ID=1
-ROOT_PART_NAME=APP
 CONFIG_DIR=/data/config
+EVENTS_DIR=/data/stats/events
+USAGE_DIR=/data/stats/usage
 ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
 ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
 # Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
@@ -26,6 +27,13 @@ ff02::2 ip6-allrouters
 EOL
 }
 
+store_event() {
+    type=$1
+    now=$(date +%s%N)
+    # collect event
+    echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
+}
+
 run_on_first_boot() {
     echo "Setting up the robot for its first ever boot..."
 
@@ -41,6 +49,9 @@ run_on_first_boot() {
     growpart ${SD_DEVICE} ${ROOT_PART_ID}
     resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
     partprobe
+
+    # sanitize files
+    dt-sanitize-files
 
     # sudo without a password
     echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
@@ -69,8 +80,8 @@ run_on_first_boot() {
     # store the MAC addresses for future reference
     echo "Storing debug information..."
     cp /proc/*info /data/proc
-    cat /sys/class/net/eth0/address >/data/stats/MAC/eth0
-    cat /sys/class/net/wlan0/address >/data/stats/MAC/wlan0
+    cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
+    cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
     cp /etc/nv_tegra_release /data/stats/os-release
 
     # make sure the user owns its folders
@@ -101,11 +112,23 @@ run_on_first_boot() {
         sleep 2
     done
 
+    # disable ZRAM
+    systemctl disable nvzramconfig
+
     # run customizable first-boot script
     dt-init-first-boot
 
     echo "Setting up the containers..."
     dt-autoboot
+
+    # mark event
+    store_event "first_boot"
+
+    # collect usage stats
+    mkdir -p "${USAGE_DIR}/disk_image"
+    mkdir -p "${USAGE_DIR}/init_sd_card"
+    cp /data/stats/disk_image/build.json "${USAGE_DIR}/disk_image/$(date +%s%N).json"
+    cp /data/stats/init_sd_card/build.json "${USAGE_DIR}/init_sd_card/$(date +%s%N).json"
 
     echo "Setting up completed!"
 }
@@ -151,6 +174,12 @@ run_on_every_boot() {
         echo 1 >/sys/class/gpio/${pin}/value
         echo ${HUT_RESET_SYSFS_PIN_NO} >/sys/class/gpio/unexport
     fi
+
+    # launch triggers handlers
+    dt-serve-triggers
+
+    # mark event
+    store_event "boot"
 
     echo "Setting up completed!"
 }

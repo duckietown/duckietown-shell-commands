@@ -47,12 +47,13 @@ DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+ROOT_PARTITIONS = ["root", "APP"]
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {
-            "stable": "1.2.0",
+            "stable": "1.2.1",
             "experimental": "1.2.1"
         },
         "jetson_nano_4gb": {
@@ -60,8 +61,8 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
             "experimental": "1.2.0"
         },
         "jetson_nano_2gb": {
-            "stable": "1.2.0",
-            "experimental": "1.2.1"
+            "stable": "1.2.2",
+            "experimental": "1.2.2"
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -85,7 +86,8 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_nano_2gb": {
             "1.2.0": "1.1",
-            "1.2.1": "1.1"
+            "1.2.1": "1.1",
+            "1.2.2": "1.1"
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -198,6 +200,17 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error("You have not set a token for this shell.\n"
+                            "You can get a token from the following URL,\n\n"
+                            "\thttps://www.duckietown.org/site/your-token   \n\n"
+                            "and set it using the following command,\n\n"
+                            "\tdts tok set\n")
+            return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -263,6 +276,21 @@ class DTCommand(DTCommandAbs):
             "disk_img": in_file("img"),
             "disk_metadata": in_file("json"),
         }
+        # notify about licenses
+        if "license" not in steps:
+            board, _ = get_robot_hardware(parsed.robot_configuration)
+            extra = "   - License For Customer Use of NVIDIA Software\n" \
+                if board.startswith("jetson_nano") else ""
+            dtslogger.warning(
+                "Skipping \"license\" step. You are implicitly agreeing to the following:\n"
+                + extra +
+                "   - Duckietown Terms and Conditions:\t"
+                "https://www.duckietown.org/about/terms-and-conditions\n"
+                "   - Duckietown Software License:\t"
+                "https://www.duckietown.org/about/sw-license\n"
+                "   - Duckietown Privacy Policy:\t\t"
+                "https://www.duckietown.org/about/privacy",
+            )
         # perform steps
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
@@ -277,16 +305,35 @@ class DTCommand(DTCommandAbs):
 
 
 def step_license(_, parsed, __):
+    print()
+    # Duckietown legal stuff
+    answer = ask_confirmation(
+        f"\nBy proceeding you agree to the following,\n"
+        f"   - Duckietown Terms and Conditions:\t"
+        f"https://www.duckietown.org/about/terms-and-conditions\n"
+        f"   - Duckietown Software License:\t"
+        f"https://www.duckietown.org/about/sw-license\n"
+        f"   - Duckietown Privacy Policy:\t\t"
+        f"https://www.duckietown.org/about/privacy",
+        question="Do you accept?",
+    )
+    if not answer:
+        dtslogger.error("You must explicitly agree to the Term and Conditions, Software License "
+                        "and Privacy Policy of Duckietown to continue.\n"
+                        "For additional information, please contact info@duckietown.com.")
+        exit(9)
+    # NVIDIA Software License
     board, _ = get_robot_hardware(parsed.robot_configuration)
     if board.startswith("jetson_nano"):
         # ask to either agree or go away
         while True:
+            print()
             answer = ask_confirmation(
-                f"This disk image uses the Nvidia Jetpack OS. By proceeding, "
+                f"\nThis disk image uses the Nvidia Jetpack OS.\nBy proceeding, "
                 f"you agree to the terms and conditions of the License For Customer Use of "
-                f'NVIDIA Software"',
+                f'NVIDIA Software',
                 default="n",
-                choices={"a": "Accept", "n": "Reject", "r": "Read License"},
+                choices={"y": "Yes", "n": "No", "r": "Read License"},
                 question="Do you accept?",
             )
             if answer == "r":
@@ -294,11 +341,12 @@ def step_license(_, parsed, __):
                 with open(NVIDIA_LICENSE_FILE, "rt") as fin:
                     nvidia_license = fin.read()
                 print(f"\n{nvidia_license}\n")
-            elif answer == "a":
+            elif answer == "y":
                 break
             elif answer == "n":
                 dtslogger.error("You must explicitly agree to the License first.")
                 exit(8)
+    print()
     return {}
 
 
@@ -354,7 +402,7 @@ def step_flash(_, parsed, data):
         sd_size = 0 if parsed.size is None else parsed.size
         # ask user first what is their desired device size as a confirmation.
         while sd_size <= 0:
-            msg = "Please, enter the size of your SD card (in GB), 'q' to quit: "
+            msg = "Please, enter the size of your SD card (in GB): "
             # noinspection PyBroadException
             try:
                 txt = input(msg)
@@ -396,8 +444,13 @@ def step_flash(_, parsed, data):
             print("\nThe following devices are available:")
             _print_devices_table(devices_all)
 
-        msg = "Type the name of your device (include the '/dev' part): "
-        parsed.device = input(msg)
+        device = None
+        while device is None:
+            msg = "Type the name of your device: "
+            txt = input(msg)
+            if len(txt.strip()) > 0:
+                device = txt
+        parsed.device = device
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
@@ -493,7 +546,10 @@ def step_setup(shell, parsed, data):
     check_program_dependency("dd")
     check_program_dependency("sudo")
     check_program_dependency("sync")
-
+    # make a copy of the command parameters and remove wifi passwords
+    params = copy.deepcopy(parsed.__dict__)
+    wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
+    params['wifi'] = ','.join(list(map(wfstr, params['wifi'].split(','))))
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,
@@ -519,7 +575,7 @@ def step_setup(shell, parsed, data):
                     "commands_version": shell.get_commands_version(),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
-                "parameters": parsed.__dict__,
+                "parameters": params,
                 "stamp": time.time(),
                 "stamp_human": datetime.now().isoformat(),
             },
@@ -533,7 +589,8 @@ def step_setup(shell, parsed, data):
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
     # compile list of files to sanitize at first boot
-    sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
+    sanitize = map(lambda s: s["path"],
+                   filter(lambda s: s["partition"] in ROOT_PARTITIONS, surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
@@ -711,9 +768,29 @@ def _get_devices() -> List[SimpleNamespace]:
 
 
 def _print_devices_table(devices: List[SimpleNamespace]):
-    row_fmt = "{:15s}{}"
+    row_fmt = "{:15s}{:12s}{}"
     print()
-    print("{:15s}{}".format("Name", "Size"))
+    print(row_fmt.format("Name", "Size", "Plugged in"))
     for device in devices:
-        print(row_fmt.format(device.device, f"{device.size_gb}GB"))
+        # try to get the creation time of the device file, that should be the plug-in time
+        device_file = pathlib.Path(device.device)
+        plugin_time = datetime.fromtimestamp(device_file.stat().st_ctime)
+        time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
+        print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
     print()
+
+
+def _time_diff_txt(d1, d2) -> str:
+    duration_in_s = (d2 - d1).total_seconds()
+    days = divmod(duration_in_s, 86400)  # Get days (without [0]!)
+    hours = divmod(days[1], 3600)  # Use remainder of days to calc hours
+    minutes = divmod(hours[1], 60)  # Use remainder of hours to calc minutes
+    seconds = divmod(minutes[1], 1)  # Use remainder of minutes to calc seconds
+    parts = []
+    for value, unit in zip([days, hours, minutes, seconds], ['day', 'hour', 'minute', 'second']):
+        value = int(value[0])
+        if value <= 0:
+            continue
+        unit = unit if value == 1 else f"{unit}s"
+        parts.append(f"{value} {unit}")
+    return ", ".join(parts)

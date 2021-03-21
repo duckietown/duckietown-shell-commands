@@ -122,7 +122,7 @@ class DTCommand(DTCommandAbs):
             params["privileged"] = True
             params["network_mode"] = parsed.network
 
-        if parsed.vnc:
+        if parsed.vnc and parsed.network != "host":
             params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
 
         # print some info
