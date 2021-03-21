@@ -43,11 +43,19 @@ class DTCommand(DTCommandAbs):
             "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
                                               "robot instead of mDNS",
         )
+        
+        parser.add_argument(
+            "--exercise",
+            action="store_true",
+            default=True,
+            help="The virtual joystick will try to attach to default exercise simulator",
+        )
+        
         # parse arguments
         parsed = parser.parse_args(args)
         # change hostname if we are in SIM mode
-        if parsed.sim or parsed.hostname is None:
-            robot_host = parsed.hostname = "localhost"
+        if parsed.sim or parsed.hostname is None or parsed.exercise:
+            robot_host = parsed.hostname = "localhost"   
         else:
             hostname = parsed.hostname if not parsed.ip else get_duckiebot_ip(parsed.hostname)
             robot_host = sanitize_hostname(hostname)
@@ -62,14 +70,26 @@ class DTCommand(DTCommandAbs):
         # create container name and make there is no name clash
         container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
         remove_if_running(client, container_name)
+        
         # setup common env
-        env = {
-            "VEHICLE_NAME": parsed.hostname,
-            "ROS_MASTER": parsed.hostname,
-            "DUCKIEBOT_NAME": parsed.hostname,
-            "ROS_MASTER_URI": "http://%s:11311" % robot_host,
-            "HOSTNAME": "default" if parsed.sim else parsed.hostname,
-        }
+        if parsed.exercise:
+            dtslogger.info("Running gui tools for the exercise...")
+            hostname="agent"
+            env = {
+                "VEHICLE_NAME": hostname,
+                "ROS_MASTER": hostname,
+                "DUCKIEBOT_NAME": hostname,
+                "ROS_MASTER_URI": "http://%s:11312" % robot_host,
+                "HOSTNAME": hostname,
+            }
+        else:
+            env = {
+                "VEHICLE_NAME": parsed.hostname,
+                "ROS_MASTER": parsed.hostname,
+                "DUCKIEBOT_NAME": parsed.hostname,
+                "ROS_MASTER_URI": "http://%s:11311" % robot_host,
+                "HOSTNAME": "default" if parsed.sim else parsed.hostname,
+            }
         volumes = {}
         # configure mDNS
         if os.path.exists(AVAHI_SOCKET):

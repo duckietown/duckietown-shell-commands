@@ -37,7 +37,9 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-REMOTE_ARCH = "arm32v7"
+# REMOTE_ARCH = "arm32v7"
+# TODO: pass as a param or determine by connecting to host?
+REMOTE_ARCH = "arm64v8"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
 SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
@@ -47,6 +49,7 @@ BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
+AGENT_ROS_PORT_ROBOT = "11311"
 
 
 class InvalidUserInput(Exception):
@@ -236,18 +239,19 @@ class DTCommand(DTCommandAbs):
 
         # done cleaning
 
+        ros_env = {}
         if not parsed.local:
-            ros_env = {
-                "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
-            }
-        else:
-            ros_env = {"ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"}
+            ros_master_uri = f"http://{duckiebot_ip}:{AGENT_ROS_PORT}"
             if parsed.sim:
                 ros_env["VEHICLE_NAME"] = "agent"
                 ros_env["HOSTNAME"] = "agent"
             else:
                 ros_env["VEHICLE_NAME"] = duckiebot_name
                 ros_env["HOSTNAME"] = duckiebot_name
+                ros_master_uri = f"http://{duckiebot_ip}:{AGENT_ROS_PORT_ROBOT}"
+        else:
+            ros_master_uri = f"http://{ros_container_name}:{AGENT_ROS_PORT}"
+        ros_env["ROS_MASTER_URI"] = ros_master_uri
 
         # let's update the images based on arch
         ros_image = f"{ROSCORE_IMAGE}-{arch}"
@@ -391,62 +395,66 @@ class DTCommand(DTCommandAbs):
 
         # let's launch the ros-core
 
-        dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
+        if duckiebot_name is None:  # no need to start roscore if running on a robot
+            dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
-        ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
-        ros_params = {
-            "image": ros_image,
-            "name": ros_container_name,
-            "environment": ros_env,
-            "detach": True,
-            "tty": True,
-            "command": f"roscore -p {AGENT_ROS_PORT}",
-        }
+            ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
+            ros_params = {
+                "image": ros_image,
+                "name": ros_container_name,
+                "environment": ros_env,
+                "detach": True,
+                "tty": True,
+                "command": f"roscore -p {AGENT_ROS_PORT}",
+            }
 
-        if parsed.local:
-            ros_params["network"] = agent_network.name
-            ros_params["ports"] = ros_port
+            if parsed.local:
+                ros_params["network"] = agent_network.name
+                ros_params["ports"] = ros_port
+            else:
+                ros_params["network_mode"] = "host"
+
+            if parsed.debug:
+                dtslogger.info(ros_params)
+            pull_if_not_exist(agent_client, ros_params["image"])
+            ros_container = agent_client.containers.run(**ros_params)
+            containers_to_monitor.append(ros_container)
+
+        if duckiebot_name is None:
+            # let's launch vnc
+            dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
+            vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
+            vnc_env = ros_env
+            if not parsed.local:
+                vnc_env["VEHICLE_NAME"] = duckiebot_name
+                vnc_env["ROS_MASTER"] = duckiebot_name
+                vnc_env["HOSTNAME"] = duckiebot_name
+            vnc_params = {
+                "image": VNC_IMAGE,
+                "name": vnc_container_name,
+                "command": "dt-launcher-vnc",
+                "environment": vnc_env,
+                "stream": True,
+                "ports": vnc_port,
+                "detach": True,
+                "tty": True,
+            }
+
+            if parsed.local:
+                vnc_params["network"] = agent_network.name
+            else:
+                if not running_on_mac:
+                    vnc_params["network_mode"] = "host"
+
+            if parsed.debug:
+                dtslogger.info(vnc_params)
+
+            # vnc always runs on local client
+            pull_if_not_exist(local_client, vnc_params["image"])
+            vnc_container = local_client.containers.run(**vnc_params)
+            containers_to_monitor.append(vnc_container)
         else:
-            ros_params["network_mode"] = "host"
-
-        if parsed.debug:
-            dtslogger.info(ros_params)
-        pull_if_not_exist(agent_client, ros_params["image"])
-        ros_container = agent_client.containers.run(**ros_params)
-        containers_to_monitor.append(ros_container)
-
-        # let's launch vnc
-        dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
-        vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = ros_env
-        if not parsed.local:
-            vnc_env["VEHICLE_NAME"] = duckiebot_name
-            vnc_env["ROS_MASTER"] = duckiebot_name
-            vnc_env["HOSTNAME"] = duckiebot_name
-        vnc_params = {
-            "image": VNC_IMAGE,
-            "name": vnc_container_name,
-            "command": "dt-launcher-vnc",
-            "environment": vnc_env,
-            "stream": True,
-            "ports": vnc_port,
-            "detach": True,
-            "tty": True,
-        }
-
-        if parsed.local:
-            vnc_params["network"] = agent_network.name
-        else:
-            if not running_on_mac:
-                vnc_params["network_mode"] = "host"
-
-        if parsed.debug:
-            dtslogger.info(vnc_params)
-
-        # vnc always runs on local client
-        pull_if_not_exist(local_client, vnc_params["image"])
-        vnc_container = local_client.containers.run(**vnc_params)
-        containers_to_monitor.append(vnc_container)
+            dtslogger.info("Running on a Duckiebot, no vnc needed")
 
 
         # Setup functions for monitor and cleanup
