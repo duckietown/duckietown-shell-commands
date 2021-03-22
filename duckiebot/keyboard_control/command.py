@@ -70,12 +70,14 @@ Keyboard control:
             raise Exception
         
         if parsed_args.sim:
+            hostname=parsed_args.hostname
             duckiebot_ip = "sim"
         elif parsed_args.exercise:
             hostname="agent"
             duckiebot_ip = "localhost"
             # duckiebot_ip = "ros_core"
         else:
+            hostname=parsed_args.hostname
             duckiebot_ip = get_duckiebot_ip(duckiebot_name=parsed_args.hostname)
 
         # if parsed_args.exercise:
@@ -86,16 +88,16 @@ Keyboard control:
         if not parsed_args.cli:
             if parsed_args.exercise:
                 run_gui_controller_exercise(
-                    parsed_args.hostname,
+                    hostname,
                     parsed_args.gui_image,
                     duckiebot_ip,
                     network_mode,
                 )
             else:
-                run_gui_controller(parsed_args.hostname, parsed_args.gui_image, duckiebot_ip, network_mode)
+                run_gui_controller(hostname, parsed_args.gui_image, duckiebot_ip, network_mode)
         else:
             run_cli_controller(
-                parsed_args.hostname, parsed_args.cli_image, duckiebot_ip, network_mode, parsed_args.sim
+                hostname, parsed_args.cli_image, duckiebot_ip, network_mode, parsed_args.sim
             )
             
 def run_gui_controller_exercise(hostname, image, duckiebot_ip, network_mode):

@@ -47,7 +47,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--exercise",
             action="store_true",
-            default=True,
+            default=False,
             help="The virtual joystick will try to attach to default exercise simulator",
         )
         
