@@ -580,12 +580,12 @@ def launch_agent(
 
     # Convert all the notebooks listed in the config file to python scripts and
     # move them in the specified package in the exercise ws.
-    for notebook in config["notebooks"]:
-        print(notebook['notebook'])
-        package_dir = exercise_ws_src + notebook['notebook']["package_name"]
-        notebook_name = notebook['notebook']["name"]
-        convertNotebook(working_dir+f"/notebooks/{notebook_name}.ipynb", notebook_name, package_dir)
-
+    if "notebooks" in config:
+        dtslogger.info("Converting the notebooks into python scripts...")
+        for notebook in config["notebooks"]:
+            package_dir = exercise_ws_src + notebook['notebook']["package_name"]
+            notebook_name = notebook['notebook']["name"]
+            convertNotebook(working_dir+f"/notebooks/", notebook_name, package_dir)
 
     if parsed.sim or parsed.local:
         ros_template_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
@@ -682,8 +682,9 @@ def launch_bridge(
 
 
 def convertNotebook(filepath, filename, export_path) -> bool:
-    import nbformat  # install before?
+    import nbformat 
     from traitlets.config import Config
+    filepath = filepath + f"{filename}.ipynb"
 
     if not os.path.isfile(filepath):
         dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
