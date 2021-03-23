@@ -43,6 +43,9 @@ class DTCommand(DTCommandAbs):
             "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
                                               "robot instead of mDNS",
         )
+        parser.add_argument(
+            '--editor', action="store_true", default=None, help="Map editor (GUI)"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
         # change hostname if we are in SIM mode
@@ -104,8 +107,13 @@ class DTCommand(DTCommandAbs):
         )
         # pull image
         pull_if_not_exist(client, image)
-        # collect container config
 
+        start_launcher = "default"
+        if parsed.vnc:
+            start_launcher = "vnc"
+        elif parsed.editor:
+            start_launcher = "editor"
+        # collect container config
         params = {
             "image": image,
             "name": container_name,
@@ -115,7 +123,7 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "remove": True,
             "stream": True,
-            "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
+            "command": f"dt-launcher-{start_launcher}",
             "volumes": volumes,
         }
         if not running_on_mac:
@@ -124,6 +132,9 @@ class DTCommand(DTCommandAbs):
 
         if parsed.vnc and parsed.network != "host":
             params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+
+        if parsed.vnc or parsed.editor:
+            volumes["{}/new_map".format(os.getcwd())] = {"bind": "/duckietown/maps", "mode": "rw"}
 
         # print some info
         if parsed.vnc:
