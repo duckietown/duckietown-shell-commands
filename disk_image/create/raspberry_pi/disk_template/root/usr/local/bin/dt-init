@@ -8,6 +8,8 @@ DT_USER=duckie
 DT_USER_PASSWORD=quackquack
 DT_USER_ID=1000
 SWAP_SIZE_MB=2048
+EVENTS_DIR=/data/stats/events
+USAGE_DIR=/data/stats/usage
 
 setup_etc_hosts() {
     cat >/etc/hosts <<EOL
@@ -21,6 +23,13 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOL
+}
+
+store_event() {
+    type=$1
+    now=$(date +%s%N)
+    # collect event
+    echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
 run_on_first_boot() {
@@ -72,8 +81,8 @@ run_on_first_boot() {
     # store the MAC addresses for future reference
     echo "Storing debug information..."
     cp /proc/*info /data/proc
-    cat /sys/class/net/eth0/address >/data/stats/MAC/eth0
-    cat /sys/class/net/wlan0/address >/data/stats/MAC/wlan0
+    cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
+    cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
     cp /etc/os-release /data/stats/os-release
 
     # make sure the user owns its folders
@@ -111,6 +120,15 @@ run_on_first_boot() {
     echo "Setting up the containers..."
     dt-autoboot
 
+    # mark event
+    store_event "first_boot"
+
+    # collect usage stats
+    mkdir -p "${USAGE_DIR}/disk_image"
+    mkdir -p "${USAGE_DIR}/init_sd_card"
+    cp /data/stats/disk_image/build.json "${USAGE_DIR}/disk_image/$(date +%s%N).json"
+    cp /data/stats/init_sd_card/build.json "${USAGE_DIR}/init_sd_card/$(date +%s%N).json"
+
     echo "Setting up completed!"
 }
 
@@ -128,6 +146,12 @@ run_on_every_boot() {
 
     # remove `booting` service
     rm -f /etc/avahi/services/dt.booting.service
+
+    # launch triggers handlers
+    dt-serve-triggers
+
+    # mark event
+    store_event "boot"
 
     echo "Setting up completed!"
 }

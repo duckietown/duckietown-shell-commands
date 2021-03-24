@@ -8,6 +8,7 @@ services:
     restart: always
     network_mode: host
     volumes:
+      - portainer-data:/data
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -33,6 +34,7 @@ services:
     network_mode: host
     volumes:
       - /data:/data
+      - /secrets:/secrets
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
@@ -67,6 +69,7 @@ services:
     privileged: true
     volumes:
       - /data:/data
+      - /triggers:/triggers
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
@@ -78,6 +81,8 @@ services:
     volumes:
       - /data:/data
       - /secrets:/secrets
+      # docker socket
+      - /var/run/docker.sock:/var/run/docker.sock
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
@@ -124,3 +129,4 @@ services:
 
 volumes:
   compose-data:
+  portainer-data:
