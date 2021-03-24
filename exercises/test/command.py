@@ -16,10 +16,10 @@ from typing import List
 
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell.env_checks import check_docker_environment
-from nbconvert.exporters import PythonExporter
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
-from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
+from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running, get_endpoint_architecture
+
 from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
 
@@ -37,7 +37,6 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-REMOTE_ARCH = "arm32v7"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
 SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
@@ -190,6 +189,15 @@ class DTCommand(DTCommandAbs):
             agent_client = local_client
             arch = DEFAULT_ARCH
         else:
+            # convert the notebooks before syncing
+            if "notebooks" in config:
+                exercise_ws_src = working_dir + "/" + config['ws_dir'] + "/src/"
+                dtslogger.info("Converting the notebooks into Python scripts...")
+                for notebook in config["notebooks"]:
+                    package_dir = exercise_ws_src + notebook['notebook']["package_name"]
+                    notebook_name = notebook['notebook']["name"]
+                    convertNotebook(working_dir+f"/notebooks/", notebook_name, package_dir)
+
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
@@ -198,7 +206,7 @@ class DTCommand(DTCommandAbs):
             _run_cmd(exercise_cmd, shell=True)
 
             # arch
-            arch = REMOTE_ARCH
+            arch = get_endpoint_architecture(duckiebot_name)
             agent_client = duckiebot_client
 
         # let's clean up any mess from last time
@@ -417,6 +425,7 @@ class DTCommand(DTCommandAbs):
 
         # let's launch vnc
         dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
+        dtslogger.info(f"\n\tVNC running at http://localhost:8087/\n")
         vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
         if not parsed.local:
@@ -662,17 +671,29 @@ def launch_bridge(
     return bridge_container
 
 
-def convertNotebook(filepath, export_path) -> bool:
-    if not os.path.exists(filepath):
-        return False
+def convertNotebook(filepath, filename, export_path) -> bool:
+    import nbformat  # install before?
+    from nbconvert.exporters import PythonExporter
+    from traitlets.config import Config
+    filepath = filepath + f"{filename}.ipynb"
+    if not os.path.isfile(filepath):
+        dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
+        exit(0)
+
     nb = nbformat.read(filepath, as_version=4)
-    exporter = PythonExporter()
+
+    # clean the notebook:
+    c = Config()
+    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
+
+    exporter = PythonExporter(config=c)
 
     # source is a tuple of python source code
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
+
     try:
-        with open(export_path, "w+") as fh:
+        with open(export_path+"/src/"+filename+".py", "w+") as fh:
             fh.writelines(source)
     except Exception:
         return False
