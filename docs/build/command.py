@@ -11,18 +11,16 @@ from utils.docker_utils import replace_important_env_vars
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
 
         parser = argparse.ArgumentParser()
 
-        parser.add_argument('--image',
-                            default='${AIDO_REGISTRY}/duckietown/docs-build:daffy',
-                            help="Which image to use")
+        parser.add_argument(
+            "--image", default="${AIDO_REGISTRY}/duckietown/docs-build:daffy", help="Which image to use"
+        )
 
         parsed = parser.parse_args(args=args)
-
 
         check_docker_environment()
 
@@ -35,29 +33,50 @@ class DTCommand(DTCommandAbs):
 
         uid1 = os.getuid()
 
-        if sys.platform == 'darwin':
-            flag = ':delegated'
+        if sys.platform == "darwin":
+            flag = ":delegated"
         else:
-            flag = ''
+            flag = ""
 
-        cache = '/tmp/cache'
+        cache = f"/tmp/{user}/cache"
         if not os.path.exists(cache):
             os.makedirs(cache)
 
-        cmd = ['docker', 'run',
-               '-e', 'USER=%s' % user,
-               '-e', 'USERID=%s' % uid1,
-               # '-m', '4GB',
-               '--user', '%s' % uid1,
-               '-e', 'COMPMAKE_COMMAND=rparmake',
-               '-it', '-v', f'{pwd1}:/pwd{flag}', '--workdir', '/pwd', image]
+        cmd = [
+            "docker",
+            "run",
+            "-e",
+            "USER=%s" % user,
+            "-e",
+            "USERID=%s" % uid1,
+            # '-m', '4GB',
+            "--user",
+            "%s" % uid1,
+            "-e",
+            "COMPMAKE_COMMAND=rparmake",
+            "-it",
+            "-v",
+            f"{pwd1}:/pwd{flag}",
+            "--workdir",
+            "/pwd",
+            image,
+        ]
 
-        dtslogger.info('executing:\nls ' + " ".join(cmd))
+        dtslogger.info("executing:\nls " + " ".join(cmd))
 
         try:
-            p = subprocess.Popen(cmd, bufsize=0, executable=None, stdin=None, stdout=None, stderr=None,
-                                 preexec_fn=None,
-                                 shell=False, cwd=pwd, env=None)
+            p = subprocess.Popen(
+                cmd,
+                bufsize=0,
+                executable=None,
+                stdin=None,
+                stdout=None,
+                stderr=None,
+                preexec_fn=None,
+                shell=False,
+                cwd=pwd,
+                env=None,
+            )
         except OSError as e:
             if e.errno == 2:
                 msg = 'Could not find "docker" executable.'
@@ -65,9 +84,9 @@ class DTCommand(DTCommandAbs):
             raise
 
         p.communicate()
-        dtslogger.info('\n\nCompleted.')
+        dtslogger.info("\n\nCompleted.")
 
 
 def system_cmd_result(pwd, cmd):
     s = subprocess.check_output(cmd, cwd=pwd)
-    return s.decode('utf-8')
+    return s.decode("utf-8")

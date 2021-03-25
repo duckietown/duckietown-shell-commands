@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import os
 import random
 from datetime import datetime
@@ -63,7 +64,8 @@ class DTCommand(DTCommandAbs):
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
         container_name = f"challenges_{timestamp}_{random.randint(0, 10)}"
-        logname = f"/tmp/duckietown/dt-shell-commands/challenges/{container_name}.txt"
+        user = getpass.getuser()
+        logname = f"/tmp/{user}/duckietown/dt-shell-commands/challenges/{container_name}.txt"
 
         gdr = generic_docker_run(
             client,
