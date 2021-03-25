@@ -14,7 +14,7 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args: List[str]):
         from dt_shell import check_package_version
 
-        check_package_version("duckietown-docker-utils-daffy", "6.0.77")
+        check_package_version("duckietown-docker-utils-daffy", "6.0.78")
         from duckietown_docker_utils import generic_docker_run
 
         parser = argparse.ArgumentParser()
