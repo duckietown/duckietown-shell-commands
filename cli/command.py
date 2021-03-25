@@ -68,6 +68,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("command", nargs="*", default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        # sanitize hostname
+        parsed.machine = sanitize_hostname(parsed.machine)
         # docker runtime and use_x_docker are mutually exclusive
         if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:
             raise ValueError("You cannot use --runtime and -X at the same time.")
