@@ -7,7 +7,8 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture
+from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, \
+    pull_image
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -32,6 +33,9 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument(
             "--sim", action="store_true", default=False, help="Are we running in simulator?",
+        )
+        parser.add_argument(
+            "--pull", action="store_true", default=False, help="Pull the dt-gui-tools image",
         )
         parser.add_argument(
             "--image", default=None, help="The Docker image to use. Advanced users only.",
@@ -103,7 +107,10 @@ class DTCommand(DTCommandAbs):
             f"{json.dumps(env, sort_keys=True, indent=4)}\n"
         )
         # pull image
-        pull_if_not_exist(client, image)
+        if parsed.pull:
+            pull_image(image, client)
+        else:
+            pull_if_not_exist(client, image)
         # collect container config
 
         params = {
