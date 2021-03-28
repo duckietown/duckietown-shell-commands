@@ -12,6 +12,7 @@ from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client, get_endpoint_architecture
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
+from utils.robot_utils import log_event_on_robot
 
 UPGRADE_IMAGE = "duckietown/dt-firmware-upgrade:{distro}-{arch}"
 HEALTH_CONTAINER_NAME = "device-health"
@@ -206,6 +207,8 @@ class DTCommand(DTCommandAbs):
                     exit(1)
 
         # step 3: perform update
+        # it looks like the update is going to happen, mark the event
+        log_event_on_robot(parsed.robot, 'battery/upgrade')
         dtslogger.info("Updating battery...")
         # we run the helper in "normal" mode and expect:
         #   - SUCCESS           all well, battery updated successfully
