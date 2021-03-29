@@ -4,7 +4,6 @@ from enum import IntEnum
 from threading import Thread
 
 import docker
-import yaml
 import requests
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
@@ -40,6 +39,7 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot battery upgrade DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog)
         parser.add_argument("--force", action='store_true', default=False, help="Force the update")
+        parser.add_argument("--version", type=str, default=None, help="Force a specific version")
         parser.add_argument("--debug", action='store_true', default=False, help="Debug mode")
         parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
         parsed = parser.parse_args(args)
@@ -82,6 +82,12 @@ class DTCommand(DTCommandAbs):
         image = UPGRADE_IMAGE.format(distro=distro, arch=arch)
         dtslogger.info("Checking battery...")
         dtslogger.debug(f"Running image '{image}'")
+        extra_env = {}
+
+        # forcing a version means forcing an update (aka skipping the check)
+        if parsed.version is not None:
+            extra_env = {"FORCE_BATTERY_FW_VERSION": parsed.version}
+            parsed.force = True
 
         # step 1. read the battery current version (unless forced)
         if not parsed.force:
@@ -166,7 +172,8 @@ class DTCommand(DTCommandAbs):
                     auto_remove=True,
                     privileged=True,
                     environment={
-                        "DEBUG": DEBUG
+                        "DEBUG": DEBUG,
+                        **extra_env
                     },
                     command=["--", "--battery", "--dry-run"]
                 )
@@ -208,7 +215,7 @@ class DTCommand(DTCommandAbs):
 
         # step 3: perform update
         # it looks like the update is going to happen, mark the event
-        log_event_on_robot(parsed.robot, 'battery/upgrade')
+        log_event_on_robot(hostname, 'battery/upgrade')
         dtslogger.info("Updating battery...")
         # we run the helper in "normal" mode and expect:
         #   - SUCCESS           all well, battery updated successfully
@@ -221,7 +228,8 @@ class DTCommand(DTCommandAbs):
                 privileged=True,
                 detach=True,
                 environment={
-                    "DEBUG": DEBUG
+                    "DEBUG": DEBUG,
+                    **extra_env
                 },
                 command=["--", "--battery"]
             )
