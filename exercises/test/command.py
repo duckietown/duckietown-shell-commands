@@ -101,10 +101,6 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--debug", dest="debug", action="store_true", default=False, help="See extra debugging output",
-        )
-
-        parser.add_argument(
             "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
@@ -304,8 +300,7 @@ class DTCommand(DTCommandAbs):
                 "detach": True,
             }
 
-            if parsed.debug:
-                dtslogger.info(sim_params)
+            dtslogger.debug(sim_params)
 
             pull_if_not_exist(agent_client, sim_params["image"])
             sim_container = agent_client.containers.run(**sim_params)
@@ -326,8 +321,7 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
 
-            if parsed.debug:
-                dtslogger.info(mw_params)
+            dtslogger.debug(mw_params)
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
@@ -368,8 +362,7 @@ class DTCommand(DTCommandAbs):
         else:
             ros_params["network_mode"] = "host"
 
-        if parsed.debug:
-            dtslogger.info(ros_params)
+        dtslogger.debug(ros_params)
         pull_if_not_exist(agent_client, ros_params["image"])
         ros_container = agent_client.containers.run(**ros_params)
         containers_to_monitor.append(ros_container)
@@ -402,8 +395,7 @@ class DTCommand(DTCommandAbs):
             if not running_on_mac:
                 vnc_params["network_mode"] = "host"
 
-        if parsed.debug:
-            dtslogger.info(vnc_params)
+        dtslogger.debug(vnc_params)
 
         # vnc always runs on local client
         pull_if_not_exist(local_client, vnc_params["image"])
@@ -566,8 +558,7 @@ def launch_agent(
         ros_template_params["command"] = "/bin/bash"
         ros_template_params["stdin_open"] = True
 
-    if parsed.debug:
-        dtslogger.info(ros_template_params)
+    dtslogger.debug(ros_template_params)
 
     pull_if_not_exist(agent_client, ros_template_params["image"])
     ros_template_container = agent_client.containers.run(**ros_template_params)
@@ -617,8 +608,7 @@ def launch_bridge(
             "--local flag"
         )
 
-    if parsed.debug:
-        dtslogger.info(bridge_params)
+    dtslogger.debug(bridge_params)
 
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
