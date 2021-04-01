@@ -1,9 +1,9 @@
 import argparse
-# from git import Repo # pip install gitpython
 import os
+import traceback
 
 import yaml
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
@@ -25,13 +25,11 @@ BRANCH = "daffy"
 ARCH = "amd64"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
+CF = 'config.yaml'
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
-
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
@@ -73,11 +71,11 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(working_dir + "/config.yaml"):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
-
-        config = load_yaml(working_dir + "/config.yaml")
+        fn = os.path.join(working_dir, CF)
+        config = load_yaml(fn)
         ws_dir = config['ws_dir']
 
-        exercise_ws_src = working_dir + "/" + ws_dir+ "/src/"
+        exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
 
         # Convert all the notebooks listed in the config file to python scripts and
         # move them in the specified package in the exercise ws.
@@ -86,7 +84,7 @@ class DTCommand(DTCommandAbs):
             for notebook in config["notebooks"]:
                 package_dir = exercise_ws_src + notebook['notebook']["package_name"]
                 notebook_name = notebook['notebook']["name"]
-                convertNotebook(working_dir+f"/notebooks/", notebook_name, package_dir)
+                convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
 
         client = check_docker_environment()
 
@@ -121,7 +119,7 @@ class DTCommand(DTCommandAbs):
 
         pull_if_not_exist(client, ros_template_params["image"])
         ros_template_container = client.containers.run(**ros_template_params)
-        attach_cmd = "docker attach %s" % container_name
+        attach_cmd = f"docker attach {container_name}"
         start_command_in_subprocess(attach_cmd)
 
         dtslogger.info("Build complete")
@@ -131,9 +129,9 @@ def convertNotebook(filepath, filename, export_path) -> bool:
     import nbformat  # install before?
     from nbconvert.exporters import PythonExporter
     from traitlets.config import Config
-    filepath = filepath + f"{filename}.ipynb"
+    filepath += f"{filename}.ipynb"
     if not os.path.isfile(filepath):
-        dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
+        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
         exit(0)
 
     nb = nbformat.read(filepath, as_version=4)
@@ -149,9 +147,10 @@ def convertNotebook(filepath, filename, export_path) -> bool:
     source, _ = exporter.from_notebook_node(nb)
 
     try:
-        with open(export_path+"/src/"+filename+".py", "w+") as fh:
+        with open(export_path + "/src/" + filename + ".py", "w+") as fh:
             fh.writelines(source)
     except Exception:
+        dtslogger.error(traceback.format_exc())
         return False
 
     return True
