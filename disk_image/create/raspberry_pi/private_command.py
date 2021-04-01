@@ -52,7 +52,7 @@ from disk_image.create.utils import (
 DISK_IMAGE_PARTITION_TABLE = {"HypriotOS": 1, "root": 2}
 ROOT_PARTITION = "root"
 DISK_IMAGE_SIZE_GB = 8
-DISK_IMAGE_VERSION = "1.2.1"
+DISK_IMAGE_VERSION = "1.2.2"
 HYPRIOTOS_VERSION = "1.11.1"
 DEVICE_ARCH = "arm32v7"
 HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
