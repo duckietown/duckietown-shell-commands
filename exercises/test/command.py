@@ -1,11 +1,9 @@
 import argparse
 
-# from git import Repo # pip install gitpython
 import os
 import platform
 import subprocess
 
-import nbformat  # install before?
 import requests
 import time
 import threading
@@ -19,6 +17,7 @@ from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running, get_endpoint_architecture
+from utils.misc_utils import sanitize_hostname
 
 from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
@@ -151,6 +150,7 @@ class DTCommand(DTCommandAbs):
         # let's do all the input checks
 
         duckiebot_name = parsed.duckiebot_name
+        duckiebot_hostname = sanitize_hostname(duckiebot_name)
         if duckiebot_name is None and not parsed.sim:
             msg = "You must specify a duckiebot_name or run in the simulator"
             raise InvalidUserInput(msg)
@@ -191,13 +191,13 @@ class DTCommand(DTCommandAbs):
 
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             exercise_cmd = f"rsync -a {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
 
             # arch
-            arch = get_endpoint_architecture(duckiebot_name)
+            arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
         # let's clean up any mess from last time
@@ -377,7 +377,6 @@ class DTCommand(DTCommandAbs):
         # let's launch vnc
         dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
         dtslogger.info(f"\n\tVNC running at http://localhost:8087/\n")
-        vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
         vnc_env = ros_env
         if not parsed.local:
             vnc_env["VEHICLE_NAME"] = duckiebot_name
@@ -388,14 +387,17 @@ class DTCommand(DTCommandAbs):
             "name": vnc_container_name,
             "command": "dt-launcher-vnc",
             "environment": vnc_env,
+            "volumes": {
+                "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+            },
             "stream": True,
-            "ports": vnc_port,
             "detach": True,
             "tty": True,
         }
 
         if parsed.local:
             vnc_params["network"] = agent_network.name
+            vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
         else:
             if not running_on_mac:
                 vnc_params["network_mode"] = "host"
@@ -503,6 +505,7 @@ def monitor_containers(containers_to_monitor: List, stop_attached_container):
             stop_attached_container()
 
         time.sleep(5)
+
 
 def launch_agent(
     agent_container_name,
