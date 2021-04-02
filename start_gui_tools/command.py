@@ -24,7 +24,7 @@ GUI Tools:
 
 class DTCommand(DTCommandAbs):
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args, **kwargs):
         prog = "dts start_gui_tools DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
@@ -47,8 +47,18 @@ class DTCommand(DTCommandAbs):
             "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
                                               "robot instead of mDNS",
         )
+        parser.add_argument(
+            "--mount", default=None, help="(Optional) Mount a directory to the container",
+        )
+        parser.add_argument(
+            "-L", "--launcher", type=str, default="default",
+            help="(Optional) Launcher to run inside the container"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
+        if 'parsed' in kwargs:
+            parsed.__dict__.update(kwargs['parsed'].__dict__)
+        dtslogger.debug(f"Arguments: {str(parsed)}")
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
             robot_host = parsed.hostname = "localhost"
@@ -101,6 +111,10 @@ class DTCommand(DTCommandAbs):
             else:
                 subprocess.call(["xhost", "+"])
                 env["DISPLAY"] = os.environ["DISPLAY"]
+        # custom volumes
+        if parsed.mount:
+            src, dst, *_ = f"{parsed.mount}:{parsed.mount}".split(":")
+            volumes[src] = {"bind": dst, "mode": "rw"}
         # print some stats
         dtslogger.debug(
             f"Running {container_name} with environment vars:\n\n"
@@ -122,7 +136,7 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "remove": True,
             "stream": True,
-            "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
+            "command": f"dt-launcher-{'vnc' if parsed.vnc else parsed.launcher}",
             "volumes": volumes,
         }
         if not running_on_mac:
