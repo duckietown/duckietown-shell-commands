@@ -1,7 +1,7 @@
 import argparse
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
@@ -33,7 +33,7 @@ DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
 
 

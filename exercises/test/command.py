@@ -10,7 +10,7 @@ from typing import List
 
 import requests
 import yaml
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
@@ -53,7 +53,7 @@ DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
 
 
@@ -153,10 +153,10 @@ class DTCommand(DTCommandAbs):
         try:
             agent_base_image = BASELINE_IMAGES[config["agent_base"]]
         except Exception as e:
-            dtslogger.error(
-                f"Check config.yaml. Unknown base image {config['agent_base']}. "
-                f"Available base images are {BASELINE_IMAGES}"
-            )
+            msg =  (f"Check config.yaml. Unknown base image {config['agent_base']}. "
+                    f"Available base images are {BASELINE_IMAGES}")
+            raise Exception(msg) from e
+
 
         # get the local docker client
         local_client = check_docker_environment()

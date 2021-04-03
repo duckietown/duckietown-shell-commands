@@ -17,7 +17,7 @@ from typing import List
 
 from datetime import datetime
 
-from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
+from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version, UserError
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
 from utils.duckietown_utils import \
     get_robot_types, \
@@ -113,7 +113,7 @@ def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
     return f"disk_image/{disk_image}.zip"
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
 
 
