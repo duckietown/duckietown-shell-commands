@@ -4,6 +4,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_endpoint_architecture, get_client, pull_image
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
+from utils.robot_utils import log_event_on_robot
 
 DEFAULT_STACK = "duckietown"
 OTHER_IMAGES_TO_UPDATE = [
@@ -43,6 +44,9 @@ class DTCommand(DTCommandAbs):
             img.format(distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client(hostname)
+        # it looks like the update is going to happen, mark the event
+        log_event_on_robot(parsed.robot, 'duckiebot/update')
+        # do update
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             pull_image(image, client)

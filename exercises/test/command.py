@@ -1,8 +1,12 @@
 import argparse
+
 import os
 import platform
 import signal
 import subprocess
+
+import requests
+import time
 import threading
 import time
 import traceback
@@ -21,6 +25,10 @@ from utils.docker_utils import (
     pull_image,
     remove_if_running,
 )
+from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running, get_endpoint_architecture
+from utils.misc_utils import sanitize_hostname
+
+from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
 from utils.networking_utils import get_duckiebot_ip
 
@@ -111,19 +119,7 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--debug",
-            dest="debug",
-            action="store_true",
-            default=False,
-            help="See extra debugging output",
-        )
-
-        parser.add_argument(
-            "--pull",
-            dest="pull",
-            action="store_true",
-            default=False,
-            help="Should we pull all of the images",
+            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
         parser.add_argument(
@@ -158,6 +154,14 @@ class DTCommand(DTCommandAbs):
             raise Exception(msg) from e
 
 
+        use_ros = True
+        try:
+            use_ros = config['ros']
+        except Exception as e:
+            pass
+
+
+
         # get the local docker client
         local_client = check_docker_environment()
 
@@ -180,6 +184,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.sim:
             duckiebot_ip = get_duckiebot_ip(duckiebot_name)
             duckiebot_client = get_remote_client(duckiebot_ip)
+            duckiebot_hostname = sanitize_hostname(duckiebot_name)
 
         if parsed.staging:
             sim_image = AIDO_REGISTRY + "/" + SIMULATOR_IMAGE
@@ -208,16 +213,17 @@ class DTCommand(DTCommandAbs):
 
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_name}.local:/code/"
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-            exercise_cmd = f"rsync -a {working_dir} {remote_base_path}"
+            exercise_cmd = f"rsync -a --exclude challenges/ {working_dir} {remote_base_path}"
             _run_cmd(exercise_cmd, shell=True)
 
             # arch
-            arch = get_endpoint_architecture(duckiebot_name)
+            arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
         # let's clean up any mess from last time
+        # this is probably not needed anymore since we clean up everything on exit.
         sim_container_name = "challenge-aido_lf-simulator-gym"
         ros_container_name = "ros_core"
         vnc_container_name = "dt-gui-tools"
@@ -330,8 +336,7 @@ class DTCommand(DTCommandAbs):
                 "detach": True,
             }
 
-            if parsed.debug:
-                dtslogger.info(sim_params)
+            dtslogger.debug(sim_params)
 
             pull_if_not_exist(agent_client, sim_params["image"])
             sim_container = agent_client.containers.run(**sim_params)
@@ -354,8 +359,7 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
 
-            if parsed.debug:
-                dtslogger.info(mw_params)
+            dtslogger.debug(mw_params)
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
@@ -376,65 +380,67 @@ class DTCommand(DTCommandAbs):
 
         # done with sim/duckiebot specific stuff.
 
-        # let's launch the ros-core
+        if use_ros:
+            # let's launch the ros-core
 
-        dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
+            dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
-        ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
-        ros_params = {
-            "image": ros_image,
-            "name": ros_container_name,
-            "environment": ros_env,
-            "detach": True,
-            "tty": True,
-            "command": f"roscore -p {AGENT_ROS_PORT}",
-        }
+            ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
+            ros_params = {
+                "image": ros_image,
+                "name": ros_container_name,
+                "environment": ros_env,
+                "detach": True,
+                "tty": True,
+                "command": f"roscore -p {AGENT_ROS_PORT}",
+            }
 
-        if parsed.local:
-            ros_params["network"] = agent_network.name
-            ros_params["ports"] = ros_port
-        else:
-            ros_params["network_mode"] = "host"
+            if parsed.local:
+                ros_params["network"] = agent_network.name
+                ros_params["ports"] = ros_port
+            else:
+                ros_params["network_mode"] = "host"
 
-        if parsed.debug:
-            dtslogger.info(ros_params)
-        pull_if_not_exist(agent_client, ros_params["image"])
-        ros_container = agent_client.containers.run(**ros_params)
-        containers_to_monitor.append(ros_container)
+            dtslogger.debug(ros_params)
+            pull_if_not_exist(agent_client, ros_params["image"])
+            ros_container = agent_client.containers.run(**ros_params)
+            containers_to_monitor.append(ros_container)
 
-        # let's launch vnc
-        dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
-        dtslogger.info(f"\n\tVNC running at http://localhost:8087/\n")
-        vnc_port = {"8087/tcp": ("0.0.0.0", 8087)}
-        vnc_env = ros_env
-        if not parsed.local:
-            vnc_env["VEHICLE_NAME"] = duckiebot_name
-            vnc_env["ROS_MASTER"] = duckiebot_name
-            vnc_env["HOSTNAME"] = duckiebot_name
-        vnc_params = {
-            "image": VNC_IMAGE,
-            "name": vnc_container_name,
-            "command": "dt-launcher-vnc",
-            "environment": vnc_env,
-            "stream": True,
-            "ports": vnc_port,
-            "detach": True,
-            "tty": True,
-        }
+        if use_ros:
+            # let's launch vnc
+            dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
+            dtslogger.info(f"\n\tVNC running at http://localhost:8087/\n")
+            vnc_env = ros_env
+            if not parsed.local:
+                vnc_env["VEHICLE_NAME"] = duckiebot_name
+                vnc_env["ROS_MASTER"] = duckiebot_name
+                vnc_env["HOSTNAME"] = duckiebot_name
+            vnc_params = {
+                "image": VNC_IMAGE,
+                "name": vnc_container_name,
+                "command": "dt-launcher-vnc",
+                "environment": vnc_env,
+                "volumes": {
+                    "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+                },
+                "stream": True,
+                "detach": True,
+                "tty": True,
+            }
 
-        if parsed.local:
-            vnc_params["network"] = agent_network.name
-        else:
-            if not running_on_mac:
-                vnc_params["network_mode"] = "host"
+            if parsed.local:
+                vnc_params["network"] = agent_network.name
+                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+            else:
+                if not running_on_mac:
+                    vnc_params["network_mode"] = "host"
 
-        if parsed.debug:
-            dtslogger.info(vnc_params)
+            dtslogger.debug(vnc_params)
 
-        # vnc always runs on local client
-        pull_if_not_exist(local_client, vnc_params["image"])
-        vnc_container = local_client.containers.run(**vnc_params)
-        containers_to_monitor.append(vnc_container)
+            # vnc always runs on local client
+            pull_if_not_exist(local_client, vnc_params["image"])
+            vnc_container = local_client.containers.run(**vnc_params)
+            containers_to_monitor.append(vnc_container)
 
         # Setup functions for monitor and cleanup
         stop_attached_container = lambda: agent_client.containers.get(
@@ -453,7 +459,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Starting attached container")
 
         try:
-            ros_template_container = launch_agent(
+            agent_container = launch_agent(
                 agent_container_name,
                 env_dir,
                 ros_env,
@@ -466,6 +472,7 @@ class DTCommand(DTCommandAbs):
                 agent_client,
                 duckiebot_name,
                 config,
+                use_ros,
             )
         except Exception as e:
             dtslogger.info(f"Attached container terminated {e}")
@@ -561,37 +568,27 @@ def launch_agent(
     agent_client,
     duckiebot_name,
     config,
+    use_ros,
 ):
     # Let's launch the ros template
-    # TODO read from the config.yaml file which template we should launch
     dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
 
-    ros_template_env = load_yaml(env_dir + "ros_template_env.yaml")
-    ros_template_env = {**ros_env, **ros_template_env}
-    ros_template_volumes = fifos_bind
+    agent_env = load_yaml(env_dir + "agent_env.yaml")
+    if use_ros:
+        agent_env = {**ros_env, **agent_env}
+
+    agent_volumes = fifos_bind
 
     ws_dir = "/" + config["ws_dir"]
 
     if parsed.sim or parsed.local:
-        ros_template_volumes[working_dir + "/assets"] = {
-            "bind": "/data/config",
-            "mode": "rw",
-        }
-        ros_template_volumes[working_dir + "/launchers"] = {
-            "bind": "/code/launchers",
-            "mode": "rw",
-        }
-        ros_template_volumes[working_dir + ws_dir] = {
-            "bind": f"/code{ws_dir}",
-            "mode": "rw",
-        }
+        agent_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
+        agent_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+        agent_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
     else:
-        ros_template_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
-        ros_template_volumes[f"/code/{exercise_name}/launchers"] = {
-            "bind": "/code/launchers",
-            "mode": "rw",
-        }
-        ros_template_volumes[f"/code/{exercise_name}{ws_dir}"] = {
+        agent_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
+        agent_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+        agent_volumes[f"/code/{exercise_name}{ws_dir}"] = {
             "bind": f"/code{ws_dir}",
             "mode": "rw",
         }
@@ -600,30 +597,29 @@ def launch_agent(
         # get the calibrations from the robot with the REST API
         get_calibration_files(working_dir + "/assets", parsed.duckiebot_name)
 
-    ros_template_params = {
+    agent_params = {
         "image": agent_base_image,
         "name": agent_container_name,
-        "volumes": ros_template_volumes,
-        "environment": ros_template_env,
+        "volumes": agent_volumes,
+        "environment": agent_env,
         "detach": True,
         "tty": True,
         "command": [f"/code/launchers/{config['agent_run_cmd']}"],
     }
 
     if parsed.local:
-        ros_template_params["network"] = agent_network.name
+        agent_params["network"] = agent_network.name
     else:
-        ros_template_params["network_mode"] = "host"
+        agent_params["network_mode"] = "host"
 
     if parsed.interactive:
-        ros_template_params["command"] = "/bin/bash"
-        ros_template_params["stdin_open"] = True
+        agent_params["command"] = "/bin/bash"
+        agent_params["stdin_open"] = True
 
-    if parsed.debug:
-        dtslogger.info(ros_template_params)
+    dtslogger.debug(agent_params)
 
-    pull_if_not_exist(agent_client, ros_template_params["image"])
-    ros_template_container = agent_client.containers.run(**ros_template_params)
+    pull_if_not_exist(agent_client, agent_params["image"])
+    agent_container = agent_client.containers.run(**agent_params)
 
     attach_cmd = "docker %s attach %s" % (
         "" if parsed.local else f"-H {duckiebot_name}.local",
@@ -631,7 +627,7 @@ def launch_agent(
     )
     start_command_in_subprocess(attach_cmd)
 
-    return ros_template_container
+    return agent_container
 
 
 def launch_bridge(
@@ -680,8 +676,7 @@ def launch_bridge(
             "--local flag"
         )
 
-    if parsed.debug:
-        dtslogger.info(bridge_params)
+    dtslogger.debug(bridge_params)
 
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)

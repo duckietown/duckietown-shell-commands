@@ -24,7 +24,7 @@ class DTCommand(DTCommandAbs):
         hostname = sanitize_hostname(robot)
         # ---
         dtslogger.info(f"Shutting down {robot}...")
-        url = f"http://{hostname}/health/trigger/shutdown?token="
+        url = f"http://{hostname}/health/trigger/shutdown?value=dts&token="
         try:
             dtslogger.debug(f"Calling URL '{url}'...")
             data = requests.get(url).json()
