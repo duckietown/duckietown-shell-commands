@@ -8,16 +8,14 @@ from utils.misc_utils import sanitize_hostname
 
 
 def create_file_in_robot_data_dir(hostname: str, filepath: str, content: str):
-    filepath = filepath.lstrip('/')
-    filepath = filepath[5:] if filepath.startswith('data/') else filepath
+    filepath = filepath.lstrip("/")
+    filepath = filepath[5:] if filepath.startswith("data/") else filepath
     hostname = sanitize_hostname(hostname)
     url = f"http://{hostname}/files/data/{filepath}"
     requests.post(url, data=content)
 
 
-def log_event_on_robot(hostname: str, type: str,
-                       data: Optional[dict] = None,
-                       stamp: Optional[float] = None):
+def log_event_on_robot(hostname: str, type: str, data: Optional[dict] = None, stamp: Optional[float] = None):
     # sanitize 'stamp'
     if stamp is None:
         stamp = time.time()
@@ -34,10 +32,6 @@ def log_event_on_robot(hostname: str, type: str,
     assert isinstance(data, dict)
     assert isinstance(stamp, int)
     # compile content
-    content = json.dumps({
-        "type": type,
-        "stamp": stamp,
-        "data": data
-    })
+    content = json.dumps({"type": type, "stamp": stamp, "data": data})
     filepath = f"stats/events/{stamp}.json"
     create_file_in_robot_data_dir(hostname, filepath, content)

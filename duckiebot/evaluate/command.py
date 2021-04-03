@@ -61,7 +61,10 @@ class DTCommand(DTCommandAbs):
         )
         group.add_argument("--duration", help="Number of seconds to run evaluation", default=60)
         group.add_argument(
-            "--record_bag", action="store_true", default=False, help="If true record a rosbag",
+            "--record_bag",
+            action="store_true",
+            default=False,
+            help="If true record a rosbag",
         )
         group.add_argument(
             "--debug",
@@ -100,7 +103,7 @@ class DTCommand(DTCommandAbs):
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
-            
+
         if not parsed.duckiebot_name:
             dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 

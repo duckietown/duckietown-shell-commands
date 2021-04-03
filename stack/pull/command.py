@@ -12,8 +12,8 @@ from utils.misc_utils import sanitize_hostname
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.multi_command_utils import MultiCommand
 
-DEFAULT_STACK = 'default'
-DUCKIETOWN_STACK = 'duckietown'
+DEFAULT_STACK = "default"
+DUCKIETOWN_STACK = "duckietown"
 
 
 class DTCommand(DTCommandAbs):
@@ -34,7 +34,7 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         # try to interpret it as a multi-command
-        multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+        multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
         if multi.is_multicommand:
             multi.execute()
             return
@@ -46,14 +46,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f'Waiting for device "{parsed.machine}"...')
             hostname = parsed.machine.replace(".local", "")
             _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
-            rtype = data['type']
+            rtype = data["type"]
             dtslogger.info(f'Detected device type is "{rtype}".')
-            parsed.stack = f'{DUCKIETOWN_STACK}/{rtype}'
+            parsed.stack = f"{DUCKIETOWN_STACK}/{rtype}"
         # sanitize stack
-        stack = parsed.stack if '/' in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
+        stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
-        stack_file = os.path.join(
-            pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
+        stack_file = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return
@@ -70,10 +69,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Pulling stack [{stack}]...")
         print("------>")
         # pull images
-        with open(stack_file, 'r') as fin:
+        with open(stack_file, "r") as fin:
             stack_content = yaml.safe_load(fin)
-        for service in stack_content['services'].values():
-            image_name = service['image'].replace('${ARCH}', endpoint_arch)
+        for service in stack_content["services"].values():
+            image_name = service["image"].replace("${ARCH}", endpoint_arch)
             dtslogger.info(f"Pulling image `{image_name}`...")
             pull_image(image_name, parsed.machine)
         # ---

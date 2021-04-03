@@ -13,13 +13,13 @@ from collections import OrderedDict
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 
-VERBOSE_ARG = '-vvv'
+VERBOSE_ARG = "-vvv"
 
 
 class MultiCommand(object):
-
-    def __init__(self, command: Type[DTCommandAbs], shell: DTShell,
-                 multiargs: List[Tuple[str, ...]], args: List[str]):
+    def __init__(
+        self, command: Type[DTCommandAbs], shell: DTShell, multiargs: List[Tuple[str, ...]], args: List[str]
+    ):
         self._command = command
         self._shell = shell
         self._multiargs = multiargs
@@ -30,12 +30,12 @@ class MultiCommand(object):
         if self._verbose:
             self._args.remove(VERBOSE_ARG)
         # make sure this is not a recursive call
-        if '__multiarg__' in args:
-            args.remove('__multiarg__')
+        if "__multiarg__" in args:
+            args.remove("__multiarg__")
             return
         # parse args
         self._parse_args()
-        config_str = '\n\t'.join(list(map(str, self._get_args())))
+        config_str = "\n\t".join(list(map(str, self._get_args())))
         dtslogger.debug(f"Multi-Arg Config: \n\t{config_str}")
 
     @property
@@ -45,14 +45,14 @@ class MultiCommand(object):
     def execute(self):
         workers = []
         for args in self._get_args():
-            dtslogger.warning(f' =====> Multi-Arg: Running with args: {args}')
-            args.append('__multiarg__')
+            dtslogger.warning(f" =====> Multi-Arg: Running with args: {args}")
+            args.append("__multiarg__")
             worker = Thread(target=self._execute_single, args=(args,))
             workers.append(worker)
         # disable logging
         if not self._verbose:
             _sys_stdout = sys.stdout
-            _dev_null = open(os.devnull, 'w')
+            _dev_null = open(os.devnull, "w")
             sys.stdout = _dev_null
             _log_level = dtslogger.level
             dtslogger.setLevel(logging.WARNING)
@@ -77,13 +77,13 @@ class MultiCommand(object):
         try:
             self._command.command(self._shell, args)
         except KeyboardInterrupt:
-            dtslogger.error(f'   <===== Multi-Arg: Aborted with args: {args}')
+            dtslogger.error(f"   <===== Multi-Arg: Aborted with args: {args}")
         except BaseException:
             # printing stack trace
             traceback.print_exc()
             time.sleep(0.1)
-            dtslogger.error(f'   <===== Multi-Arg:  Failed with args: {args}')
-        self._log(f'    <===== Multi-Arg: Success with args: {args}')
+            dtslogger.error(f"   <===== Multi-Arg:  Failed with args: {args}")
+        self._log(f"    <===== Multi-Arg: Success with args: {args}")
 
     def _get_args(self):
         args = [copy.deepcopy(self._args) for _ in range(len(self._values))]
@@ -122,11 +122,11 @@ class MultiCommand(object):
         match = re.match("^.*{([^}]+)}.*$", arg_value)
         if not match:
             return [arg_value]
-        s, f = arg_value.index('{'), arg_value.index('}') + 1
+        s, f = arg_value.index("{"), arg_value.index("}") + 1
         domain = match.group(1)
         patterns = {
             r"^(\d)+\-(\d)+$": lambda m: list(range(int(m.group(1)), int(m.group(2)) + 1, 1)),
-            r"^(\d)+(\,(\d)+)*$": lambda m: list(map(int, m.group(0).split(',')))
+            r"^(\d)+(\,(\d)+)*$": lambda m: list(map(int, m.group(0).split(","))),
         }
         for pattern, parser in patterns.items():
             match = re.match(pattern, domain)

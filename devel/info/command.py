@@ -32,7 +32,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to show",
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to show",
         )
         parser.add_argument(
             "--ci",

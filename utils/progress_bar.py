@@ -3,7 +3,6 @@ import math
 
 
 class ProgressBar:
-
     def __init__(self, scale=1.0, buf=sys.stdout, header="Progress"):
         self._finished = False
         self._buffer = buf

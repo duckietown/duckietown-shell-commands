@@ -28,12 +28,12 @@ class DTCommand(DTCommandAbs):
         try:
             dtslogger.debug(f"Calling URL '{url}'...")
             data = requests.get(url).json()
-            assert data['status'] == 'needs-confirmation'
-            assert 'token' in data
-            url += data['token']
+            assert data["status"] == "needs-confirmation"
+            assert "token" in data
+            url += data["token"]
             dtslogger.debug(f"Calling URL '{url}'...")
             res = requests.get(url).json()
-            assert res['status'] == 'ok'
+            assert res["status"] == "ok"
         except BaseException as e:
             dtslogger.error(str(e))
             return

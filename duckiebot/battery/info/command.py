@@ -9,7 +9,7 @@ from utils.misc_utils import sanitize_hostname
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Shows info about the battery'
+    help = "Shows info about the battery"
 
     @staticmethod
     def command(shell: DTShell, args):

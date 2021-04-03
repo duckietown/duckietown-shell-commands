@@ -17,10 +17,16 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to push",
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to push",
         )
         parser.add_argument(
-            "-a", "--arch", default=None, help="Target architecture for the image to push",
+            "-a",
+            "--arch",
+            default=None,
+            help="Target architecture for the image to push",
         )
         parser.add_argument(
             "-H",

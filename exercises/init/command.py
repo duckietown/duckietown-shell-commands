@@ -1,25 +1,22 @@
 import argparse
 import os
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 
 usage = """
 
 ## Basic usage
     This is an helper for the MOOC classes, it download and initialize the repository for the MOOC exercises.
 
-    To know more on the `mooc` commands, use `dts duckiebot mooc -h`.
+    To know more on the `exercises` commands, use `dts duckiebot exercises -h`.
 
-        $ dts duckiebot mooc init
+        $ dts duckiebot exercises init
 
 """
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
-
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):

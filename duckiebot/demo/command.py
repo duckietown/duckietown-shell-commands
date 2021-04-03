@@ -1,12 +1,18 @@
 import argparse
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, \
-    pull_if_not_exist, bind_avahi_socket, get_endpoint_architecture
+from utils.docker_utils import (
+    bind_duckiebot_data_dir,
+    default_env,
+    remove_if_running,
+    pull_if_not_exist,
+    bind_avahi_socket,
+    get_endpoint_architecture,
+)
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
@@ -33,7 +39,7 @@ DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
 
 
@@ -64,7 +70,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--robot_type", "-t", dest="robot_type", default="auto", help="The robot type",
+            "--robot_type",
+            "-t",
+            dest="robot_type",
+            default="auto",
+            help="The robot type",
         )
 
         parser.add_argument(
@@ -146,7 +156,7 @@ class DTCommand(DTCommandAbs):
         elif not parsed.experimental and parsed.image_to_run == DEFAULT_IMAGE:
             # Update the architecture of the image to run according to the architecture
             # of the endpoint
-            parsed.image_to_run=default_image
+            parsed.image_to_run = default_image
 
         if parsed.experimental and parsed.package_name is None:
             parsed.package_name = EXPERIMENTAL_PACKAGE
@@ -223,9 +233,12 @@ class DTCommand(DTCommandAbs):
             tty=True,
             detach=True,
             environment=env_vars,
-            remove=True
+            remove=True,
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s attach %s" % (duckiebot_hostname, container_name,)
+            attach_cmd = "docker -H %s attach %s" % (
+                duckiebot_hostname,
+                container_name,
+            )
             start_command_in_subprocess(attach_cmd)

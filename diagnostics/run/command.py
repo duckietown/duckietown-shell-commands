@@ -96,10 +96,7 @@ class DTCommand(DTCommandAbs):
             help="Specify regexes used to filter the monitored containers",
         )
         parser.add_argument(
-            '--system',
-            default=False,
-            action='store_true',
-            help="Log system processes as well"
+            "--system", default=False, action="store_true", help="Log system processes as well"
         )
         parser.add_argument(
             "-m", "--notes", default="(empty)", type=str, help="Custom notes to attach to the log"
@@ -135,9 +132,7 @@ class DTCommand(DTCommandAbs):
         # we can't run in `system` mode from remote
         is_remote = parsed.target != DEFAULT_TARGET and parsed.machine != parsed.target
         if parsed.system and is_remote:
-            dtslogger.error(
-                "You cannot run with option --system when the target is monitored remotely"
-            )
+            dtslogger.error("You cannot run with option --system when the target is monitored remotely")
             sys.exit(2)
         if parsed.machine == DEFAULT_MACHINE and parsed.target != DEFAULT_TARGET:
             fetch_type_from = parsed.target

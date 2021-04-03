@@ -19,7 +19,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_client,
-    pull_image
+    pull_image,
 )
 
 from utils.pip_utils import DEFAULT_INDEX_URL
@@ -48,10 +48,7 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to build"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -61,10 +58,7 @@ class DTCommand(DTCommandAbs):
             help="Target architecture for the image to build",
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -73,10 +67,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use the Docker cache"
+            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -103,14 +94,11 @@ class DTCommand(DTCommandAbs):
             default=[],
             action="append",
             nargs=2,
-            metavar=('key', 'value'),
+            metavar=("key", "value"),
             help="Build arguments to pass to Docker build",
         )
         parser.add_argument(
-            "--push",
-            default=False,
-            action="store_true",
-            help="Whether to push the resulting image"
+            "--push", default=False, action="store_true", help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--rm",
@@ -134,8 +122,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image. "
-                 "Use when the base image is also a development version",
+            help="Docker tag for the base image. " "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -151,47 +138,26 @@ class DTCommand(DTCommandAbs):
             help="Forces CI to build on a specific architecture node",
         )
         parser.add_argument(
-            "--cloud",
-            default=False,
-            action="store_true",
-            help="Build the image on the cloud"
+            "--cloud", default=False, action="store_true", help="Build the image on the cloud"
         )
         parser.add_argument(
-            "--stamp",
-            default=False,
-            action="store_true",
-            help="Stamp image with the build time"
+            "--stamp", default=False, action="store_true", help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D",
-            "--destination",
-            default=None,
-            help="Docker socket or hostname where to deliver the image"
+            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs",
-            default=False,
-            action="store_true",
-            help="Build the code documentation as well"
+            "--docs", default=False, action="store_true", help="Build the code documentation as well"
         )
         parser.add_argument(
-            "--ncpus",
-            default=None,
-            type=int,
-            help="Value to pass as build-arg `NCPUS` to docker build."
+            "--ncpus", default=None, type=int, help="Value to pass as build-arg `NCPUS` to docker build."
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         # get pre-parsed or parse arguments
-        parsed = kwargs.get('parsed', None)
+        parsed = kwargs.get("parsed", None)
         if not parsed:
             # try to interpret it as a multi-command
-            multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+            multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
             if multi.is_multicommand:
                 multi.execute()
                 return
@@ -256,8 +222,7 @@ class DTCommand(DTCommandAbs):
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(
-                    f"No cloud machines found for target architecture {parsed.arch}. "
-                    f"Aborting..."
+                    f"No cloud machines found for target architecture {parsed.arch}. " f"Aborting..."
                 )
                 exit(3)
             # update machine parameter
@@ -319,14 +284,15 @@ class DTCommand(DTCommandAbs):
         # create docker client
         docker = get_client(parsed.machine)
         # build-arg NCPUS
-        buildargs['buildargs']['NCPUS'] = \
+        buildargs["buildargs"]["NCPUS"] = (
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
+        )
         # login (CI only)
         if parsed.ci:
             dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
             docker.login(
                 username=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"],
-                password=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_TOKEN"]
+                password=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_TOKEN"],
             )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
@@ -380,8 +346,7 @@ class DTCommand(DTCommandAbs):
                     )
                     dtslogger.info("Multiarch Enabled!")
                 except (ContainerError, ImageNotFound, APIError) as e:
-                    msg = "Multiarch cannot be enabled on the target machine. "\
-                          "This might create issues."
+                    msg = "Multiarch cannot be enabled on the target machine. " "This might create issues."
                     dtslogger.warning(msg)
                     dtslogger.debug(f"The error reads:\n\t{str(e)}\n")
             else:
