@@ -6,7 +6,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Take a picture with a Duckiebot'
+    help = "Take a picture with a Duckiebot"
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -14,7 +14,10 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
         parser.add_argument(
-            "--pull", action="store_true", default=False, help="Pull the dt-gui-tools image",
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Pull the dt-gui-tools image",
         )
         # parse arguments
         parsed = parser.parse_args(args)
