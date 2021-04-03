@@ -7,8 +7,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, \
-    pull_image
+from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, pull_image
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -44,8 +43,9 @@ class DTCommand(DTCommandAbs):
             "--vnc", action="store_true", default=False, help="Run the novnc server",
         )
         parser.add_argument(
-            "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
-                                              "robot instead of mDNS",
+            "--ip",
+            action="store_true",
+            help="(Optional) Use the IP address to reach the " "robot instead of mDNS",
         )
         # parse arguments
         parsed = parser.parse_args(args)

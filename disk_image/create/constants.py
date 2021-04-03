@@ -7,8 +7,10 @@ DATA_STORAGE_DISK_IMAGE_DIR = "disk_image"
 DEFAULT_STACK = "duckietown"
 AUTOBOOT_STACKS_DIR = "/data/autoboot/"
 DEFAULT_DEVICE_ARCH = "arm32v7"
-DOCKER_IMAGE_TEMPLATE = lambda owner, module, tag=None, version=None, arch=DEFAULT_DEVICE_ARCH: \
-    f"{owner}/{module}:" + (f"{version}-{arch}" if tag is None else tag)
+DOCKER_IMAGE_TEMPLATE = (
+    lambda owner, module, tag=None, version=None, arch=DEFAULT_DEVICE_ARCH: f"{owner}/{module}:"
+    + (f"{version}-{arch}" if tag is None else tag)
+)
 
 MODULES_TO_LOAD = [
     {"owner": "portainer", "module": "portainer", "tag": "linux-arm-1.24.1"},

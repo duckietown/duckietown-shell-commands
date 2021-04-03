@@ -10,7 +10,7 @@ import pathlib
 logging.basicConfig()
 logger = logging.getLogger("dd")
 
-utils_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), '..', 'utils')
+utils_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "utils")
 sys.path.append(utils_dir)
 
 import progress_bar
@@ -21,7 +21,7 @@ import misc_utils
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="Input device or file")
 parser.add_argument("-o", "--output", required=True, help="Output device or file")
-parser.add_argument("-b", "--block-size", default=1024**2, type=int, help="Block size")
+parser.add_argument("-b", "--block-size", default=1024 ** 2, type=int, help="Block size")
 # parse arguments
 parsed = parser.parse_args()
 
@@ -39,8 +39,8 @@ stime = time.time()
 pbar = progress_bar.ProgressBar(header="Flashing [ETA: ND]")
 
 # open resources
-src = open(parsed.input, 'rb')
-tgt = open(parsed.output, 'wb')
+src = open(parsed.input, "rb")
+tgt = open(parsed.output, "wb")
 
 # transfer chunks from source to target
 try:

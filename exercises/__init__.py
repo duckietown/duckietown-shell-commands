@@ -3,8 +3,13 @@
 # Maintainer: Andrea F. Daniele
 
 import glob as _glob
-from os.path import (basename as _basename, dirname as _dirname, exists as _exists, isdir as _isdir,
-                     join as _join)
+from os.path import (
+    basename as _basename,
+    dirname as _dirname,
+    exists as _exists,
+    isdir as _isdir,
+    join as _join,
+)
 
 import pip
 

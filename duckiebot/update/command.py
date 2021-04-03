@@ -14,24 +14,15 @@ OTHER_IMAGES_TO_UPDATE = [
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts duckiebot update"
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
-            "-s",
-            "--stack",
-            type=str,
-            default=DEFAULT_STACK,
-            help="Name of the Stack to update"
+            "-s", "--stack", type=str, default=DEFAULT_STACK, help="Name of the Stack to update"
         )
-        parser.add_argument(
-            "robot",
-            nargs=1,
-            help="Name of the Robot to update"
-        )
+        parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments
@@ -40,20 +31,13 @@ class DTCommand(DTCommandAbs):
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
-        images = [
-            img.format(distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
-        ]
+        images = [img.format(distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE]
         client = get_client(hostname)
         # it looks like the update is going to happen, mark the event
-        log_event_on_robot(parsed.robot, 'duckiebot/update')
+        log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             pull_image(image, client)
         # call `stack up` command
-        shell.include.stack.up.command(shell, [
-            "--machine", parsed.robot,
-            "--detach",
-            "--pull",
-            parsed.stack
-        ])
+        shell.include.stack.up.command(shell, ["--machine", parsed.robot, "--detach", "--pull", parsed.stack])

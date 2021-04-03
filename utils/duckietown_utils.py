@@ -12,7 +12,7 @@ def get_robot_types():
         "greenstation",
         "workstation",
         "traffic_light",
-        "duckietown"
+        "duckietown",
     ]
 
 
@@ -24,7 +24,7 @@ def get_robot_configurations(robot_type):
         "greenstation": ["GS17"],
         "workstation": ["WS21A", "WS21B", "WS21C"],
         "traffic_light": ["TL18", "TL19"],
-        "duckietown": ["DT20"]
+        "duckietown": ["DT20"],
     }
     if robot_type not in configurations:
         raise ValueError(f"Robot type {robot_type} not recognized!")

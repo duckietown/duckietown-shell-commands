@@ -21,16 +21,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to run"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to run the image",
+            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
             "-M",
@@ -44,10 +38,10 @@ class DTCommand(DTCommandAbs):
             "Pass a comma-separated list of paths to mount multiple projects",
         )
         # get pre-parsed or parse arguments
-        parsed = kwargs.get('parsed', None)
+        parsed = kwargs.get("parsed", None)
         if not parsed:
             # try to interpret it as a multi-command
-            multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+            multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
             if multi.is_multicommand:
                 multi.execute()
                 return
@@ -74,10 +68,9 @@ class DTCommand(DTCommandAbs):
         projects_to_sync = [parsed.workdir] if parsed.mount is True else []
         # sync secondary projects
         if isinstance(parsed.mount, str):
-            projects_to_sync.extend([
-                os.path.abspath(os.path.join(os.getcwd(), p.strip()))
-                for p in parsed.mount.split(",")
-            ])
+            projects_to_sync.extend(
+                [os.path.abspath(os.path.join(os.getcwd(), p.strip())) for p in parsed.mount.split(",")]
+            )
         # run rsync
         for project_path in projects_to_sync:
             cmd = f"rsync --archive {project_path} {remote_path}"

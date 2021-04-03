@@ -13,9 +13,7 @@ from types import SimpleNamespace
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 
-REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"],
-                          "1": ["TYPE", "VERSION"],
-                          "2": ["TYPE", "VERSION"]}
+REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
 CANONICAL_ARCH = {
     "arm": "arm32v7",
@@ -32,9 +30,7 @@ CANONICAL_ARCH = {
     "aarch64": "arm64v8",
 }
 
-BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"],
-                           "arm64v8": ["arm32v7", "arm64v8"],
-                           "amd64": ["amd64"]}
+BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -181,8 +177,7 @@ class DTProject:
     def is_detached(self):
         return self._repository.detached if self._repository else False
 
-    def image(self, arch: str, loop: bool = False, docs: bool = False,
-              owner: str = "duckietown") -> str:
+    def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
@@ -232,8 +227,8 @@ class DTProject:
     def launch_paths(self):
         # make sure we support this project version
         if (
-                self.type not in TEMPLATE_TO_LAUNCHFILE
-                or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
+            self.type not in TEMPLATE_TO_LAUNCHFILE
+            or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
         ):
             raise ValueError(
                 "Template {:s} v{:s} for project {:s} is not supported".format(
@@ -283,8 +278,7 @@ class DTProject:
             msg = "The metadata file '.dtproject' is empty."
             raise UserError(msg)
         # parse metadata
-        metadata = {p[0].strip().upper(): p[1].strip() for p in
-                    [line.split("=") for line in metadata]}
+        metadata = {p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata]}
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
@@ -325,16 +319,14 @@ class DTProject:
         head_tag = head_tag[0] if head_tag else "ND"
         closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
         closest_tag = closest_tag[-1] if closest_tag else "ND"
-        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[
-            0]
+        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
         if origin_url.endswith("/"):
             origin_url = origin_url[:-1]
         repo = origin_url.split("/")[-1]
         # get info about current git INDEX
-        nmodified = len(
-            _run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]))
+        nmodified = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]))
         nadded = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain"]))
         # return info
         return {
@@ -405,8 +397,7 @@ def _remote_url_to_https(remote_url):
 
 def _run_cmd(cmd):
     cmd = " ".join(cmd)
-    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n")
-            if line]
+    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n") if line]
 
 
 def _parse_configurations(config_file: str) -> dict:

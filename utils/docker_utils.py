@@ -45,8 +45,10 @@ def get_endpoint_ncpus(epoint=None):
         epoint_ncpus = client.info()["NCPU"]
         dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
     except BaseException:
-        dtslogger.warning(f"Failed to retrieve the number of CPUs on the Docker endpoint. "
-                          f"Using default value of {epoint_ncpus}.")
+        dtslogger.warning(
+            f"Failed to retrieve the number of CPUs on the Docker endpoint. "
+            f"Using default value of {epoint_ncpus}."
+        )
     return epoint_ncpus
 
 
@@ -79,13 +81,16 @@ def get_client(endpoint=None):
         client = docker.from_env()
     else:
         # create client
-        client = endpoint if isinstance(endpoint, docker.DockerClient) \
+        client = (
+            endpoint
+            if isinstance(endpoint, docker.DockerClient)
             else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+        )
     # (try to) login
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     # ---
     return client
 
@@ -95,13 +100,13 @@ def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     return client
 
 
 def _login_client(client):
-    username = os.environ.get('DOCKERHUB_USERNAME', None)
-    password = os.environ.get('DOCKERHUB_PASSWORD', None)
+    username = os.environ.get("DOCKERHUB_USERNAME", None)
+    password = os.environ.get("DOCKERHUB_PASSWORD", None)
     if username is not None and password is not None:
         client.login(username=username, password=password)
 

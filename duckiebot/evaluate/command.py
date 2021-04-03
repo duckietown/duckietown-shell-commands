@@ -100,7 +100,7 @@ class DTCommand(DTCommandAbs):
         dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
-            
+
         if not parsed.duckiebot_name:
             dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 

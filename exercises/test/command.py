@@ -25,7 +25,13 @@ from utils.docker_utils import (
     pull_image,
     remove_if_running,
 )
-from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running, get_endpoint_architecture
+from utils.docker_utils import (
+    get_remote_client,
+    pull_if_not_exist,
+    pull_image,
+    remove_if_running,
+    get_endpoint_architecture,
+)
 from utils.misc_utils import sanitize_hostname
 
 from utils.networking_utils import get_duckiebot_ip
@@ -48,13 +54,9 @@ BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
-SIMULATOR_IMAGE = (
-    "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"
-)  # no arch
+SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
 VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
-EXPERIMENT_MANAGER_IMAGE = (
-    "duckietown/challenge-aido_lf-experiment_manager:" + BRANCH + "-amd64"
-)
+EXPERIMENT_MANAGER_IMAGE = "duckietown/challenge-aido_lf-experiment_manager:" + BRANCH + "-amd64"
 BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 DEFAULT_REMOTE_USER = "duckie"
@@ -92,11 +94,7 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--stop",
-            dest="stop",
-            action="store_true",
-            default=False,
-            help="just stop all the containers",
+            "--stop", dest="stop", action="store_true", default=False, help="just stop all the containers",
         )
 
         parser.add_argument(
@@ -115,7 +113,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-                 + "this is not expected to work on MacOSX",
+            + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
@@ -149,18 +147,17 @@ class DTCommand(DTCommandAbs):
         try:
             agent_base_image = BASELINE_IMAGES[config["agent_base"]]
         except Exception as e:
-            msg =  (f"Check config.yaml. Unknown base image {config['agent_base']}. "
-                    f"Available base images are {BASELINE_IMAGES}")
+            msg = (
+                f"Check config.yaml. Unknown base image {config['agent_base']}. "
+                f"Available base images are {BASELINE_IMAGES}"
+            )
             raise Exception(msg) from e
-
 
         use_ros = True
         try:
-            use_ros = config['ros']
+            use_ros = config["ros"]
         except Exception as e:
             pass
-
-
 
         # get the local docker client
         local_client = check_docker_environment()
@@ -207,9 +204,7 @@ class DTCommand(DTCommandAbs):
                 for notebook in config["notebooks"]:
                     package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
                     notebook_name = notebook["notebook"]["name"]
-                    convertNotebook(
-                        working_dir + f"/notebooks/", notebook_name, package_dir
-                    )
+                    convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
 
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
@@ -259,9 +254,7 @@ class DTCommand(DTCommandAbs):
                 "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
             }
         else:
-            ros_env = {
-                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"
-            }
+            ros_env = {"ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"}
             if parsed.sim:
                 ros_env["VEHICLE_NAME"] = "agent"
                 ros_env["HOSTNAME"] = "agent"
@@ -287,9 +280,7 @@ class DTCommand(DTCommandAbs):
                 pull_image(image, agent_client)
 
         try:
-            agent_network = agent_client.networks.create(
-                "agent-network", driver="bridge"
-            )
+            agent_network = agent_client.networks.create("agent-network", driver="bridge")
         except Exception as e:
             dtslogger.warn("error creating network: %s" % e)
 
@@ -302,14 +293,8 @@ class DTCommand(DTCommandAbs):
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
         experiment_manager_bind = {
             fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            os.path.join(working_dir, "assets/setup/challenges"): {
-                "bind": "/challenges",
-                "mode": "rw",
-            },
-            os.path.join(working_dir, "assets/setup/scenarios"): {
-                "bind": "/scenarios",
-                "mode": "rw",
-            },
+            os.path.join(working_dir, "assets/setup/challenges"): {"bind": "/challenges", "mode": "rw",},
+            os.path.join(working_dir, "assets/setup/scenarios"): {"bind": "/scenarios", "mode": "rw",},
         }
 
         # are we running on a mac?
@@ -343,9 +328,7 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(sim_container)
 
             # let's launch the experiment_manager
-            dtslogger.info(
-                f"Running experiment_manager {exp_manager_container_name} from {expman_image}"
-            )
+            dtslogger.info(f"Running experiment_manager {exp_manager_container_name} from {expman_image}")
             expman_env = load_yaml(env_dir + "exp_manager_env.yaml")
             expman_port = {"8090/tcp": ("0.0.0.0", 8090)}
             mw_params = {
@@ -443,17 +426,13 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(vnc_container)
 
         # Setup functions for monitor and cleanup
-        stop_attached_container = lambda: agent_client.containers.get(
-            agent_container_name
-        ).kill()
+        stop_attached_container = lambda: agent_client.containers.get(agent_container_name).kill()
         launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
         signal.signal(
             signal.SIGINT,
-            lambda signum, frame: clean_shutdown(
-                containers_to_monitor, stop_attached_container
-            ),
+            lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container),
         )
 
         dtslogger.info("Starting attached container")
@@ -502,14 +481,10 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     Monitor should Stop everything if a containers exits and display logs
     """
     monitor_thread = threading.Thread(
-        target=monitor_containers,
-        args=(containers_to_monitor, stop_attached_container),
-        daemon=True,
+        target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True,
     )
     dtslogger.info("Starting monitor thread")
-    dtslogger.info(
-        f"Containers to monitor: {[container.name for container in containers_to_monitor]}"
-    )
+    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
     monitor_thread.start()
 
 
@@ -690,9 +665,7 @@ def convertNotebook(filepath, filename, export_path) -> bool:
 
     filepath = filepath + f"{filename}.ipynb"
     if not os.path.isfile(filepath):
-        dtslogger.error(
-            "No such file " + filepath + ". Make sure the config.yaml is correct."
-        )
+        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
         exit(1)
 
     nb = nbformat.read(filepath, as_version=4)
@@ -726,9 +699,7 @@ def load_yaml(file_name):
         return env
 
 
-def _run_cmd(
-    cmd, get_output=False, print_output=False, suppress_errors=False, shell=False
-):
+def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
     if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
@@ -737,9 +708,7 @@ def _run_cmd(
         proc.wait()
         if proc.returncode != 0:
             if not suppress_errors:
-                msg = "The command {} returned exit code {}".format(
-                    cmd, proc.returncode
-                )
+                msg = "The command {} returned exit code {}".format(cmd, proc.returncode)
                 dtslogger.error(msg)
                 raise RuntimeError(msg)
         out = proc.stdout.read().decode("utf-8").rstrip()
