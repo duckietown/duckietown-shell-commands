@@ -69,7 +69,9 @@ TEMPLATE_TO_LAUNCHFILE = {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),},
+    "template-exercise": {
+        "1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}

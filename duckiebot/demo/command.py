@@ -70,7 +70,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--robot_type", "-t", dest="robot_type", default="auto", help="The robot type",
+            "--robot_type",
+            "-t",
+            dest="robot_type",
+            default="auto",
+            help="The robot type",
         )
 
         parser.add_argument(
@@ -217,7 +221,10 @@ class DTCommand(DTCommandAbs):
             image=image_base,
             command=cmd,
             network_mode="host",
-            volumes={**bind_duckiebot_data_dir(), **bind_avahi_socket(),},
+            volumes={
+                **bind_duckiebot_data_dir(),
+                **bind_avahi_socket(),
+            },
             privileged=True,
             name=container_name,
             mem_limit="800m",
@@ -230,5 +237,8 @@ class DTCommand(DTCommandAbs):
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s attach %s" % (duckiebot_hostname, container_name,)
+            attach_cmd = "docker -H %s attach %s" % (
+                duckiebot_hostname,
+                container_name,
+            )
             start_command_in_subprocess(attach_cmd)

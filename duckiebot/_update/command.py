@@ -57,16 +57,29 @@ class DTCommand(DTCommandAbs):
             help="Pull new image for code-api container",
         )
         parser.add_argument(
-            "--codeapi-recreate", default=False, action="store_true", help="Recreate the code-api container",
+            "--codeapi-recreate",
+            default=False,
+            action="store_true",
+            help="Recreate the code-api container",
         )
         parser.add_argument(
-            "--check", default=False, action="store_true", help="Force re-check",
+            "--check",
+            default=False,
+            action="store_true",
+            help="Force re-check",
         )
         parser.add_argument(
-            "-y", "--yes", default=False, action="store_true", help="Don't ask for confirmation",
+            "-y",
+            "--yes",
+            default=False,
+            action="store_true",
+            help="Don't ask for confirmation",
         )
         parser.add_argument(
-            "--local", default=False, action="store_true", help="Run the updater module locally",
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run the updater module locally",
         )
         parser.add_argument("vehicle", nargs=1, help="Name of the Duckiebot to check software status for")
         # parse arguments

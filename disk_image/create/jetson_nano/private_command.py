@@ -145,10 +145,16 @@ class DTCommand(DTCommandAbs):
             "--workdir", type=str, default=TMP_WORKDIR, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -581,7 +587,8 @@ class DTCommand(DTCommandAbs):
                             )
                         # clean packages
                         run_cmd_in_partition(
-                            ROOT_PARTITION, f"apt autoremove --yes",
+                            ROOT_PARTITION,
+                            f"apt autoremove --yes",
                         )
                     except Exception as e:
                         raise e

@@ -27,13 +27,23 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image",
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
-            "-d", "--detach", action="store_true", default=False, help="Detach from running containers",
+            "-d",
+            "--detach",
+            action="store_true",
+            default=False,
+            help="Detach from running containers",
         )
         parser.add_argument(
-            "--pull", action="store_true", default=False, help="Pull images before running",
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Pull images before running",
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)

@@ -24,7 +24,10 @@ class DTCommand(DTCommandAbs):
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image",
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
             "-M",

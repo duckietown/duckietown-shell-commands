@@ -94,7 +94,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--stop", dest="stop", action="store_true", default=False, help="just stop all the containers",
+            "--stop",
+            dest="stop",
+            action="store_true",
+            default=False,
+            help="just stop all the containers",
         )
 
         parser.add_argument(
@@ -293,8 +297,14 @@ class DTCommand(DTCommandAbs):
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
         experiment_manager_bind = {
             fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            os.path.join(working_dir, "assets/setup/challenges"): {"bind": "/challenges", "mode": "rw",},
-            os.path.join(working_dir, "assets/setup/scenarios"): {"bind": "/scenarios", "mode": "rw",},
+            os.path.join(working_dir, "assets/setup/challenges"): {
+                "bind": "/challenges",
+                "mode": "rw",
+            },
+            os.path.join(working_dir, "assets/setup/scenarios"): {
+                "bind": "/scenarios",
+                "mode": "rw",
+            },
         }
 
         # are we running on a mac?
@@ -481,7 +491,9 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     Monitor should Stop everything if a containers exits and display logs
     """
     monitor_thread = threading.Thread(
-        target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True,
+        target=monitor_containers,
+        args=(containers_to_monitor, stop_attached_container),
+        daemon=True,
     )
     dtslogger.info("Starting monitor thread")
     dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")

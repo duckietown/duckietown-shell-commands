@@ -37,10 +37,16 @@ class DTCommand(DTCommandAbs):
             help="Target architecture for the image to run",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image",
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
-            "-R", "--ros", default=None, help="Hostname of the machine hosting the ROS Master node",
+            "-R",
+            "--ros",
+            default=None,
+            help="Hostname of the machine hosting the ROS Master node",
         )
         parser.add_argument("-n", "--name", default=None, help="Name of the container")
         parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
@@ -119,7 +125,11 @@ class DTCommand(DTCommandAbs):
             "--runtime", default="docker", type=str, help="Docker runtime to use to run the container"
         )
         parser.add_argument(
-            "-X", dest="use_x_docker", default=False, action="store_true", help="Use x-docker as runtime",
+            "-X",
+            dest="use_x_docker",
+            default=False,
+            action="store_true",
+            help="Use x-docker as runtime",
         )
         parser.add_argument(
             "-s", "--sync", default=False, action="store_true", help="Sync code from local project to remote"

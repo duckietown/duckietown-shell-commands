@@ -159,7 +159,11 @@ class DTCommand(DTCommandAbs):
             help="Use experimental disk image and parameters",
         )
         parser.add_argument(
-            "-S", "--size", default=None, type=int, help="(Optional) Size of the SD card you are flashing",
+            "-S",
+            "--size",
+            default=None,
+            type=int,
+            help="(Optional) Size of the SD card you are flashing",
         )
         parser.add_argument(
             "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"

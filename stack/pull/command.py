@@ -25,7 +25,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image",
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to run the image",
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)

@@ -31,16 +31,27 @@ class DTCommand(DTCommandAbs):
             "--network", default="host", help="Name of the network to connect the container to"
         )
         parser.add_argument(
-            "--sim", action="store_true", default=False, help="Are we running in simulator?",
+            "--sim",
+            action="store_true",
+            default=False,
+            help="Are we running in simulator?",
         )
         parser.add_argument(
-            "--pull", action="store_true", default=False, help="Pull the dt-gui-tools image",
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Pull the dt-gui-tools image",
         )
         parser.add_argument(
-            "--image", default=None, help="The Docker image to use. Advanced users only.",
+            "--image",
+            default=None,
+            help="The Docker image to use. Advanced users only.",
         )
         parser.add_argument(
-            "--vnc", action="store_true", default=False, help="Run the novnc server",
+            "--vnc",
+            action="store_true",
+            default=False,
+            help="Run the novnc server",
         )
         parser.add_argument(
             "--ip",

@@ -25,7 +25,7 @@ BRANCH = "daffy"
 ARCH = "amd64"
 AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
-CF = 'config.yaml'
+CF = "config.yaml"
 
 
 class InvalidUserInput(UserError):
@@ -73,7 +73,7 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
         fn = os.path.join(working_dir, CF)
         config = load_yaml(fn)
-        ws_dir = config['ws_dir']
+        ws_dir = config["ws_dir"]
 
         exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
 
@@ -82,8 +82,8 @@ class DTCommand(DTCommandAbs):
         if "notebooks" in config:
             dtslogger.info("Converting the notebooks into python scripts...")
             for notebook in config["notebooks"]:
-                package_dir = exercise_ws_src + notebook['notebook']["package_name"]
-                notebook_name = notebook['notebook']["name"]
+                package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
+                notebook_name = notebook["notebook"]["name"]
                 convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
 
         client = check_docker_environment()
@@ -129,6 +129,7 @@ def convertNotebook(filepath, filename, export_path) -> bool:
     import nbformat  # install before?
     from nbconvert.exporters import PythonExporter
     from traitlets.config import Config
+
     filepath += f"{filename}.ipynb"
     if not os.path.isfile(filepath):
         dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")

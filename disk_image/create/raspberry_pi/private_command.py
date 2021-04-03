@@ -106,7 +106,10 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps",
+            type=str,
+            default="",
+            help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
             "-o", "--output", type=str, default=None, help="The destination directory for the output file"
@@ -118,10 +121,16 @@ class DTCommand(DTCommandAbs):
             "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",

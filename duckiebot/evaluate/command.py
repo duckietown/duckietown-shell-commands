@@ -61,7 +61,10 @@ class DTCommand(DTCommandAbs):
         )
         group.add_argument("--duration", help="Number of seconds to run evaluation", default=60)
         group.add_argument(
-            "--record_bag", action="store_true", default=False, help="If true record a rosbag",
+            "--record_bag",
+            action="store_true",
+            default=False,
+            help="If true record a rosbag",
         )
         group.add_argument(
             "--debug",

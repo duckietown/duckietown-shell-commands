@@ -13,7 +13,10 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot reboot"
         parser = argparse.ArgumentParser(prog=prog)
         parser.add_argument(
-            "robot", nargs=1, type=str, help="Duckiebot to reboot",
+            "robot",
+            nargs=1,
+            type=str,
+            help="Duckiebot to reboot",
         )
         parsed = parser.parse_args(args)
         # ---
