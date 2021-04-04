@@ -217,10 +217,10 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info(f"Building image for {arch}")
-            AIDO_REGISTRY = os.environ.get('AIDO_REGISTRY', 'docker.io')
+            AIDO_REGISTRY = os.environ.get("AIDO_REGISTRY", "docker.io")
             cmd = [
                 "docker",
-                "-H %s" % machine, # XXX - should be separate arguments
+                "-H %s" % machine,  # XXX - should be separate arguments
                 "build",
                 "-t",
                 tag,
@@ -293,8 +293,11 @@ class DTCommand(DTCommandAbs):
         if bag_container is not None:
             stop_container(bag_container)
 
+
 class CannotGetCalibration(Exception):
     pass
+
+
 # get the calibration files off the robot
 def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
@@ -312,7 +315,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
         dtslogger.debug(f'Fetching file "{url}"')
         res = requests.get(url, timeout=10)
         if res.status_code != 200:
-            msg  = f"Could not get the calibration file {calib_file} from the robot {duckiebot_name}"
+            msg = f"Could not get the calibration file {calib_file} from the robot {duckiebot_name}"
             raise CannotGetCalibration(msg)
         # make destination directory
         dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
