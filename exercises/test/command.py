@@ -56,7 +56,7 @@ DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
 
 ENV_LOGLEVEL = "LOGLEVEL"
-PORT_VNC = 8089
+PORT_VNC = 8087
 PORT_MANAGER = 8090
 
 
@@ -69,6 +69,32 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts exercise test"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+        class Levels(str, Enum):
+
+            LEVEL_NONE = "none"
+            LEVEL_DEBUG = "debug"
+            LEVEL_INFO = "info"
+            LEVEL_WARNING = "warning"
+            LEVEL_ERROR = "error"
+
+        # noinspection PyUnresolvedReferences
+        allowed_levels = [e.value for e in Levels]
+
+        class ContainerNames(str, Enum):
+            NAME_AGENT = "agent"
+            NAME_MANAGER = "manager"
+            NAME_SIMULATOR = "simulator"
+            NAME_BRIDGE = "bridge"
+            NAME_VNC = "vnc"
+
+        loglevels: Dict[ContainerNames, Levels] = {
+            ContainerNames.NAME_AGENT: Levels.LEVEL_DEBUG,
+            ContainerNames.NAME_MANAGER: Levels.LEVEL_NONE,
+            ContainerNames.NAME_SIMULATOR: Levels.LEVEL_NONE,
+            ContainerNames.NAME_BRIDGE: Levels.LEVEL_NONE,
+            ContainerNames.NAME_VNC: Levels.LEVEL_NONE,
+        }
 
         parser.add_argument(
             "--duckiebot_name",
@@ -118,26 +144,20 @@ class DTCommand(DTCommandAbs):
             "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
+        loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in loglevels.items())
         parser.add_argument(
             "--logs",
             dest="logs",
             action="append",
             default=[],
-            help="""
+            help=f"""
             
-            The container names are:
-            
-                agent
-                sim
-                manager
+            Use --logs NAME:LEVEL to set up levels.
                 
-            Can use like this:
+            The container names and their defaults are [{loglevels_friendly}].
             
-            --logs agent:none
-            --logs agent:debug
-            --logs agent:info
-            --logs agent:warning
             
+            The levels are {", ".join(allowed_levels)}.
             
             """,
         )
@@ -152,28 +172,6 @@ class DTCommand(DTCommandAbs):
         )
 
         parsed = parser.parse_args(args)
-
-        class Levels(str, Enum):
-
-            LEVEL_NONE = "none"
-            LEVEL_DEBUG = "debug"
-            LEVEL_INFO = "info"
-            LEVEL_WARNING = "warning"
-            LEVEL_ERROR = "error"
-
-        # noinspection PyUnresolvedReferences
-        allowed_levels = [e.value for e in Levels]
-
-        class ContainerNames(str, Enum):
-            NAME_AGENT = "agent"
-            NAME_MANAGER = "manager"
-            NAME_SIMULATOR = "simulator"
-
-        loglevels: Dict[ContainerNames, Levels] = {
-            ContainerNames.NAME_AGENT: Levels.LEVEL_DEBUG,
-            ContainerNames.NAME_MANAGER: Levels.LEVEL_NONE,
-            ContainerNames.NAME_SIMULATOR: Levels.LEVEL_NONE,
-        }
 
         l: str
         for l in parsed.logs:
@@ -219,11 +217,9 @@ class DTCommand(DTCommandAbs):
             )
             raise Exception(msg) from e
 
-        use_ros = True
-        try:
-            use_ros = config["ros"]
-        except Exception as e:
-            pass
+        use_ros = bool(config.get("ros", True))
+        dtslogger.info(f"config : {config}")
+        dtslogger.info(f"use_ros: {use_ros}")
 
         # get the local docker client
         local_client = check_docker_environment()
@@ -286,6 +282,7 @@ class DTCommand(DTCommandAbs):
 
         sim_image = add_registry(SIMULATOR_IMAGE)
         expman_image = add_registry(EXPERIMENT_MANAGER_IMAGE)
+        vnc_image = add_registry(VNC_IMAGE)
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
         agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
@@ -337,9 +334,10 @@ class DTCommand(DTCommandAbs):
                 ros_env["HOSTNAME"] = duckiebot_name
 
         # let's see if we should pull the images
-        local_images = [VNC_IMAGE, expman_image, sim_image]
+        local_images = [vnc_image, expman_image, sim_image]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
+        # ALL the pulling is done here. Don't start anything until we now
         if parsed.pull:
             for image in local_images:
                 dtslogger.info(f"Pulling {image}")
@@ -347,6 +345,11 @@ class DTCommand(DTCommandAbs):
             for image in agent_images:
                 dtslogger.info(f"Pulling {image}")
                 pull_image(image, agent_client)
+        else:
+            for image in local_images:
+                pull_if_not_exist(local_client, image)
+            for image in agent_images:
+                pull_if_not_exist(agent_client, image)
 
         try:
             agent_network = agent_client.networks.create("agent-network", driver="bridge")
@@ -469,6 +472,10 @@ class DTCommand(DTCommandAbs):
             )
             containers_to_monitor.append(bridge_container)
 
+            if loglevels[ContainerNames.NAME_BRIDGE] != Levels.LEVEL_NONE:
+                t = threading.Thread(target=continuously_monitor, args=(agent_client, bridge_container_name))
+                t.start()
+
         # done with sim/duckiebot specific stuff.
 
         if use_ros:
@@ -499,15 +506,14 @@ class DTCommand(DTCommandAbs):
 
         if use_ros:
             # let's launch vnc
-            dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
-            dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
+            dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
                 vnc_env["VEHICLE_NAME"] = duckiebot_name
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
             vnc_params = {
-                "image": VNC_IMAGE,
+                "image": vnc_image,
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
@@ -526,12 +532,20 @@ class DTCommand(DTCommandAbs):
                 if not running_on_mac:
                     vnc_params["network_mode"] = "host"
 
-            dtslogger.debug(vnc_params)
+                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
+
+            dtslogger.debug(f"vnc_params: {vnc_params}")
 
             # vnc always runs on local client
-            pull_if_not_exist(local_client, vnc_params["image"])
+
             vnc_container = local_client.containers.run(**vnc_params)
             containers_to_monitor.append(vnc_container)
+
+            dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
+
+            if loglevels[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
+                t = threading.Thread(target=continuously_monitor, args=(local_client, vnc_container_name))
+                t.start()
 
         # Setup functions for monitor and cleanup
         def stop_attached_container():
