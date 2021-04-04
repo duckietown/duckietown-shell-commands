@@ -1,22 +1,24 @@
 import argparse
-
+import getpass
 import os
 import platform
+import random
 import signal
 import subprocess
-
-import requests
-import time
 import threading
 import time
 import traceback
-from typing import List
+from enum import Enum
+from typing import Callable, cast, Dict, List
 
 import requests
 import yaml
-from dt_shell import DTCommandAbs, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment
+from docker import DockerClient
+from docker.models.containers import Container
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import continuously_monitor
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
@@ -25,17 +27,8 @@ from utils.docker_utils import (
     pull_image,
     remove_if_running,
 )
-from utils.docker_utils import (
-    get_remote_client,
-    pull_if_not_exist,
-    pull_image,
-    remove_if_running,
-    get_endpoint_architecture,
-)
-from utils.misc_utils import sanitize_hostname
-
-from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
+from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
 usage = """
@@ -52,22 +45,23 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROSCORE_IMAGE = "duckietown/dt-commons:" + BRANCH
-SIMULATOR_IMAGE = "duckietown/challenge-aido_lf-simulator-gym:" + BRANCH + "-amd64"  # no arch
-VNC_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-amd64"  # always on amd64
-EXPERIMENT_MANAGER_IMAGE = "duckietown/challenge-aido_lf-experiment_manager:" + BRANCH + "-amd64"
-BRIDGE_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
+# AIDO_REGISTRY = "registry-stage.duckietown.org"
+ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
+SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
+VNC_IMAGE = f"duckietown/dt-gui-tools:{BRANCH}-amd64"  # always on amd64
+EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
+BRIDGE_IMAGE = f"duckietown/dt-duckiebot-fifos-bridge:{BRANCH}"
 
 DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
 
+ENV_LOGLEVEL = "LOGLEVEL"
+PORT_VNC = 8089
+PORT_MANAGER = 8090
+
 
 class InvalidUserInput(UserError):
     pass
-
-
-from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
@@ -100,15 +94,15 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="just stop all the containers",
         )
-
-        parser.add_argument(
-            "--staging",
-            "-t",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Should we use the staging AIDO registry?",
-        )
+        #
+        # parser.add_argument(
+        #     "--staging",
+        #     "-t",
+        #     dest="staging",
+        #     action="store_true",
+        #     default=False,
+        #     help="Should we use the staging AIDO registry?",
+        # )
 
         parser.add_argument(
             "--local",
@@ -125,6 +119,30 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
+            "--logs",
+            dest="logs",
+            action="append",
+            default=[],
+            help="""
+            
+            The container names are:
+            
+                agent
+                sim
+                manager
+                
+            Can use like this:
+            
+            --logs agent:none
+            --logs agent:debug
+            --logs agent:info
+            --logs agent:warning
+            
+            
+            """,
+        )
+
+        parser.add_argument(
             "--interactive",
             "-i",
             dest="interactive",
@@ -135,21 +153,65 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
+        class Levels(str, Enum):
+
+            LEVEL_NONE = "none"
+            LEVEL_DEBUG = "debug"
+            LEVEL_INFO = "info"
+            LEVEL_WARNING = "warning"
+            LEVEL_ERROR = "error"
+
+        # noinspection PyUnresolvedReferences
+        allowed_levels = [e.value for e in Levels]
+
+        class ContainerNames(str, Enum):
+            NAME_AGENT = "agent"
+            NAME_MANAGER = "manager"
+            NAME_SIMULATOR = "simulator"
+
+        loglevels: Dict[ContainerNames, Levels] = {
+            ContainerNames.NAME_AGENT: Levels.LEVEL_DEBUG,
+            ContainerNames.NAME_MANAGER: Levels.LEVEL_NONE,
+            ContainerNames.NAME_SIMULATOR: Levels.LEVEL_NONE,
+        }
+
+        l: str
+        for l in parsed.logs:
+            if not ":" in l:
+                msg = f"Malformed option --logs {l}"
+                raise UserError(msg)
+            name, _, level = l.partition(":")
+            name = cast(ContainerNames, name.lower())
+            level = cast(Levels, level.lower())
+            if name not in loglevels:
+                msg = f"Invalid container name {name!r}, I know {list(loglevels)}"
+                raise UserError(msg)
+            if level not in allowed_levels:
+                msg = f"Invalid log level {level!r}: must be one of {list(allowed_levels)}"
+                raise UserError(msg)
+
+            loglevels[name] = level
+
+        dtslogger.info(str(loglevels))
+
         #
         #   get current working directory to check if it is an exercise directory
         #
         working_dir = os.getcwd()
         exercise_name = os.path.basename(working_dir)
         dtslogger.info(f"Running exercise {exercise_name}")
-        if not os.path.exists(working_dir + "/config.yaml"):
+
+        config_file = os.path.join(working_dir, "config.yaml")
+
+        if not os.path.exists(config_file):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
 
-        config = load_yaml(working_dir + "/config.yaml")
-        env_dir = working_dir + "/assets/setup/"
+        config = load_yaml(config_file)
+        env_dir = os.path.join(working_dir, "assets/setup/")
 
         try:
-            agent_base_image = BASELINE_IMAGES[config["agent_base"]]
+            agent_base_image0 = BASELINE_IMAGES[config["agent_base"]]
         except Exception as e:
             msg = (
                 f"Check config.yaml. Unknown base image {config['agent_base']}. "
@@ -186,14 +248,8 @@ class DTCommand(DTCommandAbs):
             duckiebot_ip = get_duckiebot_ip(duckiebot_name)
             duckiebot_client = get_remote_client(duckiebot_ip)
             duckiebot_hostname = sanitize_hostname(duckiebot_name)
-
-        if parsed.staging:
-            sim_image = AIDO_REGISTRY + "/" + SIMULATOR_IMAGE
-            expman_image = AIDO_REGISTRY + "/" + EXPERIMENT_MANAGER_IMAGE
-            agent_base_image = AIDO_REGISTRY + "/" + agent_base_image
         else:
-            sim_image = SIMULATOR_IMAGE
-            expman_image = EXPERIMENT_MANAGER_IMAGE
+            duckiebot_client = duckiebot_hostname = duckiebot_ip = None
 
         # done input checks
 
@@ -221,6 +277,20 @@ class DTCommand(DTCommandAbs):
             arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
+        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
+
+        def add_registry(x):
+            if REGISTRY in x:
+                raise
+            return REGISTRY + "/" + x
+
+        sim_image = add_registry(SIMULATOR_IMAGE)
+        expman_image = add_registry(EXPERIMENT_MANAGER_IMAGE)
+        # let's update the images based on arch
+        ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
+        agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
+        bridge_image = add_registry(f"{BRIDGE_IMAGE}-{arch}")
+
         # let's clean up any mess from last time
         # this is probably not needed anymore since we clean up everything on exit.
         sim_container_name = "challenge-aido_lf-simulator-gym"
@@ -237,19 +307,19 @@ class DTCommand(DTCommandAbs):
         remove_if_running(agent_client, agent_container_name)
         remove_if_running(agent_client, bridge_container_name)
         try:
-            dict = agent_client.networks.prune()
-            dtslogger.info("Successfully removed network %s" % dict)
+            d = agent_client.networks.prune()
+            dtslogger.info("Successfully removed network %s" % d)
         except Exception as e:
             dtslogger.warn("error removing volume: %s" % e)
 
         try:
-            dict = agent_client.volumes.prune()
-            dtslogger.info("Successfully removed volume %s" % dict)
+            d = agent_client.volumes.prune()
+            dtslogger.info("Successfully removed volume %s" % d)
         except Exception as e:
             dtslogger.warn("error removing volume: %s" % e)
 
         if parsed.stop:
-            exit(0)
+            return
 
         # done cleaning
 
@@ -266,11 +336,6 @@ class DTCommand(DTCommandAbs):
                 ros_env["VEHICLE_NAME"] = duckiebot_name
                 ros_env["HOSTNAME"] = duckiebot_name
 
-        # let's update the images based on arch
-        ros_image = f"{ROSCORE_IMAGE}-{arch}"
-        agent_base_image = f"{agent_base_image}-{arch}"
-        bridge_image = f"{BRIDGE_IMAGE}-{arch}"
-
         # let's see if we should pull the images
         local_images = [VNC_IMAGE, expman_image, sim_image]
         agent_images = [bridge_image, ros_image, agent_base_image]
@@ -286,26 +351,46 @@ class DTCommand(DTCommandAbs):
         try:
             agent_network = agent_client.networks.create("agent-network", driver="bridge")
         except Exception as e:
-            dtslogger.warn("error creating network: %s" % e)
+            msg = "error creating network"
+            raise Exception(msg) from e
 
         try:
             fifos_volume = agent_client.volumes.create(name="fifos")
         except Exception as e:
-            dtslogger.warn("error creating volume: %s" % e)
-            raise
+            msg = "error creating volume"
+            raise Exception(msg) from e
 
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
+
+        username = getpass.getuser()
+        t = f"/tmp/{username}/exercises-test/"
+        # TODO: use date/time
+        thisone = str(random.randint(0, 100000))
+        tmpdir = os.path.join(t, thisone)
+        challenges_dir = os.path.join(tmpdir, "challenges")
+        os.makedirs(challenges_dir)
+        f1 = os.path.join(challenges_dir, "touch")
+        with open(f1, "w") as f:
+            f.write("")
+
+        dtslogger.info(f"tmp dir = {challenges_dir}")
+
+        challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
+
+        scenarios = os.path.join(working_dir, "assets/setup/scenarios")
         experiment_manager_bind = {
             fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            os.path.join(working_dir, "assets/setup/challenges"): {
+            challenges_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
             },
-            os.path.join(working_dir, "assets/setup/scenarios"): {
+            scenarios: {
                 "bind": "/scenarios",
                 "mode": "rw",
             },
         }
+
+        dtslogger.info(f"experiment_manager_bind={str(experiment_manager_bind)}")
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -318,7 +403,8 @@ class DTCommand(DTCommandAbs):
         if parsed.sim:
             # let's launch the simulator
 
-            sim_env = load_yaml(env_dir + "sim_env.yaml")
+            sim_env = load_yaml(os.path.join(env_dir, "sim_env.yaml"))
+            sim_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_SIMULATOR]
 
             dtslogger.info(f"Running simulator {sim_container_name} from {sim_image}")
             sim_params = {
@@ -337,10 +423,15 @@ class DTCommand(DTCommandAbs):
             sim_container = agent_client.containers.run(**sim_params)
             containers_to_monitor.append(sim_container)
 
+            if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
+                t = threading.Thread(target=continuously_monitor, args=(agent_client, sim_container_name))
+                t.start()
+
             # let's launch the experiment_manager
             dtslogger.info(f"Running experiment_manager {exp_manager_container_name} from {expman_image}")
-            expman_env = load_yaml(env_dir + "exp_manager_env.yaml")
-            expman_port = {"8090/tcp": ("0.0.0.0", 8090)}
+            expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
+            expman_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_MANAGER]
+            expman_port = {"8090/tcp": ("0.0.0.0", PORT_MANAGER)}
             mw_params = {
                 "image": expman_image,
                 "name": exp_manager_container_name,
@@ -352,11 +443,18 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
 
-            dtslogger.debug(mw_params)
+            # dtslogger.debug(mw_params)
+            dtslogger.info(f"\n\tSim interface will be running at http://localhost:{PORT_MANAGER}/\n")
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
             containers_to_monitor.append(mw_container)
+
+            if loglevels[ContainerNames.NAME_MANAGER] != Levels.LEVEL_NONE:
+                t = threading.Thread(
+                    target=continuously_monitor, args=(agent_client, exp_manager_container_name)
+                )
+                t.start()
 
         else:  # we are running on a duckiebot
             bridge_container = launch_bridge(
@@ -402,7 +500,7 @@ class DTCommand(DTCommandAbs):
         if use_ros:
             # let's launch vnc
             dtslogger.info(f"Running VNC {vnc_container_name} from {VNC_IMAGE}")
-            dtslogger.info(f"\n\tVNC running at http://localhost:8087/\n")
+            dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
             vnc_env = ros_env
             if not parsed.local:
                 vnc_env["VEHICLE_NAME"] = duckiebot_name
@@ -423,7 +521,7 @@ class DTCommand(DTCommandAbs):
 
             if parsed.local:
                 vnc_params["network"] = agent_network.name
-                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
             else:
                 if not running_on_mac:
                     vnc_params["network_mode"] = "host"
@@ -436,7 +534,12 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(vnc_container)
 
         # Setup functions for monitor and cleanup
-        stop_attached_container = lambda: agent_client.containers.get(agent_container_name).kill()
+        def stop_attached_container():
+            container = agent_client.containers.get(agent_container_name)
+            container.reload()
+            if container.status == "running":
+                container.kill()
+
         launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
@@ -447,31 +550,35 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info("Starting attached container")
 
+        agent_env = load_yaml(os.path.join(env_dir, "agent_env.yaml"))
+        if use_ros:
+            agent_env = {**ros_env, **agent_env}
+
+        agent_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_AGENT]
+
         try:
             agent_container = launch_agent(
-                agent_container_name,
-                env_dir,
-                ros_env,
-                fifos_bind,
-                parsed,
-                working_dir,
-                exercise_name,
-                agent_base_image,
-                agent_network,
-                agent_client,
-                duckiebot_name,
-                config,
-                use_ros,
+                agent_container_name=agent_container_name,
+                agent_volumes=fifos_bind,
+                parsed=parsed,
+                working_dir=working_dir,
+                exercise_name=exercise_name,
+                agent_base_image=agent_base_image,
+                agent_network=agent_network,
+                agent_client=agent_client,
+                duckiebot_name=duckiebot_name,
+                config=config,
+                agent_env=agent_env,
             )
         except Exception as e:
-            dtslogger.info(f"Attached container terminated {e}")
+            dtslogger.error(f"Attached container terminated {e}")
         finally:
             clean_shutdown(containers_to_monitor, stop_attached_container)
 
         dtslogger.info("All done")
 
 
-def clean_shutdown(containers, stop_attached_container):
+def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
     dtslogger.info("Cleaning containers")
     for container in containers:
         dtslogger.info(f"Killing container {container.name}")
@@ -485,10 +592,12 @@ def clean_shutdown(containers, stop_attached_container):
         dtslogger.info(f"attached container already stopped.")
 
 
-def launch_container_monitor(containers_to_monitor, stop_attached_container):
+def launch_container_monitor(
+    containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]
+) -> threading.Thread:
     """
     Start a daemon thread that will exit when the application exits.
-    Monitor should Stop everything if a containers exits and display logs
+    Monitor should stop everything if a containers exits and display logs.
     """
     monitor_thread = threading.Thread(
         target=monitor_containers,
@@ -498,11 +607,12 @@ def launch_container_monitor(containers_to_monitor, stop_attached_container):
     dtslogger.info("Starting monitor thread")
     dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
     monitor_thread.start()
+    return monitor_thread
 
 
-def monitor_containers(containers_to_monitor: List, stop_attached_container):
+def monitor_containers(containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]):
     """
-    When an error is found, we display info and kill the attached thread to stop main process
+    When an error is found, we display info and kill the attached thread to stop main process.
     """
     while True:
         errors = []
@@ -543,28 +653,20 @@ def monitor_containers(containers_to_monitor: List, stop_attached_container):
 
 
 def launch_agent(
-    agent_container_name,
-    env_dir,
-    ros_env,
-    fifos_bind,
+    agent_container_name: str,
+    agent_volumes,
     parsed,
-    working_dir,
-    exercise_name,
-    agent_base_image,
-    agent_network,
-    agent_client,
-    duckiebot_name,
+    working_dir: str,
+    exercise_name: str,
+    agent_base_image: str,
+    agent_network: str,
+    agent_client: DockerClient,
+    duckiebot_name: str,
     config,
-    use_ros,
+    agent_env: Dict[str, str],
 ):
     # Let's launch the ros template
     dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
-
-    agent_env = load_yaml(env_dir + "agent_env.yaml")
-    if use_ros:
-        agent_env = {**ros_env, **agent_env}
-
-    agent_volumes = fifos_bind
 
     ws_dir = "/" + config["ws_dir"]
 

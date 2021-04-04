@@ -6,11 +6,11 @@ import threading
 import time
 import requests
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import continuously_monitor
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
-    continuously_monitor,
     get_remote_client,
     record_bag,
     remove_if_running,
@@ -105,7 +105,8 @@ class DTCommand(DTCommandAbs):
             os.makedirs(dir_fake_home)
 
         if not parsed.duckiebot_name:
-            dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
+            msg = "No duckiebot specified. Use --duckiebot_name"
+            raise UserError(msg)
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
             # if we are running remotely then we need to copy over the calibration
@@ -290,8 +291,8 @@ def get_calibration_files(destination_dir, duckiebot_name):
         "calibrations/kinematics/{duckiebot:s}.yaml",
     ]
 
-    for calib_file in calib_files:
-        calib_file = calib_file.format(duckiebot=duckiebot_name)
+    for calib_file_format in calib_files:
+        calib_file = calib_file_format.format(duckiebot=duckiebot_name)
         url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
