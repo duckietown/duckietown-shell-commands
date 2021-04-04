@@ -67,6 +67,12 @@ class DTCommand(DTCommandAbs):
             help="If true record a rosbag",
         )
         group.add_argument(
+            "--nocalib",
+            action="store_true",
+            default=False,
+            help="Ignore calibration files",
+        )
+        group.add_argument(
             "--debug",
             action="store_true",
             default=False,
@@ -97,10 +103,11 @@ class DTCommand(DTCommandAbs):
         )
         # ---
         parsed = parser.parse_args(args)
-        tmpdir = "/tmp/%s/" % parsed.duckiebot_name
-        USERNAME = getpass.getuser()
+        username = getpass.getuser()
+        duckiebot_name: str = parsed.duckiebot_name
+        tmpdir = f"/tmp/{username}/{parsed.duckiebot_name}"
         dir_home_guest = os.path.expanduser("~")
-        dir_fake_home = os.path.join(tmpdir, "fake-%s-home" % USERNAME)
+        dir_fake_home = os.path.join(tmpdir, f"fake-{username}-home")
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
 
@@ -108,20 +115,26 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
-            # if we are running remotely then we need to copy over the calibration
+            # if we are NOT running remotely then we need to copy over the calibration
             # files from the robot and setup some tmp directories to mount
-            get_calibration_files(dir_fake_home, parsed.duckiebot_name)
+            try:
+                get_calibration_files(dir_fake_home, parsed.duckiebot_name)
+            except CannotGetCalibration as e:
+                if parsed.nocalib:
+                    dtslogger.warn(e)
+                else:
+                    raise
 
-        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot_name)
+        duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         if parsed.raspberrypi:
             dtslogger.info("Attempting to run natively on the raspberry Pi")
             arch = "arm32v7"
-            machine = "%s.local" % parsed.duckiebot_name
+            machine = f"{duckiebot_name}.local"
             client = get_remote_client(duckiebot_ip)
         elif parsed.jetsonnano:
             dtslogger.info("Attempting to run natively on the Jetson Nano")
             arch = "arm64v8"
-            machine = "%s.local" % parsed.duckiebot_name
+            machine = f"{duckiebot_name}.local"
             client = get_remote_client(duckiebot_ip)
         else:
             dtslogger.info("Attempting to run remotely on this machine")
@@ -129,7 +142,7 @@ class DTCommand(DTCommandAbs):
             machine = "unix:///var/run/docker.sock"
             client = check_docker_environment()
 
-        bridge_image = "{}-{}".format(parsed.bridge_image, arch)
+        bridge_image = f"{parsed.bridge_image}-{arch}"
         agent_container_name = "agent"
         bridge_container_name = "duckiebot-fifos-bridge"
 
@@ -139,14 +152,14 @@ class DTCommand(DTCommandAbs):
 
         # setup the fifos2 volume (requires pruning it if it's still hanging around from last time)
         try:
-            dict = client.volumes.prune()
-            dtslogger.info("Successfully removed volume %s" % dict)
+            d = client.volumes.prune()
+            dtslogger.info(f"Successfully removed volume {d}")
         except Exception as e:
-            dtslogger.warn("error removing volume: %s" % e)
+            dtslogger.warn(f"error removing volume: {e}")
         try:
             fifo2_volume = client.volumes.create(name="fifos2")
         except Exception as e:
-            dtslogger.warn("error creating volume: %s" % e)
+            dtslogger.warn(f"error creating volume: {e}")
             raise
 
         duckiebot_client = get_remote_client(duckiebot_ip)
@@ -157,22 +170,20 @@ class DTCommand(DTCommandAbs):
                 if "duckiebot-interface" in c.name:
                     interface_container_found = True
             if not interface_container_found:
-                dtslogger.error("The  duckiebot-interface is not running on the duckiebot")
+                dtslogger.error("The duckiebot-interface is not running on the duckiebot")
         except Exception as e:
-            dtslogger.warn(
-                "Not sure if the duckiebot-interface is running because we got and exception when trying: %s"
-                % e
-            )
+            msg = f"Not sure if the duckiebot-interface is running because we got an exception: {e}"
+            dtslogger.warn(msg)
 
         # let's start building stuff for the "bridge" node
         bridge_volumes = {fifo2_volume.name: {"bind": "/fifos", "mode": "rw"}}
         bridge_env = {
             "HOSTNAME": parsed.duckiebot_name,
             "VEHICLE_NAME": parsed.duckiebot_name,
-            "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
+            "ROS_MASTER_URI": f"http://{duckiebot_ip}:11311",
         }
 
-        dtslogger.info("Running %s on %s with environment vars: %s" % (bridge_image, machine, bridge_env))
+        dtslogger.info(f"Running {bridge_image} on {machine} with environment vars: {bridge_env}")
         params = {
             "image": bridge_image,
             "name": bridge_container_name,
@@ -205,19 +216,22 @@ class DTCommand(DTCommandAbs):
                 raise Exception(msg)
             tag = "myimage"
 
-            dtslogger.info("Building image for %s" % arch)
+            dtslogger.info(f"Building image for {arch}")
+            AIDO_REGISTRY = os.environ.get('AIDO_REGISTRY', 'docker.io')
             cmd = [
                 "docker",
-                "-H %s" % machine,
+                "-H %s" % machine, # XXX - should be separate arguments
                 "build",
                 "-t",
                 tag,
                 "--build-arg",
-                "ARCH=%s" % arch,
+                f"ARCH={arch}",
+                "--build-arg",
+                f"AIDO_REGISTRY={AIDO_REGISTRY}",
                 "-f",
                 dockerfile,
             ]
-            dtslogger.info("Running command: %s" % cmd)
+            dtslogger.info(f"Running command: {cmd}")
             cmd.append(path)
             subprocess.check_call(cmd)
             image_name = tag
@@ -251,12 +265,12 @@ class DTCommand(DTCommandAbs):
             params["command"] = "/bin/bash"
             params["stdin_open"] = True
 
-        dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, agent_env))
+        dtslogger.info(f"Running {image_name} on localhost with environment vars: {agent_env}")
         pull_if_not_exist(client, params["image"])
         agent_container = client.containers.run(**params)
 
         if parsed.debug:
-            attach_cmd = "docker attach %s" % agent_container_name
+            attach_cmd = f"docker attach {agent_container_name}"
             start_command_in_subprocess(attach_cmd)
 
         else:
@@ -271,7 +285,7 @@ class DTCommand(DTCommandAbs):
             bag_container = record_bag(parsed.duckiebot_name, duration)
         else:
             bag_container = None
-        dtslogger.info("Running for %d s" % duration)
+        dtslogger.info(f"Running for {duration} s")
         time.sleep(duration)
         stop_container(bridge_container)
         stop_container(agent_container)
@@ -279,7 +293,8 @@ class DTCommand(DTCommandAbs):
         if bag_container is not None:
             stop_container(bag_container)
 
-
+class CannotGetCalibration(Exception):
+    pass
 # get the calibration files off the robot
 def get_calibration_files(destination_dir, duckiebot_name):
     dtslogger.info("Getting all calibration files")
@@ -290,43 +305,34 @@ def get_calibration_files(destination_dir, duckiebot_name):
         "calibrations/kinematics/{duckiebot:s}.yaml",
     ]
 
-    for calib_file in calib_files:
-        calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
+    for calib_file_format in calib_files:
+        calib_file = calib_file_format.format(duckiebot=duckiebot_name)
+        url = f"http://{duckiebot_name}.local/files/config/{calib_file}"
         # get calibration using the files API
-        dtslogger.debug('Fetching file "{:s}"'.format(url))
+        dtslogger.debug(f'Fetching file "{url}"')
         res = requests.get(url, timeout=10)
         if res.status_code != 200:
-            dtslogger.error(
-                "Could not get the calibration file {:s} from the robot {:s}".format(
-                    calib_file, duckiebot_name
-                )
-            )
-            exit(-2)
+            msg  = f"Could not get the calibration file {calib_file} from the robot {duckiebot_name}"
+            raise CannotGetCalibration(msg)
         # make destination directory
         dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
         if not os.path.isdir(dirname):
-            dtslogger.debug('Creating directory "{:s}"'.format(dirname))
+            dtslogger.debug(f'Creating directory "{dirname}"')
             os.makedirs(dirname)
         # save calibration file to disk
         # NOTE: all agent names in evaluations are "default" so need to copy
         #       the robot specific calibration to default
         destination_file = os.path.join(dirname, f"{duckiebot_name}.yaml")
-        dtslogger.debug(
-            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
-                duckiebot_name, calib_file, destination_file
-            )
-        )
+        msg = f'Writing calibration file "{duckiebot_name}:{calib_file}" to "{destination_file}"'
+        dtslogger.debug(msg)
+
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
 
         destination_file2 = os.path.join(dirname, "default.yaml")
-        dtslogger.debug(
-            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
-                duckiebot_name, calib_file, destination_file2
-            )
-        )
+        msg = f'Writing calibration file "{duckiebot_name}:{calib_file}" to "{destination_file2}"'
+        dtslogger.debug(msg)
         with open(destination_file2, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
