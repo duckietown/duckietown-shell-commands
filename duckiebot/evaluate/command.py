@@ -289,7 +289,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
+        url = "http://{:s}.local/files/data/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
