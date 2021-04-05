@@ -30,10 +30,15 @@ Calibrate:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "--base_image", dest="image", default=DEFAULT_IMAGE,
+            "--base_image",
+            dest="image",
+            default=DEFAULT_IMAGE,
         )
         parser.add_argument(
-            "--debug", action="store_true", default=False, help="Will enter you into the running container",
+            "--debug",
+            action="store_true",
+            default=False,
+            help="Will enter you into the running container",
         )
 
         parsed = parser.parse_args(args)

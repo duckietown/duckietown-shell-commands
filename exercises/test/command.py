@@ -2,25 +2,41 @@ import argparse
 
 import os
 import platform
+import signal
 import subprocess
 
 import requests
 import time
 import threading
-import signal
-import yaml
-
+import time
+import traceback
 from typing import List
 
-from dt_shell import DTCommandAbs, dtslogger
+import requests
+import yaml
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
-from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running, get_endpoint_architecture
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    get_remote_client,
+    pull_if_not_exist,
+    pull_image,
+    remove_if_running,
+)
+from utils.docker_utils import (
+    get_remote_client,
+    pull_if_not_exist,
+    pull_image,
+    remove_if_running,
+    get_endpoint_architecture,
+)
 from utils.misc_utils import sanitize_hostname
 
 from utils.networking_utils import get_duckiebot_ip
 from utils.exercise_utils import BASELINE_IMAGES
+from utils.networking_utils import get_duckiebot_ip
 
 usage = """
 
@@ -47,7 +63,7 @@ DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
 
 
-class InvalidUserInput(Exception):
+class InvalidUserInput(UserError):
     pass
 
 
@@ -78,7 +94,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--stop", dest="stop", action="store_true", default=False, help="just stop all the containers",
+            "--stop",
+            dest="stop",
+            action="store_true",
+            default=False,
+            help="just stop all the containers",
         )
 
         parser.add_argument(
@@ -103,7 +123,6 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
-
 
         parser.add_argument(
             "--interactive",
@@ -130,18 +149,19 @@ class DTCommand(DTCommandAbs):
         env_dir = working_dir + "/assets/setup/"
 
         try:
-            agent_base_image = BASELINE_IMAGES[config['agent_base']]
+            agent_base_image = BASELINE_IMAGES[config["agent_base"]]
         except Exception as e:
-            dtslogger.error(f"Check config.yaml. Unknown base image {config['agent_base']}. " 
-                            f"Available base images are {BASELINE_IMAGES}")
+            msg = (
+                f"Check config.yaml. Unknown base image {config['agent_base']}. "
+                f"Available base images are {BASELINE_IMAGES}"
+            )
+            raise Exception(msg) from e
 
         use_ros = True
         try:
-            use_ros = config['ros']
+            use_ros = config["ros"]
         except Exception as e:
             pass
-
-
 
         # get the local docker client
         local_client = check_docker_environment()
@@ -177,21 +197,18 @@ class DTCommand(DTCommandAbs):
 
         # done input checks
 
-
-
-
         if parsed.local:
             agent_client = local_client
             arch = DEFAULT_ARCH
         else:
             # convert the notebooks before syncing
             if "notebooks" in config:
-                exercise_ws_src = working_dir + "/" + config['ws_dir'] + "/src/"
+                exercise_ws_src = working_dir + "/" + config["ws_dir"] + "/src/"
                 dtslogger.info("Converting the notebooks into Python scripts...")
                 for notebook in config["notebooks"]:
-                    package_dir = exercise_ws_src + notebook['notebook']["package_name"]
-                    notebook_name = notebook['notebook']["name"]
-                    convertNotebook(working_dir+f"/notebooks/", notebook_name, package_dir)
+                    package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
+                    notebook_name = notebook["notebook"]["name"]
+                    convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
 
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
@@ -266,7 +283,6 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Pulling {image}")
                 pull_image(image, agent_client)
 
-
         try:
             agent_network = agent_client.networks.create("agent-network", driver="bridge")
         except Exception as e:
@@ -281,8 +297,14 @@ class DTCommand(DTCommandAbs):
         fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
         experiment_manager_bind = {
             fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            os.path.join(working_dir,"assets/setup/challenges"): {'bind': '/challenges', 'mode': 'rw'},
-            os.path.join(working_dir,"assets/setup/scenarios"): {'bind': '/scenarios', 'mode': 'rw'}
+            os.path.join(working_dir, "assets/setup/challenges"): {
+                "bind": "/challenges",
+                "mode": "rw",
+            },
+            os.path.join(working_dir, "assets/setup/scenarios"): {
+                "bind": "/scenarios",
+                "mode": "rw",
+            },
         }
 
         # are we running on a mac?
@@ -413,13 +435,15 @@ class DTCommand(DTCommandAbs):
             vnc_container = local_client.containers.run(**vnc_params)
             containers_to_monitor.append(vnc_container)
 
-
         # Setup functions for monitor and cleanup
         stop_attached_container = lambda: agent_client.containers.get(agent_container_name).kill()
         launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
-        signal.signal(signal.SIGINT, lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container))
+        signal.signal(
+            signal.SIGINT,
+            lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container),
+        )
 
         dtslogger.info("Starting attached container")
 
@@ -461,13 +485,16 @@ def clean_shutdown(containers, stop_attached_container):
         dtslogger.info(f"attached container already stopped.")
 
 
-
 def launch_container_monitor(containers_to_monitor, stop_attached_container):
     """
     Start a daemon thread that will exit when the application exits.
     Monitor should Stop everything if a containers exits and display logs
     """
-    monitor_thread = threading.Thread(target=monitor_containers, args=(containers_to_monitor, stop_attached_container), daemon=True)
+    monitor_thread = threading.Thread(
+        target=monitor_containers,
+        args=(containers_to_monitor, stop_attached_container),
+        daemon=True,
+    )
     dtslogger.info("Starting monitor thread")
     dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
     monitor_thread.start()
@@ -484,27 +511,31 @@ def monitor_containers(containers_to_monitor: List, stop_attached_container):
             container.reload()
             status = container.status
             dtslogger.debug(f"container {container.name} in state {status}")
-            if(status in ["exited","dead"]):
-                errors.append({
-                    "name":container.name,
-                    "id":container.id,
-                    "status":container.status,
-                    "image":container.image.attrs["RepoTags"],
-                    "logs":container.logs()
-                })
+            if status in ["exited", "dead"]:
+                errors.append(
+                    {
+                        "name": container.name,
+                        "id": container.id,
+                        "status": container.status,
+                        "image": container.image.attrs["RepoTags"],
+                        "logs": container.logs(),
+                    }
+                )
             else:
                 dtslogger.debug("Containers monitor check passed.")
-        
+
         if errors:
             dtslogger.info(f"Monitor found {len(errors)} exited containers")
             for e in errors:
-                dtslogger.error(f"""Monitored container exited:
+                dtslogger.error(
+                    f"""Monitored container exited:
                 container: {e['name']}
                 id: {e['id']}
                 status: {e['status']}
                 image: {e['image']}
                 logs: {e['logs'].decode()}
-                """)
+                """
+                )
             dtslogger.info("Sending kill to container attached container")
             stop_attached_container()
 
@@ -535,7 +566,7 @@ def launch_agent(
 
     agent_volumes = fifos_bind
 
-    ws_dir = "/" + config['ws_dir']
+    ws_dir = "/" + config["ws_dir"]
 
     if parsed.sim or parsed.local:
         agent_volumes[working_dir + "/assets"] = {"bind": "/data/config", "mode": "rw"}
@@ -587,7 +618,14 @@ def launch_agent(
 
 
 def launch_bridge(
-    bridge_container_name, env_dir, duckiebot_name, fifos_bind, bridge_image, parsed, running_on_mac, agent_client
+    bridge_container_name,
+    env_dir,
+    duckiebot_name,
+    fifos_bind,
+    bridge_image,
+    parsed,
+    running_on_mac,
+    agent_client,
 ):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
@@ -597,11 +635,14 @@ def launch_bridge(
         "HOSTNAME": f"{duckiebot_name}",
         "VEHICLE_NAME": f"{duckiebot_name}",
         "ROS_MASTER_URI": f"http://{duckiebot_name}.local:11311",
-        **load_yaml(env_dir + "duckiebot_bridge_env.yaml")
+        **load_yaml(env_dir + "duckiebot_bridge_env.yaml"),
     }
     bridge_volumes = fifos_bind
     if not running_on_mac or not parsed.local:
-        bridge_volumes["/var/run/avahi-daemon/socket"] = {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+        bridge_volumes["/var/run/avahi-daemon/socket"] = {
+            "bind": "/var/run/avahi-daemon/socket",
+            "mode": "rw",
+        }
 
     bridge_params = {
         "image": bridge_image,
@@ -633,10 +674,11 @@ def convertNotebook(filepath, filename, export_path) -> bool:
     import nbformat  # install before?
     from nbconvert.exporters import PythonExporter
     from traitlets.config import Config
+
     filepath = filepath + f"{filename}.ipynb"
     if not os.path.isfile(filepath):
-        dtslogger.error("No such file "+filepath+". Make sure the config.yaml is correct.")
-        exit(0)
+        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
+        exit(1)
 
     nb = nbformat.read(filepath, as_version=4)
 
@@ -651,9 +693,10 @@ def convertNotebook(filepath, filename, export_path) -> bool:
     source, _ = exporter.from_notebook_node(nb)
 
     try:
-        with open(export_path+"/src/"+filename+".py", "w+") as fh:
+        with open(export_path + "/src/" + filename + ".py", "w+") as fh:
             fh.writelines(source)
     except Exception:
+        dtslogger.error(traceback.format_exc())
         return False
 
     return True

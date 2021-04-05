@@ -7,8 +7,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, \
-    pull_image
+from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, pull_image
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -32,32 +31,49 @@ class DTCommand(DTCommandAbs):
             "--network", default="host", help="Name of the network to connect the container to"
         )
         parser.add_argument(
-            "--sim", action="store_true", default=False, help="Are we running in simulator?",
+            "--sim",
+            action="store_true",
+            default=False,
+            help="Are we running in simulator?",
         )
         parser.add_argument(
-            "--pull", action="store_true", default=False, help="Pull the dt-gui-tools image",
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Pull the dt-gui-tools image",
         )
         parser.add_argument(
-            "--image", default=None, help="The Docker image to use. Advanced users only.",
+            "--image",
+            default=None,
+            help="The Docker image to use. Advanced users only.",
         )
         parser.add_argument(
-            "--vnc", action="store_true", default=False, help="Run the novnc server",
+            "--vnc",
+            action="store_true",
+            default=False,
+            help="Run the novnc server",
         )
         parser.add_argument(
-            "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
-                                              "robot instead of mDNS",
+            "--ip",
+            action="store_true",
+            help="(Optional) Use the IP address to reach the " "robot instead of mDNS",
         )
         parser.add_argument(
-            "--mount", default=None, help="(Optional) Mount a directory to the container",
+            "--mount",
+            default=None,
+            help="(Optional) Mount a directory to the container",
         )
         parser.add_argument(
-            "-L", "--launcher", type=str, default="default",
-            help="(Optional) Launcher to run inside the container"
+            "-L",
+            "--launcher",
+            type=str,
+            default="default",
+            help="(Optional) Launcher to run inside the container",
         )
         # parse arguments
         parsed = parser.parse_args(args)
-        if 'parsed' in kwargs:
-            parsed.__dict__.update(kwargs['parsed'].__dict__)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
         dtslogger.debug(f"Arguments: {str(parsed)}")
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:

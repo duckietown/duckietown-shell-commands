@@ -77,7 +77,9 @@ def ask_confirmation(message, default="y", question="Do you confirm?", choices=N
 def check_program_dependency(exe):
     p = which(exe)
     if p is None:
-        dtslogger.error(f"The command '{exe}' is required but could not be found. "
-                        f"Please, install it before continuing.")
+        dtslogger.error(
+            f"The command '{exe}' is required but could not be found. "
+            f"Please, install it before continuing."
+        )
         exit(1)
     dtslogger.debug("Found %r at %s" % (exe, p))

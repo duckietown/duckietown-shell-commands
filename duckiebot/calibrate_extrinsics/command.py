@@ -32,11 +32,7 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument(
-            "duckiebot",
-            default=None,
-            help="Name of the Duckiebot to calibrate"
-        )
+        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
             "--no_verification",
             action="store_true",
@@ -76,7 +72,7 @@ Calibrate:
             volumes=bind_duckiebot_data_dir(),
             command="dt-launcher-calibrate-extrinsics",
             environment=env,
-            remove=True
+            remove=True,
         )
         dtslogger.info("Done!")
 
@@ -92,6 +88,6 @@ Calibrate:
                 volumes=bind_duckiebot_data_dir(),
                 command="dt-launcher-validate-extrinsics",
                 environment=env,
-                remove=True
+                remove=True,
             )
             dtslogger.info("Done!")

@@ -32,20 +32,22 @@ class ExitCode(IntEnum):
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Upgrades a Duckiebot\'s battery firmware'
+    help = "Upgrades a Duckiebot's battery firmware"
 
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts duckiebot battery upgrade DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog)
-        parser.add_argument("--force", action='store_true', default=False, help="Force the update")
+        parser.add_argument("--force", action="store_true", default=False, help="Force the update")
         parser.add_argument("--version", type=str, default=None, help="Force a specific version")
-        parser.add_argument("--debug", action='store_true', default=False, help="Debug mode")
+        parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
         parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
         parsed = parser.parse_args(args)
         # want the use NOT TO interrupt this command
-        dtslogger.warning("DO NOT unplug the battery, turn off your robot, or interrupt this "
-                          "command. It might cause irreversible damage to the battery.")
+        dtslogger.warning(
+            "DO NOT unplug the battery, turn off your robot, or interrupt this "
+            "command. It might cause irreversible damage to the battery."
+        )
         # check if the health-api container is running
         dtslogger.info("Releasing battery...")
         hostname = sanitize_hostname(parsed.duckiebot)
@@ -103,14 +105,12 @@ class DTCommand(DTCommandAbs):
                         name="dts-battery-firmware-upgrade-check",
                         privileged=True,
                         detach=True,
-                        environment={
-                            "DEBUG": DEBUG
-                        },
-                        command=["--", "--battery", "--check"]
+                        environment={"DEBUG": DEBUG},
+                        command=["--", "--battery", "--check"],
                     )
                     try:
                         data = check.wait(timeout=10)
-                        exit_code, logs = data['StatusCode'], check.logs().decode('utf-8')
+                        exit_code, logs = data["StatusCode"], check.logs().decode("utf-8")
                     except requests.exceptions.ReadTimeout:
                         check.stop()
                     finally:
@@ -126,14 +126,17 @@ class DTCommand(DTCommandAbs):
                 try:
                     status = ExitCode(exit_code)
                 except BaseException:
-                    dtslogger.error(f"Unrecognized status code: {exit_code}.\n"
-                                    f"Contact your administrator.")
+                    dtslogger.error(
+                        f"Unrecognized status code: {exit_code}.\n" f"Contact your administrator."
+                    )
                     exit(1)
                 # ---
                 # FIRMWARE_UP_TO_DATE
                 if status == ExitCode.FIRMWARE_UP_TO_DATE:
-                    dtslogger.info(f"The battery on {parsed.duckiebot} does not need to be"
-                                   f" updated. Enjoy the rest of your day.")
+                    dtslogger.info(
+                        f"The battery on {parsed.duckiebot} does not need to be"
+                        f" updated. Enjoy the rest of your day."
+                    )
                     # re-activate device-health
                     if device_health:
                         dtslogger.info("Re-engaging battery...")
@@ -142,8 +145,9 @@ class DTCommand(DTCommandAbs):
                     exit(0)
                 #
                 elif status == ExitCode.FIRMWARE_NEEDS_UPDATE:
-                    granted = ask_confirmation("An updated firmware is available",
-                                               question="Do you want to update the battery now?")
+                    granted = ask_confirmation(
+                        "An updated firmware is available", question="Do you want to update the battery now?"
+                    )
                     if not granted:
                         dtslogger.info("Enjoy the rest of your day.")
                         exit(0)
@@ -151,19 +155,18 @@ class DTCommand(DTCommandAbs):
                 # any other status
                 else:
                     answer = input("Press ENTER to retry, 'q' to quit... ")
-                    if answer.strip() == 'q':
+                    if answer.strip() == "q":
                         exit(0)
                     continue
 
         # step 2: make sure everything is ready for update
-        dtslogger.info("Switch your battery to \"Boot Mode\" by double pressing the button on the "
-                       "battery.")
+        dtslogger.info('Switch your battery to "Boot Mode" by double pressing the button on the ' "battery.")
         # we run the helper in "dryrun" mode and expect:
         #   - SUCCESS           all well, next is update
-        txt = 'when done'
+        txt = "when done"
         while True:
             answer = input(f"Press ENTER {txt}, 'q' to quit... ")
-            if answer.strip() == 'q':
+            if answer.strip() == "q":
                 exit(0)
             try:
                 client.containers.run(
@@ -171,11 +174,8 @@ class DTCommand(DTCommandAbs):
                     name="dts-battery-firmware-upgrade-dryrun",
                     auto_remove=True,
                     privileged=True,
-                    environment={
-                        "DEBUG": DEBUG,
-                        **extra_env
-                    },
-                    command=["--", "--battery", "--dry-run"]
+                    environment={"DEBUG": DEBUG, **extra_env},
+                    command=["--", "--battery", "--dry-run"],
                 )
             except docker.errors.APIError as e:
                 dtslogger.error(str(e))
@@ -188,8 +188,9 @@ class DTCommand(DTCommandAbs):
                 try:
                     status = ExitCode(exit_code)
                 except BaseException:
-                    dtslogger.error(f"Unrecognized status code: {exit_code}.\n"
-                                    f"Contact your administrator.")
+                    dtslogger.error(
+                        f"Unrecognized status code: {exit_code}.\n" f"Contact your administrator."
+                    )
                     exit(1)
                 # SUCCESS
                 if status == ExitCode.SUCCESS:
@@ -197,16 +198,20 @@ class DTCommand(DTCommandAbs):
                 # HARDWARE_WRONG_MODE
                 elif status == ExitCode.HARDWARE_WRONG_MODE:
                     # battery found but not in boot mode
-                    dtslogger.error("Battery detected in 'Normal Mode', but it needs to be in "
-                                    "'Boot Mode'. You can switch mode by pressing the button "
-                                    "on the battery twice.")
-                    txt = 'to retry'
+                    dtslogger.error(
+                        "Battery detected in 'Normal Mode', but it needs to be in "
+                        "'Boot Mode'. You can switch mode by pressing the button "
+                        "on the battery twice."
+                    )
+                    txt = "to retry"
                     continue
                 # HARDWARE_BUSY
                 elif status == ExitCode.HARDWARE_BUSY:
                     # battery is busy
-                    dtslogger.error("Battery detected but another process is using it. "
-                                    "This should not have happened. Contact your administrator.")
+                    dtslogger.error(
+                        "Battery detected but another process is using it. "
+                        "This should not have happened. Contact your administrator."
+                    )
                     exit(1)
                 # any other status
                 else:
@@ -215,7 +220,7 @@ class DTCommand(DTCommandAbs):
 
         # step 3: perform update
         # it looks like the update is going to happen, mark the event
-        log_event_on_robot(hostname, 'battery/upgrade')
+        log_event_on_robot(hostname, "battery/upgrade")
         dtslogger.info("Updating battery...")
         # we run the helper in "normal" mode and expect:
         #   - SUCCESS           all well, battery updated successfully
@@ -227,15 +232,12 @@ class DTCommand(DTCommandAbs):
                 auto_remove=True,
                 privileged=True,
                 detach=True,
-                environment={
-                    "DEBUG": DEBUG,
-                    **extra_env
-                },
-                command=["--", "--battery"]
+                environment={"DEBUG": DEBUG, **extra_env},
+                command=["--", "--battery"],
             )
             DTCommand._consume_output(container.attach(stream=True))
             data = container.wait(condition="removed")
-            exit_code = data['StatusCode']
+            exit_code = data["StatusCode"]
         except docker.errors.APIError as e:
             dtslogger.error(str(e))
             exit(1)
@@ -246,8 +248,7 @@ class DTCommand(DTCommandAbs):
         try:
             status = ExitCode(exit_code)
         except BaseException:
-            dtslogger.error(f"Unrecognized status code: {exit_code}.\n"
-                            f"Contact your administrator.")
+            dtslogger.error(f"Unrecognized status code: {exit_code}.\n" f"Contact your administrator.")
             exit(1)
         # SUCCESS
         if status == ExitCode.SUCCESS:
@@ -267,9 +268,7 @@ class DTCommand(DTCommandAbs):
     def _consume_output(logs):
         def _printer():
             for line in logs:
-                sys.stdout.write(line.decode('utf-8'))
+                sys.stdout.write(line.decode("utf-8"))
+
         worker = Thread(target=_printer())
         worker.start()
-
-
-

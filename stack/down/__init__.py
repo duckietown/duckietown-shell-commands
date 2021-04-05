@@ -2,13 +2,14 @@
 #
 # Maintainer: Andrea F. Daniele
 
-from os.path import \
-    exists as _exists, \
-    dirname as _dirname, \
-    basename as _basename, \
-    isdir as _isdir, \
-    isfile as _isfile, \
-    join as _join
+from os.path import (
+    exists as _exists,
+    dirname as _dirname,
+    basename as _basename,
+    isdir as _isdir,
+    isfile as _isfile,
+    join as _join,
+)
 import glob as _glob
 
 # constants
@@ -27,7 +28,7 @@ _modules.sort(key=lambda p: int(_isfile(_join(p, _command_file))))
 # load submodules
 for _mod in _modules:
     try:
-        exec('from .%s import *' % _basename(_mod))
+        exec("from .%s import *" % _basename(_mod))
     except ImportError as e:
         if _exists(_join(_mod, _command_file)):
             raise EnvironmentError(e)

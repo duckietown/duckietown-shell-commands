@@ -4,10 +4,10 @@ import sys
 
 for fpath in sys.argv[1:]:
 
-    with open(fpath, 'rb') as fin:
+    with open(fpath, "rb") as fin:
         content = fin.read()
 
-    content = content.rstrip(b'\n').rstrip(b'\x00')
+    content = content.rstrip(b"\n").rstrip(b"\x00")
 
-    with open(fpath, 'wb') as fout:
+    with open(fpath, "wb") as fout:
         fout.write(content)

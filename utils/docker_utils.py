@@ -45,8 +45,10 @@ def get_endpoint_ncpus(epoint=None):
         epoint_ncpus = client.info()["NCPU"]
         dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
     except BaseException:
-        dtslogger.warning(f"Failed to retrieve the number of CPUs on the Docker endpoint. "
-                          f"Using default value of {epoint_ncpus}.")
+        dtslogger.warning(
+            f"Failed to retrieve the number of CPUs on the Docker endpoint. "
+            f"Using default value of {epoint_ncpus}."
+        )
     return epoint_ncpus
 
 
@@ -79,13 +81,16 @@ def get_client(endpoint=None):
         client = docker.from_env()
     else:
         # create client
-        client = endpoint if isinstance(endpoint, docker.DockerClient) \
+        client = (
+            endpoint
+            if isinstance(endpoint, docker.DockerClient)
             else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+        )
     # (try to) login
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     # ---
     return client
 
@@ -95,13 +100,13 @@ def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     return client
 
 
 def _login_client(client):
-    username = os.environ.get('DOCKERHUB_USERNAME', None)
-    password = os.environ.get('DOCKERHUB_PASSWORD', None)
+    username = os.environ.get("DOCKERHUB_USERNAME", None)
+    password = os.environ.get("DOCKERHUB_PASSWORD", None)
     if username is not None and password is not None:
         client.login(username=username, password=password)
 
@@ -160,7 +165,10 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (image_name, hostname,)
+    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (
+        image_name,
+        hostname,
+    )
     subprocess.check_output(["/bin/sh", "-c", command])
 
 
@@ -360,7 +368,11 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["DISPLAY"] = ":0"
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            [
+                "/bin/sh",
+                "-c",
+                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
+            ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -402,7 +414,11 @@ def start_gui_tools(duckiebot_name):
         )
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            [
+                "/bin/sh",
+                "-c",
+                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
+            ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -421,7 +437,10 @@ def start_gui_tools(duckiebot_name):
 def attach_terminal(container_name, hostname=None):
     if hostname is not None:
         duckiebot_ip = get_duckiebot_ip(hostname)
-        docker_attach_command = "docker -H %s:2375 attach %s" % (duckiebot_ip, container_name,)
+        docker_attach_command = "docker -H %s:2375 attach %s" % (
+            duckiebot_ip,
+            container_name,
+        )
     else:
         docker_attach_command = "docker attach %s" % container_name
     return start_command_in_subprocess(docker_attach_command, os.environ)
@@ -571,7 +590,11 @@ def continuously_monitor(client, container_name: str, log: str = None):
         try:
             with open(log, "a") as f:
                 for c in container.logs(
-                    stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp,
+                    stdout=True,
+                    stderr=True,
+                    stream=True,
+                    follow=True,
+                    since=last_log_timestamp,
                 ):
                     log_line = c.decode("utf-8")
                     sys.stderr.write(log_line)
