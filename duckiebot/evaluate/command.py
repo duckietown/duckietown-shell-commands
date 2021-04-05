@@ -67,12 +67,6 @@ class DTCommand(DTCommandAbs):
             help="If true record a rosbag",
         )
         group.add_argument(
-            "--nocalib",
-            action="store_true",
-            default=False,
-            help="Ignore calibration files",
-        )
-        group.add_argument(
             "--debug",
             action="store_true",
             default=False,
@@ -120,10 +114,7 @@ class DTCommand(DTCommandAbs):
             try:
                 get_calibration_files(dir_fake_home, parsed.duckiebot_name)
             except CannotGetCalibration as e:
-                if parsed.nocalib:
-                    dtslogger.warn(e)
-                else:
-                    raise
+                raise
 
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         if parsed.raspberrypi:
