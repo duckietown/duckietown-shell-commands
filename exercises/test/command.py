@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import random
+import shutil
 import signal
 import subprocess
 import threading
@@ -364,25 +365,43 @@ class DTCommand(DTCommandAbs):
             msg = "error creating volume"
             raise Exception(msg) from e
 
-        fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
 
+        uid = os.getuid()
         username = getpass.getuser()
         t = f"/tmp/{username}/exercises-test/"
         # TODO: use date/time
         thisone = str(random.randint(0, 100000))
         tmpdir = os.path.join(t, thisone)
-        challenges_dir = os.path.join(tmpdir, "challenges")
-        os.makedirs(challenges_dir)
-        f1 = os.path.join(challenges_dir, "touch")
-        with open(f1, "w") as f:
-            f.write("")
-            os.fsync(f)
+        # challenges_dir = os.path.join(tmpdir, "challenges")
+        os.makedirs(tmpdir)
+        # os.makedirs(challenges_dir + '/tmp')
+        # f1 = os.path.join(challenges_dir, "touch")
+        # with open(f1, "w") as f:
+        #     f.write("")
+        #     os.fsync(f)
 
-        dtslogger.info(f"tmp dir = {challenges_dir}")
+        # dtslogger.info(f"tmp dir = {challenges_dir}")
+
+        fifos_dir = os.path.join(tmpdir, "run-fifos")
+        if os.path.exists(fifos_dir):
+            shutil.rmtree(fifos_dir)
+        os.makedirs(fifos_dir)
+        challenges_dir = os.path.join(tmpdir, 'run-challenges')
+        if os.path.exists(challenges_dir):
+            shutil.rmtree(challenges_dir)
+        os.makedirs(challenges_dir)
+        assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
+        shutil.copytree(assets_challenges_dir, challenges_dir, dirs_exist_ok=True)
+
+        # fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
+        fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+
+        # challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         scenarios = os.path.join(working_dir, "assets/setup/scenarios")
+
         experiment_manager_bind = {
-            fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
+            # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
             challenges_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
@@ -393,9 +412,10 @@ class DTCommand(DTCommandAbs):
                 "mode": "rw",
                 "propagation": "rshared",
             },
+            "/tmp": {"bind": "/tmp", "mode": f"rw"},
+            **fifos_bind
+
         }
-
-
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -436,6 +456,9 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Running experiment_manager {exp_manager_container_name} from {expman_image}")
             expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
             expman_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_MANAGER]
+            expman_env['USER'] = username
+            expman_env['UID'] = uid
+
             expman_port = {"8090/tcp": ("0.0.0.0", PORT_MANAGER)}
             mw_params = {
                 "image": expman_image,
@@ -446,6 +469,7 @@ class DTCommand(DTCommandAbs):
                 "volumes": experiment_manager_bind,
                 "detach": True,
                 "tty": True,
+                "user": uid
             }
 
             dtslogger.debug(f"experiment_manager params = \n{json.dumps(mw_params, indent=2)}")
@@ -517,7 +541,6 @@ class DTCommand(DTCommandAbs):
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
 
-
             vnc_params = {
                 "image": vnc_image,
                 "name": vnc_container_name,
@@ -529,7 +552,9 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
             }
             if not running_on_mac:
-                vnc_params["volumes"]["/var/run/avahi-daemon/socket"]= {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+                vnc_params["volumes"]["/var/run/avahi-daemon/socket"] = {
+                    "bind": "/var/run/avahi-daemon/socket", "mode": "rw"
+                }
 
             if parsed.local:
                 vnc_params["network"] = agent_network.name
