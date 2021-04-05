@@ -34,4 +34,7 @@ def log_event_on_robot(hostname: str, type: str, data: Optional[dict] = None, st
     # compile content
     content = json.dumps({"type": type, "stamp": stamp, "data": data})
     filepath = f"stats/events/{stamp}.json"
-    create_file_in_robot_data_dir(hostname, filepath, content)
+    try:
+        create_file_in_robot_data_dir(hostname, filepath, content)
+    except requests.exceptions.ConnectionError:
+        pass

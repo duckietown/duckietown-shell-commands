@@ -59,16 +59,21 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Use the IP address to reach the " "robot instead of mDNS",
         )
         parser.add_argument(
-            "--mount", default=None, help="(Optional) Mount a directory to the container",
+            "--mount",
+            default=None,
+            help="(Optional) Mount a directory to the container",
         )
         parser.add_argument(
-            "-L", "--launcher", type=str, default="default",
-            help="(Optional) Launcher to run inside the container"
+            "-L",
+            "--launcher",
+            type=str,
+            default="default",
+            help="(Optional) Launcher to run inside the container",
         )
         # parse arguments
         parsed = parser.parse_args(args)
-        if 'parsed' in kwargs:
-            parsed.__dict__.update(kwargs['parsed'].__dict__)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
         dtslogger.debug(f"Arguments: {str(parsed)}")
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
