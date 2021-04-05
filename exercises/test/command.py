@@ -583,7 +583,7 @@ class DTCommand(DTCommandAbs):
             container = agent_client.containers.get(agent_container_name)
             container.reload()
             if container.status == "running":
-                container.kill()
+                container.kill(signal.SIGINT)
 
         launch_container_monitor(containers_to_monitor, stop_attached_container)
 
@@ -628,7 +628,7 @@ def clean_shutdown(containers: List[Container], stop_attached_container: Callabl
     for container in containers:
         dtslogger.info(f"Killing container {container.name}")
         try:
-            container.kill()
+            container.kill(signal.SIGINT)
         except:
             dtslogger.info(f"Container {container.name} already stopped.")
     try:
