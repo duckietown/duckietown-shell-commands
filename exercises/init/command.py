@@ -22,7 +22,7 @@ class InvalidUserInput(UserError):
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts mooc init"
+        prog = "dts exercises init"
         argparse.ArgumentParser(prog=prog, usage=usage)
 
         #
@@ -39,7 +39,7 @@ class DTCommand(DTCommandAbs):
 def cloneRepo(full_path) -> bool:
     from git import Repo  # pip install gitpython
 
-    name = "mooc-exercises"
+    name = "dt-exercises"
     team = "duckietown"
 
     clone_path = os.path.abspath(os.path.join(full_path, name))
