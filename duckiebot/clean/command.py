@@ -1,0 +1,93 @@
+import argparse
+
+import docker
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+
+from utils.cli_utils import ask_confirmation
+from utils.docker_utils import get_client
+from utils.dtproject_utils import dtlabel
+from utils.misc_utils import sanitize_hostname
+from utils.robot_utils import log_event_on_robot
+
+
+class DTCommand(DTCommandAbs):
+    @staticmethod
+    def command(shell: DTShell, args):
+        prog = "dts duckiebot clean"
+        parser = argparse.ArgumentParser(prog=prog)
+        # define arguments
+        parser.add_argument(
+            "-a", "--all", action='store_true', default=False, help="Delete all unused images"
+        )
+        parser.add_argument("robot", nargs=1, help="Name of the Robot to clean")
+        # parse arguments
+        parsed = parser.parse_args(args)
+        # sanitize arguments
+        parsed.robot = parsed.robot[0]
+        hostname = sanitize_hostname(parsed.robot)
+        # open connection to robot
+        client = get_client(hostname)
+        client.info()
+        # it looks like the clean is going to happen, mark the event
+        log_event_on_robot(parsed.robot, "duckiebot/clean")
+        # fetch list of stopped containers
+        dtslogger.info("Fetching list of containers...")
+        containers_filters = {'status': 'exited'}
+        all_containers = client.containers.list(all=True)
+        containers = client.containers.list(all=True, filters=containers_filters)
+        dtslogger.info(f"Removing {len(containers)} containers.")
+        dtslogger.debug("Removing containers:\n\t" + "\n\t".join([
+            f"[{container.short_id}] {container.name}" for container in containers
+        ]))
+        # fetch list of dangling images on the robot
+        dtslogger.info("Fetching list of images...")
+        images_filters = {'dangling': True}
+        if not parsed.all:
+            images_filters['label'] = f"{dtlabel('image.authoritative')}=1"
+        all_images = client.images.list(all=True)
+        images = client.images.list(all=True, filters=images_filters)
+        # find unused images
+        for image in all_images:
+            used = False
+            for container in all_containers:
+                if container in containers:
+                    continue
+                if image.id == container.image.id:
+                    used = True
+                    break
+            if not used:
+                images.append(image)
+        # keep only unique images
+        images = list({image.id: image for image in images}.values())
+        dtslogger.info(f"Removing {len(images)} images.")
+        dtslogger.debug("Removing images:\n\t" + "\n\t".join([
+            f"[{image.short_id}] {','.join(image.tags)}" for image in images
+        ]))
+        # exit if there is nothing to do
+        if len(containers) + len(images) <= 0:
+            dtslogger.info("Nothing to do. Exiting.")
+            return
+        # ask for confirmation
+        granted = ask_confirmation("This cannot be undone")
+        if not granted:
+            dtslogger.info("Sounds good. Have fun!")
+            return
+        # do clean
+        for container in containers:
+            dtslogger.info(f"Removing container [{container.short_id}] {container.name}...")
+            container.remove()
+        already_removed = set()
+        while True:
+            removed = 0
+            for image in images:
+                if image.id in already_removed:
+                    continue
+                dtslogger.info(f"Removing image [{image.short_id}] {','.join(image.tags)}...")
+                try:
+                    client.images.remove(image=image.id, force=True)
+                    already_removed.add(image.id)
+                    removed += 1
+                except docker.errors.APIError:
+                    pass
+            if removed <= 0:
+                break
