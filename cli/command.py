@@ -34,7 +34,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
+            default=None,
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument("-i", "--image", default=None, help="Docker image to run the command in")
@@ -69,7 +69,10 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         # sanitize hostname
-        parsed.machine = sanitize_hostname(parsed.machine)
+        if parsed.machine is not None:
+            parsed.machine = sanitize_hostname(parsed.machine)
+        else:
+            parsed.machine = DEFAULT_MACHINE
         # docker runtime and use_x_docker are mutually exclusive
         if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:
             raise ValueError("You cannot use --runtime and -X at the same time.")
