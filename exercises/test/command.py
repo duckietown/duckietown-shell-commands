@@ -386,12 +386,12 @@ class DTCommand(DTCommandAbs):
             challenges_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
-                # "propagation": "rshared",
+                "propagation": "rshared",
             },
             scenarios: {
                 "bind": "/scenarios",
                 "mode": "rw",
-                # "propagation": "rshared",
+                "propagation": "rshared",
             },
         }
 
@@ -517,21 +517,19 @@ class DTCommand(DTCommandAbs):
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
 
-            vnc_volumes = {}
-            if not running_on_mac:
-                vnc_volumes["volumes"] = {
-                    "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
-                }
+
             vnc_params = {
                 "image": vnc_image,
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": vnc_volumes,
+                "volumes": {},
                 "stream": True,
                 "detach": True,
                 "tty": True,
             }
+            if not running_on_mac:
+                vnc_params["volumes"]["/var/run/avahi-daemon/socket"]= {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
 
             if parsed.local:
                 vnc_params["network"] = agent_network.name
