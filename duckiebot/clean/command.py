@@ -19,6 +19,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-a", "--all", action='store_true', default=False, help="Delete all unused images"
         )
+        parser.add_argument(
+            "-y", "--yes", action='store_true', default=False, help="Do not ask for confirmation"
+        )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to clean")
         # parse arguments
         parsed = parser.parse_args(args)
@@ -67,11 +70,12 @@ class DTCommand(DTCommandAbs):
         if len(containers) + len(images) <= 0:
             dtslogger.info("Nothing to do. Exiting.")
             return
-        # ask for confirmation
-        granted = ask_confirmation("This cannot be undone")
-        if not granted:
-            dtslogger.info("Sounds good. Have fun!")
-            return
+        # ask for confirmation (if not instructed not to)
+        if not parsed.yes:
+            granted = ask_confirmation("This cannot be undone")
+            if not granted:
+                dtslogger.info("Sounds good. Have fun!")
+                return
         # do clean
         for container in containers:
             dtslogger.info(f"Removing container [{container.short_id}] {container.name}...")
