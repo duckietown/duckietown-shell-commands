@@ -177,11 +177,16 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
 
         # let's start building stuff for the "bridge" node
-        bridge_volumes = {fifo2_volume.name: {"bind": "/fifos", "mode": "rw"}}
+        bridge_volumes = {
+            fifo2_volume.name: {"bind": "/fifos", "mode": "rw"},
+            "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+        }
         bridge_env = {
             "HOSTNAME": parsed.duckiebot_name,
             "VEHICLE_NAME": parsed.duckiebot_name,
             "ROS_MASTER_URI": f"http://{duckiebot_ip}:11311",
+            "AIDONODE_DATA_IN": "/fifos/ego0-in",
+            "AIDONODE_DATA_OUT": "/fifos/ego0-out",
         }
 
         dtslogger.info(f"Running {bridge_image} on {machine} with environment vars: {bridge_env}")
