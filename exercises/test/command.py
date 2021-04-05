@@ -1,5 +1,6 @@
 import argparse
 import getpass
+import json
 import os
 import platform
 import random
@@ -137,7 +138,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-            + "this is not expected to work on MacOSX",
+                 + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
@@ -375,10 +376,9 @@ class DTCommand(DTCommandAbs):
         f1 = os.path.join(challenges_dir, "touch")
         with open(f1, "w") as f:
             f.write("")
+            os.fsync(f)
 
         dtslogger.info(f"tmp dir = {challenges_dir}")
-
-        challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         scenarios = os.path.join(working_dir, "assets/setup/scenarios")
         experiment_manager_bind = {
@@ -386,14 +386,16 @@ class DTCommand(DTCommandAbs):
             challenges_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
+                "propagation": "rshared",
             },
             scenarios: {
                 "bind": "/scenarios",
                 "mode": "rw",
+                "propagation": "rshared",
             },
         }
 
-        dtslogger.info(f"experiment_manager_bind={str(experiment_manager_bind)}")
+
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -445,6 +447,8 @@ class DTCommand(DTCommandAbs):
                 "detach": True,
                 "tty": True,
             }
+
+            dtslogger.debug(f"experiment_manager params = \n{json.dumps(mw_params, indent=2)}")
 
             # dtslogger.debug(mw_params)
             dtslogger.info(f"\n\tSim interface will be running at http://localhost:{PORT_MANAGER}/\n")
@@ -512,14 +516,18 @@ class DTCommand(DTCommandAbs):
                 vnc_env["VEHICLE_NAME"] = duckiebot_name
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
+
+            vnc_volumes = {}
+            if not running_on_mac:
+                vnc_volumes["volumes"] = {
+                    "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+                }
             vnc_params = {
                 "image": vnc_image,
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": {
-                    "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
-                },
+                "volumes": vnc_volumes,
                 "stream": True,
                 "detach": True,
                 "tty": True,
