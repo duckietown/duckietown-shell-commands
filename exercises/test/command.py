@@ -458,6 +458,9 @@ class DTCommand(DTCommandAbs):
             expman_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_MANAGER]
             expman_env['USER'] = username
             expman_env['UID'] = uid
+            expman_env['submitter_name'] = username
+            expman_env['submission_id'] = "0"
+            expman_env['challenge_name'] = exercise_name
 
             expman_port = {"8090/tcp": ("0.0.0.0", PORT_MANAGER)}
             mw_params = {
