@@ -20,6 +20,14 @@ class DTCommand(DTCommandAbs):
             "-a", "--all", action='store_true', default=False, help="Delete all unused images"
         )
         parser.add_argument(
+            "--no-official", action='store_true', default=False,
+            help="Do NOT delete official Duckietown images"
+        )
+        parser.add_argument(
+            "--untagged", action='store_true', default=False,
+            help="Delete only untagged images"
+        )
+        parser.add_argument(
             "-y", "--yes", action='store_true', default=False, help="Do not ask for confirmation"
         )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to clean")
@@ -45,12 +53,27 @@ class DTCommand(DTCommandAbs):
         # fetch list of dangling images on the robot
         dtslogger.info("Fetching list of images...")
         images_filters = {'dangling': True}
-        if not parsed.all:
+        if parsed.all:
+            # no more filters
+            pass
+        else:
+            # authoritative images only
             images_filters['label'] = f"{dtlabel('image.authoritative')}=1"
         all_images = client.images.list(all=True)
         images = client.images.list(all=True, filters=images_filters)
         # find unused images
         for image in all_images:
+            # handle official Duckietown images
+            if parsed.no_official:
+                if dtlabel('image.authoritative') in image.labels and \
+                        image.labels[dtlabel('image.authoritative')] == "1":
+                    dtslogger.debug(f"Ignoring image '{image.id}' as it is an official image")
+                    continue
+            # only untagged?
+            if parsed.untagged:
+                if len(image.tags) > 0:
+                    dtslogger.debug(f"Ignoring image '{image.id}' as it is tagged")
+                    continue
             used = False
             for container in all_containers:
                 if container in containers:
@@ -68,7 +91,7 @@ class DTCommand(DTCommandAbs):
         ]))
         # exit if there is nothing to do
         if len(containers) + len(images) <= 0:
-            dtslogger.info("Nothing to do. Exiting.")
+            dtslogger.info("Nothing to do")
             return
         # ask for confirmation (if not instructed not to)
         if not parsed.yes:
