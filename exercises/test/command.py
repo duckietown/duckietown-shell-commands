@@ -386,12 +386,12 @@ class DTCommand(DTCommandAbs):
             challenges_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
-                "propagation": "rshared",
+                # "propagation": "rshared",
             },
             scenarios: {
                 "bind": "/scenarios",
                 "mode": "rw",
-                "propagation": "rshared",
+                # "propagation": "rshared",
             },
         }
 
