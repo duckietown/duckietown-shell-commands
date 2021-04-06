@@ -52,7 +52,8 @@ class DTCommand(DTCommandAbs):
             # wait 4 seconds, then open the browser
             time.sleep(4)
             dtslogger.info(f"Open your browser at the following address to use "
-                           f"your notebooks: {JUPYTER_URL}\n\n\n")
+                           f"your notebooks, password is \"quackquack\": {JUPYTER_URL}\n\n\n")
+            time.sleep(2)
             webbrowser.open(JUPYTER_URL)
 
         waiter = Thread(target=open_url)
