@@ -8,12 +8,14 @@ from utils.robot_utils import log_event_on_robot
 
 DEFAULT_STACK = "duckietown"
 OTHER_IMAGES_TO_UPDATE = [
-    "duckietown/dt-gui-tools:{distro}-{arch}",
+    # TODO: this is disabled for now, too big for the SD card
+    # "duckietown/dt-gui-tools:{distro}-{arch}",
     "duckietown/dt-core:{distro}-{arch}",
 ]
 
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts duckiebot update"
@@ -28,6 +30,8 @@ class DTCommand(DTCommandAbs):
         # sanitize arguments
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
+        # clean duckiebot
+        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
@@ -36,8 +40,15 @@ class DTCommand(DTCommandAbs):
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update
+        # call `stack up` command
+        shell.include.stack.up.command(shell, ["--machine", parsed.robot,
+                                               "--detach",
+                                               "--pull",
+                                               parsed.stack])
+        # update non-active images
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             pull_image(image, client)
-        # call `stack up` command
-        shell.include.stack.up.command(shell, ["--machine", parsed.robot, "--detach", "--pull", parsed.stack])
+        # clean duckiebot (again)
+        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all",
+                                                      "--yes", "--untagged"])

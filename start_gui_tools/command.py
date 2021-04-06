@@ -70,6 +70,18 @@ class DTCommand(DTCommandAbs):
             default="default",
             help="(Optional) Launcher to run inside the container",
         )
+        parser.add_argument(
+            "--name",
+            type=str,
+            default=None,
+            help="(Optional) Container name",
+        )
+        parser.add_argument(
+            "--no-scream",
+            action="store_true",
+            default=False,
+            help="(Optional) Scream if the container ends with a non-zero exit code",
+        )
         # parse arguments
         parsed = parser.parse_args(args)
         if "parsed" in kwargs:
@@ -90,7 +102,8 @@ class DTCommand(DTCommandAbs):
         # open Docker client
         client = check_docker_environment()
         # create container name and make there is no name clash
-        container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
+        default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
+        container_name = parsed.name or default_container_name
         remove_if_running(client, container_name)
         # setup common env
         env = {
@@ -172,6 +185,10 @@ class DTCommand(DTCommandAbs):
         client.containers.run(**params)
         # attach to the container with an interactive session
         attach_cmd = "docker attach %s" % container_name
-        start_command_in_subprocess(attach_cmd)
+        try:
+            start_command_in_subprocess(attach_cmd)
+        except Exception as e:
+            if not parsed.no_scream:
+                raise e
         # ---
         dtslogger.info("Done. Have a nice day")
