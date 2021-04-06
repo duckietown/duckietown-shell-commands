@@ -10,8 +10,9 @@ import subprocess
 import threading
 import time
 import traceback
+from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, cast, Dict, List
+from typing import Callable, cast, Dict, List, Optional
 
 import requests
 import yaml
@@ -139,7 +140,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-                 + "this is not expected to work on MacOSX",
+            + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
@@ -173,6 +174,15 @@ class DTCommand(DTCommandAbs):
             help="Will run the agent in interactive mode with the code mounted",
         )
 
+        parser.add_argument(
+            "--challenge",
+            help="Run in the environment of this challenge.",
+        )
+        parser.add_argument(
+            "--step",
+            help="Run this step of the challenge",
+        )
+
         parsed = parser.parse_args(args)
 
         l: str
@@ -192,7 +202,8 @@ class DTCommand(DTCommandAbs):
 
             loglevels[name] = level
 
-        dtslogger.info(str(loglevels))
+        loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in loglevels.items())
+        dtslogger.info(f"Log levels = {loglevels_friendly}")
 
         #
         #   get current working directory to check if it is an exercise directory
@@ -282,8 +293,21 @@ class DTCommand(DTCommandAbs):
                 raise
             return REGISTRY + "/" + x
 
-        sim_image = add_registry(SIMULATOR_IMAGE)
-        expman_image = add_registry(EXPERIMENT_MANAGER_IMAGE)
+        use_challenge = parsed.challenge is not None
+
+        sim_spec: ImageRunSpec
+        expman_spec: ImageRunSpec
+
+        if use_challenge:
+            token = shell.shell_config.token_dt1
+            images = get_challenge_images(challenge=parsed.challenge, step=parsed.step, token=token)
+            sim_spec = images["simulator"]
+            expman_spec = images["evaluator"]
+        else:
+            sim_env = load_yaml(os.path.join(env_dir, "sim_env.yaml"))
+            sim_spec = ImageRunSpec(add_registry(SIMULATOR_IMAGE), environment=sim_env, ports=[])
+            expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
+            expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE), expman_env, ports=[])
         vnc_image = add_registry(VNC_IMAGE)
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
@@ -307,15 +331,15 @@ class DTCommand(DTCommandAbs):
         remove_if_running(agent_client, bridge_container_name)
         try:
             d = agent_client.networks.prune()
-            dtslogger.info("Successfully removed network %s" % d)
+            dtslogger.debug(f"Successfully removed network {d}")
         except Exception as e:
-            dtslogger.warn("error removing volume: %s" % e)
+            dtslogger.warn(f"error removing network: {e}")
 
         try:
             d = agent_client.volumes.prune()
-            dtslogger.info("Successfully removed volume %s" % d)
+            dtslogger.debug(f"Successfully removed volume {d}")
         except Exception as e:
-            dtslogger.warn("error removing volume: %s" % e)
+            dtslogger.warn(f"error removing volume: {e}")
 
         if parsed.stop:
             return
@@ -336,7 +360,7 @@ class DTCommand(DTCommandAbs):
                 ros_env["HOSTNAME"] = duckiebot_name
 
         # let's see if we should pull the images
-        local_images = [vnc_image, expman_image, sim_image]
+        local_images = [vnc_image, expman_spec.image_name, sim_spec.image_name]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         # ALL the pulling is done here. Don't start anything until we now
@@ -359,12 +383,11 @@ class DTCommand(DTCommandAbs):
             msg = "error creating network"
             raise Exception(msg) from e
 
-        try:
-            fifos_volume = agent_client.volumes.create(name="fifos")
-        except Exception as e:
-            msg = "error creating volume"
-            raise Exception(msg) from e
-
+        # try:
+        #     fifos_volume = agent_client.volumes.create(name="fifos")
+        # except Exception as e:
+        #     msg = "error creating volume"
+        #     raise Exception(msg) from e
 
         uid = os.getuid()
         username = getpass.getuser()
@@ -372,31 +395,20 @@ class DTCommand(DTCommandAbs):
         # TODO: use date/time
         thisone = str(random.randint(0, 100000))
         tmpdir = os.path.join(t, thisone)
-        # challenges_dir = os.path.join(tmpdir, "challenges")
         os.makedirs(tmpdir)
-        # os.makedirs(challenges_dir + '/tmp')
-        # f1 = os.path.join(challenges_dir, "touch")
-        # with open(f1, "w") as f:
-        #     f.write("")
-        #     os.fsync(f)
-
-        # dtslogger.info(f"tmp dir = {challenges_dir}")
 
         fifos_dir = os.path.join(tmpdir, "run-fifos")
         if os.path.exists(fifos_dir):
             shutil.rmtree(fifos_dir)
         os.makedirs(fifos_dir)
-        challenges_dir = os.path.join(tmpdir, 'run-challenges')
+        challenges_dir = os.path.join(tmpdir, "run-challenges")
         if os.path.exists(challenges_dir):
             shutil.rmtree(challenges_dir)
         os.makedirs(challenges_dir)
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
         shutil.copytree(assets_challenges_dir, challenges_dir, dirs_exist_ok=True)
 
-        # fifos_bind = {fifos_volume.name: {"bind": "/fifos", "mode": "rw"}}
         fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
-
-        # challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         scenarios = os.path.join(working_dir, "assets/setup/scenarios")
 
@@ -407,15 +419,16 @@ class DTCommand(DTCommandAbs):
                 "mode": "rw",
                 "propagation": "rshared",
             },
-            scenarios: {
+            "/tmp": {"bind": "/tmp", "mode": "rw"},
+            **fifos_bind,
+        }
+
+        if not use_challenge:
+            experiment_manager_bind[scenarios] = {
                 "bind": "/scenarios",
                 "mode": "rw",
                 "propagation": "rshared",
-            },
-            "/tmp": {"bind": "/tmp", "mode": f"rw"},
-            **fifos_bind
-
-        }
+            }
 
         # are we running on a mac?
         if "darwin" in platform.system().lower():
@@ -428,15 +441,17 @@ class DTCommand(DTCommandAbs):
         if parsed.sim:
             # let's launch the simulator
 
-            sim_env = load_yaml(os.path.join(env_dir, "sim_env.yaml"))
-            sim_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_SIMULATOR]
-
-            dtslogger.info(f"Running simulator {sim_container_name} from {sim_image}")
+            dtslogger.info(f"Running simulator {sim_container_name} from {sim_spec.image_name}")
+            env = dict(sim_spec.environment)
+            if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
+                env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_SIMULATOR]
+            env["USER"] = username
+            env["UID"] = uid
             sim_params = {
-                "image": sim_image,
+                "image": sim_spec.image_name,
                 "name": sim_container_name,
                 "network": agent_network.name,  # always local
-                "environment": sim_env,
+                "environment": env,
                 "volumes": fifos_bind,
                 "tty": True,
                 "detach": True,
@@ -453,18 +468,29 @@ class DTCommand(DTCommandAbs):
                 t.start()
 
             # let's launch the experiment_manager
-            dtslogger.info(f"Running experiment_manager {exp_manager_container_name} from {expman_image}")
-            expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
-            expman_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_MANAGER]
-            expman_env['USER'] = username
-            expman_env['UID'] = uid
-            expman_env['submitter_name'] = username
-            expman_env['submission_id'] = "0"
-            expman_env['challenge_name'] = exercise_name
+            dtslogger.info(
+                f"Running experiment_manager {exp_manager_container_name} from {expman_spec.image_name}"
+            )
 
-            expman_port = {"8090/tcp": ("0.0.0.0", PORT_MANAGER)}
+            expman_env = dict(expman_spec.environment)
+            if loglevels[ContainerNames.NAME_MANAGER] != Levels.LEVEL_NONE:
+                expman_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_MANAGER]
+            expman_env["USER"] = username
+            expman_env["UID"] = uid
+            expman_env["submitter_name"] = username
+            expman_env["submission_id"] = "0"
+            expman_env["challenge_name"] = exercise_name
+
+            if use_challenge:
+                if expman_spec.ports:
+                    the_port = expman_spec.ports[0]
+                    expman_port = {f"{the_port}/tcp": ("0.0.0.0", PORT_MANAGER)}
+                else:
+                    expman_port = {}
+            else:
+                expman_port = {"8090/tcp": ("0.0.0.0", PORT_MANAGER)}
             mw_params = {
-                "image": expman_image,
+                "image": expman_spec.image_name,
                 "name": exp_manager_container_name,
                 "environment": expman_env,
                 "ports": expman_port,
@@ -472,7 +498,7 @@ class DTCommand(DTCommandAbs):
                 "volumes": experiment_manager_bind,
                 "detach": True,
                 "tty": True,
-                "user": uid
+                "user": uid,
             }
 
             dtslogger.debug(f"experiment_manager params = \n{json.dumps(mw_params, indent=2)}")
@@ -556,7 +582,8 @@ class DTCommand(DTCommandAbs):
             }
             if not running_on_mac:
                 vnc_params["volumes"]["/var/run/avahi-daemon/socket"] = {
-                    "bind": "/var/run/avahi-daemon/socket", "mode": "rw"
+                    "bind": "/var/run/avahi-daemon/socket",
+                    "mode": "rw",
                 }
 
             if parsed.local:
@@ -602,7 +629,8 @@ class DTCommand(DTCommandAbs):
         if use_ros:
             agent_env = {**ros_env, **agent_env}
 
-        agent_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_AGENT]
+        if loglevels[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
+            agent_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_AGENT]
 
         try:
             agent_container = launch_agent(
@@ -923,3 +951,40 @@ def get_calibration_files(destination_dir, duckiebot_name):
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
+
+
+@dataclass
+class ImageRunSpec:
+    image_name: str
+    environment: Dict
+    ports: List[str]
+
+
+def get_challenge_images(challenge: str, step: Optional[str], token) -> Dict[str, ImageRunSpec]:
+    default = "https://challenges.duckietown.org/v4"
+    server = os.environ.get("DTSERVER", default)
+    url = f"{server}/api/challenges/{challenge}/description"
+    dtslogger.info(url)
+    headers = {"X-Messaging-Token": token}
+    res = requests.request("GET", url=url, headers=headers)
+
+    j = res.json()
+    dtslogger.debug(json.dumps(j, indent=1))
+    steps = j["result"]["challenge"]["steps"]
+    step_names = list(steps)
+    dtslogger.debug(f"steps are {step_names}")
+    if step is None:
+        step = step_names[0]
+    else:
+        if step not in step_names:
+            msg = f"Wrong step name '{step}'; available {step_names}"
+            raise UserError(msg)
+
+    s = steps[step]
+    services = s["evaluation_parameters"]["services"]
+    res = {}
+    for k, v in services.items():
+        res[k] = ImageRunSpec(
+            image_name=v["image"], environment=v.get("environment", {}), ports=v.get("ports", [])
+        )
+    return res
