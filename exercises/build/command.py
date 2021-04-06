@@ -68,7 +68,8 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
 
         working_dir = os.getcwd()
-        if not os.path.exists(working_dir + "/config.yaml"):
+
+        if not os.path.exists(os.path.join(working_dir, "config.yaml")):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
         fn = os.path.join(working_dir, CF)
@@ -84,7 +85,12 @@ class DTCommand(DTCommandAbs):
             for notebook in config["notebooks"]:
                 package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
                 notebook_name = notebook["notebook"]["name"]
-                convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
+
+                # bad form
+                # notebook_dir = working_dir + f"/notebooks/"
+                notebook_dir = os.path.join(working_dir, "notebooks")
+
+                convertNotebook(notebook_dir, notebook_name, package_dir)
 
         client = check_docker_environment()
 
@@ -132,8 +138,8 @@ def convertNotebook(filepath, filename, export_path) -> bool:
 
     filepath += f"{filename}.ipynb"
     if not os.path.isfile(filepath):
-        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
-        exit(0)
+        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
+        raise Exception(msg)
 
     nb = nbformat.read(filepath, as_version=4)
 
@@ -162,5 +168,6 @@ def load_yaml(file_name):
         try:
             env = yaml.load(f, Loader=yaml.FullLoader)
         except Exception as e:
-            dtslogger.warn("error reading simulation environment config: %s" % e)
+            msg = f"Error loading YAML from {file_name}"
+            raise Exception(msg) from e
         return env
