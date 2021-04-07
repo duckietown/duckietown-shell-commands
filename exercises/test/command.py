@@ -9,13 +9,11 @@ import signal
 import subprocess
 import threading
 import time
-import traceback
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
 
 import requests
-import yaml
 from docker import DockerClient
 from docker.models.containers import Container
 
@@ -33,6 +31,8 @@ from utils.docker_utils import (
 from utils.exercise_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
+from utils.notebook_utils import convert_notebooks
+from utils.yaml_utils import load_yaml
 
 usage = """
 
@@ -268,23 +268,7 @@ class DTCommand(DTCommandAbs):
         # move them in the specified package in the exercise ws.
         # Copy fiels listed in the config.yaml into the target_dir
         if "files" in config:
-            for file_ in config["files"]:
-                if 'notebook' in file_:
-                    target_dir = file_["notebook"]["target_dir"]
-                    notebook_file = file_["notebook"]["input_file"]
-                    
-                    dtslogger.info(f"Converting the {notebook_file} into a Python script...")
-
-                    convertNotebook(notebook_file, target_dir)
-
-                if 'file' in file_:
-                    target_dir = file_["file"]["target_dir"]
-                    input_file = file_["file"]["input_file"]
-                    
-                    dtslogger.info(f"Copying {input_file} into {target_dir} ...")
-                    
-                    copyFile(input_file, target_dir)
-
+            convert_notebooks(config["files"])
 
         if parsed.local:
             agent_client = local_client
@@ -859,56 +843,6 @@ def launch_bridge(
     pull_if_not_exist(agent_client, bridge_params["image"])
     bridge_container = agent_client.containers.run(**bridge_params)
     return bridge_container
-
-def copyFile(filepath, target_dir) -> bool:
-    if not os.path.isfile(filepath):
-        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
-        raise Exception(msg)
-    
-    if not os.system(f'cp {filepath} {target_dir}') == 0:
-        raise Exception(traceback.format_exc())
-
-
-def convertNotebook(filepath, target_dir) -> bool:
-    import nbformat  # install before?
-    from nbconvert.exporters import PythonExporter
-    from traitlets.config import Config
-
-    if not os.path.isfile(filepath):
-        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
-        raise Exception(msg)
-
-    nb = nbformat.read(filepath, as_version=4)
-
-    # clean the notebook, remove the cells to be skipped:
-    c = Config()
-    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-    exporter = PythonExporter(config=c)
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-
-    # assuming htere is only one dot in the filename
-    filename = os.path.basename(filepath).split(".")[0]
-    
-    try:
-        with open(os.path.join(target_dir, filename + ".py"), "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        dtslogger.error(traceback.format_exc())
-        return False
-
-    return True
-
-
-def load_yaml(file_name):
-    with open(file_name) as f:
-        try:
-            env = yaml.load(f, Loader=yaml.FullLoader)
-        except Exception as e:
-            dtslogger.warn("error reading simulation environment config: %s" % e)
-        return env
 
 
 def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):

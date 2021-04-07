@@ -6,6 +6,8 @@ import sys
 from os.path import expanduser
 
 import docker
+from docker import DockerClient
+from docker.errors import NotFound
 
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -324,7 +326,7 @@ def start_picamera(duckiebot_name):
     )
 
 
-def check_if_running(client, container_name):
+def check_if_running(client: DockerClient, container_name: str):
     try:
         _ = client.containers.get(container_name)
         dtslogger.info("%s is running." % container_name)
@@ -334,15 +336,30 @@ def check_if_running(client, container_name):
         return False
 
 
-def remove_if_running(client, container_name):
+def remove_if_running(client: DockerClient, container_name: str):
     try:
         container = client.containers.get(container_name)
-        dtslogger.info("Container %s already running - stopping it first.." % container_name)
-        stop_container(container)
-        dtslogger.info("Removing container %s" % container_name)
-        remove_container(container)
-    except Exception as e:
-        dtslogger.warn("Could not remove existing container: %s" % e)
+    except NotFound:
+        pass
+    else:
+        if container.status == "running":
+            dtslogger.info(f"Container {container_name} already running - stopping it first..")
+            stop_container(container)
+        elif container.status == "stopped":
+            result = container.wait()
+            exit_code = result["StatusCode"]
+            if exit_code:
+                cmd = f'"docker logs {container_name}'
+                msg = (
+                    f"Container {container_name} exited with exit code {exit_code}. Consult logs using {cmd} "
+                )
+                dtslogger.error(msg)
+                return
+        dtslogger.info(f"Removing container {container_name}")
+        try:
+            remove_container(container)
+        except Exception as e:
+            dtslogger.error("Could not remove existing container: %s" % e)
 
 
 def start_rqt_image_view(duckiebot_name=None):

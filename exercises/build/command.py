@@ -1,13 +1,12 @@
 import argparse
 import os
-import traceback
 
-import yaml
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import pull_if_not_exist, remove_if_running
+from utils.notebook_utils import convert_notebooks
+from utils.yaml_utils import load_yaml
 
 usage = """
 
@@ -23,8 +22,7 @@ usage = """
 
 BRANCH = "daffy"
 ARCH = "amd64"
-AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
+ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
 CF = "config.yaml"
 
 
@@ -80,22 +78,14 @@ class DTCommand(DTCommandAbs):
         # move them in the specified package in the exercise ws.
         # Copy fiels listed in the config.yaml into the target_dir
         if "files" in config:
-            for file_ in config["files"]:
-                if 'notebook' in file_:
-                    target_dir = file_["notebook"]["target_dir"]
-                    notebook_file = file_["notebook"]["input_file"]
-                    
-                    dtslogger.info(f"Converting the {notebook_file} into a Python script...")
+            convert_notebooks(config["files"])
 
-                    convertNotebook(notebook_file, target_dir)
+        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
 
-                if 'file' in file_:
-                    target_dir = file_["file"]["target_dir"]
-                    input_file = file_["file"]["input_file"]
-                    
-                    dtslogger.info(f"Copying {input_file} into {target_dir} ...")
-                    
-                    copyFile(input_file, target_dir)
+        def add_registry(x):
+            if REGISTRY in x:
+                raise
+            return REGISTRY + "/" + x
 
         if use_ros:
 
@@ -105,10 +95,7 @@ class DTCommand(DTCommandAbs):
 
             client = check_docker_environment()
 
-            if parsed.staging:
-                ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
-            else:
-                ros_template_image = ROS_TEMPLATE_IMAGE
+            ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
 
             if parsed.debug:
                 cmd = "bash"
@@ -140,53 +127,3 @@ class DTCommand(DTCommandAbs):
             start_command_in_subprocess(attach_cmd)
 
         dtslogger.info("Build complete")
-
-def copyFile(filepath, target_dir) -> bool:
-    if not os.path.isfile(filepath):
-        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
-        raise Exception(msg)
-    
-    if not os.system(f'cp {filepath} {target_dir}') == 0:
-        raise Exception(traceback.format_exc())
-
-def convertNotebook(filepath, target_dir) -> bool:
-    import nbformat  # install before?
-    from nbconvert.exporters import PythonExporter
-    from traitlets.config import Config
-
-    if not os.path.isfile(filepath):
-        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
-        raise Exception(msg)
-
-    nb = nbformat.read(filepath, as_version=4)
-
-    # clean the notebook, remove the cells to be skipped:
-    c = Config()
-    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-    exporter = PythonExporter(config=c)
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-
-    # assuming htere is only one dot in the filename
-    filename = os.path.basename(filepath).split(".")[0]
-    
-    try:
-        with open(os.path.join(target_dir, filename + ".py"), "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        dtslogger.error(traceback.format_exc())
-        return False
-
-    return True
-
-
-def load_yaml(file_name):
-    with open(file_name) as f:
-        try:
-            env = yaml.load(f, Loader=yaml.FullLoader)
-        except Exception as e:
-            msg = f"Error loading YAML from {file_name}"
-            raise Exception(msg) from e
-        return env
