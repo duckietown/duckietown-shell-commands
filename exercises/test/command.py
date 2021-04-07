@@ -262,19 +262,32 @@ class DTCommand(DTCommandAbs):
 
         # done input checks
 
+        # Convert all the notebooks listed in the config file to python scripts and
+        # move them in the specified package in the exercise ws.
+        # Copy fiels listed in the config.yaml into the target_dir
+        if "files" in config:
+            for file_ in config["files"]:
+                if 'notebook' in file_:
+                    target_dir = file_["notebook"]["target_dir"]
+                    notebook_file = file_["notebook"]["input_file"]
+                    
+                    dtslogger.info(f"Converting the {notebook_file} into a Python script...")
+
+                    convertNotebook(notebook_file, target_dir)
+
+                if 'file' in file_:
+                    target_dir = file_["file"]["target_dir"]
+                    input_file = file_["file"]["input_file"]
+                    
+                    dtslogger.info(f"Copying {input_file} into {target_dir} ...")
+                    
+                    copyFile(input_file, target_dir)
+
+
         if parsed.local:
             agent_client = local_client
             arch = DEFAULT_ARCH
         else:
-            # convert the notebooks before syncing
-            if "notebooks" in config:
-                exercise_ws_src = working_dir + "/" + config["ws_dir"] + "/src/"
-                dtslogger.info("Converting the notebooks into Python scripts...")
-                for notebook in config["notebooks"]:
-                    package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
-                    notebook_name = notebook["notebook"]["name"]
-                    convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
-
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
@@ -847,31 +860,40 @@ def launch_bridge(
     bridge_container = agent_client.containers.run(**bridge_params)
     return bridge_container
 
+def copyFile(filepath, target_dir) -> bool:
+    if not os.path.isfile(filepath):
+        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
+        raise Exception(msg)
+    
+    if not os.system(f'cp {filepath} {target_dir}') == 0:
+        raise Exception(traceback.format_exc())
 
-def convertNotebook(filepath, filename, export_path) -> bool:
+
+def convertNotebook(filepath, target_dir) -> bool:
     import nbformat  # install before?
     from nbconvert.exporters import PythonExporter
     from traitlets.config import Config
 
-    filepath = filepath + f"{filename}.ipynb"
     if not os.path.isfile(filepath):
-        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
-        exit(1)
+        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
+        raise Exception(msg)
 
     nb = nbformat.read(filepath, as_version=4)
 
-    # clean the notebook:
+    # clean the notebook, remove the cells to be skipped:
     c = Config()
     c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-
     exporter = PythonExporter(config=c)
 
     # source is a tuple of python source code
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
 
+    # assuming htere is only one dot in the filename
+    filename = os.path.basename(filepath).split(".")[0]
+    
     try:
-        with open(export_path + "/src/" + filename + ".py", "w+") as fh:
+        with open(os.path.join(target_dir, filename + ".py"), "w+") as fh:
             fh.writelines(source)
     except Exception:
         dtslogger.error(traceback.format_exc())
