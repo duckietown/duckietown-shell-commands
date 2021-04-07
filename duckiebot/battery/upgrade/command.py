@@ -8,7 +8,7 @@ import requests
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.cli_utils import ask_confirmation
-from utils.docker_utils import get_client, get_endpoint_architecture
+from utils.docker_utils import get_client, get_endpoint_architecture, pull_image
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
@@ -90,6 +90,20 @@ class DTCommand(DTCommandAbs):
         if parsed.version is not None:
             extra_env = {"FORCE_BATTERY_FW_VERSION": parsed.version}
             parsed.force = True
+
+        # step 0. always try to pull the latest dt-firmware-upgrade image
+        dtslogger.info(f'Pulling image "{image}" on: {hostname}')
+        try:
+            pull_image(image, endpoint=client)
+        except KeyboardInterrupt:
+            dtslogger.info("Aborting.")
+            return
+        except Exception as e:
+            dtslogger.error(
+                f'An error occurred while pulling the image "{image}": {str(e)}'
+            )
+            exit(1)
+        dtslogger.info(f'The image "{image}" is now up-to-date.')
 
         # step 1. read the battery current version (unless forced)
         if not parsed.force:
