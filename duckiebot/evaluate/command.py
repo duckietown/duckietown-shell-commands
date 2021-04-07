@@ -179,7 +179,7 @@ class DTCommand(DTCommandAbs):
         # let's start building stuff for the "bridge" node
         bridge_volumes = {
             fifo2_volume.name: {"bind": "/fifos", "mode": "rw"},
-            "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}
+            "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"},
         }
         bridge_env = {
             "HOSTNAME": parsed.duckiebot_name,

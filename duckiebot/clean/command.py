@@ -17,18 +17,19 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
-            "-a", "--all", action='store_true', default=False, help="Delete all unused images"
+            "-a", "--all", action="store_true", default=False, help="Delete all unused images"
         )
         parser.add_argument(
-            "--no-official", action='store_true', default=False,
-            help="Do NOT delete official Duckietown images"
+            "--no-official",
+            action="store_true",
+            default=False,
+            help="Do NOT delete official Duckietown images",
         )
         parser.add_argument(
-            "--untagged", action='store_true', default=False,
-            help="Delete only untagged images"
+            "--untagged", action="store_true", default=False, help="Delete only untagged images"
         )
         parser.add_argument(
-            "-y", "--yes", action='store_true', default=False, help="Do not ask for confirmation"
+            "-y", "--yes", action="store_true", default=False, help="Do not ask for confirmation"
         )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to clean")
         # parse arguments
@@ -43,30 +44,33 @@ class DTCommand(DTCommandAbs):
         log_event_on_robot(parsed.robot, "duckiebot/clean")
         # fetch list of stopped containers
         dtslogger.info("Fetching list of containers...")
-        containers_filters = {'status': 'exited'}
+        containers_filters = {"status": "exited"}
         all_containers = client.containers.list(all=True)
         containers = client.containers.list(all=True, filters=containers_filters)
         dtslogger.info(f"Removing {len(containers)} containers.")
-        dtslogger.debug("Removing containers:\n\t" + "\n\t".join([
-            f"[{container.short_id}] {container.name}" for container in containers
-        ]))
+        dtslogger.debug(
+            "Removing containers:\n\t"
+            + "\n\t".join([f"[{container.short_id}] {container.name}" for container in containers])
+        )
         # fetch list of dangling images on the robot
         dtslogger.info("Fetching list of images...")
-        images_filters = {'dangling': True}
+        images_filters = {"dangling": True}
         if parsed.all:
             # no more filters
             pass
         else:
             # authoritative images only
-            images_filters['label'] = f"{dtlabel('image.authoritative')}=1"
+            images_filters["label"] = f"{dtlabel('image.authoritative')}=1"
         all_images = client.images.list(all=True)
         images = client.images.list(all=True, filters=images_filters)
         # find unused images
         for image in all_images:
             # handle official Duckietown images
             if parsed.no_official:
-                if dtlabel('image.authoritative') in image.labels and \
-                        image.labels[dtlabel('image.authoritative')] == "1":
+                if (
+                    dtlabel("image.authoritative") in image.labels
+                    and image.labels[dtlabel("image.authoritative")] == "1"
+                ):
                     dtslogger.debug(f"Ignoring image '{image.id}' as it is an official image")
                     continue
             # only untagged?
@@ -86,9 +90,10 @@ class DTCommand(DTCommandAbs):
         # keep only unique images
         images = list({image.id: image for image in images}.values())
         dtslogger.info(f"Removing {len(images)} images.")
-        dtslogger.debug("Removing images:\n\t" + "\n\t".join([
-            f"[{image.short_id}] {','.join(image.tags)}" for image in images
-        ]))
+        dtslogger.debug(
+            "Removing images:\n\t"
+            + "\n\t".join([f"[{image.short_id}] {','.join(image.tags)}" for image in images])
+        )
         # exit if there is nothing to do
         if len(containers) + len(images) <= 0:
             dtslogger.info("Nothing to do")
