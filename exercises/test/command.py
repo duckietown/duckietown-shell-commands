@@ -925,7 +925,9 @@ def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dic
     dtslogger.info(url)
     headers = {"X-Messaging-Token": token}
     res = requests.request("GET", url=url, headers=headers)
-
+    if res.status_code == 404:
+        msg = f"Cannot find challenge {challenge} on server; url = {url}"
+        raise UserError(msg)
     j = res.json()
     dtslogger.debug(json.dumps(j, indent=1))
     if not "result" in j:
