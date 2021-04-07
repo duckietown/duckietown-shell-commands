@@ -80,17 +80,24 @@ class DTCommand(DTCommandAbs):
 
         # Convert all the notebooks listed in the config file to python scripts and
         # move them in the specified package in the exercise ws.
-        if "notebooks" in config:
-            dtslogger.info("Converting the notebooks into python scripts...")
-            for notebook in config["notebooks"]:
-                package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
-                notebook_name = notebook["notebook"]["name"]
+        # Copy fiels listed in the config.yaml into the target_dir
+        if "files" in config:
+            for file_ in config["files"]:
+                if 'notebook' in file_:
+                    target_dir = file_["notebook"]["target_dir"]
+                    notebook_file = file_["notebook"]["input_file"]
+                    
+                    dtslogger.info(f"Converting the {notebook_file} into a Python script...")
 
-                # bad form
-                # notebook_dir = working_dir + f"/notebooks/"
-                notebook_dir = os.path.join(working_dir, "notebooks")
+                    convertNotebook(notebook_file, target_dir)
 
-                convertNotebook(notebook_dir, notebook_name, package_dir)
+                if 'file' in file_:
+                    target_dir = file_["file"]["target_dir"]
+                    input_file = file_["file"]["input_file"]
+                    
+                    dtslogger.info(f"Copying {input_file} into {target_dir} ...")
+                    
+                    copyFile(input_file, target_dir)
 
         client = check_docker_environment()
 
@@ -130,31 +137,39 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info("Build complete")
 
+def copyFile(filepath, target_dir) -> bool:
+    if not os.path.isfile(filepath):
+        msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
+        raise Exception(msg)
+    
+    if not os.system(f'cp {filepath} {target_dir}') == 0:
+        raise Exception(traceback.format_exc())
 
-def convertNotebook(filepath, filename, export_path) -> bool:
+def convertNotebook(filepath, target_dir) -> bool:
     import nbformat  # install before?
     from nbconvert.exporters import PythonExporter
     from traitlets.config import Config
 
-    filepath += f"{filename}.ipynb"
     if not os.path.isfile(filepath):
         msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
         raise Exception(msg)
 
     nb = nbformat.read(filepath, as_version=4)
 
-    # clean the notebook:
+    # clean the notebook, remove the cells to be skipped:
     c = Config()
     c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-
     exporter = PythonExporter(config=c)
 
     # source is a tuple of python source code
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
 
+    # assuming htere is only one dot in the filename
+    filename = os.path.basename(filepath).split(".")[0]
+    
     try:
-        with open(export_path + "/src/" + filename + ".py", "w+") as fh:
+        with open(os.path.join(target_dir, filename + ".py"), "w+") as fh:
             fh.writelines(source)
     except Exception:
         dtslogger.error(traceback.format_exc())
