@@ -299,6 +299,8 @@ class DTCommand(DTCommandAbs):
 
         if use_challenge:
             token = shell.shell_config.token_dt1
+            if token is None:
+                raise UserError("please set token")
             images = get_challenge_images(challenge=the_challenge, step=the_step, token=token)
             sim_spec = images["simulator"]
             expman_spec = images["evaluator"]
@@ -916,7 +918,7 @@ class ImageRunSpec:
     ports: List[str]
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token) -> Dict[str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"
@@ -926,6 +928,9 @@ def get_challenge_images(challenge: str, step: Optional[str], token) -> Dict[str
 
     j = res.json()
     dtslogger.debug(json.dumps(j, indent=1))
+    if not "result" in j:
+        msg = f"Cannot get data from server at url = {url}"
+        raise Exception(msg)
     steps = j["result"]["challenge"]["steps"]
     step_names = list(steps)
     dtslogger.debug(f"steps are {step_names}")
