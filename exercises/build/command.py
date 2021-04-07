@@ -74,9 +74,7 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
         fn = os.path.join(working_dir, CF)
         config = load_yaml(fn)
-        ws_dir = config["ws_dir"]
-
-        exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
+        use_ros = config.get("ros", False)
 
         # Convert all the notebooks listed in the config file to python scripts and
         # move them in the specified package in the exercise ws.
@@ -99,41 +97,47 @@ class DTCommand(DTCommandAbs):
                     
                     copyFile(input_file, target_dir)
 
-        client = check_docker_environment()
+        if use_ros:
 
-        if parsed.staging:
-            ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
-        else:
-            ros_template_image = ROS_TEMPLATE_IMAGE
+            ws_dir = config["ws_dir"]
 
-        if parsed.debug:
-            cmd = "bash"
-        elif parsed.clean:
-            cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
-        else:
-            cmd = ["catkin", "build", "--workspace", f"{ws_dir}"]
+            exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
 
-        container_name = "ros_template_catkin_build"
-        remove_if_running(client, container_name)
-        ros_template_volumes = {}
-        ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
+            client = check_docker_environment()
 
-        ros_template_params = {
-            "image": ros_template_image,
-            "name": container_name,
-            "volumes": ros_template_volumes,
-            "command": cmd,
-            "stdin_open": True,
-            "tty": True,
-            "detach": True,
-            "remove": True,
-            "stream": True,
-        }
+            if parsed.staging:
+                ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
+            else:
+                ros_template_image = ROS_TEMPLATE_IMAGE
 
-        pull_if_not_exist(client, ros_template_params["image"])
-        ros_template_container = client.containers.run(**ros_template_params)
-        attach_cmd = f"docker attach {container_name}"
-        start_command_in_subprocess(attach_cmd)
+            if parsed.debug:
+                cmd = "bash"
+            elif parsed.clean:
+                cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
+            else:
+                cmd = ["catkin", "build", "--workspace", f"{ws_dir}"]
+
+            container_name = "ros_template_catkin_build"
+            remove_if_running(client, container_name)
+            ros_template_volumes = {}
+            ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
+
+            ros_template_params = {
+                "image": ros_template_image,
+                "name": container_name,
+                "volumes": ros_template_volumes,
+                "command": cmd,
+                "stdin_open": True,
+                "tty": True,
+                "detach": True,
+                "remove": True,
+                "stream": True,
+            }
+
+            pull_if_not_exist(client, ros_template_params["image"])
+            ros_template_container = client.containers.run(**ros_template_params)
+            attach_cmd = f"docker attach {container_name}"
+            start_command_in_subprocess(attach_cmd)
 
         dtslogger.info("Build complete")
 

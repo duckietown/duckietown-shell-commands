@@ -231,8 +231,10 @@ class DTCommand(DTCommandAbs):
             raise Exception(msg) from e
 
         use_ros = bool(config.get("ros", True))
-        dtslogger.info(f"config : {config}")
-        dtslogger.info(f"use_ros: {use_ros}")
+        the_challenge = parsed.challenge or config.get("challenge", None)
+        the_step = parsed.step or config.get("step", None)
+        dtslogger.debug(f"config : {config}")
+        dtslogger.debug(f"use_ros: {use_ros}")
 
         # get the local docker client
         local_client = check_docker_environment()
@@ -306,14 +308,14 @@ class DTCommand(DTCommandAbs):
                 raise
             return REGISTRY + "/" + x
 
-        use_challenge = parsed.challenge is not None
+        use_challenge = the_challenge is not None
 
         sim_spec: ImageRunSpec
         expman_spec: ImageRunSpec
 
         if use_challenge:
             token = shell.shell_config.token_dt1
-            images = get_challenge_images(challenge=parsed.challenge, step=parsed.step, token=token)
+            images = get_challenge_images(challenge=the_challenge, step=the_step, token=token)
             sim_spec = images["simulator"]
             expman_spec = images["evaluator"]
         else:
@@ -329,12 +331,13 @@ class DTCommand(DTCommandAbs):
 
         # let's clean up any mess from last time
         # this is probably not needed anymore since we clean up everything on exit.
-        sim_container_name = "challenge-aido_lf-simulator-gym"
-        ros_container_name = "ros_core"
-        vnc_container_name = "dt-gui-tools"
-        exp_manager_container_name = "experiment-manager"
-        agent_container_name = "agent"
-        bridge_container_name = "dt-duckiebot-fifos-bridge"
+        prefix = f"ex-{exercise_name}-"
+        sim_container_name = f"{prefix}challenge-aido_lf-simulator-gym"
+        ros_container_name = f"{prefix}ros_core"
+        vnc_container_name = f"{prefix}dt-gui-tools"
+        exp_manager_container_name = f"{prefix}experiment-manager"
+        agent_container_name = f"{prefix}agent"
+        bridge_container_name = f"{prefix}dt-duckiebot-fifos-bridge"
 
         remove_if_running(agent_client, sim_container_name)
         remove_if_running(agent_client, ros_container_name)
@@ -355,6 +358,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(f"error removing volume: {e}")
 
         if parsed.stop:
+            dtslogger.info("Only stopping the containers. Exiting.")
             return
 
         # done cleaning
@@ -364,7 +368,9 @@ class DTCommand(DTCommandAbs):
                 "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
             }
         else:
-            ros_env = {"ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}"}
+            ros_env = {
+                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
+            }
             if parsed.sim:
                 ros_env["VEHICLE_NAME"] = "agent"
                 ros_env["HOSTNAME"] = "agent"
@@ -395,12 +401,6 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             msg = "error creating network"
             raise Exception(msg) from e
-
-        # try:
-        #     fifos_volume = agent_client.volumes.create(name="fifos")
-        # except Exception as e:
-        #     msg = "error creating volume"
-        #     raise Exception(msg) from e
 
         uid = os.getuid()
         username = getpass.getuser()
