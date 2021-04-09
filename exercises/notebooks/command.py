@@ -3,7 +3,7 @@ import time
 import webbrowser
 from pathlib import Path
 from threading import Thread
-
+from utils.yaml_utils import load_yaml
 from dt_shell import DTCommandAbs, DTShell, UserError, dtslogger
 
 usage = """
@@ -41,8 +41,10 @@ class DTCommand(DTCommandAbs):
                 f"containing a `{cfile_name}` file."
             )
             raise InvalidUserInput(msg)
+        config = load_yaml(cfile)
+
         # make sure this exercise has a notebooks directory in it
-        notesdir_name = "notebooks"
+        notesdir_name = config.get("lab_dir", "notebooks")
         notesdir = os.path.join(working_dir, notesdir_name)
         if not os.path.exists(notesdir) or not os.path.isdir(notesdir):
             msg = (
