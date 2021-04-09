@@ -13,9 +13,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
 
+import docker
 import requests
 from docker import DockerClient
 from docker.models.containers import Container
+from docker.types import IPAMConfig, IPAMPool
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
@@ -61,6 +63,8 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
+
+NETWORK_ID = random.randint(0, 254)
 
 
 class InvalidUserInput(UserError):
@@ -383,7 +387,17 @@ class DTCommand(DTCommandAbs):
                 pull_if_not_exist(agent_client, image)
 
         try:
-            agent_network = agent_client.networks.create("agent-network", driver="bridge")
+            agent_network = agent_client.networks.create(
+                "agent-network",
+                driver="bridge",
+                ipam=IPAMConfig(
+                    pool_configs=[IPAMPool(
+                        subnet=f'172.17.{NETWORK_ID}.0/24',
+                        iprange=f'172.17.{NETWORK_ID}.0/24',
+                        gateway=f'172.17.{NETWORK_ID}.1',
+                    )]
+                )
+            )
         except Exception as e:
             msg = "error creating network"
             raise Exception(msg) from e
@@ -460,7 +474,6 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, sim_params["image"])
             sim_container = agent_client.containers.run(**sim_params)
-            containers_to_monitor.append(sim_container)
 
             if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
                 t = threading.Thread(target=continuously_monitor, args=(agent_client, sim_container_name))
@@ -507,7 +520,10 @@ class DTCommand(DTCommandAbs):
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
+
+            # add containers to monitor to the list (the order matters)
             containers_to_monitor.append(mw_container)
+            containers_to_monitor.append(sim_container)
 
             if loglevels[ContainerNames.NAME_MANAGER] != Levels.LEVEL_NONE:
                 t = threading.Thread(
@@ -536,7 +552,6 @@ class DTCommand(DTCommandAbs):
 
         if use_ros:
             # let's launch the ros-core
-
             dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
             ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
@@ -560,7 +575,6 @@ class DTCommand(DTCommandAbs):
             ros_container = agent_client.containers.run(**ros_params)
             containers_to_monitor.append(ros_container)
 
-        if use_ros:
             # let's launch vnc
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
@@ -579,6 +593,7 @@ class DTCommand(DTCommandAbs):
                 "detach": True,
                 "tty": True,
             }
+
             if not running_on_mac:
                 vnc_params["volumes"]["/var/run/avahi-daemon/socket"] = {
                     "bind": "/var/run/avahi-daemon/socket",
@@ -597,7 +612,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"vnc_params: {vnc_params}")
 
             # vnc always runs on local client
-
             vnc_container = local_client.containers.run(**vnc_params)
             containers_to_monitor.append(vnc_container)
 
@@ -654,13 +668,13 @@ class DTCommand(DTCommandAbs):
 
 
 def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
-    dtslogger.info("Cleaning containers")
+    dtslogger.info("CTRL-C received, cleaning containers...")
     for container in containers:
-        dtslogger.info(f"Killing container {container.name}")
+        dtslogger.info(f"Stopping container {container.name}")
         try:
             container.kill(signal.SIGINT)
-        except:
-            dtslogger.info(f"Container {container.name} already stopped.")
+        except docker.errors.APIError as e:
+            dtslogger.info(f"Container {container.name} already stopped ({str(e)})")
     try:
         stop_attached_container()
     except:
