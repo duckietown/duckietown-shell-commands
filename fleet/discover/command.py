@@ -99,7 +99,8 @@ class DiscoverListener:
         # prepare table
         columns = [
             "Status",  # Booting [yellow], Ready [green]
-            "Internet",  # No [grey], Yes [green]
+            # TODO: Internet check is kind of unstable at this time, disabling it
+            # "Internet",  # No [grey], Yes [green]
             "Dashboard",  # Down [grey], Up [green]
             # TODO: Busy is not used at this time, disabling it
             # "Busy",  # No [grey], Yes [green]

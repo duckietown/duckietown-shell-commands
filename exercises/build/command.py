@@ -1,13 +1,12 @@
 import argparse
 import os
-import traceback
 
-import yaml
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import pull_if_not_exist, remove_if_running
+from utils.notebook_utils import convert_notebooks
+from utils.yaml_utils import load_yaml
 
 usage = """
 
@@ -23,8 +22,7 @@ usage = """
 
 BRANCH = "daffy"
 ARCH = "amd64"
-AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
+ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
 CF = "config.yaml"
 
 
@@ -68,99 +66,64 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
 
         working_dir = os.getcwd()
-        if not os.path.exists(working_dir + "/config.yaml"):
+
+        if not os.path.exists(os.path.join(working_dir, "config.yaml")):
             msg = "You must run this command inside the exercise directory"
             raise InvalidUserInput(msg)
         fn = os.path.join(working_dir, CF)
         config = load_yaml(fn)
-        ws_dir = config["ws_dir"]
-
-        exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
+        use_ros = config.get("ros", False)
 
         # Convert all the notebooks listed in the config file to python scripts and
         # move them in the specified package in the exercise ws.
-        if "notebooks" in config:
-            dtslogger.info("Converting the notebooks into python scripts...")
-            for notebook in config["notebooks"]:
-                package_dir = exercise_ws_src + notebook["notebook"]["package_name"]
-                notebook_name = notebook["notebook"]["name"]
-                convertNotebook(working_dir + f"/notebooks/", notebook_name, package_dir)
+        # Copy fiels listed in the config.yaml into the target_dir
+        if "files" in config:
+            convert_notebooks(config["files"])
 
-        client = check_docker_environment()
+        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
 
-        if parsed.staging:
-            ros_template_image = AIDO_REGISTRY + "/" + ROS_TEMPLATE_IMAGE
-        else:
-            ros_template_image = ROS_TEMPLATE_IMAGE
+        def add_registry(x):
+            if REGISTRY in x:
+                raise
+            return REGISTRY + "/" + x
 
-        if parsed.debug:
-            cmd = "bash"
-        elif parsed.clean:
-            cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
-        else:
-            cmd = ["catkin", "build", "--workspace", f"{ws_dir}"]
+        if use_ros:
 
-        container_name = "ros_template_catkin_build"
-        remove_if_running(client, container_name)
-        ros_template_volumes = {}
-        ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
+            ws_dir = config["ws_dir"]
 
-        ros_template_params = {
-            "image": ros_template_image,
-            "name": container_name,
-            "volumes": ros_template_volumes,
-            "command": cmd,
-            "stdin_open": True,
-            "tty": True,
-            "detach": True,
-            "remove": True,
-            "stream": True,
-        }
+            exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
 
-        pull_if_not_exist(client, ros_template_params["image"])
-        ros_template_container = client.containers.run(**ros_template_params)
-        attach_cmd = f"docker attach {container_name}"
-        start_command_in_subprocess(attach_cmd)
+            client = check_docker_environment()
+
+            ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
+
+            if parsed.debug:
+                cmd = "bash"
+            elif parsed.clean:
+                cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
+            else:
+                cmd = ["catkin", "build", "--workspace", f"{ws_dir}"]
+
+            container_name = "ros_template_catkin_build"
+            remove_if_running(client, container_name)
+            ros_template_volumes = {}
+            ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
+
+            ros_template_params = {
+                "image": ros_template_image,
+                "name": container_name,
+                "volumes": ros_template_volumes,
+                "command": cmd,
+                "stdin_open": True,
+                "tty": True,
+                "detach": True,
+                "remove": True,
+                "stream": True,
+            }
+
+            pull_if_not_exist(client, ros_template_params["image"])
+            ros_template_container = client.containers.run(**ros_template_params)
+            attach_cmd = f"docker attach {container_name}"
+            start_command_in_subprocess(attach_cmd)
 
         dtslogger.info("Build complete")
-
-
-def convertNotebook(filepath, filename, export_path) -> bool:
-    import nbformat  # install before?
-    from nbconvert.exporters import PythonExporter
-    from traitlets.config import Config
-
-    filepath += f"{filename}.ipynb"
-    if not os.path.isfile(filepath):
-        dtslogger.error("No such file " + filepath + ". Make sure the config.yaml is correct.")
-        exit(0)
-
-    nb = nbformat.read(filepath, as_version=4)
-
-    # clean the notebook:
-    c = Config()
-    c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
-
-    exporter = PythonExporter(config=c)
-
-    # source is a tuple of python source code
-    # meta contains metadata
-    source, _ = exporter.from_notebook_node(nb)
-
-    try:
-        with open(export_path + "/src/" + filename + ".py", "w+") as fh:
-            fh.writelines(source)
-    except Exception:
-        dtslogger.error(traceback.format_exc())
-        return False
-
-    return True
-
-
-def load_yaml(file_name):
-    with open(file_name) as f:
-        try:
-            env = yaml.load(f, Loader=yaml.FullLoader)
-        except Exception as e:
-            dtslogger.warn("error reading simulation environment config: %s" % e)
-        return env

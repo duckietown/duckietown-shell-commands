@@ -99,9 +99,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Aborting.")
             return
         except Exception as e:
-            dtslogger.error(
-                f'An error occurred while pulling the image "{image}": {str(e)}'
-            )
+            dtslogger.error(f'An error occurred while pulling the image "{image}": {str(e)}')
             exit(1)
         dtslogger.info(f'The image "{image}" is now up-to-date.')
 

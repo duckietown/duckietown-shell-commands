@@ -6,11 +6,11 @@ import threading
 import time
 import requests
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import continuously_monitor
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
-    continuously_monitor,
     get_remote_client,
     record_bag,
     remove_if_running,
@@ -67,6 +67,12 @@ class DTCommand(DTCommandAbs):
             help="If true record a rosbag",
         )
         group.add_argument(
+            "--nocalib",
+            action="store_true",
+            default=False,
+            help="Ignore calibration files",
+        )
+        group.add_argument(
             "--debug",
             action="store_true",
             default=False,
@@ -106,7 +112,8 @@ class DTCommand(DTCommandAbs):
             os.makedirs(dir_fake_home)
 
         if not parsed.duckiebot_name:
-            dtslogger.warning("No duckiebot Specified ! This will likely cause an error")
+            msg = "No duckiebot specified. Use --duckiebot_name"
+            raise UserError(msg)
 
         if not parsed.raspberrypi and not parsed.jetsonnano:
             # if we are NOT running remotely then we need to copy over the calibration
@@ -114,7 +121,10 @@ class DTCommand(DTCommandAbs):
             try:
                 get_calibration_files(dir_fake_home, parsed.duckiebot_name)
             except CannotGetCalibration as e:
-                raise
+                if parsed.nocalib:
+                    dtslogger.warn(e)
+                else:
+                    raise
 
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         if parsed.raspberrypi:
@@ -167,11 +177,16 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
 
         # let's start building stuff for the "bridge" node
-        bridge_volumes = {fifo2_volume.name: {"bind": "/fifos", "mode": "rw"}}
+        bridge_volumes = {
+            fifo2_volume.name: {"bind": "/fifos", "mode": "rw"},
+            "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"},
+        }
         bridge_env = {
             "HOSTNAME": parsed.duckiebot_name,
             "VEHICLE_NAME": parsed.duckiebot_name,
             "ROS_MASTER_URI": f"http://{duckiebot_ip}:11311",
+            "AIDONODE_DATA_IN": "/fifos/ego0-in",
+            "AIDONODE_DATA_OUT": "/fifos/ego0-out",
         }
 
         dtslogger.info(f"Running {bridge_image} on {machine} with environment vars: {bridge_env}")

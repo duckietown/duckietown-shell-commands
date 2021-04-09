@@ -1,18 +1,16 @@
 import os
 import platform
+import re
 import subprocess
 import sys
-import re
-import time
-import traceback
-from datetime import datetime
 from os.path import expanduser
 
 import docker
+from docker import DockerClient
+from docker.errors import NotFound
+
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-
-
 from utils.cli_utils import ProgressBar, start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
@@ -328,7 +326,7 @@ def start_picamera(duckiebot_name):
     )
 
 
-def check_if_running(client, container_name):
+def check_if_running(client: DockerClient, container_name: str):
     try:
         _ = client.containers.get(container_name)
         dtslogger.info("%s is running." % container_name)
@@ -338,15 +336,30 @@ def check_if_running(client, container_name):
         return False
 
 
-def remove_if_running(client, container_name):
+def remove_if_running(client: DockerClient, container_name: str):
     try:
         container = client.containers.get(container_name)
-        dtslogger.info("Container %s already running - stopping it first.." % container_name)
-        stop_container(container)
-        dtslogger.info("Removing container %s" % container_name)
-        remove_container(container)
-    except Exception as e:
-        dtslogger.warn("Could not remove existing container: %s" % e)
+    except NotFound:
+        pass
+    else:
+        if container.status == "running":
+            dtslogger.info(f"Container {container_name} already running - stopping it first..")
+            stop_container(container)
+        elif container.status == "stopped":
+            result = container.wait()
+            exit_code = result["StatusCode"]
+            if exit_code:
+                cmd = f'"docker logs {container_name}'
+                msg = (
+                    f"Container {container_name} exited with exit code {exit_code}. Consult logs using {cmd} "
+                )
+                dtslogger.error(msg)
+                return
+        dtslogger.info(f"Removing container {container_name}")
+        try:
+            remove_container(container)
+        except Exception as e:
+            dtslogger.error("Could not remove existing container: %s" % e)
 
 
 def start_rqt_image_view(duckiebot_name=None):
@@ -550,79 +563,6 @@ def replace_important_env_vars(s: str) -> str:
 
 
 logger = dtslogger
-
-
-def continuously_monitor(client, container_name: str, log: str = None):
-    if log is None:
-        log = f"{container_name}.log"
-    from docker.errors import NotFound, APIError
-
-    logger.debug(f"Monitoring container {container_name}; logs at {log}")
-    last_log_timestamp = None
-    while True:
-        try:
-            container = client.containers.get(container_name)
-        except Exception as e:
-            # msg = 'Cannot get container %s: %s' % (container_name, e)
-            # logger.info(msg)
-            break
-            # logger.info('Will wait.')
-            # time.sleep(5)
-            # continue
-
-        logger.info("status: %s" % container.status)
-        if container.status == "exited":
-            msg = "The container exited."
-            logger.info(msg)
-
-            with open(log, "a") as f:
-                for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
-                    last_log_timestamp = datetime.now()
-                    log_line = c.decode("utf-8")
-                    sys.stderr.write(log_line)
-                    f.write(remove_escapes(log_line))
-
-            msg = f"Logs saved at {log}"
-            logger.info(msg)
-
-            # return container.exit_code
-            return  # XXX
-        try:
-            with open(log, "a") as f:
-                for c in container.logs(
-                    stdout=True,
-                    stderr=True,
-                    stream=True,
-                    follow=True,
-                    since=last_log_timestamp,
-                ):
-                    log_line = c.decode("utf-8")
-                    sys.stderr.write(log_line)
-                    f.write(remove_escapes(log_line))
-                    last_log_timestamp = datetime.now()
-
-            time.sleep(3)
-        except KeyboardInterrupt:
-            logger.info("Received CTRL-C. Stopping container...")
-            try:
-                logger.info(f"Stopping container {container_name}")
-                container.stop()
-                logger.info(f"Removing container {container_name}")
-                container.remove()
-                logger.info(f"Container {container_name} removed.")
-            except NotFound:
-                pass
-            except APIError as e:
-                # if e.errno == 409:
-                #
-                pass
-            break
-        except BaseException:
-            logger.error(traceback.format_exc())
-            logger.info("Will try to re-attach to container.")
-            time.sleep(3)
-    # logger.debug('monitoring graceful exit')
-
 
 escape = re.compile("\x1b\[[\d;]*?m")
 

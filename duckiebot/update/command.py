@@ -15,7 +15,6 @@ OTHER_IMAGES_TO_UPDATE = [
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
         prog = "dts duckiebot update"
@@ -41,14 +40,10 @@ class DTCommand(DTCommandAbs):
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update
         # call `stack up` command
-        shell.include.stack.up.command(shell, ["--machine", parsed.robot,
-                                               "--detach",
-                                               "--pull",
-                                               parsed.stack])
+        shell.include.stack.up.command(shell, ["--machine", parsed.robot, "--detach", "--pull", parsed.stack])
         # update non-active images
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             pull_image(image, client)
         # clean duckiebot (again)
-        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all",
-                                                      "--yes", "--untagged"])
+        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all", "--yes", "--untagged"])
