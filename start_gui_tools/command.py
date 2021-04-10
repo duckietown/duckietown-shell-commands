@@ -142,8 +142,9 @@ class DTCommand(DTCommandAbs):
                 subprocess.call(["xhost", "+", "127.0.0.1"])
                 env["DISPLAY"] = "host.docker.internal:0"
             else:
-                subprocess.call(["xhost", "+"])
-                env["DISPLAY"] = os.environ["DISPLAY"]
+                if "DISPLAY" in os.environ:
+                    subprocess.call(["xhost", "+"])
+                    env["DISPLAY"] = os.environ["DISPLAY"]
         # custom volumes
         if parsed.mount:
             src, dst, *_ = f"{parsed.mount}:{parsed.mount}".split(":")
