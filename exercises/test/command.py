@@ -658,7 +658,7 @@ class DTCommand(DTCommandAbs):
 
 
 def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
-    dtslogger.info("CTRL-C received, cleaning containers...")
+    dtslogger.info("Cleaning containers...")
     for container in containers:
         dtslogger.info(f"Stopping container {container.name}")
         try:
