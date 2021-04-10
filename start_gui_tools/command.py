@@ -28,7 +28,15 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
         parser.add_argument(
-            "--network", default="host", help="Name of the network to connect the container to"
+            "--network",
+            default="host",
+            help="Name of the network to connect the container to"
+        )
+        parser.add_argument(
+            "--port",
+            action='append',
+            default=[],
+            type=str
         )
         parser.add_argument(
             "--sim",
@@ -56,7 +64,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--ip",
             action="store_true",
-            help="(Optional) Use the IP address to reach the " "robot instead of mDNS",
+            help="(Optional) Use the IP address to reach the robot instead of mDNS",
         )
         parser.add_argument(
             "--mount",
@@ -181,17 +189,22 @@ class DTCommand(DTCommandAbs):
             "stream": True,
             "command": cmd,
             "volumes": volumes,
+            "network_mode": parsed.network,
+            "ports": {}
         }
-        if not running_on_mac:
-            params["privileged"] = True
-            params["network_mode"] = parsed.network
 
         # custom UID
         if parsed.uid is not None:
             params["user"] = f"{parsed.uid}"
 
+        # custom ports
+        for port in parsed.port:
+            src, dst_type, *_ = port.split(":") * 2
+            dst, ptype, *_ = dst_type.split("/") + ["tcp"]
+            params["ports"][f"{dst}/{ptype}"] = ("0.0.0.0", int(src))
+
         if parsed.vnc and parsed.network != "host":
-            params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+            params["ports"]["8087/tcp"] = ("0.0.0.0", 8087)
 
         # print some info
         if parsed.vnc:
