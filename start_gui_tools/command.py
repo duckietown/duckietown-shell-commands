@@ -82,11 +82,15 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="(Optional) Scream if the container ends with a non-zero exit code",
         )
+        parser.add_argument("cmd_args", nargs="*", default=[])
         # parse arguments
         parsed = parser.parse_args(args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         dtslogger.debug(f"Arguments: {str(parsed)}")
+        # hostname = "LOCAL" is same as None
+        if parsed.hostname == "LOCAL":
+            parsed.hostname = None
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
             robot_host = parsed.hostname = "localhost"
@@ -155,7 +159,11 @@ class DTCommand(DTCommandAbs):
         else:
             pull_if_not_exist(client, image)
         # collect container config
-
+        # docker arguments
+        if not parsed.cmd_args:
+            parsed.cmd_args = []
+        cmd = f"dt-launcher-{'vnc' if parsed.vnc else parsed.launcher} "
+        cmd += " ".join(parsed.cmd_args)
         params = {
             "image": image,
             "name": container_name,
@@ -165,7 +173,7 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "remove": True,
             "stream": True,
-            "command": f"dt-launcher-{'vnc' if parsed.vnc else parsed.launcher}",
+            "command": cmd,
             "volumes": volumes,
         }
         if not running_on_mac:
