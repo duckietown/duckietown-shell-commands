@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
 
+from utils.exceptions import InvalidUserInput
 import docker
 import requests
 from docker import DockerClient
@@ -67,8 +68,6 @@ PORT_MANAGER = 8090
 NETWORK_ID = random.randint(0, 254)
 
 
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):

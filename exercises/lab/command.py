@@ -1,16 +1,16 @@
+import getpass
 import os
 import sys
 import time
-import getpass
 import webbrowser
-from pathlib import Path
 from threading import Thread
 
-import docker
+from dt_data_api import APIError
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 
 from utils.docker_utils import get_client
-from utils.yaml_utils import load_yaml
-from dt_shell import DTCommandAbs, DTShell, UserError, dtslogger
+from utils.exceptions import InvalidUserInput
+from utils.exercises_utils import get_exercise_config
 
 usage = """
 
@@ -27,35 +27,20 @@ JUPYTER_WS = "/jupyter_ws"
 JUPYTER_URL = "http://localhost:8888"
 
 
-class InvalidUserInput(UserError):
-    pass
-
-
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        working_dir = os.getcwd()
-        exercise_name = Path(working_dir).stem
-        dtslogger.info(f"Exercise name: {exercise_name}")
-        # make sure we are in an exercise directory
-        cfile_name = "config.yaml"
-        cfile = os.path.join(working_dir, cfile_name)
-        if not os.path.exists(cfile):
-            msg = (
-                f"You must run this command inside an exercise directory "
-                f"containing a `{cfile_name}` file."
-            )
-            raise InvalidUserInput(msg)
-        config = load_yaml(cfile)
+
+        config = get_exercise_config()
 
         # make sure this exercise has a lab_dir key in its config file and that it points to
         # an existing directory
-        labdir_name = config.get("lab_dir", None)
+        labdir_name = config.lab_dir
         if labdir_name is None:
             raise ValueError("The exercise configuration file 'config.yaml' does not have a "
                              "'lab_dir' key to indicate where notebooks are stored")
-        labdir = os.path.join(working_dir, labdir_name)
+        labdir = os.path.join(config.root, labdir_name)
         if not os.path.exists(labdir) or not os.path.isdir(labdir):
             msg = (
                 f"You must run this command inside an exercise directory "
@@ -65,11 +50,11 @@ class DTCommand(DTCommandAbs):
 
         # make sure this exercise has a ws_dir key in its config file and that it points to
         # an existing directory
-        wsdir_name = config.get("ws_dir", None)
+        wsdir_name = config.ws_dir
         if wsdir_name is None:
             raise ValueError("The exercise configuration file 'config.yaml' does not have a "
                              "'ws_dir' key to indicate where code is stored")
-        wsdir = os.path.join(working_dir, wsdir_name)
+        wsdir = os.path.join(config.root, wsdir_name)
         if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
             msg = (
                 f"You must run this command inside an exercise directory "
@@ -78,8 +63,15 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
 
         # build notebook image
-        lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+        username = getpass.getuser()
+        lab_image_name = f"{username}/exercise-{config.exercise_name}-lab"
         client = get_client()
+
+        dockerfile = os.path.join(config.root, "Dockerfile.lab")
+        if not os.path.exists(dockerfile):
+            msg = f'There is no Dockerfile.lab present at {dockerfile}'
+            raise UserError(msg)
+
         logs = client.api.build(
             path=labdir,
             tag=lab_image_name,
@@ -92,7 +84,7 @@ class DTCommand(DTCommandAbs):
                 if 'stream' in log:
                     sys.stdout.write(log['stream'])
             sys.stdout.flush()
-        except docker.errors.APIError as e:
+        except APIError as e:
             dtslogger.error(str(e))
             exit(1)
         dtslogger.info("Environment built!")
@@ -122,7 +114,7 @@ class DTCommand(DTCommandAbs):
                 "--image",
                 lab_image_name,
                 "--name",
-                f"dts-exercises-lab-{exercise_name}",
+                f"dts-exercises-lab-{config.exercise_name}",
                 "--no-scream",
                 "LOCAL",
                 f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}"

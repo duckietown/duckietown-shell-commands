@@ -1,6 +1,7 @@
 import argparse
 import os
 
+from utils.exceptions import InvalidUserInput
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 
 usage = """
@@ -17,9 +18,6 @@ usage = """
 repo_team = "duckietown"
 repo_name = "dt-exercises"
 
-
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):

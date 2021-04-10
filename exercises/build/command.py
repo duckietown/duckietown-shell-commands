@@ -1,6 +1,6 @@
 import argparse
 import os
-
+from utils.exceptions import InvalidUserInput
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
@@ -26,8 +26,6 @@ ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}
 CF = "config.yaml"
 
 
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):
