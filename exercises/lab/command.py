@@ -123,6 +123,8 @@ class DTCommand(DTCommandAbs):
                 lab_image_name,
                 "--name",
                 f"dts-exercises-lab-{exercise_name}",
+                "--uid",
+                str(os.getuid()),
                 "--no-scream",
                 "LOCAL",
                 f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}"
