@@ -405,6 +405,9 @@ class DTCommand(DTCommandAbs):
             shutil.rmtree(fifos_dir)
         os.makedirs(fifos_dir)
         challenges_dir = os.path.join(tmpdir, "run-challenges")
+
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
+
         if os.path.exists(challenges_dir):
             shutil.rmtree(challenges_dir)
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
@@ -654,7 +657,7 @@ class DTCommand(DTCommandAbs):
         finally:
             clean_shutdown(containers_to_monitor, stop_attached_container)
 
-        dtslogger.info("All done")
+        dtslogger.info(f"All done, your results are available in: {challenges_dir}")
 
 
 def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
