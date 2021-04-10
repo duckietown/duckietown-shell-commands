@@ -17,7 +17,6 @@ import docker
 import requests
 from docker import DockerClient
 from docker.models.containers import Container
-from docker.types import IPAMConfig, IPAMPool
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
@@ -63,8 +62,6 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
-
-NETWORK_ID = random.randint(0, 254)
 
 
 class InvalidUserInput(UserError):
@@ -389,14 +386,7 @@ class DTCommand(DTCommandAbs):
         try:
             agent_network = agent_client.networks.create(
                 "agent-network",
-                driver="bridge",
-                ipam=IPAMConfig(
-                    pool_configs=[IPAMPool(
-                        subnet=f'172.17.{NETWORK_ID}.0/24',
-                        iprange=f'172.17.{NETWORK_ID}.0/24',
-                        gateway=f'172.17.{NETWORK_ID}.1',
-                    )]
-                )
+                driver="bridge"
             )
         except Exception as e:
             msg = "error creating network"
