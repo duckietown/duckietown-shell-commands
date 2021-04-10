@@ -77,6 +77,16 @@ class DTCommand(DTCommandAbs):
             )
             raise InvalidUserInput(msg)
 
+        # make sure this exercise has a Dockerfile.lab file
+        dockerfile_lab_name = "Dockerfile.lab"
+        dockerfile_lab = os.path.join(working_dir, dockerfile_lab_name)
+        if not os.path.exists(dockerfile_lab) or not os.path.isfile(dockerfile_lab):
+            msg = (
+                f"You must run this command inside an exercise directory "
+                f"containing a `{dockerfile_lab_name}` file."
+            )
+            raise InvalidUserInput(msg)
+
         # build notebook image
         lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
         client = get_client()
