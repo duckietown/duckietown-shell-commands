@@ -24,7 +24,9 @@ usage = """
 
 """
 JUPYTER_WS = "/jupyter_ws"
-JUPYTER_URL = "http://localhost:8888"
+JUPYTER_HOST = "localhost"
+JUPYTER_PORT = "8888"
+JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
 
 
 class InvalidUserInput(UserError):
@@ -135,9 +137,14 @@ class DTCommand(DTCommandAbs):
                 f"dts-exercises-lab-{exercise_name}",
                 "--uid",
                 str(os.getuid()),
+                "--network",
+                "bridge",
+                "--port",
+                f"{JUPYTER_PORT}:{JUPYTER_PORT}/tcp",
                 "--no-scream",
                 "LOCAL",
-                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}"
+                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
+                f"NotebookApp.ip=0.0.0.0"
             ],
         )
 
