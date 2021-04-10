@@ -419,7 +419,9 @@ class DTCommand(DTCommandAbs):
             shutil.rmtree(challenges_dir)
         os.makedirs(challenges_dir)
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
-        shutil.copytree(assets_challenges_dir, challenges_dir, dirs_exist_ok=True)
+
+        if not os.path.exists(challenges_dir):
+            shutil.copytree(assets_challenges_dir, challenges_dir)
 
         fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
