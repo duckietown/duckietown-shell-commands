@@ -77,6 +77,12 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Container name",
         )
         parser.add_argument(
+            "--uid",
+            type=int,
+            default=None,
+            help="(Optional) User ID inside the container",
+        )
+        parser.add_argument(
             "--no-scream",
             action="store_true",
             default=False,
@@ -179,6 +185,10 @@ class DTCommand(DTCommandAbs):
         if not running_on_mac:
             params["privileged"] = True
             params["network_mode"] = parsed.network
+
+        # custom UID
+        if parsed.uid is not None:
+            params["user"] = f"{parsed.uid}"
 
         if parsed.vnc and parsed.network != "host":
             params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
