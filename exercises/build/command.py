@@ -1,10 +1,15 @@
 import argparse
 import os
-from utils.exceptions import InvalidUserInput
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from datetime import datetime
+
+import pytz
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import pull_if_not_exist, remove_if_running
+from utils.exceptions import InvalidUserInput
+from utils.git_utils import check_up_to_date
 from utils.notebook_utils import convert_notebooks
 from utils.yaml_utils import load_yaml
 
@@ -24,8 +29,6 @@ BRANCH = "daffy"
 ARCH = "amd64"
 ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
 CF = "config.yaml"
-
-
 
 
 class DTCommand(DTCommandAbs):
@@ -123,5 +126,16 @@ class DTCommand(DTCommandAbs):
             ros_template_container = client.containers.run(**ros_template_params)
             attach_cmd = f"docker attach {container_name}"
             start_command_in_subprocess(attach_cmd)
+
+        up = check_up_to_date()
+        dtslogger.debug(up.commit.sha)
+        if not up.uptodate:
+            n = datetime.now(tz=pytz.utc)
+            delta = n - up.commit.date
+            hours = delta.total_seconds() / (60 * 60)
+            dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. Please merge from upstream.")
+            dtslogger.warn(f"Commit {up.commit.url}")
+        else:
+            dtslogger.debug("OK, up to date ")
 
         dtslogger.info("Build complete")

@@ -87,7 +87,7 @@ class DTCommand(DTCommandAbs):
         except APIError as e:
             dtslogger.error(str(e))
             exit(1)
-        dtslogger.info("Environment built!")
+        dtslogger.info("...environment built.")
 
         # create a function that opens up the browser to the right URL after 4 seconds
         def open_url():
