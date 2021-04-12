@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP
@@ -16,6 +16,8 @@ DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 DEFAULT_NETWORK_MODE = "host"
 DEFAULT_REMOTE_USER = "duckie"
 
+class InvalidUserInput(UserError):
+    pass
 
 class DTCommand(DTCommandAbs):
 
@@ -55,6 +57,10 @@ class DTCommand(DTCommandAbs):
         # ---
 
         working_dir = os.getcwd()
+        if not os.path.exists(os.path.join(working_dir, "config.yaml")):
+            msg = "You must run this command inside the exercise directory"
+            raise InvalidUserInput(msg)
+
         dtslogger.info("Project workspace: {}".format(working_dir))
 
         # container name
