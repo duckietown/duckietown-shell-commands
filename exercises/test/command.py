@@ -17,7 +17,6 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError
 from docker.models.containers import Container
-from docker.types import IPAMConfig, IPAMPool
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor
@@ -64,8 +63,6 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
-
-NETWORK_ID = random.randint(0, 254)
 
 
 class DTCommand(DTCommandAbs):
@@ -386,14 +383,7 @@ class DTCommand(DTCommandAbs):
         try:
             agent_network = agent_client.networks.create(
                 "agent-network",
-                driver="bridge",
-                ipam=IPAMConfig(
-                    pool_configs=[IPAMPool(
-                        subnet=f'172.17.{NETWORK_ID}.0/24',
-                        iprange=f'172.17.{NETWORK_ID}.0/24',
-                        gateway=f'172.17.{NETWORK_ID}.1',
-                    )]
-                )
+                driver="bridge"
             )
         except Exception as e:
             msg = "error creating network"
@@ -412,13 +402,14 @@ class DTCommand(DTCommandAbs):
             shutil.rmtree(fifos_dir)
         os.makedirs(fifos_dir)
         challenges_dir = os.path.join(tmpdir, "run-challenges")
+
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
+
         if os.path.exists(challenges_dir):
             shutil.rmtree(challenges_dir)
-        os.makedirs(challenges_dir)
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
-        if not os.path.exists(challenges_dir):
-            shutil.copytree(assets_challenges_dir, challenges_dir)
+        shutil.copytree(assets_challenges_dir, challenges_dir)
 
         fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
@@ -663,11 +654,11 @@ class DTCommand(DTCommandAbs):
         finally:
             clean_shutdown(containers_to_monitor, stop_attached_container)
 
-        dtslogger.info("All done")
+        dtslogger.info(f"All done, your results are available in: {challenges_dir}")
 
 
 def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
-    dtslogger.info("CTRL-C received, cleaning containers...")
+    dtslogger.info("Cleaning containers...")
     for container in containers:
         dtslogger.info(f"Stopping container {container.name}")
         try:

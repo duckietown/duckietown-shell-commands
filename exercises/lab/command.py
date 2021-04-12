@@ -24,7 +24,9 @@ usage = """
 
 """
 JUPYTER_WS = "/jupyter_ws"
-JUPYTER_URL = "http://localhost:8888"
+JUPYTER_HOST = "localhost"
+JUPYTER_PORT = "8888"
+JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
 
 
 class DTCommand(DTCommandAbs):
@@ -59,6 +61,16 @@ class DTCommand(DTCommandAbs):
             msg = (
                 f"You must run this command inside an exercise directory "
                 f"containing a `{wsdir_name}` directory."
+            )
+            raise InvalidUserInput(msg)
+
+        # make sure this exercise has a Dockerfile.lab file
+        dockerfile_lab_name = "Dockerfile.lab"
+        dockerfile_lab = os.path.join(config.root, dockerfile_lab_name)
+        if not os.path.exists(dockerfile_lab) or not os.path.isfile(dockerfile_lab):
+            msg = (
+                f"You must run this command inside an exercise directory "
+                f"containing a `{dockerfile_lab_name}` file."
             )
             raise InvalidUserInput(msg)
 
@@ -115,9 +127,16 @@ class DTCommand(DTCommandAbs):
                 lab_image_name,
                 "--name",
                 f"dts-exercises-lab-{config.exercise_name}",
+                "--uid",
+                str(os.getuid()),
+                "--network",
+                "bridge",
+                "--port",
+                f"{JUPYTER_PORT}:{JUPYTER_PORT}/tcp",
                 "--no-scream",
                 "LOCAL",
-                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}"
+                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
+                f"NotebookApp.ip=0.0.0.0"
             ],
         )
 
