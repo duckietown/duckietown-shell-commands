@@ -226,9 +226,7 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
 
         config = load_yaml(config_file)
-        if parsed.cmd:
-            config['agent_run_cmd']=parsed.cmd
-
+        
         env_dir = os.path.join(working_dir, "assets/setup/")
 
         try:
