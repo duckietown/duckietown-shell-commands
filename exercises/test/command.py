@@ -145,7 +145,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
+            "--pull",
+            dest="pull",
+            action="store_true",
+            default=False,
+            help="Should we pull all of the images"
         )
 
         loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in loglevels.items())
@@ -179,9 +183,17 @@ class DTCommand(DTCommandAbs):
             "--challenge",
             help="Run in the environment of this challenge.",
         )
+
         parser.add_argument(
             "--step",
             help="Run this step of the challenge",
+        )
+
+        parser.add_argument(
+            "launcher",
+            nargs="?",
+            default=None,
+            help="(Optional) Launcher to execute"
         )
 
         parsed = parser.parse_args(args)
@@ -221,6 +233,9 @@ class DTCommand(DTCommandAbs):
 
         config = load_yaml(config_file)
         env_dir = os.path.join(working_dir, "assets/setup/")
+
+        if parsed.launcher is not None:
+            config['agent_run_cmd'] = f"{parsed.launcher}.sh"
 
         try:
             agent_base_image0 = BASELINE_IMAGES[config["agent_base"]]
