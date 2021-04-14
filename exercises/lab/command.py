@@ -1,14 +1,10 @@
 import os
-import sys
 import time
 import getpass
 import webbrowser
 from pathlib import Path
 from threading import Thread
 
-import docker
-
-from utils.docker_utils import get_client
 from utils.yaml_utils import load_yaml
 from dt_shell import DTCommandAbs, DTShell, UserError, dtslogger
 
@@ -71,43 +67,9 @@ class DTCommand(DTCommandAbs):
         if wsdir_name is None:
             raise ValueError("The exercise configuration file 'config.yaml' does not have a "
                              "'ws_dir' key to indicate where code is stored")
-        wsdir = os.path.join(working_dir, wsdir_name)
-        if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
-            msg = (
-                f"You must run this command inside an exercise directory "
-                f"containing a `{wsdir_name}` directory."
-            )
-            raise InvalidUserInput(msg)
 
-        # make sure this exercise has a Dockerfile.lab file
-        dockerfile_lab_name = "Dockerfile.lab"
-        dockerfile_lab = os.path.join(working_dir, dockerfile_lab_name)
-        if not os.path.exists(dockerfile_lab) or not os.path.isfile(dockerfile_lab):
-            msg = (
-                f"You must run this command inside an exercise directory "
-                f"containing a `{dockerfile_lab_name}` file."
-            )
-            raise InvalidUserInput(msg)
-
-        # build notebook image
+        # compile image name
         lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
-        client = get_client()
-        logs = client.api.build(
-            path=labdir,
-            tag=lab_image_name,
-            dockerfile="Dockerfile.lab",
-            decode=True
-        )
-        dtslogger.info("Building environment...")
-        try:
-            for log in logs:
-                if 'stream' in log:
-                    sys.stdout.write(log['stream'])
-            sys.stdout.flush()
-        except docker.errors.APIError as e:
-            dtslogger.error(str(e))
-            exit(1)
-        dtslogger.info("Environment built!")
 
         # create a function that opens up the browser to the right URL after 4 seconds
         def open_url():
@@ -140,7 +102,7 @@ class DTCommand(DTCommandAbs):
                 "--network",
                 "bridge",
                 "--port",
-                f"{JUPYTER_PORT}:{JUPYTER_PORT}/tcp",
+                f"{JUPYTER_PORT}:8888/tcp",
                 "--no-scream",
                 "LOCAL",
                 f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",

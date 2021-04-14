@@ -325,7 +325,6 @@ class DTCommand(DTCommandAbs):
             sim_spec = ImageRunSpec(add_registry(SIMULATOR_IMAGE), environment=sim_env, ports=[])
             expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
             expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE), expman_env, ports=[])
-        vnc_image = add_registry(VNC_IMAGE)
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
         agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
@@ -381,7 +380,7 @@ class DTCommand(DTCommandAbs):
                 ros_env["HOSTNAME"] = duckiebot_name
 
         # let's see if we should pull the images
-        local_images = [vnc_image, expman_spec.image_name, sim_spec.image_name]
+        local_images = [expman_spec.image_name, sim_spec.image_name]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         # ALL the pulling is done here. Don't start anything until we now
@@ -584,6 +583,7 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(ros_container)
 
             # let's launch vnc
+            vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
@@ -596,7 +596,12 @@ class DTCommand(DTCommandAbs):
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": {},
+                "volumes": {
+                    os.path.join(working_dir, "launchers"): {
+                        "bind": "/code/launchers",
+                        "mode": "ro",
+                    }
+                },
                 "stream": True,
                 "detach": True,
                 "tty": True,
