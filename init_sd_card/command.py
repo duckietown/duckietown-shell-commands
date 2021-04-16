@@ -15,6 +15,7 @@ from math import log2, floor
 from types import SimpleNamespace
 from typing import List
 
+from utils.exceptions import InvalidUserInput
 from datetime import datetime
 
 from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version, UserError
@@ -94,9 +95,6 @@ def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
     disk_image = BASE_DISK_IMAGE(robot_configuration, experimental)
     return f"disk_image/{disk_image}.zip"
 
-
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):
