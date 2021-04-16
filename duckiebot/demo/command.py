@@ -15,7 +15,7 @@ from utils.docker_utils import (
 )
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
-
+from utils.exceptions import InvalidUserInput
 from dt_shell import DTShell
 
 
@@ -39,8 +39,6 @@ DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 
 
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):

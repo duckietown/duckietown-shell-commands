@@ -13,14 +13,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
 
-import docker
 import requests
 from docker import DockerClient
+from docker.errors import APIError
 from docker.models.containers import Container
-
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor
+
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
@@ -29,6 +29,7 @@ from utils.docker_utils import (
     pull_image,
     remove_if_running,
 )
+from utils.exceptions import InvalidUserInput
 from utils.exercise_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -62,10 +63,6 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
-
-
-class InvalidUserInput(UserError):
-    pass
 
 
 class DTCommand(DTCommandAbs):
@@ -141,7 +138,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-            + "this is not expected to work on MacOSX",
+                 + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
@@ -681,7 +678,7 @@ def clean_shutdown(containers: List[Container], stop_attached_container: Callabl
         dtslogger.info(f"Stopping container {container.name}")
         try:
             container.kill(signal.SIGINT)
-        except docker.errors.APIError as e:
+        except APIError as e:
             dtslogger.info(f"Container {container.name} already stopped ({str(e)})")
     try:
         stop_attached_container()

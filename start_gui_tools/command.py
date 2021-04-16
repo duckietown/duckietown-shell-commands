@@ -1,14 +1,18 @@
-import os
-import json
 import argparse
+import json
+import os
 import platform
 import subprocess
+from datetime import datetime
 
+import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture, pull_image
+from utils.docker_utils import get_endpoint_architecture, pull_if_not_exist, pull_image, remove_if_running
 from utils.duckietown_utils import get_distro_version
+from utils.git_utils import get_last_commit
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
@@ -117,8 +121,37 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Target architecture automatically set to {arch}.")
         # compile image name
         image = parsed.image if parsed.image else DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+
         # open Docker client
         client = check_docker_environment()
+
+        # pull image
+        if parsed.pull:
+            pull_image(image, client)
+        else:
+            pull_if_not_exist(client, image)
+
+        if parsed.image is None:
+            ci = get_last_commit('duckietown', 'dt-gui-tools', 'daffy')
+
+            im = client.images.get(image)
+
+            dtslogger.debug(json.dumps(im.labels, indent=2))
+            sha = im.labels["org.duckietown.label.code.sha"]
+            if ci.sha != sha:
+                n = datetime.now(tz=pytz.utc)
+                delta = n - ci.date
+                hours = delta.total_seconds() / (60 * 60)
+                if hours > 0.10:  # allow some minutes to pass before warning
+                    msg = (f'The image  {image} is not up to date.\n'
+                           f'There was a new release {hours:.1f} hours ago.\n'
+                           f'Use "dts desktop update" to update')
+                    dtslogger.error(msg)
+                else:
+                    dtslogger.warn(f'There is a new commit but too early to warn ({hours:.2f} hours). ')
+            else:
+                dtslogger.debug(f'OK, local image and repo have sha {sha}')
+
         # create container name and make there is no name clash
         default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
         container_name = parsed.name or default_container_name
@@ -156,8 +189,9 @@ class DTCommand(DTCommandAbs):
                 subprocess.call(["xhost", "+", "127.0.0.1"])
                 env["DISPLAY"] = "host.docker.internal:0"
             else:
-                subprocess.call(["xhost", "+"])
-                env["DISPLAY"] = os.environ["DISPLAY"]
+                if "DISPLAY" in os.environ:
+                    subprocess.call(["xhost", "+"])
+                    env["DISPLAY"] = os.environ["DISPLAY"]
         # custom volumes
         if parsed.mount:
             src, dst, *_ = f"{parsed.mount}:{parsed.mount}".split(":")
@@ -167,11 +201,7 @@ class DTCommand(DTCommandAbs):
             f"Running {container_name} with environment vars:\n\n"
             f"{json.dumps(env, sort_keys=True, indent=4)}\n"
         )
-        # pull image
-        if parsed.pull:
-            pull_image(image, client)
-        else:
-            pull_if_not_exist(client, image)
+
         # collect container config
         # docker arguments
         if not parsed.cmd_args:
@@ -221,5 +251,7 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             if not parsed.no_scream:
                 raise e
+            else:
+                dtslogger.error(str(e))
         # ---
         dtslogger.info("Done. Have a nice day")
