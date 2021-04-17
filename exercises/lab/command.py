@@ -5,6 +5,9 @@ import webbrowser
 from pathlib import Path
 from threading import Thread
 
+import docker
+
+from utils.docker_utils import get_client
 from utils.yaml_utils import load_yaml
 from dt_shell import DTCommandAbs, DTShell, UserError, dtslogger
 
@@ -70,6 +73,14 @@ class DTCommand(DTCommandAbs):
 
         # compile image name
         lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+
+        # make sure the image exists
+        client = get_client()
+        try:
+            client.images.get(lab_image_name)
+        except docker.errors.ImageNotFound:
+            dtslogger.error("You must run the command `dts exercises build` before using the lab.")
+            exit(1)
 
         # create a function that opens up the browser to the right URL after 4 seconds
         def open_url():
