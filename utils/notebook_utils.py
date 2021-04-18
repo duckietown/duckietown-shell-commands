@@ -15,8 +15,7 @@ def convert_notebooks(config_files: List):
             target_dir = file_["notebook"]["target_dir"]
             notebook_file = file_["notebook"]["input_file"]
 
-            dtslogger.info(
-                f"Converting the {notebook_file} into a Python script...")
+            dtslogger.info(f"Converting the {notebook_file} into a Python script...")
 
             convertNotebook(notebook_file, target_dir)
 
@@ -43,15 +42,12 @@ def convertNotebook(filepath: str, target_dir: str):
         msg = f"No such file '{filepath}'. Make sure the config.yaml is correct."
         raise UserError(msg)
 
-    filename_with_extension = os.path.basename(filepath)
-
     with open(filepath) as f:
         data = f.read()
     j = json.loads(data)
-    # dtslogger.info(str(j))
+    dtslogger.info(str(j))
     remove_cells_without_tag(j, tag="export")
-    f2 = os.path.join("/tmp", filename_with_extension)
-    dtslogger.info(f"Temp filtered file : {f2}")
+    f2 = filepath.replace(".ipynb", "-filtered.ipynb")
     with open(f2, "w") as f:
         f.write(json.dumps(j))
 
@@ -66,9 +62,8 @@ def convertNotebook(filepath: str, target_dir: str):
     # meta contains metadata
     source, _ = exporter.from_notebook_node(nb)
 
-    # assuming there is only one dot in the filename
-    filename = filename_with_extension.split(".")[0]
-
+    # assuming htere is only one dot in the filename
+    filename = os.path.basename(filepath).split(".")[0]
     dest = os.path.join(target_dir, filename + ".py")
     try:
         with open(dest, "w") as fh:
@@ -76,10 +71,6 @@ def convertNotebook(filepath: str, target_dir: str):
     except Exception as e:
         msg = f"Cannot write to {dest}"
         raise Exception(msg) from e
-
-    dtslogger.info(f"Deleting temp file : {f2}")
-
-    os.remove(f2)
 
 
 def remove_cells_without_tag(j, tag: str):
@@ -90,15 +81,15 @@ def remove_cells_without_tag(j, tag: str):
     for i, cell in enumerate(cells):
         cell_type = cell["cell_type"]
         if cell_type != "code":
-            # msg = f"Skipping cell #{i} because not code."
-            # dtslogger.info(msg)
+            msg = f"Skipping cell #{i} because not code."
+            dtslogger.info(msg)
             continue
         metadata = cell.get("metadata", {})
         tags = metadata.get("tags", [])
 
         if tag not in tags:
-            # msg = f"Skipping cell #{i} because not tagged as {tag!r}"
-            # dtslogger.info(msg)
+            msg = f"Skipping cell #{i} because not tagged as {tag!r}"
+            dtslogger.info(msg)
             continue
         cells2.append(cell)
 
