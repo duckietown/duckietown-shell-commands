@@ -567,6 +567,7 @@ class DTCommand(DTCommandAbs):
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
+                "auto_remove": True,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
             }
@@ -620,7 +621,7 @@ class DTCommand(DTCommandAbs):
                 if not running_on_mac:
                     vnc_params["network_mode"] = "host"
 
-                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
+                # vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
 
             dtslogger.debug(f"vnc_params: {vnc_params}")
 
@@ -761,7 +762,7 @@ def launch_agent(
     working_dir: str,
     exercise_name: str,
     agent_base_image: str,
-    agent_network: str,
+    agent_network,
     agent_client: DockerClient,
     duckiebot_name: str,
     config,
@@ -793,6 +794,7 @@ def launch_agent(
         "name": agent_container_name,
         "volumes": agent_volumes,
         "environment": agent_env,
+        "auto_remove": True,
         "detach": True,
         "tty": True,
         "command": [f"/code/launchers/{config['agent_run_cmd']}"],
@@ -910,7 +912,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
+        url = "http://{:s}.local/files/data/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
