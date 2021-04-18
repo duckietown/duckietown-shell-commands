@@ -7,6 +7,8 @@ from utils.duckietown_utils import get_distro_version
 OTHER_IMAGES_TO_UPDATE = [
     "duckietown/dt-gui-tools:{distro}-{arch}",
     "duckietown/dt-core:{distro}-{arch}",
+    "duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
+    "duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
 ]
 
 

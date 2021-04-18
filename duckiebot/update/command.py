@@ -11,6 +11,7 @@ OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "duckietown/dt-gui-tools:{distro}-{arch}",
     "duckietown/dt-core:{distro}-{arch}",
+    "duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}"
 ]
 
 
