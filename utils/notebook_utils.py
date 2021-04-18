@@ -52,7 +52,7 @@ def convertNotebook(filepath: str, target_dir: str):
     remove_cells_without_tag(j, tag="export")
     f2 = os.path.join("/tmp", filename_with_extension)
     dtslogger.info(f"Temp filtered file : {f2}")
-    with open(f2, "w") as f:
+    with open(f2, "w+") as f:
         f.write(json.dumps(j))
 
     nb = nbformat.read(f2, as_version=4)
