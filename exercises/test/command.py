@@ -121,12 +121,6 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="just stop all the containers",
         )
-        parser.add_argument(
-            "-L",
-            "--launcher",
-            default=None,
-            help="Launcher to invoke inside the container (template v2 or newer)",
-        )
         #
         # parser.add_argument(
         #     "--staging",
@@ -235,7 +229,6 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
 
         config = load_yaml(config_file)
-        
         env_dir = os.path.join(working_dir, "assets/setup/")
 
         if parsed.launcher is not None:
@@ -281,9 +274,6 @@ class DTCommand(DTCommandAbs):
             duckiebot_hostname = sanitize_hostname(duckiebot_name)
         else:
             duckiebot_client = duckiebot_hostname = duckiebot_ip = None
-
-        if parsed.launcher:
-            config['agent_run_cmd'] = parsed.launcher
 
         # done input checks
 
