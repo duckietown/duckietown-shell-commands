@@ -1,21 +1,19 @@
 import argparse
 import getpass
 import os
-from datetime import datetime
 import sys
+from datetime import datetime
 from pathlib import Path
 
+import docker
 import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-import docker
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import pull_if_not_exist, remove_if_running
+from utils.docker_utils import pull_if_not_exist, remove_if_running, get_client
 from utils.exceptions import InvalidUserInput
 from utils.git_utils import check_up_to_date
-from utils.docker_utils import pull_if_not_exist, remove_if_running, get_client
 from utils.notebook_utils import convert_notebooks
 from utils.yaml_utils import load_yaml
 
@@ -164,8 +162,6 @@ class DTCommand(DTCommandAbs):
 
             ws_dir = config["ws_dir"]
 
-            exercise_ws_src = working_dir + "/" + ws_dir + "/src/"
-
             client = check_docker_environment()
 
             ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
@@ -179,8 +175,9 @@ class DTCommand(DTCommandAbs):
 
             container_name = "ros_template_catkin_build"
             remove_if_running(client, container_name)
-            ros_template_volumes = {}
-            ros_template_volumes[working_dir + f"/{ws_dir}"] = {"bind": f"/code/{ws_dir}", "mode": "rw"}
+            ros_template_volumes = {
+                working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}
+            }
 
             ros_template_params = {
                 "image": ros_template_image,
@@ -195,7 +192,7 @@ class DTCommand(DTCommandAbs):
             }
 
             pull_if_not_exist(client, ros_template_params["image"])
-            ros_template_container = client.containers.run(**ros_template_params)
+            client.containers.run(**ros_template_params)
             attach_cmd = f"docker attach {container_name}"
             start_command_in_subprocess(attach_cmd)
 
@@ -205,7 +202,8 @@ class DTCommand(DTCommandAbs):
             n = datetime.now(tz=pytz.utc)
             delta = n - up.commit.date
             hours = delta.total_seconds() / (60 * 60)
-            dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. Please merge from upstream.")
+            dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. "
+                           f"Please merge from upstream.")
             dtslogger.warn(f"Commit {up.commit.url}")
         else:
             dtslogger.debug("OK, up to date ")

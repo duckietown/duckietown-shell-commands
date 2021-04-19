@@ -1,8 +1,7 @@
 import argparse
 import os
 
-from utils.exceptions import InvalidUserInput
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 usage = """
 

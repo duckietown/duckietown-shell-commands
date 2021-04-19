@@ -195,12 +195,11 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
-        l: str
-        for l in parsed.logs:
-            if not ":" in l:
-                msg = f"Malformed option --logs {l}"
+        for line in parsed.logs:
+            if ":" not in line:
+                msg = f"Malformed option --logs {line}"
                 raise UserError(msg)
-            name, _, level = l.partition(":")
+            name, _, level = line.partition(":")
             name = cast(ContainerNames, name.lower())
             level = cast(Levels, level.lower())
             if name not in loglevels:
@@ -319,9 +318,11 @@ class DTCommand(DTCommandAbs):
             expman_spec = images["evaluator"]
         else:
             sim_env = load_yaml(os.path.join(env_dir, "sim_env.yaml"))
-            sim_spec = ImageRunSpec(add_registry(SIMULATOR_IMAGE), environment=sim_env, ports=[])
+            sim_spec = ImageRunSpec(add_registry(SIMULATOR_IMAGE),
+                                    environment=sim_env, ports=[])
             expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
-            expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE), expman_env, ports=[])
+            expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE),
+                                       expman_env, ports=[])
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
         agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
@@ -480,12 +481,14 @@ class DTCommand(DTCommandAbs):
             sim_container = agent_client.containers.run(**sim_params)
 
             if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
-                t = threading.Thread(target=continuously_monitor, args=(agent_client, sim_container_name))
+                t = threading.Thread(target=continuously_monitor,
+                                     args=(agent_client, sim_container_name))
                 t.start()
 
             # let's launch the experiment_manager
             dtslogger.info(
-                f"Running experiment_manager {exp_manager_container_name} from {expman_spec.image_name}"
+                f"Running experiment_manager {exp_manager_container_name} "
+                f"from {expman_spec.image_name}"
             )
 
             expman_env = dict(expman_spec.environment)
@@ -520,7 +523,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"experiment_manager params = \n{json.dumps(mw_params, indent=2)}")
 
             # dtslogger.debug(mw_params)
-            dtslogger.info(f"\n\tSim interface will be running at http://localhost:{PORT_MANAGER}/\n")
+            dtslogger.info(f"\n\tSim interface will be running at "
+                           f"http://localhost:{PORT_MANAGER}/\n")
 
             pull_if_not_exist(agent_client, mw_params["image"])
             mw_container = agent_client.containers.run(**mw_params)
@@ -549,7 +553,8 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(bridge_container)
 
             if loglevels[ContainerNames.NAME_BRIDGE] != Levels.LEVEL_NONE:
-                t = threading.Thread(target=continuously_monitor, args=(agent_client, bridge_container_name))
+                t = threading.Thread(target=continuously_monitor,
+                                     args=(agent_client, bridge_container_name))
                 t.start()
 
         # done with sim/duckiebot specific stuff.
@@ -629,7 +634,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
 
             if loglevels[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
-                t = threading.Thread(target=continuously_monitor, args=(local_client, vnc_container_name))
+                t = threading.Thread(target=continuously_monitor,
+                                     args=(local_client, vnc_container_name))
                 t.start()
 
         # Setup functions for monitor and cleanup
@@ -657,7 +663,7 @@ class DTCommand(DTCommandAbs):
             agent_env[ENV_LOGLEVEL] = loglevels[ContainerNames.NAME_AGENT]
 
         try:
-            agent_container = launch_agent(
+            launch_agent(
                 agent_container_name=agent_container_name,
                 agent_volumes=fifos_bind,
                 parsed=parsed,
@@ -686,9 +692,10 @@ def clean_shutdown(containers: List[Container], stop_attached_container: Callabl
             container.kill(signal.SIGINT)
         except APIError as e:
             dtslogger.info(f"Container {container.name} already stopped ({str(e)})")
+    # noinspection PyBroadException
     try:
         stop_attached_container()
-    except:
+    except BaseException:
         dtslogger.info(f"attached container already stopped.")
 
 
@@ -705,12 +712,13 @@ def launch_container_monitor(
         daemon=True,
     )
     dtslogger.info("Starting monitor thread")
-    dtslogger.info(f"Containers to monitor: {[container.name for container in containers_to_monitor]}")
+    dtslogger.info(f"Containers to monitor: {list(map(lambda c: c.name, containers_to_monitor))}")
     monitor_thread.start()
     return monitor_thread
 
 
-def monitor_containers(containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]):
+def monitor_containers(containers_to_monitor: List[Container],
+                       stop_attached_container: Callable[[], None]):
     """
     When an error is found, we display info and kill the attached thread to stop main process.
     """
@@ -775,8 +783,14 @@ def launch_agent(
         agent_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
         agent_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
     else:
-        agent_volumes[f"/data/config"] = {"bind": "/data/config", "mode": "rw"}
-        agent_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
+        agent_volumes[f"/data/config"] = {
+            "bind": "/data/config",
+            "mode": "rw"
+        }
+        agent_volumes[f"/code/{exercise_name}/launchers"] = {
+            "bind": "/code/launchers",
+            "mode": "rw"
+        }
         agent_volumes[f"/code/{exercise_name}{ws_dir}"] = {
             "bind": f"/code{ws_dir}",
             "mode": "rw",
@@ -862,8 +876,8 @@ def launch_bridge(
     # Duckiebot we set the hostname to be the duckiebot name so we can use host mode
     if parsed.local and running_on_mac:
         dtslogger.warn(
-            "WARNING: Running agent locally not in simulator is not expected to work. Suggest to remove the "
-            "--local flag"
+            "WARNING: Running agent locally not in simulator is not expected to work. "
+            "Suggest to remove the --local flag"
         )
 
     dtslogger.debug(bridge_params)
@@ -915,7 +929,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
         res = requests.get(url, timeout=10)
         if res.status_code != 200:
             dtslogger.warn(
-                "Could not get the calibration file {:s} from the robot {:s}. Is your Duckiebot calibrated? "
+                "Could not get the calibration file {:s} from robot {:s}. Is it calibrated? "
                 "".format(calib_file, duckiebot_name)
             )
             continue
@@ -944,7 +958,8 @@ class ImageRunSpec:
     ports: List[str]
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str],
+                         token: str) -> Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"
@@ -956,7 +971,7 @@ def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dic
         raise UserError(msg)
     j = res.json()
     dtslogger.debug(json.dumps(j, indent=1))
-    if not "result" in j:
+    if "result" not in j:
         msg = f"Cannot get data from server at url = {url}"
         raise Exception(msg)
     steps = j["result"]["challenge"]["steps"]

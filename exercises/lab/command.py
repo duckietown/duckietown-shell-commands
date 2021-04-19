@@ -1,8 +1,8 @@
 import getpass
 import os
+import sys
 import time
 import webbrowser
-from pathlib import Path
 from threading import Thread
 
 import docker
