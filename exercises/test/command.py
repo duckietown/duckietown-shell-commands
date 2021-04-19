@@ -15,11 +15,12 @@ from typing import Callable, cast, Dict, List, Optional
 
 import requests
 from docker import DockerClient
-from docker.errors import APIError
+from docker.errors import APIError, NotFound
 from docker.models.containers import Container
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor
+from requests import ReadTimeout
 
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
@@ -53,7 +54,6 @@ DEFAULT_ARCH = "amd64"
 # AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
 SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
-VNC_IMAGE = f"duckietown/dt-gui-tools:{BRANCH}-amd64"  # always on amd64
 EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
 BRIDGE_IMAGE = f"duckietown/dt-duckiebot-fifos-bridge:{BRANCH}"
 
@@ -471,6 +471,7 @@ class DTCommand(DTCommandAbs):
                 "network": agent_network.name,  # always local
                 "environment": env,
                 "volumes": fifos_bind,
+                "auto_remove": True,
                 "tty": True,
                 "detach": True,
             }
@@ -515,6 +516,7 @@ class DTCommand(DTCommandAbs):
                 "ports": expman_port,
                 "network": agent_network.name,  # always local
                 "volumes": experiment_manager_bind,
+                "auto_remove": True,
                 "detach": True,
                 "tty": True,
                 "user": uid,
@@ -605,6 +607,7 @@ class DTCommand(DTCommandAbs):
                         "mode": "ro",
                     }
                 },
+                "auto_remove": True,
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -645,12 +648,14 @@ class DTCommand(DTCommandAbs):
             if container.status == "running":
                 container.kill(signal.SIGINT)
 
-        launch_container_monitor(containers_to_monitor, stop_attached_container)
+        containers_monitor = launch_container_monitor(containers_to_monitor,
+                                                      stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
         signal.signal(
             signal.SIGINT,
-            lambda signum, frame: clean_shutdown(containers_to_monitor, stop_attached_container),
+            lambda signum, frame: clean_shutdown(containers_monitor, containers_to_monitor,
+                                                 stop_attached_container),
         )
 
         dtslogger.info("Starting attached container")
@@ -679,19 +684,36 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             dtslogger.error(f"Attached container terminated {e}")
         finally:
-            clean_shutdown(containers_to_monitor, stop_attached_container)
+            clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
 
         dtslogger.info(f"All done, your results are available in: {challenges_dir}")
 
 
-def clean_shutdown(containers: List[Container], stop_attached_container: Callable[[], None]):
+def clean_shutdown(containers_monitor: 'ContainersMonitor', containers: List[Container],
+                   stop_attached_container: Callable[[], None]):
+    dtslogger.info("Stopping container monitor...")
+    containers_monitor.shutdown()
+    while containers_monitor.is_alive():
+        time.sleep(1)
+    dtslogger.info("Container monitor stopped.")
+    # ---
     dtslogger.info("Cleaning containers...")
     for container in containers:
         dtslogger.info(f"Stopping container {container.name}")
         try:
-            container.kill(signal.SIGINT)
+            container.stop()
+        except NotFound:
+            # all is well
+            pass
         except APIError as e:
             dtslogger.info(f"Container {container.name} already stopped ({str(e)})")
+    for container in containers:
+        dtslogger.info(f"Waiting for container {container.name} to stop...")
+        try:
+            container.wait()
+        except (NotFound, APIError, ReadTimeout):
+            # all is well
+            pass
     # noinspection PyBroadException
     try:
         stop_attached_container()
@@ -701,63 +723,80 @@ def clean_shutdown(containers: List[Container], stop_attached_container: Callabl
 
 def launch_container_monitor(
     containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]
-) -> threading.Thread:
+) -> 'ContainersMonitor':
     """
     Start a daemon thread that will exit when the application exits.
     Monitor should stop everything if a containers exits and display logs.
     """
-    monitor_thread = threading.Thread(
-        target=monitor_containers,
-        args=(containers_to_monitor, stop_attached_container),
-        daemon=True,
-    )
+    monitor_thread = ContainersMonitor(containers_to_monitor, stop_attached_container)
     dtslogger.info("Starting monitor thread")
     dtslogger.info(f"Containers to monitor: {list(map(lambda c: c.name, containers_to_monitor))}")
     monitor_thread.start()
     return monitor_thread
 
 
-def monitor_containers(containers_to_monitor: List[Container],
-                       stop_attached_container: Callable[[], None]):
-    """
-    When an error is found, we display info and kill the attached thread to stop main process.
-    """
-    while True:
-        errors = []
-        dtslogger.debug(f"{len(containers_to_monitor)} container to monitor")
-        for container in containers_to_monitor:
-            container.reload()
-            status = container.status
-            dtslogger.debug(f"container {container.name} in state {status}")
-            if status in ["exited", "dead"]:
-                errors.append(
-                    {
-                        "name": container.name,
-                        "id": container.id,
-                        "status": container.status,
-                        "image": container.image.attrs["RepoTags"],
-                        "logs": container.logs(),
-                    }
-                )
-            else:
-                dtslogger.debug("Containers monitor check passed.")
+class ContainersMonitor(threading.Thread):
 
-        if errors:
-            dtslogger.info(f"Monitor found {len(errors)} exited containers")
-            for e in errors:
-                dtslogger.error(
-                    f"""Monitored container exited:
-                container: {e['name']}
-                id: {e['id']}
-                status: {e['status']}
-                image: {e['image']}
-                logs: {e['logs'].decode()}
-                """
-                )
-            dtslogger.info("Sending kill to container attached container")
-            stop_attached_container()
+    def __init__(self, containers_to_monitor: List[Container],
+                 stop_attached_container: Callable[[], None]):
+        super().__init__(daemon=True)
+        self._containers_to_monitor = containers_to_monitor
+        self._stop_attached_container = stop_attached_container
+        self._is_shutdown = False
 
-        time.sleep(5)
+    def shutdown(self):
+        self._is_shutdown = True
+
+    def run(self):
+        """
+        When an error is found, we display info and kill the attached thread to stop main process.
+        """
+        counter = -1
+        check_every_secs = 5
+        while not self._is_shutdown:
+            counter += 1
+            if counter % check_every_secs != 0:
+                time.sleep(1)
+                continue
+            # ---
+            errors = []
+            dtslogger.debug(f"{len(self._containers_to_monitor)} container to monitor")
+            for container in self._containers_to_monitor:
+                try:
+                    container.reload()
+                except (APIError, TimeoutError):
+                    continue
+                status = container.status
+                dtslogger.debug(f"container {container.name} in state {status}")
+                if status in ["exited", "dead"]:
+                    errors.append(
+                        {
+                            "name": container.name,
+                            "id": container.id,
+                            "status": container.status,
+                            "image": container.image.attrs["RepoTags"],
+                            "logs": container.logs(),
+                        }
+                    )
+                else:
+                    dtslogger.debug("Containers monitor check passed.")
+
+            if errors:
+                dtslogger.info(f"Monitor found {len(errors)} exited containers")
+                for e in errors:
+                    dtslogger.error(
+                        f"""Monitored container exited:
+                    container: {e['name']}
+                    id: {e['id']}
+                    status: {e['status']}
+                    image: {e['image']}
+                    logs: {e['logs'].decode()}
+                    """
+                    )
+                dtslogger.info("Sending kill to container attached container")
+                self._stop_attached_container()
+            # sleep
+            time.sleep(1)
 
 
 def launch_agent(
