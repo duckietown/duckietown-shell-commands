@@ -11,6 +11,9 @@ OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "duckietown/dt-gui-tools:{distro}-{arch}",
     "duckietown/dt-core:{distro}-{arch}",
+    "duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
+    "duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
+    "duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
 ]
 
 
@@ -23,6 +26,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-s", "--stack", type=str, default=DEFAULT_STACK, help="Name of the Stack to update"
         )
+        parser.add_argument(
+            "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
+        )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
         # parse arguments
         parsed = parser.parse_args(args)
@@ -30,7 +36,8 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
         # clean duckiebot
-        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
+        if not parsed.no_clean:
+            shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
@@ -46,4 +53,5 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pulling image `{image}`...")
             pull_image(image, client)
         # clean duckiebot (again)
-        shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all", "--yes", "--untagged"])
+        if not parsed.no_clean:
+            shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all", "--yes", "--untagged"])

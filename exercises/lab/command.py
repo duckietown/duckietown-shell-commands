@@ -1,9 +1,11 @@
 import getpass
 import os
-import sys
 import time
 import webbrowser
+from pathlib import Path
 from threading import Thread
+
+import docker
 
 from dt_data_api import APIError
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
@@ -77,7 +79,14 @@ class DTCommand(DTCommandAbs):
         # build notebook image
         username = getpass.getuser()
         lab_image_name = f"{username}/exercise-{config.exercise_name}-lab"
+
+        # make sure the image exists
         client = get_client()
+        try:
+            client.images.get(lab_image_name)
+        except docker.errors.ImageNotFound:
+            dtslogger.error("You must run the command `dts exercises build` before using the lab.")
+            exit(1)
 
         dockerfile = os.path.join(config.root, "Dockerfile.lab")
         if not os.path.exists(dockerfile):
@@ -132,7 +141,7 @@ class DTCommand(DTCommandAbs):
                 "--network",
                 "bridge",
                 "--port",
-                f"{JUPYTER_PORT}:{JUPYTER_PORT}/tcp",
+                f"{JUPYTER_PORT}:8888/tcp",
                 "--no-scream",
                 "LOCAL",
                 f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",

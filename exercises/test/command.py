@@ -322,7 +322,6 @@ class DTCommand(DTCommandAbs):
             sim_spec = ImageRunSpec(add_registry(SIMULATOR_IMAGE), environment=sim_env, ports=[])
             expman_env = load_yaml(os.path.join(env_dir, "exp_manager_env.yaml"))
             expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE), expman_env, ports=[])
-        vnc_image = add_registry(VNC_IMAGE)
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
         agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
@@ -378,7 +377,7 @@ class DTCommand(DTCommandAbs):
                 ros_env["HOSTNAME"] = duckiebot_name
 
         # let's see if we should pull the images
-        local_images = [vnc_image, expman_spec.image_name, sim_spec.image_name]
+        local_images = [expman_spec.image_name, sim_spec.image_name]
         agent_images = [bridge_image, ros_image, agent_base_image]
 
         # ALL the pulling is done here. Don't start anything until we now
@@ -565,6 +564,7 @@ class DTCommand(DTCommandAbs):
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
+                "auto_remove": True,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
             }
@@ -581,6 +581,7 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(ros_container)
 
             # let's launch vnc
+            vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
@@ -593,7 +594,12 @@ class DTCommand(DTCommandAbs):
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": {},
+                "volumes": {
+                    os.path.join(working_dir, "launchers"): {
+                        "bind": "/code/launchers",
+                        "mode": "ro",
+                    }
+                },
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -612,7 +618,7 @@ class DTCommand(DTCommandAbs):
                 if not running_on_mac:
                     vnc_params["network_mode"] = "host"
 
-                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
+                # vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
 
             dtslogger.debug(f"vnc_params: {vnc_params}")
 
@@ -753,7 +759,7 @@ def launch_agent(
     working_dir: str,
     exercise_name: str,
     agent_base_image: str,
-    agent_network: str,
+    agent_network,
     agent_client: DockerClient,
     duckiebot_name: str,
     config,
@@ -785,6 +791,7 @@ def launch_agent(
         "name": agent_container_name,
         "volumes": agent_volumes,
         "environment": agent_env,
+        "auto_remove": True,
         "detach": True,
         "tty": True,
         "command": [f"/code/launchers/{config['agent_run_cmd']}"],
@@ -902,7 +909,7 @@ def get_calibration_files(destination_dir, duckiebot_name):
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot_name)
-        url = "http://{:s}.local/files/config/{:s}".format(duckiebot_name, calib_file)
+        url = "http://{:s}.local/files/data/config/{:s}".format(duckiebot_name, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)

@@ -1,15 +1,21 @@
 import argparse
+import getpass
 import os
 from datetime import datetime
+import sys
+from pathlib import Path
 
 import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+import docker
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
 from utils.git_utils import check_up_to_date
+from utils.docker_utils import pull_if_not_exist, remove_if_running, get_client
 from utils.notebook_utils import convert_notebooks
 from utils.yaml_utils import load_yaml
 
@@ -67,6 +73,72 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
 
         working_dir = os.getcwd()
+        exercise_name = Path(working_dir).stem
+        dtslogger.info(f"Exercise name: {exercise_name}")
+
+        # make sure we are in an exercise directory
+        cfile_name = "config.yaml"
+        cfile = os.path.join(working_dir, cfile_name)
+        if not os.path.exists(cfile):
+            msg = (
+                f"You must run this command inside an exercise directory "
+                f"containing a `{cfile_name}` file."
+            )
+            raise InvalidUserInput(msg)
+        config = load_yaml(cfile)
+
+        # make sure this exercise has a lab_dir key in its config file and that it points to
+        # an existing directory
+        labdir_name = config.get("lab_dir", None)
+        if labdir_name is None:
+            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
+                             "'lab_dir' key to indicate where notebooks are stored")
+        labdir = os.path.join(working_dir, labdir_name)
+        if not os.path.exists(labdir) or not os.path.isdir(labdir):
+            msg = (
+                f"You must run this command inside an exercise directory "
+                f"containing a `{labdir_name}` directory."
+            )
+            raise InvalidUserInput(msg)
+
+        # make sure this exercise has a ws_dir key in its config file and that it points to
+        # an existing directory
+        wsdir_name = config.get("ws_dir", None)
+        if wsdir_name is None:
+            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
+                             "'ws_dir' key to indicate where code is stored")
+        wsdir = os.path.join(working_dir, wsdir_name)
+        if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
+            msg = (
+                f"You must run this command inside an exercise directory "
+                f"containing a `{wsdir_name}` directory."
+            )
+            raise InvalidUserInput(msg)
+
+        # make sure this exercise has a Dockerfile.lab file
+        dockerfile_lab_name = "Dockerfile.lab"
+        dockerfile_lab = os.path.join(working_dir, dockerfile_lab_name)
+
+        if os.path.exists(dockerfile_lab) and os.path.isfile(dockerfile_lab):
+            # build notebook image
+            lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+            client = get_client()
+            logs = client.api.build(
+                path=labdir,
+                tag=lab_image_name,
+                dockerfile="Dockerfile.lab",
+                decode=True
+            )
+            dtslogger.info("Building environment...")
+            try:
+                for log in logs:
+                    if 'stream' in log:
+                        sys.stdout.write(log['stream'])
+                sys.stdout.flush()
+            except docker.errors.APIError as e:
+                dtslogger.error(str(e))
+                exit(1)
+            dtslogger.info("Environment built!")
 
         if not os.path.exists(os.path.join(working_dir, "config.yaml")):
             msg = "You must run this command inside the exercise directory"
