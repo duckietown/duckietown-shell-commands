@@ -10,6 +10,7 @@ OTHER_IMAGES_TO_UPDATE = [
     "duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
     "duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
     "duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
+    "duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}"
 ]
 
 
