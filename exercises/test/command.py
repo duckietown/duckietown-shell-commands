@@ -433,7 +433,7 @@ class DTCommand(DTCommandAbs):
             **fifos_bind,
         }
 
-        if not use_challenge or (parsed.challenge_but_local_scenario):
+        if (not use_challenge) or parsed.local_scenarios:
             experiment_manager_bind[scenarios] = {
                 "bind": "/scenarios",
                 "mode": "rw",
