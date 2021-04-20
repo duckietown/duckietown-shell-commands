@@ -215,6 +215,7 @@ class DTCommand(DTCommandAbs):
             "stdin_open": True,
             "tty": True,
             "detach": True,
+            "privileged": True,
             "remove": True,
             "stream": True,
             "command": cmd,
