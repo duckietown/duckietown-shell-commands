@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import requests
-from dt_shell import dtslogger
+from dt_shell import dtslogger, DTShell
+
+from utils.duckietown_utils import get_distro_version
 
 
 @dataclass
@@ -41,10 +43,9 @@ def get_last_commit(user: str, repo: str, branch: str) -> CommitInfo:
     return CommitInfo(sha, url, d)
 
 
-def check_up_to_date() -> UpdateResult:
+def check_up_to_date(shell: DTShell, repo: str) -> UpdateResult:
     dtslogger.debug('Checking for updated exercises')
-    ci = get_last_commit('duckietown', 'mooc-exercises', 'daffy')
-
+    ci = get_last_commit('duckietown', repo, get_distro_version(shell))
 
     cmd = "git", "merge-base", "--is-ancestor", ci.sha, "HEAD"
     try:

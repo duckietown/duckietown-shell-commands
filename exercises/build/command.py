@@ -196,7 +196,7 @@ class DTCommand(DTCommandAbs):
             attach_cmd = f"docker attach {container_name}"
             start_command_in_subprocess(attach_cmd)
 
-        up = check_up_to_date()
+        up = check_up_to_date(shell, "mooc-exercises")
         dtslogger.debug(up.commit.sha)
         if not up.uptodate:
             n = datetime.now(tz=pytz.utc)
