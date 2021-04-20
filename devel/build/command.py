@@ -164,6 +164,16 @@ class DTCommand(DTCommandAbs):
         if not parsed:
             parsed, _ = parser.parse_known_args(args=args)
         # ---
+
+        # define build-args
+        buildargs = {"buildargs": {}, "labels": {}}
+
+        # custom Docker registry
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+        if docker_registry != DEFAULT_REGISTRY:
+            dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+            buildargs["buildargs"]["DOCKER_REGISTRY"] = docker_registry
+
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
@@ -184,8 +194,7 @@ class DTCommand(DTCommandAbs):
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
-        # define build-args
-        buildargs = {"buildargs": {}, "labels": {}}
+
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -308,6 +317,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        image = f"{docker_registry}/{image}"
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -370,12 +380,6 @@ class DTCommand(DTCommandAbs):
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
             dtslogger.warn(msg)
-
-        # custom Docker registry
-        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-        if docker_registry != DEFAULT_REGISTRY:
-            dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-            buildargs["buildargs"]["DOCKER_REGISTRY"] = docker_registry
 
         # custom Pip registry
         pip_index_url = os.environ.get("PIP_INDEX_URL", DEFAULT_INDEX_URL)

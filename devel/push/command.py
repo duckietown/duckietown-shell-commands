@@ -3,7 +3,13 @@ import os
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_client, push_image
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    get_endpoint_architecture,
+    get_client,
+    push_image,
+)
 from utils.dtproject_utils import DTProject
 
 from dt_shell import DTShell
@@ -100,6 +106,11 @@ class DTCommand(DTCommandAbs):
         docker = get_client(parsed.machine)
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
+
+        # custom Docker registry
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+
+        image = f"{docker_registry}/{image}"
         dtslogger.info(f"Pushing image {image}...")
         push_image(image, docker, progress=not parsed.ci, **push_args)
         dtslogger.info("Image successfully pushed!")
