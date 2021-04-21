@@ -177,10 +177,9 @@ class DTCommand(DTCommandAbs):
             help="Run in the environment of this challenge.",
         )
         parser.add_argument(
-            "--local-scenarios",
-            default=False,
-            action="store_true",
-            help="Uses the local scenarios with the challenge container.",
+            "--scenarios",
+            type=str,
+            help="Uses the scenarios in the given directory.",
         )
 
         parser.add_argument(
@@ -420,8 +419,6 @@ class DTCommand(DTCommandAbs):
 
         fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
-        scenarios = os.path.join(working_dir, "assets/setup/scenarios")
-
         experiment_manager_bind = {
             # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
             challenges_dir: {
@@ -433,7 +430,18 @@ class DTCommand(DTCommandAbs):
             **fifos_bind,
         }
 
-        if (not use_challenge) or parsed.local_scenarios:
+        if parsed.scenarios is not None:
+
+            scenarios = os.path.join(working_dir, parsed.scenarios)
+
+            if not os.path.exists(scenarios):
+                msg = f"Scenario directory does not exist: {scenarios}"
+                raise UserError(msg)
+
+            if not os.path.isdir(scenarios):
+                msg = f"Need a directory for --scenarios"
+                raise UserError(msg)
+
             experiment_manager_bind[scenarios] = {
                 "bind": "/scenarios",
                 "mode": "rw",
