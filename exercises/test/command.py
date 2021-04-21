@@ -176,6 +176,12 @@ class DTCommand(DTCommandAbs):
             "--challenge",
             help="Run in the environment of this challenge.",
         )
+        parser.add_argument(
+            "--local-scenarios",
+            default=False,
+            action="store_true",
+            help="Uses the local scenarios with the challenge container.",
+        )
 
         parser.add_argument(
             "--step",
@@ -427,14 +433,7 @@ class DTCommand(DTCommandAbs):
             **fifos_bind,
         }
 
-        use_local_scenario = False
-        local_scenario_file = os.path.join(scenarios, "scenario.yaml")
-        if os.path.exists(local_scenario_file):
-            dtslogger.info(f"Found local scenario at `{local_scenario_file}`, using local "
-                           f"scenario instead of remote.")
-            use_local_scenario = True
-
-        if (not use_challenge) or use_local_scenario:
+        if (not use_challenge) or parsed.local_scenarios:
             experiment_manager_bind[scenarios] = {
                 "bind": "/scenarios",
                 "mode": "rw",
