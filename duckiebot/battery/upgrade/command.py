@@ -2,6 +2,7 @@ import argparse
 import sys
 from enum import IntEnum
 from threading import Thread
+from time import sleep
 
 import docker
 import requests
@@ -45,9 +46,10 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
         # want the use NOT TO interrupt this command
         dtslogger.warning(
-            "DO NOT unplug the battery, turn off your robot, or interrupt this "
-            "command. It might cause irreversible damage to the battery."
+            "\n\nDO NOT unplug the battery, turn off your robot, or interrupt "
+            "this command. It might cause irreversible damage to the battery.\n"
         )
+        sleep(3)
         # check if the health-api container is running
         dtslogger.info("Releasing battery...")
         hostname = sanitize_hostname(parsed.duckiebot)
@@ -76,6 +78,53 @@ class DTCommand(DTCommandAbs):
                 dtslogger.debug(f"Container '{HEALTH_CONTAINER_NAME}' not running.")
         else:
             dtslogger.debug(f"Container '{HEALTH_CONTAINER_NAME}' not found.")
+
+        def start_container_and_try_blocking_until_healthy(
+            container: docker.models.containers.Container,
+            msg_before: str = "Starting container...",
+            msg_after: str = "Container started.",
+            timeout_secs: int = 120,
+        ):
+            """
+            Start a container.
+            Try to wait until it's healthy. (If health status is enabled.)
+            """
+
+            dtslogger.info(msg_before)
+            sleep(10)  # verified multiple times, this wait time is needed
+            container.start()
+
+            def try_getting_health_status():
+                try:
+                    container.reload()
+                    return container.attrs.get('State').get('Health').get('Status')
+                except:
+                    return None
+
+            health_enabled = try_getting_health_status()
+            if health_enabled is not None:
+                dtslogger.info(
+                    f'Waiting for container "{container.name}" to become '
+                    "healthy. It may take up to 2 minutes."
+                )
+                healthy = False
+                secs = 0
+                while not healthy and secs < timeout_secs:
+                    dtslogger.debug(
+                        f'Container "{container.name}" not yet healthy. '
+                        "Checking every second..."
+                    )
+                    try:
+                        healthy = "healthy" == try_getting_health_status()
+                        sleep(1)
+                        secs += 1
+                    except KeyboardInterrupt:
+                        # force
+                        dtslogger.debug("User gave up waiting for container to become healty.")
+                        break
+
+            dtslogger.info(msg_after)
+
         # the battery should be free now
         dtslogger.info("Battery released!")
         # compile upgrade image name
@@ -105,6 +154,7 @@ class DTCommand(DTCommandAbs):
 
         # step 1. read the battery current version (unless forced)
         if not parsed.force:
+            dtslogger.info(f'Checking for available battery firmware updates...')
             # we run the helper in "check" mode and expect one of:
             #   - FIRMWARE_UP_TO_DATE           user will be notified
             #   - FIRMWARE_NEEDS_UPDATE         all well, user will be asked to confirm
@@ -151,9 +201,11 @@ class DTCommand(DTCommandAbs):
                     )
                     # re-activate device-health
                     if device_health:
-                        dtslogger.info("Re-engaging battery...")
-                        device_health.start()
-                        dtslogger.info("Battery returned to work!")
+                        start_container_and_try_blocking_until_healthy(
+                            container=device_health, 
+                            msg_before="Re-engaging battery...",
+                            msg_after="Battery returned to work!",
+                        )
                     exit(0)
                 #
                 elif status == ExitCode.FIRMWARE_NEEDS_UPDATE:
@@ -179,7 +231,19 @@ class DTCommand(DTCommandAbs):
         while True:
             answer = input(f"Press ENTER {txt}, 'q' to quit... ")
             if answer.strip() == "q":
+                # reset battery, start device_health container
+                dtslogger.warning('Set battery to "Normal Mode" by pressing the button ONCE on the battery.')
+                sleep(1)
+                input("Press ENTER when done...")
+                # re-activate device-health
+                if device_health:
+                    start_container_and_try_blocking_until_healthy(
+                        container=device_health, 
+                        msg_before="Re-engaging battery...",
+                        msg_after="Battery returned to work!",
+                    )
                 exit(0)
+            dtslogger.info('Checking if the battery has "Boot Mode" activated, please wait...')
             try:
                 client.containers.run(
                     image=image,
@@ -272,9 +336,11 @@ class DTCommand(DTCommandAbs):
 
         # re-activate device-health
         if device_health:
-            dtslogger.info("Re-engaging battery...")
-            device_health.start()
-            dtslogger.info("Battery returned to work happier than ever!")
+            start_container_and_try_blocking_until_healthy(
+                container=device_health, 
+                msg_before="Re-engaging battery...",
+                msg_after="Battery returned to work happier than ever!",
+            )
 
     @staticmethod
     def _consume_output(logs):
