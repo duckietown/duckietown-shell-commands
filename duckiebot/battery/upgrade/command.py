@@ -203,7 +203,7 @@ class DTCommand(DTCommandAbs):
                     if device_health:
                         start_container_and_try_blocking_until_healthy(
                             container=device_health, 
-                            msg_before="Re-engaging battery...",
+                            msg_before="Re-engaging battery (this might take a while)...",
                             msg_after="Battery returned to work!",
                         )
                     exit(0)
@@ -239,7 +239,7 @@ class DTCommand(DTCommandAbs):
                 if device_health:
                     start_container_and_try_blocking_until_healthy(
                         container=device_health, 
-                        msg_before="Re-engaging battery...",
+                        msg_before="Re-engaging battery (this might take a while)...",
                         msg_after="Battery returned to work!",
                     )
                 exit(0)
@@ -338,7 +338,7 @@ class DTCommand(DTCommandAbs):
         if device_health:
             start_container_and_try_blocking_until_healthy(
                 container=device_health, 
-                msg_before="Re-engaging battery...",
+                msg_before="Re-engaging battery (this might take a while)...",
                 msg_after="Battery returned to work happier than ever!",
             )
 
