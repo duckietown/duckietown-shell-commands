@@ -210,7 +210,8 @@ class DTCommand(DTCommandAbs):
                 #
                 elif status == ExitCode.FIRMWARE_NEEDS_UPDATE:
                     granted = ask_confirmation(
-                        "An updated firmware is available", question="Do you want to update the battery now?"
+                        "An updated firmware is available",
+                        question="Do you want to update the battery now?"
                     )
                     if not granted:
                         dtslogger.info("Enjoy the rest of your day.")
@@ -265,7 +266,7 @@ class DTCommand(DTCommandAbs):
                     status = ExitCode(exit_code)
                 except BaseException:
                     dtslogger.error(
-                        f"Unrecognized status code: {exit_code}.\n" f"Contact your administrator."
+                        f"Unrecognized status code: {exit_code}.\n Contact your administrator."
                     )
                     exit(1)
                 # SUCCESS
@@ -300,23 +301,31 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Updating battery...")
         # we run the helper in "normal" mode and expect:
         #   - SUCCESS           all well, battery updated successfully
+        container = None
         exit_code = None
         try:
             container = client.containers.run(
                 image=image,
                 name="dts-battery-firmware-upgrade-do",
-                auto_remove=True,
                 privileged=True,
                 detach=True,
                 environment={"DEBUG": DEBUG, **extra_env},
                 command=["--", "--battery"],
             )
             DTCommand._consume_output(container.attach(stream=True))
-            data = container.wait(condition="removed")
+            data = container.wait(condition="stopped")
             exit_code = data["StatusCode"]
         except docker.errors.APIError as e:
             dtslogger.error(str(e))
             exit(1)
+        # try cleaning up
+        if container:
+            try:
+                dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-do'...")
+                container.remove()
+            except docker.errors.APIError as e:
+                dtslogger.error(str(e))
+                exit(1)
 
         # make sure we know what happened
         status = None
