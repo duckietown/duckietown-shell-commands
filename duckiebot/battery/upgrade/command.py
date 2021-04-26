@@ -250,7 +250,6 @@ class DTCommand(DTCommandAbs):
                 container = client.containers.run(
                     image=image,
                     name="dts-battery-firmware-upgrade-dryrun",
-                    # auto_remove=True,
                     privileged=True,
                     environment={"DEBUG": DEBUG, **extra_env},
                     command=["--", "--battery", "--dry-run"],
