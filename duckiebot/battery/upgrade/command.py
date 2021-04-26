@@ -229,6 +229,7 @@ class DTCommand(DTCommandAbs):
         # we run the helper in "dryrun" mode and expect:
         #   - SUCCESS           all well, next is update
         txt = "when done"
+        container = None
         while True:
             answer = input(f"Press ENTER {txt}, 'q' to quit... ")
             if answer.strip() == "q":
@@ -246,10 +247,10 @@ class DTCommand(DTCommandAbs):
                 exit(0)
             dtslogger.info('Checking if the battery has "Boot Mode" activated, please wait...')
             try:
-                client.containers.run(
+                container = client.containers.run(
                     image=image,
                     name="dts-battery-firmware-upgrade-dryrun",
-                    auto_remove=True,
+                    # auto_remove=True,
                     privileged=True,
                     environment={"DEBUG": DEBUG, **extra_env},
                     command=["--", "--battery", "--dry-run"],
@@ -294,6 +295,14 @@ class DTCommand(DTCommandAbs):
                 else:
                     dtslogger.error(f"The battery reported the status '{status.name}'")
                     exit(1)
+        
+        if container:
+            try:
+                dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-dryrun'...")
+                container.remove()
+            except docker.errors.APIError as e:
+                dtslogger.error(str(e))
+                exit(1)
 
         # step 3: perform update
         # it looks like the update is going to happen, mark the event
