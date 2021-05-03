@@ -87,8 +87,9 @@ Calibrate:
         dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
 
         dtslogger.info(
-            "When the window opens you will need to move the checkerboard around "
-            "in front of the Duckiebot camera.\nPress [Q] to close the window."
+            "When the window opens you will be able to perform the calibration.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.org.\n "
+            "Press [Q] to close the window."
         )
 
         params = {
