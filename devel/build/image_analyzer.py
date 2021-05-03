@@ -186,7 +186,7 @@ class ImageAnalyzer(object):
         print()
         print(
             tc.colored("IMPORTANT", "white", "on_blue")
-            + ": Always ask yourself, can I do better than that? ;)"
+            + ": Always ask yourself, can I do better than that?"
         )
         print()
         # ---

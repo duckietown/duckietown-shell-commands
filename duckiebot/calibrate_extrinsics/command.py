@@ -57,7 +57,7 @@ Calibrate:
         image = CALIBRATE_IMAGE.format(distro=distro, arch=arch)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
-        raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration patterns and press ENTER.")
+        raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration pattern and press ENTER.")
         dtslogger.info("Running extrinsics calibration...")
 
         env = default_env(parsed.duckiebot, duckiebot_ip)
