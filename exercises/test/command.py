@@ -31,7 +31,7 @@ from utils.docker_utils import (
     remove_if_running,
 )
 from utils.exceptions import InvalidUserInput
-from utils.exercise_utils import BASELINE_IMAGES
+from utils.exercises_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 from utils.notebook_utils import convert_notebooks
