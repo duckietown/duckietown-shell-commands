@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+TRIGGERS_DIR=/triggers
+TRIGGER_NAME=$1
+TRIGGER_DIR="${TRIGGERS_DIR}/${TRIGGER_NAME}"
+TRIGGER_SOCKET="${TRIGGER_DIR}/socket"
+TRIGGER_RUN="${TRIGGER_DIR}/run"
+
+if [ ! -d "${TRIGGER_DIR}" ]; then
+    echo "Directory ${TRIGGER_DIR} not found. Nothing to do!"
+    exit 1
+fi
+
+if [ ! -f "${TRIGGER_SOCKET}" ]; then
+    echo "Socket file ${TRIGGER_SOCKET} not found. Nothing to do!"
+    exit 2
+fi
+
+if [ ! -f "${TRIGGER_RUN}" ]; then
+    echo "Trigger file ${TRIGGER_RUN} not found. Nothing to do!"
+    exit 3
+fi
+
+if [ ! -x "${TRIGGER_RUN}" ]; then
+    chmod +x "${TRIGGER_RUN}"
+fi
+
+log(){
+    now=$(date +"%Y-%m-%dT%H:%M:%S%:z")
+    line="[${now}]: Watcher[${TRIGGER_NAME}] - $*"
+    echo "${line}" >> "${TRIGGERS_DIR}/events.log"
+}
+
+while true; do
+    while inotifywait -e close_write -q -q "${TRIGGER_SOCKET}"; do
+        signal=$(cat "${TRIGGER_SOCKET}")
+        log "Received signal '${signal}'"
+        ${TRIGGER_RUN} "$signal"
+    done
+done
