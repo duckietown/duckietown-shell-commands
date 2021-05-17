@@ -3,14 +3,9 @@
 set -x
 
 SD_DEVICE=/dev/mmcblk0
-ROOT_PART_ID=1
-CONFIG_DIR=/data/config
+ROOT_PART_ID=2
 EVENTS_DIR=/data/stats/events
 USAGE_DIR=/data/stats/usage
-ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
-ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
-# Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
-HUT_RESET_SYSFS_PIN_NO=149
 
 
 setup_etc_hosts() {
@@ -45,7 +40,6 @@ run_on_first_boot() {
     cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
     # resize root partition
-    sgdisk --move-second-header ${SD_DEVICE}
     growpart ${SD_DEVICE} ${ROOT_PART_ID}
     resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
     partprobe
@@ -53,12 +47,12 @@ run_on_first_boot() {
     # sanitize files
     dt-sanitize-files
 
+    # rename user `ubuntu` -> `duckie`
+    usermod -md /home/duckie -l duckie ubuntu
+    groupmod -n duckie ubuntu
+
     # sudo without a password
     echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
-
-    # add "Duckietown Front Bumper" to the device tree
-    dtc -I dts -O dtb -@ -o /boot/duckietown_front_bumper_2_v1.dtbo /boot/duckietown_front_bumper_2_v1.dts
-    /opt/nvidia/jetson-io/config-by-hardware.py -n "Duckietown Front Bumper 2 V1"
 
     # setup ssh access
     echo "Setting up ssh..."
@@ -82,7 +76,7 @@ run_on_first_boot() {
     cp /proc/*info /data/proc
     cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
     cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
-    cp /etc/nv_tegra_release /data/stats/os-release
+    cp /etc/os-release /data/stats/os-release
 
     # make sure the user owns its folders
     echo "Changing the ownership of the user directories..."
@@ -111,9 +105,6 @@ run_on_first_boot() {
         echo 'Waiting for Docker to start...'
         sleep 2
     done
-
-    # disable ZRAM
-    systemctl disable nvzramconfig
 
     # run customizable first-boot script
     dt-init-first-boot
@@ -147,33 +138,6 @@ run_on_every_boot() {
 
     # remove `booting` service
     rm -f /etc/avahi/services/dt.booting.service
-
-    # get robot_type
-    if [ ${#ROBOT_TYPE} -le 0 ]; then
-        if [ -f "${ROBOT_TYPE_FILE}" ]; then
-            ROBOT_TYPE=$(cat "${ROBOT_TYPE_FILE}")
-        else
-            ROBOT_TYPE="duckiebot"
-        fi
-    fi
-
-    # get robot_hardware
-    if [ ${#ROBOT_HARDWARE} -le 0 ]; then
-        if [ -f "${ROBOT_HARDWARE_FILE}" ]; then
-            ROBOT_HARDWARE=$(cat "${ROBOT_HARDWARE_FILE}")
-        else
-            ROBOT_HARDWARE="__NOTSET__"
-        fi
-    fi
-
-    # set HUT pin to HIGH (NVidia-Jetson-based robots only)
-    if [ $ROBOT_TYPE == "duckiebot" ] && [ $ROBOT_HARDWARE == "jetson_nano" ]; then
-        pin="gpio${HUT_RESET_SYSFS_PIN_NO}"
-        echo ${HUT_RESET_SYSFS_PIN_NO} >/sys/class/gpio/export
-        echo out >/sys/class/gpio/${pin}/direction
-        echo 1 >/sys/class/gpio/${pin}/value
-        echo ${HUT_RESET_SYSFS_PIN_NO} >/sys/class/gpio/unexport
-    fi
 
     # launch triggers handlers
     dt-serve-triggers
