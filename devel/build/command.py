@@ -213,6 +213,10 @@ class DTCommand(DTCommandAbs):
             # set configuration
             parsed.arch = os.environ["DUCKIETOWN_CI_ARCH"]
             buildargs["labels"][dtlabel("image.authoritative")] = "1"
+
+            # TODO: add push of hash to `DCSS:public:docker/image/FULL_IMAGE_NAME/hash`
+            # TODO: add push of hash to `DCSS:public:docker/image/FULL_IMAGE_NAME/time`
+
         # cloud build
         if parsed.cloud:
             if parsed.arch is None:
@@ -400,20 +404,21 @@ class DTCommand(DTCommandAbs):
             except (ImageNotFound, BaseException):
                 is_present = False
             # ---
-            if not is_present and parsed.pull:
-                # try to pull the same image so Docker can use it as cache source
-                dtslogger.info(f'Pulling image "{image}" to use as cache...')
-                try:
-                    pull_image(image, endpoint=docker, progress=not parsed.ci)
-                    is_present = True
-                except KeyboardInterrupt:
-                    dtslogger.info("Aborting.")
-                    return
-                except (ImageNotFound, BaseException):
-                    dtslogger.warning(
-                        f'An error occurred while pulling the image "{image}", maybe the '
-                        "image does not exist"
-                    )
+            if not is_present:
+                if parsed.pull:
+                    # try to pull the same image so Docker can use it as cache source
+                    dtslogger.info(f'Pulling image "{image}" to use as cache...')
+                    try:
+                        pull_image(image, endpoint=docker, progress=not parsed.ci)
+                        is_present = True
+                    except KeyboardInterrupt:
+                        dtslogger.info("Aborting.")
+                        return
+                    except (ImageNotFound, BaseException):
+                        dtslogger.warning(
+                            f'An error occurred while pulling the image "{image}", maybe the '
+                            "image does not exist"
+                        )
             else:
                 dtslogger.info("Found an image with the same name. Using it as cache source.")
             # configure cache
