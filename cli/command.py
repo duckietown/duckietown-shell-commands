@@ -76,9 +76,12 @@ class DTCommand(DTCommandAbs):
         # docker runtime and use_x_docker are mutually exclusive
         if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:
             raise ValueError("You cannot use --runtime and -X at the same time.")
+        # docker arguments
+        docker_arguments = [] if not parsed.arguments else list(map(lambda s: "--%s" % s, parsed.arguments))
         # x-docker runtime
         if parsed.use_x_docker:
             parsed.runtime = "x-docker"
+            docker_arguments += ["--privileged"]
         # check runtime
         if shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
@@ -88,10 +91,9 @@ class DTCommand(DTCommandAbs):
         if parsed.master:
             master = sanitize_hostname(parsed.master)
             environ += ["--env", f"ROS_MASTER_URI=http://{master}:11311"]
+            environ += ["--env", f"VEHICLE_NAME={parsed.master}"]
         # environment variables
         environ += list(map(lambda e: "--env=%s" % e, parsed.environ))
-        # docker arguments
-        docker_arguments = [] if not parsed.arguments else list(map(lambda s: "--%s" % s, parsed.arguments))
         # check command
         if not parsed.command:
             parsed.command = ["/bin/bash"]
