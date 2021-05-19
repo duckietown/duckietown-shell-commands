@@ -100,6 +100,13 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="(Optional) Scream if the container ends with a non-zero exit code",
         )
+        parser.add_argument(
+            "--detach",
+            "-d",
+            action="store_true",
+            default=False,
+            help="Detach from container",
+        )
         parser.add_argument("cmd_args", nargs="*", default=[])
         # parse arguments
         parsed = parser.parse_args(args)
@@ -245,14 +252,16 @@ class DTCommand(DTCommandAbs):
         )
         # run the container
         client.containers.run(**params)
+
         # attach to the container with an interactive session
-        attach_cmd = "docker attach %s" % container_name
-        try:
-            start_command_in_subprocess(attach_cmd)
-        except Exception as e:
-            if not parsed.no_scream:
-                raise e
-            else:
-                dtslogger.error(str(e))
-        # ---
-        dtslogger.info("Done. Have a nice day")
+        if not parsed.detach:
+            attach_cmd = "docker attach %s" % container_name
+            try:
+                start_command_in_subprocess(attach_cmd)
+            except Exception as e:
+                if not parsed.no_scream:
+                    raise e
+                else:
+                    dtslogger.error(str(e))
+            # ---
+            dtslogger.info("Done. Have a nice day")
