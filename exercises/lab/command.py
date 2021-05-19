@@ -4,6 +4,8 @@ import sys
 import time
 import webbrowser
 from threading import Thread
+import signal
+import argparse
 
 import docker
 
@@ -30,11 +32,33 @@ JUPYTER_HOST = "localhost"
 JUPYTER_PORT = "8888"
 JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
 
+VNC_WS = "/code/solution"
+
+class ServiceExit(Exception):
+    pass
+
+def service_shutdown(signum, frame):
+    raise ServiceExit
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
+
+        signal.signal(signal.SIGTERM, service_shutdown)
+        signal.signal(signal.SIGINT, service_shutdown)
+        prog = "dts exercise lab"
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument(
+            "--vnc",
+            "-v",
+            dest="vnc",
+            action="store_true",
+            default=False,
+            help="Should we also start the no VNC browser?",
+        )
+
+        parsed = parser.parse_args(args)
 
         config = get_exercise_config()
 
@@ -121,32 +145,61 @@ class DTCommand(DTCommandAbs):
             time.sleep(2)
             webbrowser.open(JUPYTER_URL)
 
-        waiter = Thread(target=open_url)
-        waiter.start()
 
-        # run start-gui-tools
-        shell.include.start_gui_tools.command(
-            shell,
-            [
-                "--launcher",
-                "jupyter",
-                "--mount",
-                f"{labdir}:{JUPYTER_WS}",
-                "--image",
-                lab_image_name,
-                "--name",
-                f"dts-exercises-lab-{config.exercise_name}",
-                "--uid",
-                str(os.getuid()),
-                "--network",
-                "bridge",
-                "--port",
-                f"{JUPYTER_PORT}:8888/tcp",
-                "--no-scream",
-                "LOCAL",
-                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
-                f"NotebookApp.ip=0.0.0.0"
-            ],
-        )
+
+
+        def run_vnc():
+            # run start-gui-tools
+            shell.include.start_gui_tools.command(
+                shell,
+                [
+                    "--launcher",
+                    "vnc",
+                    "--mount",
+                    f"{labdir}:{VNC_WS}",
+                    "--image",
+                    lab_image_name,
+                    "--name",
+                    f"dts-exercises-lab-{config.exercise_name}-vnc",
+                    "--no-scream",
+                    "LOCAL",
+                ],
+            )
+
+
+        def run_jupyter():
+            # run start-gui-tools
+            shell.include.start_gui_tools.command(
+                shell,
+                [
+                    "--launcher",
+                    "jupyter",
+                    "--mount",
+                    f"{labdir}:{JUPYTER_WS}",
+                    "--image",
+                    lab_image_name,
+                    "--name",
+                    f"dts-exercises-lab-{config.exercise_name}",
+                    "--uid",
+                    str(os.getuid()),
+                    "--network",
+                    "bridge",
+                    "--port",
+                    f"{JUPYTER_PORT}:8888/tcp",
+                    "--no-scream",
+                    "LOCAL",
+                    f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
+                    f"NotebookApp.ip=0.0.0.0"
+                ],
+            )
+        waiter = Thread(target=open_url)
+        vt = Thread(target=run_vnc)
+        try:
+            if parsed.vnc:
+                vt.start()
+            waiter.start()
+            run_jupyter()
+        except Exception as e:
+            print(e)
 
         waiter.join()
