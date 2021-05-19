@@ -31,8 +31,6 @@ JUPYTER_HOST = "localhost"
 JUPYTER_PORT = "8888"
 JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
 
-VNC_WS = "/code/solution"
-
 
 class DTCommand(DTCommandAbs):
 
@@ -148,7 +146,7 @@ class DTCommand(DTCommandAbs):
                     "--launcher",
                     "vnc",
                     "--mount",
-                    f"{labdir}:{VNC_WS}",
+                    f"{labdir}:{JUPYTER_WS}",
                     "--image",
                     lab_image_name,
                     "--name",
