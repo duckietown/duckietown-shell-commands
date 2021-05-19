@@ -4,7 +4,6 @@ import sys
 import time
 import webbrowser
 from threading import Thread
-import signal
 import argparse
 
 import docker
@@ -34,19 +33,12 @@ JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
 
 VNC_WS = "/code/solution"
 
-class ServiceExit(Exception):
-    pass
-
-def service_shutdown(signum, frame):
-    raise ServiceExit
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
 
-        signal.signal(signal.SIGTERM, service_shutdown)
-        signal.signal(signal.SIGINT, service_shutdown)
         prog = "dts exercise lab"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument(
