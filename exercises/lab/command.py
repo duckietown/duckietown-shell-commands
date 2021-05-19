@@ -1,9 +1,10 @@
 import getpass
 import os
+import signal
 import sys
 import time
 import webbrowser
-from threading import Thread
+import argparse
 
 import docker
 
@@ -29,12 +30,26 @@ JUPYTER_WS = "/jupyter_ws"
 JUPYTER_HOST = "localhost"
 JUPYTER_PORT = "8888"
 JUPYTER_URL = f"http://{JUPYTER_HOST}:{JUPYTER_PORT}"
+IS_SHUTDOWN = False
 
 
 class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
+
+        prog = "dts exercise lab"
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument(
+            "--vnc",
+            "-v",
+            dest="vnc",
+            action="store_true",
+            default=False,
+            help="Should we also start the no VNC browser?",
+        )
+
+        parsed = parser.parse_args(args)
 
         config = get_exercise_config()
 
@@ -110,6 +125,10 @@ class DTCommand(DTCommandAbs):
             exit(1)
         dtslogger.info("...environment built.")
 
+        jupyter_container_name = f"dts-exercises-lab-{config.exercise_name}"
+        vnc_container_name = f"dts-exercises-lab-{config.exercise_name}-vnc"
+        containers_to_monitor = []
+
         # create a function that opens up the browser to the right URL after 4 seconds
         def open_url():
             # wait 4 seconds, then open the browser
@@ -121,32 +140,78 @@ class DTCommand(DTCommandAbs):
             time.sleep(2)
             webbrowser.open(JUPYTER_URL)
 
-        waiter = Thread(target=open_url)
-        waiter.start()
+        def run_vnc():
+            # run start-gui-tools
+            shell.include.start_gui_tools.command(
+                shell,
+                [
+                    "--launcher",
+                    "vnc",
+                    "--mount",
+                    f"{labdir}:{JUPYTER_WS}",
+                    "--image",
+                    lab_image_name,
+                    "--name",
+                    vnc_container_name,
+                    "--no-scream",
+                    "--detach",
+                    "LOCAL",
+                ],
+            )
 
-        # run start-gui-tools
-        shell.include.start_gui_tools.command(
-            shell,
-            [
-                "--launcher",
-                "jupyter",
-                "--mount",
-                f"{labdir}:{JUPYTER_WS}",
-                "--image",
-                lab_image_name,
-                "--name",
-                f"dts-exercises-lab-{config.exercise_name}",
-                "--uid",
-                str(os.getuid()),
-                "--network",
-                "bridge",
-                "--port",
-                f"{JUPYTER_PORT}:8888/tcp",
-                "--no-scream",
-                "LOCAL",
-                f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
-                f"NotebookApp.ip=0.0.0.0"
-            ],
-        )
+        def run_jupyter():
+            # run start-gui-tools
+            shell.include.start_gui_tools.command(
+                shell,
+                [
+                    "--launcher",
+                    "jupyter",
+                    "--mount",
+                    f"{labdir}:{JUPYTER_WS}",
+                    "--image",
+                    lab_image_name,
+                    "--name",
+                    jupyter_container_name,
+                    "--uid",
+                    str(os.getuid()),
+                    "--network",
+                    "bridge",
+                    "--port",
+                    f"{JUPYTER_PORT}:8888/tcp",
+                    "--no-scream",
+                    "--detach",
+                    "LOCAL",
+                    f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
+                    f"NotebookApp.ip=0.0.0.0"
+                ],
+            )
 
-        waiter.join()
+        def shutdown(*_):
+            global IS_SHUTDOWN
+            IS_SHUTDOWN = True
+            for container_name in containers_to_monitor:
+                try:
+                    dtslogger.info(f"Stopping container '{container_name}'")
+                    container = client.containers.get(container_id=container_name)
+                    container.stop()
+                except docker.errors.NotFound:
+                    # all is good
+                    dtslogger.warning(f"Container {container_name} not found.")
+                except docker.errors.APIError as _e:
+                    print(_e)
+
+        try:
+            if parsed.vnc:
+                run_vnc()
+                containers_to_monitor.append(vnc_container_name)
+            run_jupyter()
+            containers_to_monitor.append(jupyter_container_name)
+            open_url()
+            # capture SIGINT and abort
+            signal.signal(signal.SIGINT, shutdown)
+        except Exception as e:
+            print(e)
+            return
+
+        while not IS_SHUTDOWN:
+            time.sleep(1)
