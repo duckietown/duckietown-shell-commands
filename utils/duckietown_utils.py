@@ -20,7 +20,7 @@ def get_robot_configurations(robot_type):
     configurations = {
         "duckiebot": ["DB18", "DB19", "DB20", "DB21M"],
         "duckiedrone": ["DD18"],
-        "watchtower": ["WT18", "WT19A", "WT19B", "WT21"],
+        "watchtower": ["WT18", "WT19A", "WT19B", "WT21A", "WT21B"],
         "greenstation": ["GS17"],
         "workstation": ["WS21A", "WS21B", "WS21C"],
         "traffic_light": ["TL18", "TL19"],
@@ -48,7 +48,8 @@ def get_robot_hardware(robot_configuration):
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
         "WT19B": ("raspberry_pi", "4B2G"),
-        "WT21": ("raspberry_pi_64", "4B"),
+        "WT21A": ("raspberry_pi_64", "4B"),
+        "WT21B": ("raspberry_pi_64", "4B"),
         # Green Station
         "GS17": ("raspberry_pi", "3B+"),
         # Traffic Light
