@@ -758,9 +758,13 @@ def _print_devices_table(devices: List[SimpleNamespace]):
     print()
     print(row_fmt.format("Name", "Size", "Plugged in"))
     for device in devices:
-        # try to get the creation time of the device file, that should be the plug-in time
+        # try to get the oldest time between access, modify and change time the device file,
+        # that should be a good approximation of the plug-in time (unless the device was used
+        # by the user before flashing).
         device_file = pathlib.Path(device.device)
-        plugin_time = datetime.fromtimestamp(device_file.stat().st_ctime)
+        plugin_time = datetime.fromtimestamp(min(
+            device_file.stat().st_ctime, device_file.stat().st_atime, device_file.stat().st_mtime
+        ))
         time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
         print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
     print()
