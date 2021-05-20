@@ -118,6 +118,7 @@ APT_PACKAGES_TO_INSTALL = [
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
+    "initramfs-tools"
 ]
 
 
