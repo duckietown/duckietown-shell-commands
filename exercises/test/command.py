@@ -286,8 +286,13 @@ class DTCommand(DTCommandAbs):
             check_program_dependency("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
-            exercise_cmd = f"rsync -a --exclude challenges/ {working_dir} {remote_base_path}"
-            _run_cmd(exercise_cmd, shell=True)
+            rsync_cmd = "rsync -a "
+            if "rsync_exclude" in config:
+                for dir in config["rsync_exclude"]:
+                    rsync_cmd += f"--exclude {working_dir}/{dir} "
+            rsync_cmd += f"{working_dir} {remote_base_path}"
+            dtslogger.info(f"rsync command: {rsync_cmd}")
+            _run_cmd(rsync_cmd, shell=True)
 
             # arch
             arch = get_endpoint_architecture(duckiebot_hostname)
