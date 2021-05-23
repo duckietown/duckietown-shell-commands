@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import json
 import os
@@ -211,8 +211,9 @@ class VirtualSDCard:
         return f"/dev/disk/by-label/{partition}"
 
 
-def check_cli_tools():
-    for cli_tool in CLI_TOOLS_NEEDED:
+def check_cli_tools(*args):
+    clis = CLI_TOOLS_NEEDED + list(args)
+    for cli_tool in clis:
         check_program_dependency(cli_tool)
 
 
@@ -435,4 +436,6 @@ def copy_file(origin, destination):
 def transfer_file(disk_template_dir, partition, location):
     _local_filepath = os.path.join(disk_template_dir, partition, *location)
     _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
+    _remote_dirpath = os.path.dirname(_remote_filepath)
+    run_cmd(["sudo", "mkdir", "-p", _remote_dirpath])
     run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])

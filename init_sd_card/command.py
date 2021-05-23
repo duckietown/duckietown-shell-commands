@@ -55,6 +55,7 @@ ROOT_PARTITIONS = ["root", "APP"]
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
+        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
         "jetson_nano_4gb": {"stable": "1.2.0", "experimental": "1.2.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
@@ -73,6 +74,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.2.0": "1.1",
             "1.2.1": "1.1",
         },
+        "raspberry_pi_64": {"2.0.0": "1.1"},
         "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.1": "1.1"},
         "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
@@ -84,6 +86,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
@@ -755,9 +758,13 @@ def _print_devices_table(devices: List[SimpleNamespace]):
     print()
     print(row_fmt.format("Name", "Size", "Plugged in"))
     for device in devices:
-        # try to get the creation time of the device file, that should be the plug-in time
+        # try to get the oldest time between access, modify and change time the device file,
+        # that should be a good approximation of the plug-in time (unless the device was used
+        # by the user before flashing).
         device_file = pathlib.Path(device.device)
-        plugin_time = datetime.fromtimestamp(device_file.stat().st_ctime)
+        plugin_time = datetime.fromtimestamp(min(
+            device_file.stat().st_ctime, device_file.stat().st_atime, device_file.stat().st_mtime
+        ))
         time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
         print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
     print()

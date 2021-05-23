@@ -20,11 +20,11 @@ def get_robot_configurations(robot_type):
     configurations = {
         "duckiebot": ["DB18", "DB19", "DB20", "DB21M"],
         "duckiedrone": ["DD18"],
-        "watchtower": ["WT18", "WT19A", "WT19B"],
+        "watchtower": ["WT18", "WT19A", "WT19B", "WT21A", "WT21B"],
         "greenstation": ["GS17"],
         "workstation": ["WS21A", "WS21B", "WS21C"],
         "traffic_light": ["TL18", "TL19"],
-        "duckietown": ["DT20"],
+        "duckietown": ["DT20", "DT21"],
     }
     if robot_type not in configurations:
         raise ValueError(f"Robot type {robot_type} not recognized!")
@@ -48,6 +48,8 @@ def get_robot_hardware(robot_configuration):
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
         "WT19B": ("raspberry_pi", "4B2G"),
+        "WT21A": ("raspberry_pi_64", "4B"),
+        "WT21B": ("raspberry_pi_64", "4B"),
         # Green Station
         "GS17": ("raspberry_pi", "3B+"),
         # Traffic Light
@@ -55,6 +57,7 @@ def get_robot_hardware(robot_configuration):
         "TL19": ("raspberry_pi", "3B+"),
         # Duckietown
         "DT20": ("raspberry_pi", "4B2G"),
+        "DT21": ("raspberry_pi_64", "4B2G"),
         # Workstation
         "WS21A": ("raspberry_pi", "4B"),
         "WS21B": ("jetson_nano_2gb", "2GB"),
