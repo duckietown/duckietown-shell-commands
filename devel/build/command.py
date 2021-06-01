@@ -567,6 +567,7 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             with NamedTemporaryFile("wt") as fout:
                 metadata = project.ci_metadata(docker, parsed.arch, registry=docker_registry)
+                token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),
@@ -591,6 +592,7 @@ class DTCommand(DTCommandAbs):
                         parsed=SimpleNamespace(
                             file=[fout.name],
                             object=[remote_fname],
+                            token=token,
                             space="public",
                         ),
                     )
