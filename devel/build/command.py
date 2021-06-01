@@ -7,6 +7,9 @@ import time
 import datetime
 from shutil import which
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from types import SimpleNamespace
+
 from termcolor import colored
 from docker.errors import ImageNotFound, ContainerError, APIError
 
@@ -224,9 +227,6 @@ class DTCommand(DTCommandAbs):
             # set configuration
             parsed.arch = os.environ["DUCKIETOWN_CI_ARCH"]
             buildargs["labels"][dtlabel("image.authoritative")] = "1"
-
-            # TODO: add push of hash to `DCSS:public:docker/image/FULL_IMAGE_NAME/hash`
-            # TODO: add push of hash to `DCSS:public:docker/image/FULL_IMAGE_NAME/time`
 
         # cloud build
         if parsed.cloud:
@@ -562,6 +562,39 @@ class DTCommand(DTCommandAbs):
             else:
                 msg = "Forbidden: You cannot push an image when using the flag `--loop`."
                 dtslogger.warn(msg)
+
+        # perform metadata push (if needed)
+        if parsed.ci:
+            with NamedTemporaryFile("wt") as fout:
+                metadata = project.ci_metadata(docker, parsed.arch, registry=docker_registry)
+                # add build metadata
+                metadata["build"] = {
+                    "args": copy.deepcopy(buildargs),
+                    "time": build_time,
+                }
+                metadata["sha"] = dimage.id
+                del metadata["build"]["args"]["labels"]
+                # write to temporary file
+                json.dump(metadata, fout, sort_keys=True, indent=4)
+                fout.flush()
+                # push temporary file
+                remote_fnames = [
+                    f"docker/image/{metadata['tag']}/latest.json",
+                    f"docker/image/{metadata['tag']}/{dimage.id}.json",
+                ]
+                for remote_fname in remote_fnames:
+                    remote_fname = remote_fname.replace(":", "/")
+                    dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
+                    shell.include.data.push.command(
+                        shell,
+                        [],
+                        parsed=SimpleNamespace(
+                            file=[fout.name],
+                            object=[remote_fname],
+                            space="public",
+                        ),
+                    )
+
         # perform remove (if needed)
         if parsed.rm:
             # noinspection PyBroadException
