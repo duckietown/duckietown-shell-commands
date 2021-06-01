@@ -108,7 +108,6 @@ Where <space> can be one of {str(VALID_SPACES)}.
         else:
             # the user provided a token, use that one
             token = parsed.token
-            dtslogger.debug(f"Using custom token: {token[:-4]}XXXX")
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)
