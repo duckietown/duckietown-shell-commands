@@ -1,9 +1,11 @@
 import argparse
 import getpass
+import json
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import docker
 import pytz
@@ -179,22 +181,37 @@ class DTCommand(DTCommandAbs):
                 working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}
             }
 
-            ros_template_params = {
-                "image": ros_template_image,
-                "name": container_name,
-                "volumes": ros_template_volumes,
-                "command": cmd,
-                "stdin_open": True,
-                "tty": True,
-                "detach": True,
-                "remove": True,
-                "stream": True,
-            }
+            FAKE_HOME_GUEST = "/fake-home"
+            with TemporaryDirectory() as tmpdir:
+                fake_home_host = os.path.join(tmpdir, "fake-home")
+                os.makedirs(fake_home_host)
 
-            pull_if_not_exist(client, ros_template_params["image"])
-            client.containers.run(**ros_template_params)
-            attach_cmd = f"docker attach {container_name}"
-            start_command_in_subprocess(attach_cmd)
+                ros_template_volumes[fake_home_host] = {"bind": FAKE_HOME_GUEST, "mode": "rw"}
+
+                ros_template_params = {
+                    "image": ros_template_image,
+                    "name": container_name,
+                    "volumes": ros_template_volumes,
+                    "command": cmd,
+                    "stdin_open": True,
+                    "tty": True,
+                    "detach": True,
+                    "remove": True,
+                    "stream": True,
+                    "environment": {
+                        "USER": getpass.getuser(),
+                        "USERID": os.getuid(),
+                        "HOME": FAKE_HOME_GUEST,
+                    },
+                    "user": os.getuid()
+                }
+
+                dtslogger.debug(f"Running with configuration:\n\n"
+                                f"{json.dumps(ros_template_params, indent=4, sort_keys=True)}")
+                pull_if_not_exist(client, ros_template_params["image"])
+                client.containers.run(**ros_template_params)
+                attach_cmd = f"docker attach {container_name}"
+                start_command_in_subprocess(attach_cmd)
 
         up = check_up_to_date(shell, "mooc-exercises")
         dtslogger.debug(up.commit.sha)
