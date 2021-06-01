@@ -2,6 +2,8 @@ import argparse
 import getpass
 import json
 import os
+import platform
+import grp
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -180,6 +182,13 @@ class DTCommand(DTCommandAbs):
             ros_template_volumes = {
                 working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}
             }
+            on_mac = "Darwin" in platform.system()
+            if on_mac:
+                group_add = []
+            else:
+                group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
+
+            print(group_add)
 
             FAKE_HOME_GUEST = "/fake-home"
             with TemporaryDirectory() as tmpdir:
@@ -203,7 +212,8 @@ class DTCommand(DTCommandAbs):
                         "USERID": os.getuid(),
                         "HOME": FAKE_HOME_GUEST,
                     },
-                    "user": os.getuid()
+                    "user": os.getuid(),
+                    "group_add": group_add
                 }
 
                 dtslogger.debug(f"Running with configuration:\n\n"
