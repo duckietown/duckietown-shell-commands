@@ -566,7 +566,6 @@ class DTCommand(DTCommandAbs):
         # perform metadata push (if needed)
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
-            dtslogger.debug(f"TOKEN: {token}")
             with NamedTemporaryFile("wt") as fout:
                 metadata = project.ci_metadata(docker, parsed.arch, registry=docker_registry)
                 # add build metadata
