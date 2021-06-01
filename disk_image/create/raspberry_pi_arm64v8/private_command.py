@@ -110,6 +110,7 @@ APT_PACKAGES_TO_INSTALL = [
     "libraspberrypi-bin",
     "docker.io",
     "avahi-daemon",
+    "libnss-mdns",
     "docker-compose",
     # provides the command `growpart`, used to resize the root partition at first boot
     "cloud-guest-utils",
