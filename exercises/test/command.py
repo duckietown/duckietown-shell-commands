@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
+from tempfile import TemporaryDirectory
+import grp
 
 import requests
 from docker import DockerClient
@@ -834,36 +836,53 @@ def launch_agent(
         # get the calibrations from the robot with the REST API
         get_calibration_files(working_dir + "/assets", parsed.duckiebot_name)
 
-    agent_params = {
-        "image": agent_base_image,
-        "name": agent_container_name,
-        "volumes": agent_volumes,
-        "environment": agent_env,
-        "auto_remove": True,
-        "detach": True,
-        "tty": True,
-        "command": [f"/code/launchers/{config['agent_run_cmd']}"],
-    }
-
-    if parsed.local:
-        agent_params["network"] = agent_network.name
+    on_mac = "Darwin" in platform.system()
+    if on_mac:
+        group_add = []
     else:
-        agent_params["network_mode"] = "host"
+        group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
 
-    if parsed.interactive:
-        agent_params["command"] = "/bin/bash"
-        agent_params["stdin_open"] = True
+    FAKE_HOME_GUEST = "/fake-home"
+    with TemporaryDirectory() as tmpdir:
+        fake_home_host = os.path.join(tmpdir, "fake-home")
+        os.makedirs(fake_home_host)
 
-    dtslogger.debug(agent_params)
+        agent_volumes[fake_home_host] = {"bind": FAKE_HOME_GUEST, "mode": "rw"}
+        agent_env["USER"] = getpass.getuser()
+        agent_env["USERID"] = os.getuid()
+        agent_env["HOME"] = FAKE_HOME_GUEST
+        agent_params = {
+            "image": agent_base_image,
+            "name": agent_container_name,
+            "volumes": agent_volumes,
+            "environment": agent_env,
+            "auto_remove": True,
+            "detach": True,
+            "tty": True,
+            "user": os.getuid(),
+            "group_add": group_add,
+            "command": [f"/code/launchers/{config['agent_run_cmd']}"],
+        }
 
-    pull_if_not_exist(agent_client, agent_params["image"])
-    agent_container = agent_client.containers.run(**agent_params)
+        if parsed.local:
+            agent_params["network"] = agent_network.name
+        else:
+            agent_params["network_mode"] = "host"
 
-    attach_cmd = "docker %s attach %s" % (
-        "" if parsed.local else f"-H {duckiebot_name}.local",
-        agent_container_name,
-    )
-    start_command_in_subprocess(attach_cmd)
+        if parsed.interactive:
+            agent_params["command"] = "/bin/bash"
+            agent_params["stdin_open"] = True
+
+        dtslogger.debug(agent_params)
+
+        pull_if_not_exist(agent_client, agent_params["image"])
+        agent_container = agent_client.containers.run(**agent_params)
+
+        attach_cmd = "docker %s attach %s" % (
+            "" if parsed.local else f"-H {duckiebot_name}.local",
+            agent_container_name,
+        )
+        start_command_in_subprocess(attach_cmd)
 
     return agent_container
 
