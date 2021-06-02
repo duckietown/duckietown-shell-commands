@@ -188,8 +188,6 @@ class DTCommand(DTCommandAbs):
             else:
                 group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
 
-            print(group_add)
-
             FAKE_HOME_GUEST = "/fake-home"
             with TemporaryDirectory() as tmpdir:
                 fake_home_host = os.path.join(tmpdir, "fake-home")
