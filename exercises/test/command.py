@@ -842,47 +842,37 @@ def launch_agent(
     else:
         group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
 
-    FAKE_HOME_GUEST = "/fake-home"
-    with TemporaryDirectory() as tmpdir:
-        fake_home_host = os.path.join(tmpdir, "fake-home")
-        os.makedirs(fake_home_host)
+    agent_params = {
+        "image": agent_base_image,
+        "name": agent_container_name,
+        "volumes": agent_volumes,
+        "environment": agent_env,
+        "auto_remove": True,
+        "detach": True,
+        "tty": True,
+        "group_add": group_add,
+        "command": [f"/code/launchers/{config['agent_run_cmd']}"],
+    }
 
-        agent_volumes[fake_home_host] = {"bind": FAKE_HOME_GUEST, "mode": "rw"}
-        agent_env["USER"] = getpass.getuser()
-        agent_env["USERID"] = os.getuid()
-        agent_env["HOME"] = FAKE_HOME_GUEST
-        agent_params = {
-            "image": agent_base_image,
-            "name": agent_container_name,
-            "volumes": agent_volumes,
-            "environment": agent_env,
-            "auto_remove": True,
-            "detach": True,
-            "tty": True,
-            "user": os.getuid(),
-            "group_add": group_add,
-            "command": [f"/code/launchers/{config['agent_run_cmd']}"],
-        }
+    if parsed.local:
+        agent_params["network"] = agent_network.name
+    else:
+        agent_params["network_mode"] = "host"
 
-        if parsed.local:
-            agent_params["network"] = agent_network.name
-        else:
-            agent_params["network_mode"] = "host"
+    if parsed.interactive:
+        agent_params["command"] = "/bin/bash"
+        agent_params["stdin_open"] = True
 
-        if parsed.interactive:
-            agent_params["command"] = "/bin/bash"
-            agent_params["stdin_open"] = True
+    dtslogger.debug(agent_params)
 
-        dtslogger.debug(agent_params)
+    pull_if_not_exist(agent_client, agent_params["image"])
+    agent_container = agent_client.containers.run(**agent_params)
 
-        pull_if_not_exist(agent_client, agent_params["image"])
-        agent_container = agent_client.containers.run(**agent_params)
-
-        attach_cmd = "docker %s attach %s" % (
-            "" if parsed.local else f"-H {duckiebot_name}.local",
-            agent_container_name,
-        )
-        start_command_in_subprocess(attach_cmd)
+    attach_cmd = "docker %s attach %s" % (
+        "" if parsed.local else f"-H {duckiebot_name}.local",
+        agent_container_name,
+    )
+    start_command_in_subprocess(attach_cmd)
 
     return agent_container
 
