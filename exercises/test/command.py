@@ -851,6 +851,7 @@ def launch_agent(
         agent_env["USER"] = getpass.getuser()
         agent_env["USERID"] = os.getuid()
         agent_env["HOME"] = FAKE_HOME_GUEST
+        agent_env["PYTHONDONTWRITEBYTECODE"] = "1"
         agent_params = {
             "image": agent_base_image,
             "name": agent_container_name,

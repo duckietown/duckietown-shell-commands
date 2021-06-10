@@ -209,6 +209,7 @@ class DTCommand(DTCommandAbs):
                         "USER": getpass.getuser(),
                         "USERID": os.getuid(),
                         "HOME": FAKE_HOME_GUEST,
+                        "PYTHONDONTWRITEBYTECODE": "1"
                     },
                     "user": os.getuid(),
                     "group_add": group_add
