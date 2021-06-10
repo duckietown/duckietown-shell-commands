@@ -353,7 +353,7 @@ class DTCommand(DTCommandAbs):
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
             [] if not parsed.arguments else
-            ["--"] if not cmd_option else [] + list(map(lambda s: "--%s" % s, parsed.arguments))
+            (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:
