@@ -76,6 +76,11 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Mount a directory to the container",
         )
         parser.add_argument(
+            "--wkdir",
+            default=None,
+            help="(Optional) Working directory inside the container",
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             type=str,
@@ -234,6 +239,10 @@ class DTCommand(DTCommandAbs):
         # custom UID
         if parsed.uid is not None:
             params["user"] = f"{parsed.uid}"
+
+        # custom wkdir
+        if parsed.wkdir is not None:
+            params["working_dir"] = f"{parsed.wkdir}"
 
         # custom ports
         for port in parsed.port:
