@@ -107,7 +107,7 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       # nvargus socket
-      - /tmp/argus_socket:/tmp/argus_socket
+      - /tmp:/tmp
 
   drone-interface:
     image: duckietown/dt-drone-interface:daffy-${ARCH}
