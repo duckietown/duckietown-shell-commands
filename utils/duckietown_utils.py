@@ -23,7 +23,7 @@ def get_robot_configurations(robot_type):
         "watchtower": ["WT18", "WT19A", "WT19B", "WT21A", "WT21B"],
         "greenstation": ["GS17"],
         "workstation": ["WS21A", "WS21B", "WS21C"],
-        "traffic_light": ["TL18", "TL19"],
+        "traffic_light": ["TL18", "TL19", "TL21"],
         "duckietown": ["DT20", "DT21"],
     }
     if robot_type not in configurations:
@@ -55,6 +55,7 @@ def get_robot_hardware(robot_configuration):
         # Traffic Light
         "TL18": ("raspberry_pi", "3B+"),
         "TL19": ("raspberry_pi", "3B+"),
+        "TL21": ("raspberry_pi_64", "4B"),
         # Duckietown
         "DT20": ("raspberry_pi", "4B2G"),
         "DT21": ("raspberry_pi_64", "4B2G"),
