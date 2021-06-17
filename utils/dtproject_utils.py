@@ -84,7 +84,6 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
-
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -230,7 +229,7 @@ class DTProject:
                 "is_detached": self.is_detached(),
             },
             "configurations": configurations,
-            "labels": self.image_labels(endpoint, arch=arch, owner=owner)
+            "labels": self.image_labels(endpoint, arch=arch, owner=owner),
         }
         # ---
         return meta
@@ -321,7 +320,9 @@ class DTProject:
             msg = "The metadata file '.dtproject' is empty."
             raise UserError(msg)
         # parse metadata
-        metadata = {p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata]}
+        metadata = {
+            p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata if line.strip()]
+        }
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
