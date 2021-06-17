@@ -8,7 +8,7 @@ import requests
 
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import continuously_monitor
+from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     get_remote_client,
@@ -223,7 +223,7 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info(f"Building image for {arch}")
-            AIDO_REGISTRY = os.environ.get("AIDO_REGISTRY", "docker.io")
+            AIDO_REGISTRY = os.environ.get(ENV_REGISTRY, "docker.io")
             cmd = [
                 "docker",
                 "-H %s" % machine,  # XXX - should be separate arguments
@@ -233,7 +233,7 @@ class DTCommand(DTCommandAbs):
                 "--build-arg",
                 f"ARCH={arch}",
                 "--build-arg",
-                f"AIDO_REGISTRY={AIDO_REGISTRY}",
+                f"{ENV_REGISTRY}={AIDO_REGISTRY}",
                 "-f",
                 dockerfile,
             ]

@@ -1,19 +1,16 @@
-import os
 import argparse
+import os
 import signal
 
-from dt_shell import DTCommandAbs, dtslogger
-from utils.cli_utils import ProgressBar
-from utils.misc_utils import human_size
-
 from dt_data_api import DataClient, TransferStatus
-
+from dt_shell import DTCommandAbs, dtslogger
+from utils.misc_utils import human_size
+from utils.progress_bar import ProgressBar
 
 VALID_SPACES = ["public", "private"]
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Downloads a file from the Duckietown Cloud Storage space"
 
     usage = """

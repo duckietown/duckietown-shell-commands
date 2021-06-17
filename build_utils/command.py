@@ -7,6 +7,7 @@ from typing import List
 
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import ENV_REGISTRY
 
 
 class DTCommand(DTCommandAbs):
@@ -21,7 +22,7 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument(
             "--image",
-            default="${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:daffy-amd64",
+            default="${%s}/duckietown/duckietown-challenges-cli:daffy-amd64" % ENV_REGISTRY,
             help="Which image to use",
         )
 
