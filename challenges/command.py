@@ -15,13 +15,13 @@ class DTCommand(DTCommandAbs):
         from dt_shell import check_package_version
 
         check_package_version("duckietown-docker-utils-daffy", "6.0.78")
-        from duckietown_docker_utils import generic_docker_run
+        from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
         parser = argparse.ArgumentParser(prog="dts challenges")
 
         parser.add_argument(
             "--image",
-            default="${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:daffy-amd64",
+            default="${%s}/duckietown/duckietown-challenges-cli:daffy-amd64" % ENV_REGISTRY,
             help="Which image to use",
         )
 
@@ -88,9 +88,11 @@ class DTCommand(DTCommandAbs):
 
 def command_config(shell: DTShell, args: List[str]):
     parser = argparse.ArgumentParser(prog="dts challenges config")
-    parser.add_argument("--docker-server", dest="server", help="Docker server", default='docker.io')
+    parser.add_argument("--docker-server", dest="server", help="Docker server", default="docker.io")
     parser.add_argument("--docker-username", dest="username", help="Docker username", required=True)
-    parser.add_argument("--docker-password", dest="password", help="Docker password or Docker token", required=True)
+    parser.add_argument(
+        "--docker-password", dest="password", help="Docker password or Docker token", required=True
+    )
     parsed = parser.parse_args(args)
 
     username = parsed.username

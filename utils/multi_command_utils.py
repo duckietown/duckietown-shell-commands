@@ -50,6 +50,7 @@ class MultiCommand(object):
             worker = Thread(target=self._execute_single, args=(args,))
             workers.append(worker)
         # disable logging
+        _dev_null = _sys_stdout = _log_level = None  # complains about not defined below
         if not self._verbose:
             _sys_stdout = sys.stdout
             _dev_null = open(os.devnull, "w")

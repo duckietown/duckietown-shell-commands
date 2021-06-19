@@ -1,17 +1,13 @@
+import argparse
 import os
 import pathlib
-import argparse
 from shutil import which
 
-import yaml
-
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
-
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, pull_image
+from utils.docker_utils import DEFAULT_DOCKER_TCP_PORT, DEFAULT_MACHINE, get_endpoint_architecture
 from utils.misc_utils import sanitize_hostname
-from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = "default"

@@ -1,31 +1,31 @@
-import json
-import os
-import time
-import math
 import argparse
 import functools
+import json
+import os
 import random
-
-import requests
+import time
 
 import docker as dockerlib
+import math
+import requests
+from docker.errors import APIError, ImageNotFound
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
-    pull_image,
-    get_endpoint_architecture_from_ip,
-    get_remote_client,
+    DEFAULT_DOCKER_TCP_PORT,
     get_client,
     get_endpoint_architecture,
-    DEFAULT_DOCKER_TCP_PORT,
+    get_endpoint_architecture_from_ip,
+    get_remote_client,
+    pull_image,
 )
-from utils.cli_utils import ProgressBar, ask_confirmation
 from utils.duckietown_utils import get_distro_version
 from utils.networking_utils import get_duckiebot_ip
+from utils.progress_bar import ProgressBar
 
 
 class DTCommand(DTCommandAbs):
-
     CODE_API_CONTAINER_CONFIG = {
         "restart_policy": {"Name": "always"},
         "network_mode": "host",
@@ -132,7 +132,7 @@ class DTCommand(DTCommandAbs):
                     pull_image(code_api_image, endpoint=docker)
                     version_str = " new version of"
                     break
-                except dockerlib.errors.APIError:
+                except APIError:
                     if trial_no == num_trials:
                         dtslogger.error(
                             "An error occurred while pulling the module dt-code-api. " "Aborting."
@@ -146,7 +146,7 @@ class DTCommand(DTCommandAbs):
             container = None
             try:
                 container = docker.containers.get(container_name)
-            except dockerlib.errors.NotFound:
+            except dockerlib.errors.NotFound:  # FIXME: do you mean docker.errors.NotFound?
                 # container not found, this is ok
                 pass
 
@@ -165,7 +165,7 @@ class DTCommand(DTCommandAbs):
                     if container.status in ["running", "restarting", "paused"]:
                         dtslogger.info(f"Stopping container `{container_name}`.")
                         container.stop()
-                except dockerlib.errors.APIError:
+                except APIError:
                     dtslogger.error(
                         f"An error occurred while stopping the {container_name} " f"container. Aborting."
                     )
@@ -177,7 +177,7 @@ class DTCommand(DTCommandAbs):
                 try:
                     dtslogger.info(f"Removing container `{container_name}`.")
                     container.remove()
-                except dockerlib.errors.APIError:
+                except APIError:
                     dtslogger.error("An error occurred while removing the code-api container. " "Aborting.")
                     DTCommand.cleanup(parsed)
                     return
@@ -210,12 +210,12 @@ class DTCommand(DTCommandAbs):
                 docker.containers.run(
                     code_api_image, labels=compose_labels, detach=True, name=container_name, **container_cfg
                 )
-            except dockerlib.errors.ImageNotFound:
+            except ImageNotFound:
                 # this should not have happened
                 dtslogger.info("Image for module `dt-code-api` not found. Contact administrator.")
                 DTCommand.cleanup(parsed)
                 return
-            except dockerlib.errors.APIError as e:
+            except APIError as e:
                 # this should not have happened
                 dtslogger.info(
                     f"An error occurred while running the {container_name} container. "
