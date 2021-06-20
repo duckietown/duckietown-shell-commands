@@ -16,6 +16,9 @@ class DTCommand(DTCommandAbs):
         print("------>")
         # ---
         # run start-gui-tools
+        image = "duckietown/dt-gui-tools:daffy-amd64"
+        if "--image" in args:
+            image = args[args.index("--image") + 1]
         shell.include.start_gui_tools.command(
             shell,
             [
@@ -30,7 +33,9 @@ class DTCommand(DTCommandAbs):
                 "--name",
                 "map-editor",
                 "--no-scream",
-                "LOCAL"
+                "LOCAL",
+                "--image",
+                image
             ],
         )
         # ---
