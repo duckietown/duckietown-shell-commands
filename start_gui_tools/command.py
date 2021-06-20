@@ -1,14 +1,18 @@
-import os
-import json
 import argparse
+import json
+import os
 import platform
 import subprocess
+from datetime import datetime
 
+import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
+
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist, get_endpoint_architecture
+from utils.docker_utils import get_endpoint_architecture, pull_if_not_exist, pull_image, remove_if_running
 from utils.duckietown_utils import get_distro_version
+from utils.git_utils import get_last_commit
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
@@ -23,28 +27,100 @@ GUI Tools:
 
 class DTCommand(DTCommandAbs):
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args, **kwargs):
         prog = "dts start_gui_tools DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
         parser.add_argument(
-            "--network", default="host", help="Name of the network to connect the container to"
+            "--network",
+            default="host",
+            help="Name of the network to connect the container to"
         )
         parser.add_argument(
-            "--sim", action="store_true", default=False, help="Are we running in simulator?",
+            "--port",
+            action='append',
+            default=[],
+            type=str
         )
         parser.add_argument(
-            "--image", default=None, help="The Docker image to use. Advanced users only.",
+            "--sim",
+            action="store_true",
+            default=False,
+            help="Are we running in simulator?",
         )
         parser.add_argument(
-            "--vnc", action="store_true", default=False, help="Run the novnc server",
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Pull the dt-gui-tools image",
         )
         parser.add_argument(
-            "--ip", action="store_true", help="(Optional) Use the IP address to reach the "
-                                              "robot instead of mDNS",
+            "--image",
+            default=None,
+            help="The Docker image to use. Advanced users only.",
         )
+        parser.add_argument(
+            "--vnc",
+            action="store_true",
+            default=False,
+            help="Run the novnc server",
+        )
+        parser.add_argument(
+            "--ip",
+            action="store_true",
+            help="(Optional) Use the IP address to reach the robot instead of mDNS",
+        )
+        parser.add_argument(
+            "--mount",
+            default=None,
+            help="(Optional) Mount a directory to the container",
+        )
+        parser.add_argument(
+            "--wkdir",
+            default=None,
+            help="(Optional) Working directory inside the container",
+        )
+        parser.add_argument(
+            "-L",
+            "--launcher",
+            type=str,
+            default="default",
+            help="(Optional) Launcher to run inside the container",
+        )
+        parser.add_argument(
+            "--name",
+            type=str,
+            default=None,
+            help="(Optional) Container name",
+        )
+        parser.add_argument(
+            "--uid",
+            type=int,
+            default=None,
+            help="(Optional) User ID inside the container",
+        )
+        parser.add_argument(
+            "--no-scream",
+            action="store_true",
+            default=False,
+            help="(Optional) Scream if the container ends with a non-zero exit code",
+        )
+        parser.add_argument(
+            "--detach",
+            "-d",
+            action="store_true",
+            default=False,
+            help="Detach from container",
+        )
+        parser.add_argument("cmd_args", nargs="*", default=[])
         # parse arguments
         parsed = parser.parse_args(args)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
+        dtslogger.debug(f"Arguments: {str(parsed)}")
+        # hostname = "LOCAL" is same as None
+        if parsed.hostname == "LOCAL":
+            parsed.hostname = None
         # change hostname if we are in SIM mode
         if parsed.sim or parsed.hostname is None:
             robot_host = parsed.hostname = "localhost"
@@ -57,10 +133,40 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Target architecture automatically set to {arch}.")
         # compile image name
         image = parsed.image if parsed.image else DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+
         # open Docker client
         client = check_docker_environment()
+
+        # pull image
+        if parsed.pull:
+            pull_image(image, client)
+        else:
+            pull_if_not_exist(client, image)
+
+        if parsed.image is None:
+            ci = get_last_commit('duckietown', 'dt-gui-tools', 'daffy')
+
+            im = client.images.get(image)
+
+            dtslogger.debug(json.dumps(im.labels, indent=2))
+            sha = im.labels["org.duckietown.label.code.sha"]
+            if ci.sha != sha:
+                n = datetime.now(tz=pytz.utc)
+                delta = n - ci.date
+                hours = delta.total_seconds() / (60 * 60)
+                if hours > 0.10:  # allow some minutes to pass before warning
+                    msg = (f'The image  {image} is not up to date.\n'
+                           f'There was a new release {hours:.1f} hours ago.\n'
+                           f'Use "dts desktop update" to update')
+                    dtslogger.error(msg)
+                else:
+                    dtslogger.warn(f'There is a new commit but too early to warn ({hours:.2f} hours). ')
+            else:
+                dtslogger.debug(f'OK, local image and repo have sha {sha}')
+
         # create container name and make there is no name clash
-        container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
+        default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
+        container_name = parsed.name or default_container_name
         remove_if_running(client, container_name)
         # setup common env
         env = {
@@ -95,17 +201,25 @@ class DTCommand(DTCommandAbs):
                 subprocess.call(["xhost", "+", "127.0.0.1"])
                 env["DISPLAY"] = "host.docker.internal:0"
             else:
-                subprocess.call(["xhost", "+"])
-                env["DISPLAY"] = os.environ["DISPLAY"]
+                if "DISPLAY" in os.environ:
+                    subprocess.call(["xhost", "+"])
+                    env["DISPLAY"] = os.environ["DISPLAY"]
+        # custom volumes
+        if parsed.mount:
+            src, dst, *_ = f"{parsed.mount}:{parsed.mount}".split(":")
+            volumes[src] = {"bind": dst, "mode": "rw"}
         # print some stats
         dtslogger.debug(
             f"Running {container_name} with environment vars:\n\n"
             f"{json.dumps(env, sort_keys=True, indent=4)}\n"
         )
-        # pull image
-        pull_if_not_exist(client, image)
-        # collect container config
 
+        # collect container config
+        # docker arguments
+        if not parsed.cmd_args:
+            parsed.cmd_args = []
+        cmd = f"dt-launcher-{'vnc' if parsed.vnc else parsed.launcher} "
+        cmd += " ".join(parsed.cmd_args)
         params = {
             "image": image,
             "name": container_name,
@@ -113,17 +227,31 @@ class DTCommand(DTCommandAbs):
             "stdin_open": True,
             "tty": True,
             "detach": True,
+            "privileged": True,
             "remove": True,
             "stream": True,
-            "command": f"dt-launcher-{'vnc' if parsed.vnc else 'default'}",
+            "command": cmd,
             "volumes": volumes,
+            "network_mode": parsed.network,
+            "ports": {}
         }
-        if not running_on_mac:
-            params["privileged"] = True
-            params["network_mode"] = parsed.network
+
+        # custom UID
+        if parsed.uid is not None:
+            params["user"] = f"{parsed.uid}"
+
+        # custom wkdir
+        if parsed.wkdir is not None:
+            params["working_dir"] = f"{parsed.wkdir}"
+
+        # custom ports
+        for port in parsed.port:
+            src, dst_type, *_ = port.split(":") * 2
+            dst, ptype, *_ = dst_type.split("/") + ["tcp"]
+            params["ports"][f"{dst}/{ptype}"] = ("0.0.0.0", int(src))
 
         if parsed.vnc and parsed.network != "host":
-            params["ports"] = {"8087/tcp": ("0.0.0.0", 8087)}
+            params["ports"]["8087/tcp"] = ("0.0.0.0", 8087)
 
         # print some info
         if parsed.vnc:
@@ -133,8 +261,16 @@ class DTCommand(DTCommandAbs):
         )
         # run the container
         client.containers.run(**params)
+
         # attach to the container with an interactive session
-        attach_cmd = "docker attach %s" % container_name
-        start_command_in_subprocess(attach_cmd)
-        # ---
-        dtslogger.info("Done. Have a nice day")
+        if not parsed.detach:
+            attach_cmd = "docker attach %s" % container_name
+            try:
+                start_command_in_subprocess(attach_cmd)
+            except Exception as e:
+                if not parsed.no_scream:
+                    raise e
+                else:
+                    dtslogger.error(str(e))
+            # ---
+            dtslogger.info("Done. Have a nice day")

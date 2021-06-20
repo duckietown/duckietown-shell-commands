@@ -16,10 +16,16 @@ class DTCommand(DTCommandAbs):
     def _parse_args(args):
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to clean",
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to clean",
         )
         parser.add_argument(
-            "-a", "--arch", default=None, help="Target architecture for the image to clean",
+            "-a",
+            "--arch",
+            default=None,
+            help="Target architecture for the image to clean",
         )
         parser.add_argument(
             "-H",

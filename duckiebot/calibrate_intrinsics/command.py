@@ -30,10 +30,15 @@ Calibrate:
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
         parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "--base_image", dest="image", default=DEFAULT_IMAGE,
+            "--base_image",
+            dest="image",
+            default=DEFAULT_IMAGE,
         )
         parser.add_argument(
-            "--debug", action="store_true", default=False, help="Will enter you into the running container",
+            "--debug",
+            action="store_true",
+            default=False,
+            help="Will enter you into the running container",
         )
 
         parsed = parser.parse_args(args)
@@ -82,8 +87,9 @@ Calibrate:
         dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
 
         dtslogger.info(
-            "When the window opens you will need to move the checkerboard around "
-            "in front of the Duckiebot camera.\nPress [Q] to close the window."
+            "When the window opens you will be able to perform the calibration.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.org.\n "
+            "Press [Q] to close the window."
         )
 
         params = {

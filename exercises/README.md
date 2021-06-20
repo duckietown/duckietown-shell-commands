@@ -1,17 +1,16 @@
 # MOOC commands
 
-
 ## Test
 
 * Usage:
 
-    This command must be run into an exercise folder.
-    
-    ```dts mooc test --duckiebot_name DUCKIEBOT_NAME```
+  This command must be run into an exercise folder.
+
+  ```dts mooc test --duckiebot_name DUCKIEBOT_NAME```
 
 * What does it do:
 
-    It looks for `mooc-exe.yaml`, namely a configuration file that has the following structure:
+  It looks for `mooc-exe.yaml`, namely a configuration file that has the following structure:
 
     ```yaml
     # Exercise configuration file
@@ -25,34 +24,33 @@
         exercise_type: FUNCTION/CLASS/NODE
     ```
 
-    Then it converts the jupyter notebook into a python script.
-    After that the python script is copied into `path_to_the_ros_package_in_the_image` and the docker image is built on the Duckiebot. After building, the resulting `mooc` container is run.
+  Then it converts the jupyter notebook into a python script. After that the python script is copied
+  into `path_to_the_ros_package_in_the_image` and the docker image is built on the Duckiebot. After building, the resulting `mooc` container is run.
 
 ## Init
 
 * Usage:
 
-    This command download and initialize the folder 'mooc-exercises'.
+  This command download and initialize the folder 'mooc-exercises'.
 
-    ```dts mooc init```
+  ```dts mooc init```
 
 
 * What does it do:
 
-    It clones the repository 'mooc-exercises' and run `make start`.
-
+  It clones the repository 'mooc-exercises' and run `make start`.
 
 ## Sim //TODO
 
 * Usage:
 
-    This command simulate the exercise in the simulator.
+  This command simulate the exercise in the simulator.
 
-    ```dts mooc sim```
+  ```dts mooc sim```
 
 * What does it do:
 
-    //TODO
+  //TODO
 
     
 

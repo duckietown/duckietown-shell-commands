@@ -8,6 +8,7 @@ services:
     restart: always
     network_mode: host
     volumes:
+      - portainer-data:/data
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -80,6 +81,8 @@ services:
     volumes:
       - /data:/data
       - /secrets:/secrets
+      # docker socket
+      - /var/run/docker.sock:/var/run/docker.sock
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
@@ -104,7 +107,7 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       # nvargus socket
-      - /tmp/argus_socket:/tmp/argus_socket
+      - /tmp:/tmp
 
   rosbridge-websocket:
     image: duckietown/dt-rosbridge-websocket:daffy-${ARCH}
@@ -128,3 +131,4 @@ services:
 
 volumes:
   compose-data:
+  portainer-data:

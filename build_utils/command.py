@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import os
 import random
 from datetime import datetime
@@ -13,7 +14,7 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args: List[str]):
         from dt_shell import check_package_version
 
-        check_package_version("duckietown-docker-utils-daffy", "6.0.77")
+        check_package_version("duckietown-docker-utils-daffy", "6.0.78")
         from duckietown_docker_utils import generic_docker_run
 
         parser = argparse.ArgumentParser()
@@ -43,8 +44,9 @@ class DTCommand(DTCommandAbs):
         shell_config = shell.shell_config
 
         timestamp = "{:%Y_%m_%d_%H_%M_%S_%f}".format(datetime.now())
-        container_name = f"build_utils_{timestamp}_{random.randint(0,10)}"
-        logname = f"/tmp/duckietown/dt-shell-commands/build_utils/{container_name}.txt"
+        container_name = f"build_utils_{timestamp}_{random.randint(0, 10)}"
+        user = getpass.getuser()
+        logname = f"/tmp/{user}/duckietown/dt-shell-commands/build_utils/{container_name}.txt"
 
         no_pull = parsed.no_pull
         gdr = generic_docker_run(

@@ -34,7 +34,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
+            default=None,
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument("-i", "--image", default=None, help="Docker image to run the command in")
@@ -68,12 +68,20 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("command", nargs="*", default=[])
         parsed, _ = parser.parse_known_args(args=args)
         # ---
+        # sanitize hostname
+        if parsed.machine is not None:
+            parsed.machine = sanitize_hostname(parsed.machine)
+        else:
+            parsed.machine = DEFAULT_MACHINE
         # docker runtime and use_x_docker are mutually exclusive
         if parsed.use_x_docker and parsed.runtime != DEFAULT_RUNTIME:
             raise ValueError("You cannot use --runtime and -X at the same time.")
+        # docker arguments
+        docker_arguments = [] if not parsed.arguments else list(map(lambda s: "--%s" % s, parsed.arguments))
         # x-docker runtime
         if parsed.use_x_docker:
             parsed.runtime = "x-docker"
+            docker_arguments += ["--privileged"]
         # check runtime
         if shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
@@ -83,10 +91,9 @@ class DTCommand(DTCommandAbs):
         if parsed.master:
             master = sanitize_hostname(parsed.master)
             environ += ["--env", f"ROS_MASTER_URI=http://{master}:11311"]
+            environ += ["--env", f"VEHICLE_NAME={parsed.master}"]
         # environment variables
         environ += list(map(lambda e: "--env=%s" % e, parsed.environ))
-        # docker arguments
-        docker_arguments = [] if not parsed.arguments else list(map(lambda s: "--%s" % s, parsed.arguments))
         # check command
         if not parsed.command:
             parsed.command = ["/bin/bash"]

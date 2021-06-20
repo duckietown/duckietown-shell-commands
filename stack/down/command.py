@@ -14,8 +14,8 @@ from utils.misc_utils import sanitize_hostname
 from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
-DEFAULT_STACK = 'default'
-DUCKIETOWN_STACK = 'duckietown'
+DEFAULT_STACK = "default"
+DUCKIETOWN_STACK = "duckietown"
 
 
 class DTCommand(DTCommandAbs):
@@ -37,34 +37,35 @@ class DTCommand(DTCommandAbs):
         # ---
         # verify dependencies
         if which("docker-compose") is None:
-            dtslogger.error("\nThis command requires the library `docker-compose`.\n"
-                            "Please, install it using the command:\n\n"
-                            "\tpip3 install docker-compose\n\n")
+            dtslogger.error(
+                "\nThis command requires the library `docker-compose`.\n"
+                "Please, install it using the command:\n\n"
+                "\tpip3 install docker-compose\n\n"
+            )
             return
         # ---
         # try to interpret it as a multi-command
-        multi = MultiCommand(DTCommand, shell, [('-H', '--machine')], args)
+        multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
         if multi.is_multicommand:
             multi.execute()
             return
         # ---
         parsed.stack = parsed.stack[0]
-        project_name = parsed.stack.replace('/', '_')
+        project_name = parsed.stack.replace("/", "_")
         # special stack is `duckietown`
         if parsed.stack == DUCKIETOWN_STACK:
             # retrieve robot type from device
             dtslogger.info(f'Waiting for device "{parsed.machine}"...')
             hostname = parsed.machine.replace(".local", "")
             _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
-            rtype = data['type']
+            rtype = data["type"]
             dtslogger.info(f'Detected device type is "{rtype}".')
-            parsed.stack = f'{DUCKIETOWN_STACK}/{rtype}'
+            parsed.stack = f"{DUCKIETOWN_STACK}/{rtype}"
             project_name = DUCKIETOWN_STACK
         # sanitize stack
-        stack = parsed.stack if '/' in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
+        stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
-        stack_file = os.path.join(
-            pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
+        stack_file = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return
@@ -84,18 +85,12 @@ class DTCommand(DTCommandAbs):
         env = {}
         env.update(os.environ)
         # add ARCH
-        env['ARCH'] = endpoint_arch
+        env["ARCH"] = endpoint_arch
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            [
-                'docker-compose',
-                f"-H={H}",
-                "--project-name", project_name,
-                "--file", stack_file,
-                "down"
-            ],
-            env=env
+            ["docker-compose", f"-H={H}", "--project-name", project_name, "--file", stack_file, "down"],
+            env=env,
         )
         # ---
         print("<------")

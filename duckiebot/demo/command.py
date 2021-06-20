@@ -1,14 +1,21 @@
 import argparse
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import bind_duckiebot_data_dir, default_env, remove_if_running, \
-    pull_if_not_exist, bind_avahi_socket, get_endpoint_architecture
+from utils.docker_utils import (
+    bind_duckiebot_data_dir,
+    default_env,
+    remove_if_running,
+    pull_if_not_exist,
+    bind_avahi_socket,
+    get_endpoint_architecture,
+)
+from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
-
+from utils.exceptions import InvalidUserInput
 from dt_shell import DTShell
 
 
@@ -32,8 +39,6 @@ DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 
 
-class InvalidUserInput(Exception):
-    pass
 
 
 class DTCommand(DTCommandAbs):
@@ -63,7 +68,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--robot_type", "-t", dest="robot_type", default="auto", help="The robot type",
+            "--robot_type",
+            "-t",
+            dest="robot_type",
+            default="auto",
+            help="The robot type",
         )
 
         parser.add_argument(
@@ -127,8 +136,10 @@ class DTCommand(DTCommandAbs):
         if duckiebot_name is None:
             msg = "You must specify a duckiebot_name"
             raise InvalidUserInput(msg)
+        duckiebot_hostname = sanitize_hostname(duckiebot_name)
+        duckiebot_name = duckiebot_name.replace(".local", "")
 
-        arch = get_endpoint_architecture(duckiebot_name)
+        arch = get_endpoint_architecture(duckiebot_hostname)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         default_image = "duckietown/dt-core:" + BRANCH + "-" + arch
@@ -143,11 +154,10 @@ class DTCommand(DTCommandAbs):
         elif not parsed.experimental and parsed.image_to_run == DEFAULT_IMAGE:
             # Update the architecture of the image to run according to the architecture
             # of the endpoint
-            parsed.image_to_run=default_image
+            parsed.image_to_run = default_image
 
         if parsed.experimental and parsed.package_name is None:
             parsed.package_name = EXPERIMENTAL_PACKAGE
-
 
         if parsed.package_name:
             dtslogger.info("Using package %s" % parsed.package_name)
@@ -168,8 +178,7 @@ class DTCommand(DTCommandAbs):
         if parsed.robot_type == "auto":
             # retrieve robot type from device
             dtslogger.info(f'Waiting for device "{duckiebot_name}"...')
-            hostname = duckiebot_name.replace(".local", "")
-            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
+            _, _, data = wait_for_service("DT::ROBOT_TYPE", duckiebot_name)
             parsed.robot_type = data["type"]
             dtslogger.info(f'Detected device type is "{parsed.robot_type}".')
         else:
@@ -179,8 +188,7 @@ class DTCommand(DTCommandAbs):
         if parsed.robot_configuration == "auto":
             # retrieve robot configuration from device
             dtslogger.info(f'Waiting for device "{duckiebot_name}"...')
-            hostname = duckiebot_name.replace(".local", "")
-            _, _, data = wait_for_service("DT::ROBOT_CONFIGURATION", hostname)
+            _, _, data = wait_for_service("DT::ROBOT_CONFIGURATION", duckiebot_name)
             parsed.robot_configuration = data["configuration"]
             dtslogger.info(f'Detected device configuration is "{parsed.robot_configuration}".')
         else:
@@ -223,9 +231,12 @@ class DTCommand(DTCommandAbs):
             tty=True,
             detach=True,
             environment=env_vars,
-            remove=True
+            remove=True,
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s.local attach %s" % (duckiebot_name, container_name,)
+            attach_cmd = "docker -H %s attach %s" % (
+                duckiebot_hostname,
+                container_name,
+            )
             start_command_in_subprocess(attach_cmd)

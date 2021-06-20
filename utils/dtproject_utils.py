@@ -13,9 +13,7 @@ from types import SimpleNamespace
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 
-REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"],
-                          "1": ["TYPE", "VERSION"],
-                          "2": ["TYPE", "VERSION"]}
+REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
 CANONICAL_ARCH = {
     "arm": "arm32v7",
@@ -32,9 +30,7 @@ CANONICAL_ARCH = {
     "aarch64": "arm64v8",
 }
 
-BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"],
-                           "arm64v8": ["arm32v7", "arm64v8"],
-                           "amd64": ["amd64"]}
+BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -73,7 +69,9 @@ TEMPLATE_TO_LAUNCHFILE = {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),},
+    "template-exercise": {
+        "1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}
@@ -86,6 +84,7 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
+
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -181,8 +180,7 @@ class DTProject:
     def is_detached(self):
         return self._repository.detached if self._repository else False
 
-    def image(self, arch: str, loop: bool = False, docs: bool = False,
-              owner: str = "duckietown") -> str:
+    def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
@@ -196,6 +194,46 @@ class DTProject:
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{owner}/{self.name}:{version}{docs}-{arch}"
+
+    def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown", registry: str = "docker.io"):
+        image_tag = f"{registry}/{self.image(arch, owner=owner)}"
+        try:
+            configurations = self.configurations()
+        except NotImplementedError:
+            configurations = {}
+        # do docker inspect
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner)
+        # remove useless data
+        del inspect["ContainerConfig"]
+        del inspect["Config"]["Labels"]
+        # compile metadata
+        meta = {
+            "version": "1.0",
+            "tag": image_tag,
+            "image": inspect,
+            "project": {
+                "path": self.path,
+                "name": self.name,
+                "type": self.type,
+                "type_version": self.type_version,
+                "distro": self.distro,
+                "version": self.version,
+                "head_version": self.head_version,
+                "closest_version": self.closest_version,
+                "version_name": self.version_name,
+                "url": self.url,
+                "sha": self.sha,
+                "adapters": self.adapters,
+                "is_release": self.is_release(),
+                "is_clean": self.is_clean(),
+                "is_dirty": self.is_dirty(),
+                "is_detached": self.is_detached(),
+            },
+            "configurations": configurations,
+            "labels": self.image_labels(endpoint, arch=arch, owner=owner)
+        }
+        # ---
+        return meta
 
     def configurations(self) -> dict:
         if int(self._type_version) < 2:
@@ -232,8 +270,8 @@ class DTProject:
     def launch_paths(self):
         # make sure we support this project version
         if (
-                self.type not in TEMPLATE_TO_LAUNCHFILE
-                or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
+            self.type not in TEMPLATE_TO_LAUNCHFILE
+            or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
         ):
             raise ValueError(
                 "Template {:s} v{:s} for project {:s} is not supported".format(
@@ -283,8 +321,7 @@ class DTProject:
             msg = "The metadata file '.dtproject' is empty."
             raise UserError(msg)
         # parse metadata
-        metadata = {p[0].strip().upper(): p[1].strip() for p in
-                    [line.split("=") for line in metadata]}
+        metadata = {p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata]}
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
@@ -325,16 +362,14 @@ class DTProject:
         head_tag = head_tag[0] if head_tag else "ND"
         closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
         closest_tag = closest_tag[-1] if closest_tag else "ND"
-        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[
-            0]
+        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
         if origin_url.endswith("/"):
             origin_url = origin_url[:-1]
         repo = origin_url.split("/")[-1]
         # get info about current git INDEX
-        nmodified = len(
-            _run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]))
+        nmodified = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]))
         nadded = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain"]))
         # return info
         return {
@@ -405,8 +440,7 @@ def _remote_url_to_https(remote_url):
 
 def _run_cmd(cmd):
     cmd = " ".join(cmd)
-    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n")
-            if line]
+    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n") if line]
 
 
 def _parse_configurations(config_file: str) -> dict:

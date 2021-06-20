@@ -1,18 +1,16 @@
 import os
 import platform
+import re
 import subprocess
 import sys
-import re
-import time
-import traceback
-from datetime import datetime
 from os.path import expanduser
 
 import docker
+from docker import DockerClient
+from docker.errors import NotFound
+
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-
-
 from utils.cli_utils import ProgressBar, start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 
@@ -45,8 +43,10 @@ def get_endpoint_ncpus(epoint=None):
         epoint_ncpus = client.info()["NCPU"]
         dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
     except BaseException:
-        dtslogger.warning(f"Failed to retrieve the number of CPUs on the Docker endpoint. "
-                          f"Using default value of {epoint_ncpus}.")
+        dtslogger.warning(
+            f"Failed to retrieve the number of CPUs on the Docker endpoint. "
+            f"Using default value of {epoint_ncpus}."
+        )
     return epoint_ncpus
 
 
@@ -79,13 +79,16 @@ def get_client(endpoint=None):
         client = docker.from_env()
     else:
         # create client
-        client = endpoint if isinstance(endpoint, docker.DockerClient) \
+        client = (
+            endpoint
+            if isinstance(endpoint, docker.DockerClient)
             else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+        )
     # (try to) login
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     # ---
     return client
 
@@ -95,13 +98,13 @@ def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     try:
         _login_client(client)
     except BaseException:
-        dtslogger.warning('An error occurred while trying to login to DockerHub.')
+        dtslogger.warning("An error occurred while trying to login to DockerHub.")
     return client
 
 
 def _login_client(client):
-    username = os.environ.get('DOCKERHUB_USERNAME', None)
-    password = os.environ.get('DOCKERHUB_PASSWORD', None)
+    username = os.environ.get("DOCKERHUB_USERNAME", None)
+    password = os.environ.get("DOCKERHUB_PASSWORD", None)
     if username is not None and password is not None:
         client.login(username=username, password=password)
 
@@ -160,7 +163,10 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (image_name, hostname,)
+    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (
+        image_name,
+        hostname,
+    )
     subprocess.check_output(["/bin/sh", "-c", command])
 
 
@@ -320,7 +326,7 @@ def start_picamera(duckiebot_name):
     )
 
 
-def check_if_running(client, container_name):
+def check_if_running(client: DockerClient, container_name: str):
     try:
         _ = client.containers.get(container_name)
         dtslogger.info("%s is running." % container_name)
@@ -330,15 +336,30 @@ def check_if_running(client, container_name):
         return False
 
 
-def remove_if_running(client, container_name):
+def remove_if_running(client: DockerClient, container_name: str):
     try:
         container = client.containers.get(container_name)
-        dtslogger.info("Container %s already running - stopping it first.." % container_name)
-        stop_container(container)
-        dtslogger.info("Removing container %s" % container_name)
-        remove_container(container)
-    except Exception as e:
-        dtslogger.warn("Could not remove existing container: %s" % e)
+    except NotFound:
+        pass
+    else:
+        if container.status == "running":
+            dtslogger.info(f"Container {container_name} already running - stopping it first..")
+            stop_container(container)
+        elif container.status == "stopped":
+            result = container.wait()
+            exit_code = result["StatusCode"]
+            if exit_code:
+                cmd = f'"docker logs {container_name}'
+                msg = (
+                    f"Container {container_name} exited with exit code {exit_code}. Consult logs using {cmd} "
+                )
+                dtslogger.error(msg)
+                return
+        dtslogger.info(f"Removing container {container_name}")
+        try:
+            remove_container(container)
+        except Exception as e:
+            dtslogger.error("Could not remove existing container: %s" % e)
 
 
 def start_rqt_image_view(duckiebot_name=None):
@@ -360,7 +381,11 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["DISPLAY"] = ":0"
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            [
+                "/bin/sh",
+                "-c",
+                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
+            ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -402,7 +427,11 @@ def start_gui_tools(duckiebot_name):
         )
     elif operating_system == "Darwin":
         IP = subprocess.check_output(
-            ["/bin/sh", "-c", "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",]
+            [
+                "/bin/sh",
+                "-c",
+                "ifconfig en0 | grep inet | awk '$1==\"inet\" {print $2}'",
+            ]
         )
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
@@ -421,7 +450,10 @@ def start_gui_tools(duckiebot_name):
 def attach_terminal(container_name, hostname=None):
     if hostname is not None:
         duckiebot_ip = get_duckiebot_ip(hostname)
-        docker_attach_command = "docker -H %s:2375 attach %s" % (duckiebot_ip, container_name,)
+        docker_attach_command = "docker -H %s:2375 attach %s" % (
+            duckiebot_ip,
+            container_name,
+        )
     else:
         docker_attach_command = "docker attach %s" % container_name
     return start_command_in_subprocess(docker_attach_command, os.environ)
@@ -460,15 +492,8 @@ def pull_if_not_exist(client, image_name):
         client.images.get(image_name)
     except ImageNotFound:
         dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
-
-        repository = image_name.split(":")[0]
-        try:
-            tag = image_name.split(":")[1]
-        except IndexError:
-            tag = "latest"
-
         loader = "Downloading ."
-        for _ in client.api.pull(repository, tag, stream=True, decode=True):
+        for _ in client.api.pull(image_name, stream=True, decode=True):
             loader += "."
             if len(loader) > 40:
                 print(" " * 60, end="\r", flush=True)
@@ -531,75 +556,6 @@ def replace_important_env_vars(s: str) -> str:
 
 
 logger = dtslogger
-
-
-def continuously_monitor(client, container_name: str, log: str = None):
-    if log is None:
-        log = f"{container_name}.log"
-    from docker.errors import NotFound, APIError
-
-    logger.debug(f"Monitoring container {container_name}; logs at {log}")
-    last_log_timestamp = None
-    while True:
-        try:
-            container = client.containers.get(container_name)
-        except Exception as e:
-            # msg = 'Cannot get container %s: %s' % (container_name, e)
-            # logger.info(msg)
-            break
-            # logger.info('Will wait.')
-            # time.sleep(5)
-            # continue
-
-        logger.info("status: %s" % container.status)
-        if container.status == "exited":
-            msg = "The container exited."
-            logger.info(msg)
-
-            with open(log, "a") as f:
-                for c in container.logs(stdout=True, stderr=True, stream=True, since=last_log_timestamp):
-                    last_log_timestamp = datetime.now()
-                    log_line = c.decode("utf-8")
-                    sys.stderr.write(log_line)
-                    f.write(remove_escapes(log_line))
-
-            msg = f"Logs saved at {log}"
-            logger.info(msg)
-
-            # return container.exit_code
-            return  # XXX
-        try:
-            with open(log, "a") as f:
-                for c in container.logs(
-                    stdout=True, stderr=True, stream=True, follow=True, since=last_log_timestamp,
-                ):
-                    log_line = c.decode("utf-8")
-                    sys.stderr.write(log_line)
-                    f.write(remove_escapes(log_line))
-                    last_log_timestamp = datetime.now()
-
-            time.sleep(3)
-        except KeyboardInterrupt:
-            logger.info("Received CTRL-C. Stopping container...")
-            try:
-                logger.info(f"Stopping container {container_name}")
-                container.stop()
-                logger.info(f"Removing container {container_name}")
-                container.remove()
-                logger.info(f"Container {container_name} removed.")
-            except NotFound:
-                pass
-            except APIError as e:
-                # if e.errno == 409:
-                #
-                pass
-            break
-        except BaseException:
-            logger.error(traceback.format_exc())
-            logger.info("Will try to re-attach to container.")
-            time.sleep(3)
-    # logger.debug('monitoring graceful exit')
-
 
 escape = re.compile("\x1b\[[\d;]*?m")
 
