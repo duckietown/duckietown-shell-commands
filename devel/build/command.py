@@ -266,9 +266,14 @@ class DTCommand(DTCommandAbs):
             # configure docker for DT
             if parsed.ci:
                 token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
-                parsed.destination = parsed.machine
             else:
                 token = shell.get_dt1_token()
+            # we are not transferring the image back to local when,
+            # - we build on CI
+            # - we build to push
+            if parsed.ci or parsed.push:
+                parsed.destination = parsed.machine
+            # add token
             _add_token_to_docker_config(token)
             # update destination parameter
             if not parsed.destination:
