@@ -56,7 +56,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
-        "jetson_nano_4gb": {"stable": "1.2.0", "experimental": "1.2.0"},
+        "jetson_nano_4gb": {"stable": "1.2.0", "experimental": "1.2.2"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -75,7 +75,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.2.1": "1.1",
         },
         "raspberry_pi_64": {"2.0.0": "1.1"},
-        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.1": "1.1"},
+        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1"},
         "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
     board, _ = get_robot_hardware(robot_configuration)
