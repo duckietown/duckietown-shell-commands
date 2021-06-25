@@ -18,7 +18,7 @@ def get_robot_types():
 
 def get_robot_configurations(robot_type):
     configurations = {
-        "duckiebot": ["DB18", "DB19", "DB20", "DB21M", "DB21A", "DB21B"],
+        "duckiebot": ["DB18", "DB19", "DB20", "DB21M", "DB21J", "DB21R"],
         "duckiedrone": ["DD18"],
         "watchtower": ["WT18", "WT19A", "WT19B", "WT21A", "WT21B"],
         "greenstation": ["GS17"],
@@ -42,10 +42,11 @@ def get_robot_hardware(robot_configuration):
         "DB19": ("raspberry_pi", "3B+"),
         "DB20": ("raspberry_pi", "4B2G"),
         "DB21M": ("jetson_nano_2gb", "2GB"),
-        "DB21A": ("jetson_nano_4gb", "4GB"),
-        "DB21B": ("raspberry_pi_64", "4B"),
+        "DB21J": ("jetson_nano_4gb", "4GB"),
+        "DB21R": ("raspberry_pi_64", "4B"),
         # Duckiedrone
-        "DD18": ("raspberry_pi", "3B+"),
+        "DD18": ("raspberry_pi", "3B"),
+        "DD21": ("raspberry_pi", "3B+"),
         # Watchtower
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
