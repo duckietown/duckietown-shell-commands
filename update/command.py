@@ -1,6 +1,5 @@
 from dt_shell import DTCommandAbs, dtslogger
 
-# from update import duckietown_shell_commands_version
 
 __all__ = ["DTCommand"]
 
