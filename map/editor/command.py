@@ -1,12 +1,23 @@
 import os
+import argparse
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 MAP_EDITOR_LAUNCHER = "editor"
 
+usage = """
+
+## Basic usage
+
+    Duckietown map editor for creating map (for new format).
+
+        $ dts map editor [options]
+
+"""
+prog = "dts map editor"
+
 
 class DTCommand(DTCommandAbs):
-
     help = "Duckietown Map Editor"
 
     @staticmethod
@@ -16,12 +27,14 @@ class DTCommand(DTCommandAbs):
         print("------>")
         # ---
         # run start-gui-tools
-        image = "duckietown/dt-gui-tools:daffy-amd64"
-        if "--image" in args:
-            image = args[args.index("--image") + 1]
-        shell.include.start_gui_tools.command(
-            shell,
-            [
+        parser = argparse.ArgumentParser(prog=prog, usage=usage)
+        parser.add_argument(
+            "--image",
+            default=None,
+            help="Custom docker image of dt-gui-tools"
+        )
+        parsed = parser.parse_args(args)
+        flags = [
                 "--launcher",
                 MAP_EDITOR_LAUNCHER,
                 "--mount",
@@ -34,9 +47,13 @@ class DTCommand(DTCommandAbs):
                 "map-editor",
                 "--no-scream",
                 "LOCAL",
-                "--image",
-                image
-            ],
+            ]
+        if parsed.image:
+            flags.append("--image")
+            flags.append(parsed.image)
+        shell.include.start_gui_tools.command(
+            shell,
+            flags,
         )
         # ---
         print("<------")
