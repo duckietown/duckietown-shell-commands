@@ -46,7 +46,7 @@ class DTCommand(DTCommandAbs):
                 "--name",
                 "map-editor",
                 "--no-scream",
-                "LOCAL",
+                "LOCAL"
             ]
         if parsed.image:
             flags.append("--image")
