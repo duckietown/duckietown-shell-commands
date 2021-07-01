@@ -11,7 +11,8 @@ OTHER_IMAGES_TO_UPDATE = [
     "duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
     "duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",
     "duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
-    "duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}"
+    "duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}",
+    "duckietown/aido-base-python3:{distro}-{arch}",
 ]
 
 
