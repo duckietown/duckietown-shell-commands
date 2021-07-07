@@ -49,8 +49,7 @@ class DTCommand(DTCommandAbs):
                 "LOCAL"
             ]
         if parsed.image:
-            flags.append("--image")
-            flags.append(parsed.image)
+            flags.extend(["--image", parsed.image])
         shell.include.start_gui_tools.command(
             shell,
             flags,
