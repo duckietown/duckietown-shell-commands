@@ -53,6 +53,9 @@ Setup:
         if parsed.stop and parsed.start:
             raise Exception(
                 "You must choose between starting or stopping the camera.")
+        if not (parsed.stop or parsed.start):
+            raise Exception(
+                "You must choose between starting (--start) or stopping (--stop) the camera.")
 
         duckiebot_ip = get_duckiebot_ip(parsed.hostname)
         hostname = sanitize_hostname(parsed.hostname)
