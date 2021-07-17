@@ -29,6 +29,8 @@ class DTCommand(DTCommandAbs):
 
         prog = "dts duckiebot camera DUCKIEBOT_NAME --stop/--start"
         usage = """
+This command can prevent the camera node to start in the dt-duckiebot-interface. 
+
 Setup:
 
     %(prog)s
