@@ -22,6 +22,7 @@ from utils.misc_utils import sanitize_hostname
 
 DT_INTERFACE_IMAGE = "duckietown/dt-duckiebot-interface:daffy-{arch}"
 
+
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
@@ -34,7 +35,8 @@ Setup:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("hostname", default=None, help="Name of the Duckiebot")
+        parser.add_argument("hostname", default=None,
+                            help="Name of the Duckiebot")
 
         parser.add_argument(
             "--stop", dest="stop", default=None, action="store_true", help="Stop the camera node"
@@ -45,6 +47,11 @@ Setup:
         )
 
         parsed = parser.parse_args(args)
+
+        if parsed.stop and parsed.start:
+            raise Exception(
+                "You must choose between starting or stopping the camera.")
+
         duckiebot_ip = get_duckiebot_ip(parsed.hostname)
         hostname = sanitize_hostname(parsed.hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
@@ -58,12 +65,8 @@ Setup:
 
         env = default_env(parsed.hostname, duckiebot_ip)
 
-        if parsed.stop and parsed.start:
-            raise Exception("You must choose between starting and stopping the camera.")
-            
-
         if parsed.stop:
-            env['DISABLE_CAMERA']='on'
+            env['DISABLE_CAMERA'] = 'on'
 
         pull_if_not_exist(duckiebot_client, image)
 
@@ -72,12 +75,12 @@ Setup:
             name=interface_container,
             privileged=True,
             network_mode="host",
-            volumes= {"/data": {"bind": "/data"}, 
-                "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket"}, 
-                "/tmp/argus_socket":{"bind":"/tmp/argus_socket"}},
+            volumes={"/data": {"bind": "/data"},
+                     "/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket"},
+                     "/tmp/argus_socket": {"bind": "/tmp/argus_socket"}},
             environment=env,
             remove=False,
-            restart_policy= {"Name": "always"},
+            restart_policy={"Name": "always"},
             detach=True
         )
         dtslogger.info("Done!")
