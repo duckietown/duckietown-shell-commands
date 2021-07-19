@@ -71,7 +71,7 @@ Setup:
         env = default_env(parsed.hostname, duckiebot_ip)
 
         if parsed.stop:
-            env['DISABLE_CAMERA'] = 'on'
+            env['DT_SENSOR_CAMERA_DISABLE'] = 1
 
         pull_if_not_exist(duckiebot_client, image)
 
