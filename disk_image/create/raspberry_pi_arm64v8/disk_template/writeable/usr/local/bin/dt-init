@@ -106,6 +106,8 @@ run_on_first_boot() {
         sleep 2
     done
 
+    # TODO: create duckietown_portainer-data docker volume with an initialized DB
+
     # run customizable first-boot script
     dt-init-first-boot
 
