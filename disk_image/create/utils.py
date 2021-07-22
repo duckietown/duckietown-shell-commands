@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 import json
 import os
@@ -418,10 +418,10 @@ def list_files(path: str, extension: str = "*") -> List[str]:
     return files
 
 
-def replace_in_file(old: str, new: str, where: str):
-    with sudo_open(where, "rb") as fin:
+def replace_in_file(old: str, new: str, where: str, openfcn: Callable = sudo_open):
+    with openfcn(where, "rb") as fin:
         txt = fin.read()
-    with sudo_open(where, "wb") as fout:
+    with openfcn(where, "wb") as fout:
         fout.write(txt.replace(old.encode("utf-8"), new.encode("utf-8")))
 
 
