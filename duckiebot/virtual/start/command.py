@@ -81,6 +81,10 @@ class DTCommand(DTCommandAbs):
                     "bind": "/var/lib/docker",
                     "mode": "rw"
                 },
+                os.path.join(vbot_root_dir, "boot"): {
+                    "bind": "/boot",
+                    "mode": "rw"
+                },
             }
         )
         # ---
