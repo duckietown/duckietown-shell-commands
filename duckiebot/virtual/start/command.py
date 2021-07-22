@@ -90,4 +90,4 @@ class DTCommand(DTCommandAbs):
         # ---
         print()
         dtslogger.info("Your virtual robot is booting up. "
-                       "It sohuld appear on 'dts fleet discover' soon.")
+                       "It should appear on 'dts fleet discover' soon.")
