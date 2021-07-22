@@ -33,6 +33,7 @@ class DiscoverListener:
         "DT::BOOTING",
         "DT::ROBOT_TYPE",
         "DT::ROBOT_CONFIGURATION",
+        "DT::ROBOT_HARDWARE",
         "DT::DASHBOARD",
     ]
 
@@ -65,7 +66,8 @@ class DiscoverListener:
         if info is None:
             return
         dtslogger.debug("SERVICE_ADD: %s" % (str(info)))
-        txt = json.loads(list(info.properties.keys())[0].decode("utf-8")) if len(info.properties) else dict()
+        txt = json.loads(list(info.properties.keys())[0].decode("utf-8")) if len(info.properties) \
+            else dict()
         self.services[name][server] = {"port": info.port, "txt": txt}
 
     def update_service(self, *args, **kwargs):
@@ -96,6 +98,15 @@ class DiscoverListener:
                     hostname_to_config[device_hostname] = dev["txt"]["configuration"]
                 except:
                     pass
+        # create hostname -> robot_hardware map
+        hostname_to_hardware = defaultdict(lambda: "physical")
+        for device_hostname in self.services["DT::ROBOT_HARDWARE"]:
+            dev = self.services["DT::ROBOT_HARDWARE"][device_hostname]
+            if len(dev["txt"]) and "hardware" in dev["txt"]:
+                try:
+                    hostname_to_hardware[device_hostname] = dev["txt"]["hardware"]
+                except:
+                    pass
         # prepare table
         columns = [
             "Status",  # Booting [yellow], Ready [green]
@@ -106,13 +117,14 @@ class DiscoverListener:
             # "Busy",  # No [grey], Yes [green]
         ]
         columns = list(map(lambda c: " %s " % c, columns))
-        header = ["Type", "Model"] + columns + ["Hostname"]
+        header = ["Hardware", "Type", "Model"] + columns + ["Hostname"]
         data = []
 
         for device_hostname in list(sorted(hostnames)):
             # filter by robot type
             robot_type = hostname_to_type[device_hostname]
             robot_configuration = hostname_to_config[device_hostname]
+            robot_hardware = hostname_to_hardware[device_hostname]
             if self.args.filter_type and robot_type != self.args.filter_type:
                 continue
             # prepare status list
@@ -123,7 +135,7 @@ class DiscoverListener:
                 statuses.append(column_txt)
             # prepare row
             row = (
-                [device_hostname, robot_type, robot_configuration]
+                [device_hostname, robot_hardware, robot_type, robot_configuration]
                 + statuses
                 + [str(device_hostname) + ".local"]
             )
