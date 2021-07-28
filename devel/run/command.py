@@ -9,6 +9,7 @@ from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
+from utils.multi_command_utils import MultiCommand
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
@@ -24,17 +25,9 @@ class DTCommand(DTCommandAbs):
     def command(shell, args: list):
         # configure arguments
         parser = argparse.ArgumentParser()
+        parser.add_argument("subcommand", nargs="?", default=None, help="(Optional) Subcommand to execute")
         parser.add_argument(
-            "subcommand",
-            nargs="?",
-            default=None,
-            help="(Optional) Subcommand to execute"
-        )
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to run"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
         )
         parser.add_argument(
             "-a",
@@ -55,23 +48,10 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Hostname of the machine hosting the ROS Master node",
         )
+        parser.add_argument("-n", "--name", default=None, help="Name of the container")
+        parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
         parser.add_argument(
-            "-n",
-            "--name",
-            default=None,
-            help="Name of the container"
-        )
-        parser.add_argument(
-            "-c",
-            "--cmd",
-            default=None,
-            help="Command to run in the Docker container"
-        )
-        parser.add_argument(
-            "--pull",
-            default=False,
-            action="store_true",
-            help="Whether to pull the image of the project"
+            "--pull", default=False, action="store_true", help="Whether to pull the image of the project"
         )
         parser.add_argument(
             "--force-pull",
@@ -80,10 +60,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to force pull the image of the project",
         )
         parser.add_argument(
-            "--build",
-            default=False,
-            action="store_true",
-            help="Whether to build the image of the project"
+            "--build", default=False, action="store_true", help="Whether to build the image of the project"
         )
         parser.add_argument(
             "--plain",
@@ -125,7 +102,7 @@ class DTCommand(DTCommandAbs):
             "--no-rm",
             default=False,
             action="store_true",
-            help="Whether to NOT remove the container once stopped"
+            help="Whether to NOT remove the container once stopped",
         )
         parser.add_argument(
             "-L",
@@ -134,10 +111,7 @@ class DTCommand(DTCommandAbs):
             help="Launcher to invoke inside the container (template v2 or newer)",
         )
         parser.add_argument(
-            "--loop",
-            default=False,
-            action="store_true",
-            help="(Experimental) Whether to run the LOOP image"
+            "--loop", default=False, action="store_true", help="(Experimental) Whether to run the LOOP image"
         )
         parser.add_argument(
             "-A",
@@ -148,10 +122,7 @@ class DTCommand(DTCommandAbs):
             help="Arguments for the container command",
         )
         parser.add_argument(
-            "--runtime",
-            default="docker",
-            type=str,
-            help="Docker runtime to use to run the container"
+            "--runtime", default="docker", type=str, help="Docker runtime to use to run the container"
         )
         parser.add_argument(
             "-X",
@@ -161,13 +132,29 @@ class DTCommand(DTCommandAbs):
             help="Use x-docker as runtime",
         )
         parser.add_argument(
-            "-s",
-            "--sync",
+            "-s", "--sync", default=False, action="store_true", help="Sync code from local project to remote"
+        )
+        parser.add_argument(
+            "--net",
+            "--network_mode",
+            dest="network_mode",
+            default=DEFAULT_NETWORK_MODE,
+            type=str,
+            help="Docker network mode",
+        )
+        parser.add_argument(
+            "-d",
+            "--detach",
             default=False,
             action="store_true",
-            help="Sync code from local project to remote"
+            help="Detach from the container and let it run",
         )
         parser.add_argument("docker_args", nargs="*", default=[])
+        # try to interpret it as a multi-command
+        multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
+        if multi.is_multicommand:
+            multi.execute()
+            return
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
             idx = args.index("--")
@@ -223,7 +210,7 @@ class DTCommand(DTCommandAbs):
         # get the module configuration
         module_configuration_args = []
         # apply default module configuration
-        module_configuration_args.append(f"--net={DEFAULT_NETWORK_MODE}")
+        module_configuration_args.append(f"--net={parsed.network_mode}")
         # environment
         if parsed.ros is not None:
             # parsed.ros = parsed.ros if parsed.ros.endswith('.local') else f'{parsed.ros}.local'
@@ -365,35 +352,45 @@ class DTCommand(DTCommandAbs):
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments else ["--"] + list(map(lambda s: "--%s" % s, parsed.arguments))
+            [] if not parsed.arguments else
+            (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
-        if not parsed.no_rm:
+        if (not parsed.no_rm) or (not parsed.detach):
             parsed.docker_args += ["--rm"]
+        if parsed.detach:
+            parsed.docker_args += ["-d"]
         # add container name to docker args
         parsed.docker_args += ["--name", parsed.name]
         # escape spaces in arguments
         parsed.docker_args = [a.replace(" ", "\\ ") for a in parsed.docker_args]
         # sync
         if parsed.sync:
+            # TODO: this can just become a call to devel.sync
             # only allowed when mounting remotely
             if parsed.machine == DEFAULT_MACHINE:
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
                 exit(2)
             # make sure rsync is installed
             check_program_dependency("rsync")
-            # get project locations
-            local_path = project.path
-            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
-            # run rsync
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            cmd = f"rsync --archive {local_path} {remote_path}"
-            _run_cmd(cmd, shell=True)
+            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+            # get projects' locations
+            projects_to_sync = [parsed.workdir] if parsed.mount is True else []
+            # sync secondary projects
+            if isinstance(parsed.mount, str):
+                projects_to_sync.extend(
+                    [os.path.abspath(os.path.join(os.getcwd(), p.strip())) for p in parsed.mount.split(",")]
+                )
+            # run rsync
+            for project_path in projects_to_sync:
+                cmd = f"rsync --archive {project_path} {remote_path}"
+                _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
         # run
-        _run_cmd(
+        exitcode = _run_cmd(
             [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
             + module_configuration_args
             + parsed.docker_args
@@ -402,14 +399,20 @@ class DTCommand(DTCommandAbs):
             + cmd_option
             + cmd_arguments,
             suppress_errors=True,
+            return_exitcode=True,
         )
+        dtslogger.debug(f"Command exited with exit code [{exitcode}].")
+        if parsed.detach:
+            dtslogger.info("Your container is running in detached mode!")
 
     @staticmethod
     def complete(shell, word, line):
         return []
 
 
-def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
+def _run_cmd(
+    cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
+):
     if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
@@ -426,8 +429,12 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
             print(out)
         return out
     else:
-        try:
-            subprocess.check_call(cmd, shell=shell)
-        except subprocess.CalledProcessError as e:
-            if not suppress_errors:
-                raise e
+        if return_exitcode:
+            res = subprocess.run(cmd, shell=shell)
+            return res.returncode
+        else:
+            try:
+                subprocess.check_call(cmd, shell=shell)
+            except subprocess.CalledProcessError as e:
+                if not suppress_errors:
+                    raise e

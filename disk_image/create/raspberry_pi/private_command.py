@@ -11,7 +11,6 @@ import subprocess
 import time
 import docker
 import socket
-import fnmatch
 import getpass
 from datetime import datetime
 
@@ -26,6 +25,8 @@ from disk_image.create.constants import (
     DOCKER_IMAGE_TEMPLATE,
     MODULES_TO_LOAD,
     DATA_STORAGE_DISK_IMAGE_DIR,
+    DEFAULT_STACK,
+    AUTOBOOT_STACKS_DIR,
 )
 
 from disk_image.create.utils import (
@@ -41,23 +42,31 @@ from disk_image.create.utils import (
     run_cmd_in_partition,
     validator_autoboot_stack,
     validator_yaml_syntax,
+    list_files,
+    replace_in_file,
+    transfer_file,
+    get_validator_fcn,
+    copy_file,
 )
 
 DISK_IMAGE_PARTITION_TABLE = {"HypriotOS": 1, "root": 2}
 ROOT_PARTITION = "root"
 DISK_IMAGE_SIZE_GB = 8
-DISK_IMAGE_VERSION = "1.1.2"
+DISK_IMAGE_VERSION = "1.2.2"
 HYPRIOTOS_VERSION = "1.11.1"
+DEVICE_ARCH = "arm32v7"
 HYPRIOTOS_DISK_IMAGE_NAME = f"hypriotos-rpi-v{HYPRIOTOS_VERSION}"
 INPUT_DISK_IMAGE_URL = (
     f"https://github.com/hypriot/image-builder-rpi/releases/download/"
     f"v{HYPRIOTOS_VERSION}/{HYPRIOTOS_DISK_IMAGE_NAME}.img.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "root:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "root:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     "root:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
-DISK_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "disk_template")
+COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
+DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
+STACKS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..", "stack", "stacks", DEFAULT_STACK)
 SUPPORTED_STEPS = [
     "download",
     "create",
@@ -72,7 +81,14 @@ SUPPORTED_STEPS = [
 ]
 MANDATORY_STEPS = ["create", "mount", "unmount"]
 
-APT_PACKAGES_TO_INSTALL = ["rsync", "libnss-mdns"]
+APT_PACKAGES_TO_INSTALL = [
+    "rsync",
+    "nano",
+    "htop",
+    "libnss-mdns",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools",
+]
 
 
 class DTCommand(DTCommandAbs):
@@ -90,7 +106,10 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps",
+            type=str,
+            default="",
+            help="List of steps to skip (comma-separated)",
         )
         parser.add_argument(
             "-o", "--output", type=str, default=None, help="The destination directory for the output file"
@@ -102,10 +121,16 @@ class DTCommand(DTCommandAbs):
             "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
@@ -136,14 +161,29 @@ class DTCommand(DTCommandAbs):
             parsed.steps = set(parsed.steps).difference(skipped)
             dtslogger.info(f"Skipping steps: [{', '.join(skipped)}]")
         # check steps caching
+        # noinspection PyTypeChecker
         if parsed.cache_target not in [None] + SUPPORTED_STEPS:
             dtslogger.error(f"Unknown step `{parsed.cache_target}`")
             return
+        # noinspection PyTypeChecker
         if parsed.cache_record not in [None] + SUPPORTED_STEPS:
             dtslogger.error(f"Unknown step `{parsed.cache_record}`")
             return
         # check dependencies
         check_cli_tools()
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error(
+                "You have not set a token for this shell.\n"
+                "You can get a token from the following URL,\n\n"
+                "\thttps://www.duckietown.org/site/your-token   \n\n"
+                "and set it using the following command,\n\n"
+                "\tdts tok set\n"
+            )
+            return
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()
@@ -203,7 +243,7 @@ class DTCommand(DTCommandAbs):
             # cache step
             dtslogger.info(f"Caching step '{step}'...")
             cache_file_path = cached_step_file_path(step, "img")
-            _copy_file(out_file_path("img"), cache_file_path)
+            copy_file(out_file_path("img"), cache_file_path)
             dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
@@ -418,73 +458,80 @@ class DTCommand(DTCommandAbs):
                     # copy resolvconf
                     _rcf = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "etc", "resolv.conf")
                     run_cmd(["sudo", "rm", "-f", _rcf])
-                    transfer_file(ROOT_PARTITION, ["etc", "resolv.conf"])
+                    _transfer_file(ROOT_PARTITION, ["etc", "resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
-                    # try running a simple echo from the new chroot, if an error occurs, we need
-                    # to check the QEMU configuration
+                    # from this point on, if anything weird happens, unmount the `root/dev` disk
                     try:
-                        output = run_cmd_in_partition(
-                            ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                        # configure the kernel for QEMU
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
                         )
-                        if "Exec format error" in output:
-                            raise Exception("Exec format error")
-                    except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
-                        exit(2)
-                    # mount the partition HypriotOS as root:/boot
-                    _boot = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "boot")
-                    run_cmd(["sudo", "mount", "-t", "auto", hypriotos_partition_disk, _boot])
-                    # from this point on, if anything weird happens, unmount the `root` disk
-                    try:
-                        # run full-upgrade on the new root
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "apt update && "
-                            "apt --yes --force-yes --no-install-recommends"
-                            ' -o Dpkg::Options::="--force-confdef"'
-                            ' -o Dpkg::Options::="--force-confold"'
-                            " full-upgrade",
-                        )
-                        # install packages
-                        if APT_PACKAGES_TO_INSTALL:
-                            pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
+                        # try running a simple echo from the new chroot, if an error occurs,
+                        # we need to check the QEMU configuration
+                        try:
+                            output = run_cmd_in_partition(
+                                ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                            )
+                            if "Exec format error" in output:
+                                raise Exception("Exec format error")
+                        except (BaseException, subprocess.CalledProcessError) as e:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                            exit(2)
+                        # mount the partition HypriotOS as root:/boot
+                        _boot = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "boot")
+                        run_cmd(["sudo", "mount", "-t", "auto", hypriotos_partition_disk, _boot])
+                        # from this point on, if anything weird happens, unmount the `root` disk
+                        try:
+                            # run full-upgrade on the new root
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
-                                f"DEBIAN_FRONTEND=noninteractive "
-                                f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                "apt update && "
+                                "apt --yes --force-yes --no-install-recommends"
+                                ' -o Dpkg::Options::="--force-confdef"'
+                                ' -o Dpkg::Options::="--force-confold"'
+                                " full-upgrade",
                             )
-                        # upgrade libseccomp
-                        # (see: https://github.com/duckietown/duckietown-shell-commands/issues/200)
-                        transfer_file(ROOT_PARTITION, ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
-                            "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb",
-                        )
+                            # install packages
+                            if APT_PACKAGES_TO_INSTALL:
+                                pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    f"DEBIAN_FRONTEND=noninteractive "
+                                    f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                )
+                            # upgrade libseccomp. See:
+                            #   https://github.com/duckietown/duckietown-shell-commands/issues/200
+                            _transfer_file(ROOT_PARTITION, ["tmp", "libseccomp2_2.4.3-1+b1_armhf.deb"])
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                "dpkg -i /tmp/libseccomp2_2.4.3-1+b1_armhf.deb && "
+                                "rm /tmp/libseccomp2_2.4.3-1+b1_armhf.deb",
+                            )
+                        except Exception as e:
+                            # on exception, unmount 'HypriotOS'
+                            run_cmd(["sudo", "umount", _boot])
+                            raise e
                     except Exception as e:
-                        run_cmd(["sudo", "umount", _boot])
+                        # on exception, unomunt bind /dev
+                        run_cmd(["sudo", "umount", _dev])
                         raise e
                     # unomunt bind /dev
                     run_cmd(["sudo", "umount", _dev])
@@ -535,15 +582,17 @@ class DTCommand(DTCommandAbs):
                     privileged=True,
                     name="dts-disk-image-aux-docker",
                     volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
-                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375"],
+                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
                 )
-                time.sleep(2)
+                dtslogger.info("Waiting 20 seconds for DIND to start...")
+                time.sleep(20)
                 # get IP address of the container
                 container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
                 container_ip = container_info["NetworkSettings"]["IPAddress"]
                 # create remote docker client
-                time.sleep(2)
-                remote_docker = docker.DockerClient(base_url=f"tcp://{container_ip}:2375")
+                endpoint_url = f"tcp://{container_ip}:2375"
+                dtslogger.info(f"DIND should now be up, using endpoint URL `{endpoint_url}`.")
+                remote_docker = docker.DockerClient(base_url=endpoint_url)
                 # from this point on, if anything weird happens, stop container and unmount disk
                 try:
                     dtslogger.info("Transferring Docker images...")
@@ -623,33 +672,60 @@ class DTCommand(DTCommandAbs):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
                             run_cmd(["sudo", "mkdir", "-p", update["destination"]])
+                        # copy stacks (root only)
+                        if partition == ROOT_PARTITION:
+                            for stack in list_files(STACKS_DIR, "yaml"):
+                                origin = os.path.join(STACKS_DIR, stack)
+                                destination = os.path.join(
+                                    PARTITION_MOUNTPOINT(partition), AUTOBOOT_STACKS_DIR.lstrip("/"), stack
+                                )
+                                relative = os.path.join(AUTOBOOT_STACKS_DIR, stack)
+                                # validate file
+                                validator = _get_validator_fcn(partition, relative)
+                                if validator:
+                                    dtslogger.debug(f"Validating file {relative}...")
+                                    validator(shell, origin, relative, arch=DEVICE_ARCH)
+                                # create or modify file
+                                effect = "MODIFY" if os.path.exists(destination) else "NEW"
+                                dtslogger.info(f"- Updating file ({effect}) [{relative}]")
+                                # copy new file
+                                run_cmd(["sudo", "cp", origin, destination])
+                                # add architecture as default value in the stack file
+                                dtslogger.debug(
+                                    "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s"
+                                    % (DEVICE_ARCH, destination)
+                                )
+                                replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
                         # apply changes from disk_template
                         for update in disk_template_objects(DISK_TEMPLATE_DIR, partition, "file"):
+                            origin = update["origin"]
+                            destination = update["destination"]
+                            relative = update["relative"]
                             # validate file
-                            validator = _get_validator_fcn(partition, update["relative"])
+                            validator = _get_validator_fcn(partition, relative)
                             if validator:
-                                dtslogger.debug(f"Validating file {update['relative']}...")
-                                validator(shell, update["origin"], update["relative"])
+                                dtslogger.debug(f"Validating file {relative}...")
+                                validator(shell, origin, relative, arch=DEVICE_ARCH)
                             # create or modify file
-                            effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
-                            dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
+                            effect = "MODIFY" if os.path.exists(destination) else "NEW"
+                            dtslogger.info(f"- Updating file ({effect}) [{relative}]")
                             # copy new file
-                            run_cmd(["sudo", "cp", update["origin"], update["destination"]])
+                            run_cmd(["sudo", "cp", origin, destination])
                             # get first line of file
-                            file_first_line = get_file_first_line(update["destination"])
+                            file_first_line = get_file_first_line(destination)
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
                                 placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
                                 # get stats about file
-                                real_bytes, max_bytes = get_file_length(update["destination"])
+                                real_bytes, max_bytes = get_file_length(destination)
                                 # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
+                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", destination])
                                 # store preliminary info about the surgery
                                 surgery_plan.append(
                                     {
                                         "partition": partition,
                                         "partition_id": DISK_IMAGE_PARTITION_TABLE[partition],
-                                        "path": update["relative"],
+                                        "path": relative,
                                         "placeholder": placeholder,
                                         "offset_bytes": None,
                                         "used_bytes": real_bytes,
@@ -782,22 +858,8 @@ class DTCommand(DTCommandAbs):
 
 
 def _get_validator_fcn(partition, path):
-    key = f"{partition}:{path}"
-    for _k, _f in TEMPLATE_FILE_VALIDATOR.items():
-        if fnmatch.fnmatch(key, _k):
-            return _f
-    return None
+    return get_validator_fcn(TEMPLATE_FILE_VALIDATOR, partition, path)
 
 
-def _copy_file(origin, destination):
-    # create destination directory
-    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
-    # make copy of the file
-    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
-    run_cmd(["cp", origin, destination])
-
-
-def transfer_file(partition, location):
-    _local_filepath = os.path.join(DISK_TEMPLATE_DIR, partition, *location)
-    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
-    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])
+def _transfer_file(partition, location):
+    return transfer_file(DISK_TEMPLATE_DIR, partition, location)

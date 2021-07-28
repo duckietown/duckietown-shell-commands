@@ -72,3 +72,7 @@ class DiscoverListener:
             return
         if self.service_in_callback:
             self.service_in_callback(name, hostname, txt)
+
+    def update_service(self, *args, **kwargs):
+        # TODO: implement this
+        pass

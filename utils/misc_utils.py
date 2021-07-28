@@ -1,4 +1,6 @@
 import ipaddress
+import subprocess
+from shutil import which
 
 
 def human_time(time_secs, compact=False):
@@ -32,3 +34,16 @@ def sanitize_hostname(hostname):
         return hostname
     except ValueError:
         return f"{hostname}.local" if not hostname.endswith(".local") else hostname
+
+
+def sudo_open(path, mode, *_, **__):
+    if mode not in ["r", "w", "rb", "wb"]:
+        raise ValueError(f"Mode '{mode}' not supported.")
+    mode = mode[0]
+    tool = "cat" if mode == "r" else "tee"
+    # check if dependencies are met
+    if which(tool) is None:
+        raise ValueError(f"The command `{tool}` could not be found. Please, install it first.")
+    # ---
+    proc = subprocess.Popen(["sudo", tool, path], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    return proc.stdout if mode == "r" else proc.stdin

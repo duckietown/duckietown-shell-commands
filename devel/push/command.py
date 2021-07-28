@@ -3,7 +3,13 @@ import os
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_client, push_image
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    get_endpoint_architecture,
+    get_client,
+    push_image,
+)
 from utils.dtproject_utils import DTProject
 
 from dt_shell import DTShell
@@ -17,10 +23,16 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to push",
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to push",
         )
         parser.add_argument(
-            "-a", "--arch", default=None, help="Target architecture for the image to push",
+            "-a",
+            "--arch",
+            default=None,
+            help="Target architecture for the image to push",
         )
         parser.add_argument(
             "-H",
@@ -94,6 +106,11 @@ class DTCommand(DTCommandAbs):
         docker = get_client(parsed.machine)
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
+
+        # custom Docker registry
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+
+        image = f"{docker_registry}/{image}"
         dtslogger.info(f"Pushing image {image}...")
         push_image(image, docker, progress=not parsed.ci, **push_args)
         dtslogger.info("Image successfully pushed!")

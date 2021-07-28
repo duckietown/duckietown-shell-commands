@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 
-
 REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
 CANONICAL_ARCH = {
@@ -25,16 +24,10 @@ CANONICAL_ARCH = {
     "x86_64": "amd64",
     "amd64": "amd64",
     "Intel 64": "amd64",
-    # TODO: @afdaniele. Forward arm64v8 -> arm32v7 until the arm64v8 family of images is fixed
-    # "arm64": "arm64v8",
-    # "arm64v8": "arm64v8",
-    # "armv8": "arm64v8",
-    # "aarch64": "arm64v8",
-    "arm64": "arm32v7",
-    "arm64v8": "arm32v7",
-    "armv8": "arm32v7",
-    "aarch64": "arm32v7",
-    "FAKE": "arm64v8",
+    "arm64": "arm64v8",
+    "arm64v8": "arm64v8",
+    "armv8": "arm64v8",
+    "aarch64": "arm64v8",
 }
 
 BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
@@ -76,7 +69,9 @@ TEMPLATE_TO_LAUNCHFILE = {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),},
+    "template-exercise": {
+        "1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}
@@ -89,6 +84,7 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
+
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -198,6 +194,46 @@ class DTProject:
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{owner}/{self.name}:{version}{docs}-{arch}"
+
+    def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown", registry: str = "docker.io"):
+        image_tag = f"{registry}/{self.image(arch, owner=owner)}"
+        try:
+            configurations = self.configurations()
+        except NotImplementedError:
+            configurations = {}
+        # do docker inspect
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner)
+        # remove useless data
+        del inspect["ContainerConfig"]
+        del inspect["Config"]["Labels"]
+        # compile metadata
+        meta = {
+            "version": "1.0",
+            "tag": image_tag,
+            "image": inspect,
+            "project": {
+                "path": self.path,
+                "name": self.name,
+                "type": self.type,
+                "type_version": self.type_version,
+                "distro": self.distro,
+                "version": self.version,
+                "head_version": self.head_version,
+                "closest_version": self.closest_version,
+                "version_name": self.version_name,
+                "url": self.url,
+                "sha": self.sha,
+                "adapters": self.adapters,
+                "is_release": self.is_release(),
+                "is_clean": self.is_clean(),
+                "is_dirty": self.is_dirty(),
+                "is_detached": self.is_detached(),
+            },
+            "configurations": configurations,
+            "labels": self.image_labels(endpoint, arch=arch, owner=owner)
+        }
+        # ---
+        return meta
 
     def configurations(self) -> dict:
         if int(self._type_version) < 2:

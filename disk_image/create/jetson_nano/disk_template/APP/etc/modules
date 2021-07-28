@@ -9,4 +9,3 @@ bluedroid_pm
 nvhost_vi
 # nvgpu module
 nvgpu
-v4l2loopback

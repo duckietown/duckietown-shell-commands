@@ -1,8 +1,9 @@
-from dt_shell import dtslogger
+from typing import List, Optional
 
 import json
 import os
 import sys
+import fnmatch
 import subprocess
 import time
 import glob
@@ -12,6 +13,7 @@ import yaml
 import itertools
 import shutil
 
+from dt_shell import dtslogger
 
 from utils.duckietown_utils import get_distro_version
 
@@ -21,8 +23,10 @@ from disk_image.create.constants import (
     DOCKER_IMAGE_TEMPLATE,
     MODULES_TO_LOAD,
     CLI_TOOLS_NEEDED,
+    DEFAULT_DEVICE_ARCH,
 )
 from utils.cli_utils import ProgressBar, check_program_dependency
+from utils.misc_utils import sudo_open
 
 
 class VirtualSDCard:
@@ -207,8 +211,9 @@ class VirtualSDCard:
         return f"/dev/disk/by-label/{partition}"
 
 
-def check_cli_tools():
-    for cli_tool in CLI_TOOLS_NEEDED:
+def check_cli_tools(*args):
+    clis = CLI_TOOLS_NEEDED + list(args)
+    for cli_tool in clis:
         check_program_dependency(cli_tool)
 
 
@@ -322,7 +327,8 @@ def run_cmd(cmd, get_output=False, shell=False, env=None):
         cmd = " ".join(cmd)
     # ---
     if get_output:
-        return subprocess.check_output(cmd, shell=shell, env=env, stderr=sys.stderr).decode("utf-8")
+        txt = subprocess.check_output(cmd, shell=shell, env=env, stderr=sys.stderr)
+        return txt.decode("utf-8")
     else:
         subprocess.check_call(cmd, shell=shell, env=env, stderr=sys.stderr)
 
@@ -349,7 +355,15 @@ def wait_for_disk(disk, timeout):
         time.sleep(1.0)
 
 
-def validator_autoboot_stack(shell, local_path, remote_path, data=None):
+def get_validator_fcn(validators, partition, path):
+    key = f"{partition}:{path}"
+    for _k, _f in validators.items():
+        if fnmatch.fnmatch(key, _k):
+            return _f
+    return None
+
+
+def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
     # get version
     distro = get_distro_version(shell)
     modules = {
@@ -358,6 +372,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
             module=module["module"],
             version=distro,
             tag=module["tag"] if "tag" in module else None,
+            arch=kwargs.get("arch", DEFAULT_DEVICE_ARCH),
         )
         for module in MODULES_TO_LOAD
     }
@@ -369,13 +384,15 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
         owners = [p1] if p2 else ["", "library/"]
         image_full = p2 or p1
         image, tag, *_ = image_full.split(":") + [None]
+        if isinstance(tag, str):
+            tag = tag.replace("${ARCH}", kwargs.get("arch", DEFAULT_DEVICE_ARCH))
         images = [f"{image}:{tag}"] if tag else ["", ":latest"]
         candidates = set(map(lambda p: "/".join(p), itertools.product(owners, images)))
         if len(candidates.intersection(modules)) > 0:
             continue
         # no images found
         msg = (
-            f"The autoboot stack '{remote_path}' requires the "
+            f"The 'duckietown' stack '{remote_path}' requires the "
             f"Docker image '{srv_image}' for the service '{srv_name}' but "
             f"no candidates were found in the list of modules to load."
         )
@@ -383,7 +400,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, data=None):
         raise ValueError(msg)
 
 
-def validator_yaml_syntax(shell, local_path, remote_path, data=None):
+def validator_yaml_syntax(_, local_path, remote_path, **__):
     # simply load the YAML file
     try:
         yaml.load(open(local_path, "rt"), yaml.SafeLoader)
@@ -391,3 +408,34 @@ def validator_yaml_syntax(shell, local_path, remote_path, data=None):
         msg = f"The file {remote_path} is not a valid YAML file. Reason: {str(e)}"
         dtslogger.error(msg)
         raise ValueError(msg)
+
+
+def list_files(path: str, extension: str = "*") -> List[str]:
+    glob_star = os.path.join(os.path.abspath(path), f"*.{extension}")
+    dtslogger.debug(f"Looking for files matching the pattern '{glob_star}'...")
+    files = list(map(lambda f: os.path.relpath(f, path), glob.glob(glob_star)))
+    dtslogger.debug(f"Found:\n\t" + "\n\t".join(files))
+    return files
+
+
+def replace_in_file(old: str, new: str, where: str):
+    with sudo_open(where, "rb") as fin:
+        txt = fin.read()
+    with sudo_open(where, "wb") as fout:
+        fout.write(txt.replace(old.encode("utf-8"), new.encode("utf-8")))
+
+
+def copy_file(origin, destination):
+    # create destination directory
+    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
+    # make copy of the file
+    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
+    run_cmd(["cp", origin, destination])
+
+
+def transfer_file(disk_template_dir, partition, location):
+    _local_filepath = os.path.join(disk_template_dir, partition, *location)
+    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
+    _remote_dirpath = os.path.dirname(_remote_filepath)
+    run_cmd(["sudo", "mkdir", "-p", _remote_dirpath])
+    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])

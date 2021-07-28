@@ -1,4 +1,5 @@
 import argparse
+import copy
 import getpass
 import json
 import os
@@ -10,20 +11,26 @@ import subprocess
 import time
 import socket
 from collections import namedtuple
+from math import log2, floor
 from types import SimpleNamespace
+from typing import List
 
-from future import builtins
+from utils.exceptions import InvalidUserInput
 from datetime import datetime
 
-from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version
+from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version, UserError
 from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
-from utils.duckietown_utils import get_robot_types, get_robot_configurations, get_robot_hardware
-from utils.misc_utils import human_time
+from utils.duckietown_utils import (
+    get_robot_types,
+    get_robot_configurations,
+    get_robot_hardware,
+    WIRED_ROBOT_TYPES,
+)
+from utils.misc_utils import human_time, sudo_open
 
 from .constants import (
     TIPS_AND_TRICKS,
     LIST_DEVICES_CMD,
-    INPUT_DEVICE_MSG,
     WPA_OPEN_NETWORK_CONFIG,
     WPA_PSK_NETWORK_CONFIG,
     WPA_EAP_NETWORK_CONFIG,
@@ -34,25 +41,23 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-BLOCK_SIZE = 1024**2
+BLOCK_SIZE = 1024 ** 2
+SAFE_SD_SIZE_MIN = 16
+SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
-WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+ROOT_PARTITIONS = ["root", "APP"]
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
-        "raspberry_pi": {
-            "stable": "1.1.1",
-            "experimental": "1.1.2"
-        },
-        "jetson_nano": {
-            "stable": "1.1",
-            "experimental": "1.1.1"
-        },
+        "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
+        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
+        "jetson_nano_4gb": {"stable": "1.2.0", "experimental": "1.2.2"},
+        "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -65,13 +70,13 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.0": "1.0",
             "1.1": "1.1",
             "1.1.1": "1.1",
-            "1.1.2": "1.1"
+            "1.1.2": "1.1",
+            "1.2.0": "1.1",
+            "1.2.1": "1.1",
         },
-        "jetson_nano": {
-            "1.0": "1.0",
-            "1.1": "1.1",
-            "1.1.1": "1.1"
-        },
+        "raspberry_pi_64": {"2.0.0": "1.1"},
+        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1"},
+        "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
@@ -81,7 +86,9 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "jetson_nano": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
+        "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -92,9 +99,6 @@ def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
     return f"disk_image/{disk_image}.zip"
 
 
-class InvalidUserInput(Exception):
-    pass
-
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -102,6 +106,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
+        parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
         parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
         parser.add_argument("--device", default=None, help="The SD card device to flash")
         parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
@@ -155,6 +160,13 @@ class DTCommand(DTCommandAbs):
             help="Use experimental disk image and parameters",
         )
         parser.add_argument(
+            "-S",
+            "--size",
+            default=None,
+            type=int,
+            help="(Optional) Size of the SD card you are flashing",
+        )
+        parser.add_argument(
             "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         # parse arguments
@@ -168,6 +180,19 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error(
+                "You have not set a token for this shell.\n"
+                "You can get a token from the following URL,\n\n"
+                "\thttps://www.duckietown.org/site/your-token   \n\n"
+                "and set it using the following command,\n\n"
+                "\tdts tok set\n"
+            )
+            return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -208,6 +233,8 @@ class DTCommand(DTCommandAbs):
 
         # fetch given steps
         steps = parsed.steps.split(",")
+        no_steps = parsed.no_steps.split(",")
+        steps = [s for s in steps if s not in no_steps]
         step2function = {
             "license": step_license,
             "download": step_download,
@@ -231,6 +258,24 @@ class DTCommand(DTCommandAbs):
             "disk_img": in_file("img"),
             "disk_metadata": in_file("json"),
         }
+        # notify about licenses
+        if "license" not in steps:
+            board, _ = get_robot_hardware(parsed.robot_configuration)
+            extra = (
+                "   - License For Customer Use of NVIDIA Software\n"
+                if board.startswith("jetson_nano")
+                else ""
+            )
+            dtslogger.warning(
+                'Skipping "license" step. You are implicitly agreeing to the following:\n'
+                + extra
+                + "   - Duckietown Terms and Conditions:\t"
+                "https://www.duckietown.org/about/terms-and-conditions\n"
+                "   - Duckietown Software License:\t"
+                "https://www.duckietown.org/about/sw-license\n"
+                "   - Duckietown Privacy Policy:\t\t"
+                "https://www.duckietown.org/about/privacy",
+            )
         # perform steps
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
@@ -245,16 +290,37 @@ class DTCommand(DTCommandAbs):
 
 
 def step_license(_, parsed, __):
+    print()
+    # Duckietown legal stuff
+    answer = ask_confirmation(
+        f"\nBy proceeding you agree to the following,\n"
+        f"   - Duckietown Terms and Conditions:\t"
+        f"https://www.duckietown.org/about/terms-and-conditions\n"
+        f"   - Duckietown Software License:\t"
+        f"https://www.duckietown.org/about/sw-license\n"
+        f"   - Duckietown Privacy Policy:\t\t"
+        f"https://www.duckietown.org/about/privacy",
+        question="Do you accept?",
+    )
+    if not answer:
+        dtslogger.error(
+            "You must explicitly agree to the Term and Conditions, Software License "
+            "and Privacy Policy of Duckietown to continue.\n"
+            "For additional information, please contact info@duckietown.com."
+        )
+        exit(9)
+    # NVIDIA Software License
     board, _ = get_robot_hardware(parsed.robot_configuration)
-    if board == "jetson_nano":
+    if board.startswith("jetson_nano"):
         # ask to either agree or go away
         while True:
+            print()
             answer = ask_confirmation(
-                f"This disk image uses the Nvidia Jetpack OS. By proceeding, "
+                f"\nThis disk image uses the Nvidia Jetpack OS.\nBy proceeding, "
                 f"you agree to the terms and conditions of the License For Customer Use of "
-                f'NVIDIA Software"',
+                f"NVIDIA Software",
                 default="n",
-                choices={"a": "Accept", "n": "Reject", "r": "Read License"},
+                choices={"y": "Yes", "n": "No", "r": "Read License"},
                 question="Do you accept?",
             )
             if answer == "r":
@@ -262,11 +328,12 @@ def step_license(_, parsed, __):
                 with open(NVIDIA_LICENSE_FILE, "rt") as fin:
                     nvidia_license = fin.read()
                 print(f"\n{nvidia_license}\n")
-            elif answer == "a":
+            elif answer == "y":
                 break
             elif answer == "n":
                 dtslogger.error("You must explicitly agree to the License first.")
                 exit(8)
+    print()
     return {}
 
 
@@ -314,13 +381,65 @@ def step_flash(_, parsed, data):
     check_program_dependency("sudo")
     check_program_dependency("lsblk")
     check_program_dependency("umount")
+    print("=" * 30)
 
     # ask for a device if not set already
     if parsed.device is None:
-        dtslogger.info(INPUT_DEVICE_MSG)
-        _run_cmd(LIST_DEVICES_CMD, shell=True)
-        msg = "Type the name of your device (include the '/dev' part):   "
-        parsed.device = builtins.input(msg)
+        sd_size = 0 if parsed.size is None else parsed.size
+        # ask user first what is their desired device size as a confirmation.
+        while sd_size <= 0:
+            msg = "Please, enter the size of your SD card (in GB): "
+            # noinspection PyBroadException
+            try:
+                txt = input(msg)
+                if txt.strip() == "q":
+                    dtslogger.info("Exiting")
+                    exit()
+                sd_size = int(txt)
+                assert sd_size > 0
+            except (ValueError, AssertionError):
+                continue
+            standard = log2(sd_size) - floor(log2(sd_size)) == 0
+            if not (SAFE_SD_SIZE_MIN <= sd_size <= SAFE_SD_SIZE_MAX) or not standard:
+                answer = ask_confirmation(
+                    f"You are indicating a non standard size: {sd_size}GB", default="n", question="Proceed?"
+                )
+                if not answer:
+                    dtslogger.info("Exiting")
+                    exit()
+            break
+        # get all available devices
+        devices_all = _get_devices()
+        # all device with size within 20% of the given size are a match
+        devices_fit = list(filter(lambda d: abs(d.size_gb - sd_size) < (0.2 * sd_size), devices_all))
+        # if there is any fit, show them
+        if devices_fit:
+            print(f"The following devices were found (size ~{sd_size}GB):")
+            _print_devices_table(devices_fit)
+        else:
+            answer = ask_confirmation(
+                f"No devices were found with a size of ~{sd_size}GB.",
+                question="Do you want to see all the disks available?",
+                default="n",
+            )
+            if not answer:
+                dtslogger.info("Sounds good! Exiting...")
+                exit()
+            # show all
+            dtslogger.warn(
+                "Be aware that picking the wrong device might result in irreversible "
+                "damage to your operating system or data loss."
+            )
+            print("\nThe following devices are available:")
+            _print_devices_table(devices_all)
+
+        device = None
+        while device is None:
+            msg = "Type the name of your device: "
+            txt = input(msg)
+            if len(txt.strip()) > 0:
+                device = txt
+        parsed.device = device
 
     # check if the device exists
     if parsed.device.startswith("/dev/"):
@@ -331,9 +450,7 @@ def step_flash(_, parsed, data):
     else:
         sd_type = "File"
         if os.path.exists(parsed.device):
-            msg = (
-                "File %s already exists, " % parsed.device + "if you continue, the file will be overwritten."
-            )
+            msg = f"File {parsed.device} already exists, it will be overwritten."
             granted = ask_confirmation(msg)
             if not granted:
                 dtslogger.info("Please retry while specifying a valid device. Bye bye!")
@@ -343,22 +460,30 @@ def step_flash(_, parsed, data):
     if sd_type == "SD":
         # noinspection PyBroadException
         try:
-            dtslogger.info(f'Trying to unmount all partitions from device {parsed.device}')
+            dtslogger.info(f"Trying to unmount all partitions from device {parsed.device}")
             cmd = f"for n in {parsed.device}* ; do umount $n || . ; done"
             _run_cmd(cmd, shell=True, quiet=True)
-            dtslogger.info('All partitions unmounted.')
+            dtslogger.info("All partitions unmounted.")
         except BaseException:
-            dtslogger.warn("An error occurred while unmounting the partitions of your SD card. "
-                           "Though this is not critical, you might experience issues with your SD "
-                           "card after flashing is complete. If that is the case, make sure to "
-                           "unmount all disks from your SD card before flashing the next time.")
+            dtslogger.warn(
+                "An error occurred while unmounting the partitions of your SD card. "
+                "Though this is not critical, you might experience issues with your SD "
+                "card after flashing is complete. If that is the case, make sure to "
+                "unmount all disks from your SD card before flashing the next time."
+            )
 
     # use dd to flash
     dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
-    dd_py = os.path.join(pathlib.Path(__file__).parent.absolute(), 'dd.py')
+    dd_py = os.path.join(pathlib.Path(__file__).parent.absolute(), "dd.py")
     bsize = str(BLOCK_SIZE)
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
-        dd_py, "--input", data["disk_img"], "--output", parsed.device, "--block-size", bsize
+        dd_py,
+        "--input",
+        data["disk_img"],
+        "--output",
+        parsed.device,
+        "--block-size",
+        bsize,
     ]
     _run_cmd(dd_cmd)
     # ---
@@ -377,7 +502,7 @@ def step_verify(_, parsed, data):
     # compare bytes
     try:
         with open(data["disk_img"], "rb") as origin:
-            with _sudo_open(parsed.device, "rb") as destination:
+            with sudo_open(parsed.device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
                     buf1_len = len(buffer1)
@@ -415,7 +540,10 @@ def step_setup(shell, parsed, data):
     check_program_dependency("dd")
     check_program_dependency("sudo")
     check_program_dependency("sync")
-
+    # make a copy of the command parameters and remove wifi passwords
+    params = copy.deepcopy(parsed.__dict__)
+    wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
+    params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,
@@ -440,7 +568,7 @@ def step_setup(shell, parsed, data):
                     "commands_version": shell.get_commands_version(),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
-                "parameters": parsed.__dict__,
+                "parameters": params,
                 "stamp": time.time(),
                 "stamp_human": datetime.now().isoformat(),
             },
@@ -454,7 +582,7 @@ def step_setup(shell, parsed, data):
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
     # compile list of files to sanitize at first boot
-    sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] == "root", surgery_plan))
+    sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] in ROOT_PARTITIONS, surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
@@ -508,7 +636,7 @@ def step_setup(shell, parsed, data):
         for wpass in range(2):
             # launch dd
             dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            dtslogger.debug(f"[{wpass+1}/2] $ {dd_cmd}")
+            dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
             # write
             dd.stdin.write(masked_content)
             dd.stdin.flush()
@@ -526,18 +654,10 @@ def step_setup(shell, parsed, data):
 
 
 def _validate_hostname(hostname):
-    if not re.match('^[a-zA-Z0-9]+$', hostname):
-        dtslogger.error('The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].')
+    if not re.match("^[a-zA-Z0-9]+$", hostname):
+        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].")
         return False
     return True
-
-
-def _sudo_open(filepath, *_, **__):
-    # check if dependencies are met
-    check_program_dependency("cat")
-    # ---
-    proc = subprocess.Popen(["sudo", "cat", filepath], stdout=subprocess.PIPE)
-    return proc.stdout
 
 
 def _interpret_wifi_string(s):
@@ -595,16 +715,72 @@ def _get_wpa_networks(parsed):
 
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     dtslogger.debug("$ %s" % cmd)
+    env = copy.deepcopy(os.environ)
+    # force English language
+    env["LC_ALL"] = "C"
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
     # manage output
     if quiet:
-        outputs = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
+        outputs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     else:
         outputs = {}
     # ---
     if get_output:
-        return subprocess.check_output(cmd, shell=shell).decode("utf-8")
+        return subprocess.check_output(cmd, shell=shell, env=env).decode("utf-8")
     else:
-        subprocess.check_call(cmd, shell=shell, **outputs)
+        subprocess.check_call(cmd, shell=shell, env=env, **outputs)
+
+
+def _get_devices() -> List[SimpleNamespace]:
+    units = {"K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+    lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
+    out = []
+    for line in lsblk.split("\n"):
+        findings = re.findall(r"^(/dev/[\w\d]+)\s+disk\s+(\d+(?:[.]\d+)?)([KMGT])\s+", line)
+        if findings:
+            device, size, unit, *_ = findings[0]
+            if unit not in units:
+                continue
+            try:
+                size = float(size)
+            except ValueError:
+                continue
+            size_b = size * units[unit]
+            size_gb = size_b / units["G"]
+            out.append(SimpleNamespace(device=device, size_b=size_b, size_gb=size_gb))
+    return out
+
+
+def _print_devices_table(devices: List[SimpleNamespace]):
+    row_fmt = "{:15s}{:12s}{}"
+    print()
+    print(row_fmt.format("Name", "Size", "Plugged in"))
+    for device in devices:
+        # try to get the oldest time between access, modify and change time the device file,
+        # that should be a good approximation of the plug-in time (unless the device was used
+        # by the user before flashing).
+        device_file = pathlib.Path(device.device)
+        plugin_time = datetime.fromtimestamp(min(
+            device_file.stat().st_ctime, device_file.stat().st_atime, device_file.stat().st_mtime
+        ))
+        time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
+        print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
+    print()
+
+
+def _time_diff_txt(d1, d2) -> str:
+    duration_in_s = (d2 - d1).total_seconds()
+    days = divmod(duration_in_s, 86400)  # Get days (without [0]!)
+    hours = divmod(days[1], 3600)  # Use remainder of days to calc hours
+    minutes = divmod(hours[1], 60)  # Use remainder of hours to calc minutes
+    seconds = divmod(minutes[1], 1)  # Use remainder of minutes to calc seconds
+    parts = []
+    for value, unit in zip([days, hours, minutes, seconds], ["day", "hour", "minute", "second"]):
+        value = int(value[0])
+        if value <= 0:
+            continue
+        unit = unit if value == 1 else f"{unit}s"
+        parts.append(f"{value} {unit}")
+    return ", ".join(parts)

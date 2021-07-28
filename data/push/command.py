@@ -39,6 +39,12 @@ Where <space> can be one of {str(VALID_SPACES)}.
             choices=VALID_SPACES,
             help="Storage space the object should be uploaded to",
         )
+        parser.add_argument(
+            "-t",
+            "--token",
+            default=None,
+            help="(Optional) Duckietown token to use for the upload action",
+        )
         parser.add_argument("file", nargs=1, help="File to upload")
         parser.add_argument("object", nargs=1, help="Destination path of the object")
         parsed, _ = parser.parse_known_args(args=args)
@@ -90,13 +96,18 @@ Where <space> can be one of {str(VALID_SPACES)}.
             exit(5)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
-        # get the token if it is set
+        # get the token if it is not given
         token = None
-        # noinspection PyBroadException
-        try:
-            token = shell.get_dt1_token()
-        except Exception:
-            pass
+        if parsed.token is None:
+            # get the token if it is set
+            # noinspection PyBroadException
+            try:
+                token = shell.get_dt1_token()
+            except Exception:
+                pass
+        else:
+            # the user provided a token, use that one
+            token = parsed.token
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)

@@ -1,8 +1,4 @@
-import os
-
-from dt_shell import DTCommandAbs
-
-from utils.cli_utils import start_command_in_subprocess
+from dt_shell import DTCommandAbs, DTShell
 
 usage = """
 
@@ -10,31 +6,16 @@ usage = """
     This is a helper for the exercises. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercise` commands, use `dts duckiebot exercise -h`.
+    To know more on the `exercises` commands, use `dts exercises -h`.
 
-        $ dts exercise notebooks 
+        $ dts exercises notebooks 
 
 """
 
-BRANCH = "daffy"
-ARCH = "amd64"
-# AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROS_TEMPLATE_IMAGE = "duckietown/challenge-aido_lf-template-ros:" + BRANCH + "-" + ARCH
-
-
-class InvalidUserInput(Exception):
-    pass
-
-
-from dt_shell import DTShell
-
 
 class DTCommand(DTCommandAbs):
+
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts exercise notebooks"
-        working_dir = os.getcwd()
-        if not os.path.exists(working_dir + "/config.yaml"):
-            msg = "You must run this command inside the exercise directory"
-            raise InvalidUserInput(msg)
-        start_command_in_subprocess("cd notebooks && jupyter notebook")
+        # this is just a proxy command to `dts exercises lab`
+        shell.include.exercises.lab.command(shell, args)

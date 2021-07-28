@@ -11,7 +11,6 @@ import subprocess
 import time
 import docker
 import socket
-import fnmatch
 import getpass
 from datetime import datetime
 
@@ -27,6 +26,8 @@ from disk_image.create.constants import (
     DOCKER_IMAGE_TEMPLATE,
     MODULES_TO_LOAD,
     DATA_STORAGE_DISK_IMAGE_DIR,
+    AUTOBOOT_STACKS_DIR,
+    DEFAULT_STACK,
 )
 
 from disk_image.create.utils import (
@@ -42,6 +43,11 @@ from disk_image.create.utils import (
     run_cmd_in_partition,
     validator_autoboot_stack,
     validator_yaml_syntax,
+    transfer_file,
+    replace_in_file,
+    list_files,
+    copy_file,
+    get_validator_fcn,
 )
 
 DISK_IMAGE_PARTITION_TABLE = {
@@ -61,20 +67,23 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.1.1"
+DISK_IMAGE_VERSION = "1.2.2"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "4.4"
-JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-v{JETPACK_VERSION}"
+JETPACK_VERSION = "4.4.1"
+DEVICE_ARCH = "arm64v8"
+JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
 INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/" f"{JETPACK_DISK_IMAGE_NAME}.zip"
+    lambda v: f"https://duckietown-public-storage.s3.amazonaws.com/"
+    f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/config/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
     "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+STACKS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..", "stack", "stacks", DEFAULT_STACK)
 SUPPORTED_STEPS = [
     "license",
     "download",
@@ -95,10 +104,14 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    "dkms",  # needed for Jetson WiFi drivers
     "docker-compose",
-    # 'v4l2loopback-dkms',
-    "v4l2loopback-utils",
+    # provides the command `growpart`, used to resize the root partition at first boot
+    "cloud-guest-utils",
+    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
+    "inotify-tools",
+]
+APT_PACKAGES_TO_HOLD = [
+    # list here packages that cannot be updated through `chroot`
 ]
 
 
@@ -107,7 +120,7 @@ class DTCommand(DTCommandAbs):
     help = "Prepares an .img disk file for an Nvidia Jetson Nano"
 
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args, **kwargs):
         parser = argparse.ArgumentParser()
         # define parser arguments
         parser.add_argument(
@@ -117,7 +130,7 @@ class DTCommand(DTCommandAbs):
             help="List of steps to perform (comma-separated)",
         )
         parser.add_argument(
-            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)",
+            "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)"
         )
         parser.add_argument(
             "-o", "--output", type=str, default=None, help="The destination directory for the output files"
@@ -132,16 +145,29 @@ class DTCommand(DTCommandAbs):
             "--workdir", type=str, default=TMP_WORKDIR, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
-            "--cache-target", type=str, default=None, help="Target (cached) step to start from",
+            "--cache-target",
+            type=str,
+            default=None,
+            help="Target (cached) step to start from",
         )
         parser.add_argument(
-            "--cache-record", type=str, default=None, help="Step to cache",
+            "--cache-record",
+            type=str,
+            default=None,
+            help="Step to cache",
         )
         parser.add_argument(
             "--push",
             default=False,
             action="store_true",
             help="Whether to push the final compressed image to the Duckietown Cloud Storage",
+        )
+        parser.add_argument(
+            "-J",
+            "--jetson_version",
+            required=True,
+            choices=["2gb", "4gb"],
+            help="Nvidia Jetson Nano Developer Kit version",
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -175,13 +201,27 @@ class DTCommand(DTCommandAbs):
             return
         # check dependencies
         check_cli_tools()
+        # make sure the token is set
+        # noinspection PyBroadException
+        try:
+            shell.get_dt1_token()
+        except Exception:
+            dtslogger.error(
+                "You have not set a token for this shell.\n"
+                "You can get a token from the following URL,\n\n"
+                "\thttps://www.duckietown.org/site/your-token   \n\n"
+                "and set it using the following command,\n\n"
+                "\tdts tok set\n"
+            )
+            return
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()
         if not os.path.exists(parsed.output):
             os.makedirs(parsed.output)
         # define output file template
-        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{JETPACK_DISK_IMAGE_NAME}.{ex}")
+        jetpack_disk_image_name = JETPACK_DISK_IMAGE_NAME(parsed.jetson_version)
+        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{jetpack_disk_image_name}.{ex}")
         input_image_name = pathlib.Path(in_file_path("img")).stem
         output_image_name = input_image_name.replace(JETPACK_VERSION, DISK_IMAGE_VERSION)
         out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
@@ -203,7 +243,7 @@ class DTCommand(DTCommandAbs):
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
-            "input_url": INPUT_DISK_IMAGE_URL,
+            "input_url": INPUT_DISK_IMAGE_URL(parsed.jetson_version),
             "base_type": "Nvidia Jetpack",
             "base_version": JETPACK_VERSION,
             "environment": {
@@ -218,6 +258,7 @@ class DTCommand(DTCommandAbs):
                     module=module["module"],
                     version=distro,
                     tag=module["tag"] if "tag" in module else None,
+                    arch=DEVICE_ARCH,
                 )
                 for module in MODULES_TO_LOAD
             ],
@@ -234,7 +275,7 @@ class DTCommand(DTCommandAbs):
             # cache step
             dtslogger.info(f"Caching step '{step}'...")
             cache_file_path = cached_step_file_path(step, "img")
-            _copy_file(out_file_path("img"), cache_file_path)
+            copy_file(out_file_path("img"), cache_file_path)
             dtslogger.info(f"Step '{step}' cached.")
 
         # use cached step
@@ -310,22 +351,19 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Looking for ZIP image file...")
             if not os.path.isfile(in_file_path("zip")):
                 dtslogger.info("Downloading ZIP image...")
-                try:
-                    run_cmd(
-                        [
-                            "wget",
-                            "--no-verbose",
-                            "--show-progress",
-                            "--continue",
-                            "--output-document",
-                            in_file_path("zip"),
-                            INPUT_DISK_IMAGE_URL,
-                        ]
-                    )
-                except KeyboardInterrupt as e:
-                    dtslogger.info("Cleaning up...")
-                    run_cmd(["rm", "-f", in_file_path("zip")])
-                    raise e
+                shell.include.data.get.command(
+                    shell,
+                    [],
+                    parsed=SimpleNamespace(
+                        file=[in_file_path("zip")],
+                        object=[
+                            os.path.join(
+                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{jetpack_disk_image_name}.zip"
+                            )
+                        ],
+                        space="public",
+                    ),
+                )
             else:
                 dtslogger.info(f"Reusing cached ZIP image file [{in_file_path('zip')}].")
             # unzip (if necessary)
@@ -425,7 +463,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug("$ %s" % cmd)
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
             time.sleep(1)
-            p.communicate("w\ny\n".encode("ascii"))
+            p.communicate("x\ne\nw\ny\n".encode("ascii"))
             dtslogger.info("Done!")
             # ---
             cache_step("fix")
@@ -488,8 +526,8 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
-                    transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
-                    transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
+                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    _transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
@@ -524,18 +562,20 @@ class DTCommand(DTCommandAbs):
                             "The full error is:\n\t%s" % str(e)
                         )
                         exit(2)
+                    # compile list of packages to hold
+                    to_hold = " ".join(APT_PACKAGES_TO_HOLD)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
                         # run full-upgrade on the new root
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "apt update && "
-                            "apt-mark hold nvidia-l4t-bootloader && "
-                            "apt --yes --force-yes --no-install-recommends"
+                            + (f"apt-mark hold {to_hold}" if len(to_hold) else ":")
+                            + " && "
+                            + "apt --yes --force-yes --no-install-recommends"
                             ' -o Dpkg::Options::="--force-confdef"'
                             ' -o Dpkg::Options::="--force-confold"'
-                            " full-upgrade && "
-                            "apt-mark unhold nvidia-l4t-bootloader",
+                            " full-upgrade && " + (f"apt-mark unhold {to_hold}" if len(to_hold) else ":"),
                         )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
@@ -545,28 +585,10 @@ class DTCommand(DTCommandAbs):
                                 "DEBIAN_FRONTEND=noninteractive "
                                 f"apt install --yes --force-yes --no-install-recommends {pkgs}",
                             )
-                        # add symlink between arm64 and aarch64
-                        k = "/usr/src/linux-headers-4.9.140-tegra-ubuntu18.04_aarch64/kernel-4.9"
-                        run_cmd_in_partition(ROOT_PARTITION, f"ln -s {k}/arch/arm64 {k}/arch/aarch64")
-                        # clone the wifi driver source
+                        # clean packages
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "git clone "
-                            "https://github.com/duckietown/rtl88x2bu"
-                            " /usr/src/rtl88x2bu-5.6.1",
-                        )
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "git clone "
-                            "https://github.com/duckietown/rtl8821CU"
-                            " /usr/src/rtl8821CU-5.4.1",
-                        )
-                        # setup the camera pipeline
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            f"mkdir -p {k}/v4l2loopback && "
-                            f"git clone https://github.com/duckietown/v4l2loopback"
-                            f" {k}/v4l2loopback",
+                            f"apt autoremove --yes",
                         )
                     except Exception as e:
                         raise e
@@ -618,15 +640,17 @@ class DTCommand(DTCommandAbs):
                     privileged=True,
                     name="dts-disk-image-aux-docker",
                     volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
-                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375"],
+                    entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
                 )
-                time.sleep(2)
+                dtslogger.info("Waiting 20 seconds for DIND to start...")
+                time.sleep(20)
                 # get IP address of the container
                 container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
                 container_ip = container_info["NetworkSettings"]["IPAddress"]
                 # create remote docker client
-                time.sleep(2)
-                remote_docker = docker.DockerClient(base_url=f"tcp://{container_ip}:2375")
+                endpoint_url = f"tcp://{container_ip}:2375"
+                dtslogger.info(f"DIND should now be up, using endpoint URL `{endpoint_url}`.")
+                remote_docker = docker.DockerClient(base_url=endpoint_url)
                 # from this point on, if anything weird happens, stop container and unmount disk
                 try:
                     dtslogger.info("Transferring Docker images...")
@@ -637,6 +661,7 @@ class DTCommand(DTCommandAbs):
                             module=module["module"],
                             version=distro,
                             tag=module["tag"] if "tag" in module else None,
+                            arch=DEVICE_ARCH,
                         )
                         pull_docker_image(remote_docker, image)
                     # ---
@@ -707,6 +732,30 @@ class DTCommand(DTCommandAbs):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
                             run_cmd(["sudo", "mkdir", "-p", update["destination"]])
+                        # copy stacks (APP only)
+                        if partition == ROOT_PARTITION:
+                            for stack in list_files(STACKS_DIR, "yaml"):
+                                origin = os.path.join(STACKS_DIR, stack)
+                                destination = os.path.join(
+                                    PARTITION_MOUNTPOINT(partition), AUTOBOOT_STACKS_DIR.lstrip("/"), stack
+                                )
+                                relative = os.path.join(AUTOBOOT_STACKS_DIR, stack)
+                                # validate file
+                                validator = _get_validator_fcn(partition, relative)
+                                if validator:
+                                    dtslogger.debug(f"Validating file {relative}...")
+                                    validator(shell, origin, relative, arch=DEVICE_ARCH)
+                                # create or modify file
+                                effect = "MODIFY" if os.path.exists(destination) else "NEW"
+                                dtslogger.info(f"- Updating file ({effect}) [{relative}]")
+                                # copy new file
+                                run_cmd(["sudo", "cp", origin, destination])
+                                # add architecture as default value in the stack file
+                                dtslogger.debug(
+                                    "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s"
+                                    % (DEVICE_ARCH, destination)
+                                )
+                                replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
@@ -714,7 +763,7 @@ class DTCommand(DTCommandAbs):
                             validator = _get_validator_fcn(partition, update["relative"])
                             if validator:
                                 dtslogger.debug(f"Validating file {update['relative']}...")
-                                validator(shell, update["origin"], update["relative"])
+                                validator(shell, update["origin"], update["relative"], arch=DEVICE_ARCH)
                             # create or modify file
                             effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
                             dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
@@ -754,16 +803,9 @@ class DTCommand(DTCommandAbs):
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
                                 "ln"
-                                " -s"
+                                " -s -f"
                                 " /etc/systemd/system/dt_init.service"
                                 " /etc/systemd/system/multi-user.target.wants/dt_init.service",
-                            )
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "ln"
-                                " -s"
-                                " /etc/systemd/system/gstpipeline.service"
-                                " /etc/systemd/system/multi-user.target.wants/gstpipeline.service",
                             )
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
@@ -875,22 +917,8 @@ class DTCommand(DTCommandAbs):
 
 
 def _get_validator_fcn(partition, path):
-    key = f"{partition}:{path}"
-    for _k, _f in TEMPLATE_FILE_VALIDATOR.items():
-        if fnmatch.fnmatch(key, _k):
-            return _f
-    return None
+    return get_validator_fcn(TEMPLATE_FILE_VALIDATOR, partition, path)
 
 
-def _copy_file(origin, destination):
-    # create destination directory
-    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
-    # make copy of the file
-    dtslogger.info(f"Copying [{origin}] -> [{destination}]")
-    run_cmd(["cp", origin, destination])
-
-
-def transfer_file(partition, location):
-    _local_filepath = os.path.join(DISK_TEMPLATE_DIR, partition, *location)
-    _remote_filepath = os.path.join(PARTITION_MOUNTPOINT(partition), *location)
-    run_cmd(["sudo", "cp", _local_filepath, _remote_filepath])
+def _transfer_file(partition, location):
+    return transfer_file(DISK_TEMPLATE_DIR, partition, location)
