@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   autolab-cslam-rest-api:
-    image: duckietown/dt-autolab-localization:daffy-${ARCH}
+    image: duckietown/dt-autolab-localization:ente-${ARCH}
     container_name: autolab-cslam-rest-api
     restart: unless-stopped
     network_mode: host

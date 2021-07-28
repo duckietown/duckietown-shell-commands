@@ -1,8 +1,8 @@
 BASELINE_IMAGES = {
-    "template_ros": "duckietown/challenge-aido_lf-template-ros:daffy",
-    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:daffy",
-    "template_random": "duckietown/challenge-aido_lf-template-random:daffy",
-    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:daffy"
+    "template_ros": "duckietown/challenge-aido_lf-template-ros:ente",
+    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:ente",
+    "template_random": "duckietown/challenge-aido_lf-template-random:ente",
+    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:ente"
 }
 
 import os

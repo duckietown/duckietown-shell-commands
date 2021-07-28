@@ -32,7 +32,7 @@ usage = """
 
 FILES_API_PORT = 8082
 
-BRANCH = "daffy"
+BRANCH = "ente"
 DEFAULT_IMAGE = "duckietown/dt-duckiebot-fifos-bridge:" + BRANCH
 
 

@@ -54,7 +54,7 @@ All the labels supported by Duckietown will have the prefix `org.duckietown.labe
   - Type: `string`
   - Default: `undefined`
 
-- `org.duckietown.label.code.distro`: Distribution this image belongs to (e.g., daffy)
+- `org.duckietown.label.code.distro`: Distribution this image belongs to (e.g., ente)
   - Type: `string`
   - Default: `undefined`
 

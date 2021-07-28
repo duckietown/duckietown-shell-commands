@@ -33,7 +33,7 @@ usage = """
 
 """
 
-BRANCH = "daffy"
+BRANCH = "ente"
 ARCH = "amd64"
 ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
 CF = "config.yaml"

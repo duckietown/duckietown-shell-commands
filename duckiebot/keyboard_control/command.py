@@ -13,7 +13,7 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 JOYSTICK_COMMAND = "roslaunch virtual_joystick virtual_joystick_{mode}.launch veh:={veh}"
-BRANCH = "daffy"
+BRANCH = "ente"
 GUI_ARCH = "amd64"
 ARCH = "arm32v7"
 GUI_DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + GUI_ARCH

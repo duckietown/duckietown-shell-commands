@@ -14,14 +14,14 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args: List[str]):
         from dt_shell import check_package_version
 
-        check_package_version("duckietown-docker-utils-daffy", "6.0.78")
+        check_package_version("duckietown-docker-utils-ente", "6.0.78")
         from duckietown_docker_utils import generic_docker_run
 
         parser = argparse.ArgumentParser()
 
         parser.add_argument(
             "--image",
-            default="${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:daffy-amd64",
+            default="${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:ente-amd64",
             help="Which image to use",
         )
 

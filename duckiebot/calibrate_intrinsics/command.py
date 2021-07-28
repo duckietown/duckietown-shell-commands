@@ -12,7 +12,7 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 ARCH = "amd64"
-BRANCH = "daffy"
+BRANCH = "ente"
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
 
 

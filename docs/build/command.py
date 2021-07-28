@@ -17,7 +17,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
 
         parser.add_argument(
-            "--image", default="${AIDO_REGISTRY}/duckietown/docs-build:daffy", help="Which image to use"
+            "--image", default="${AIDO_REGISTRY}/duckietown/docs-build:ente", help="Which image to use"
         )
 
         parsed = parser.parse_args(args=args)

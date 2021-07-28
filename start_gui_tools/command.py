@@ -144,7 +144,7 @@ class DTCommand(DTCommandAbs):
             pull_if_not_exist(client, image)
 
         if parsed.image is None:
-            ci = get_last_commit('duckietown', 'dt-gui-tools', 'daffy')
+            ci = get_last_commit('duckietown', 'dt-gui-tools', 'ente')
 
             im = client.images.get(image)
 

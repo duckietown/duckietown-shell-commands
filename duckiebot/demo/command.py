@@ -34,7 +34,7 @@ usage = """
 
 """
 ARCH = "arm32v7"
-BRANCH = "daffy"
+BRANCH = "ente"
 DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
 

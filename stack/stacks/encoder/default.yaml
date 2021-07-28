@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   deadreckoning:
-    image: duckietown/dt-core:daffy-${ARCH}
+    image: duckietown/dt-core:ente-${ARCH}
     container_name: core
     restart: unless-stopped
     network_mode: host

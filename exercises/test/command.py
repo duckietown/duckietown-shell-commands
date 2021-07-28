@@ -51,7 +51,7 @@ usage = """
 
 """
 
-BRANCH = "daffy"
+BRANCH = "ente"
 DEFAULT_ARCH = "amd64"
 # AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"

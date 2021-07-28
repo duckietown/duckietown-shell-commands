@@ -41,7 +41,7 @@ def cloneRepo(full_path) -> bool:
         print("Cloning repo {}".format(repo_name))
         try:
             git_repo = "https://github.com/{}/{}.git".format(repo_team, repo_name)
-            Repo.clone_from(git_repo, clone_path, branch="daffy", recursive=True)
+            Repo.clone_from(git_repo, clone_path, branch="ente", recursive=True)
             dtslogger.info("Cloning complete for repo {}".format(repo_name))
             return True
         except Exception as e:
