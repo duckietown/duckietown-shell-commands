@@ -12,22 +12,25 @@ DOCKER_IMAGE_TEMPLATE = (
     + (f"{version}-{arch}" if tag is None else tag)
 )
 
-MODULES_TO_LOAD = [
-    {"owner": "portainer", "module": "portainer", "tag": "linux-arm-1.24.1"},
+MODULES_TO_LOAD_MINIMAL = [
+    {"owner": "portainer", "module": "portainer", "tag": "1.24.1-alpine"},
     {"owner": "duckietown", "module": "dt-base-environment"},
     {"owner": "duckietown", "module": "dt-commons"},
     {"owner": "duckietown", "module": "dt-device-health"},
     {"owner": "duckietown", "module": "dt-device-online"},
     {"owner": "duckietown", "module": "dt-device-proxy"},
     {"owner": "duckietown", "module": "dt-files-api"},
-    {"owner": "duckietown", "module": "dt-code-api"},
     {"owner": "duckietown", "module": "dt-device-dashboard"},
     {"owner": "duckietown", "module": "dt-ros-commons"},
     {"owner": "duckietown", "module": "dt-duckiebot-interface"},
     {"owner": "duckietown", "module": "dt-car-interface"},
-    {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-rosbridge-websocket"},
     {"owner": "duckietown", "module": "dt-core"},
+]
+
+MODULES_TO_LOAD = MODULES_TO_LOAD_MINIMAL + [
+    {"owner": "duckietown", "module": "dt-code-api"},
+    {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
     {"owner": "duckietown", "module": "dt-gui-tools"},
 ]

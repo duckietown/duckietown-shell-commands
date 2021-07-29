@@ -6,9 +6,19 @@ import time
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from disk_image.create.constants import AUTOBOOT_STACKS_DIR, MODULES_TO_LOAD, DOCKER_IMAGE_TEMPLATE
-from disk_image.create.utils import list_files, run_cmd, replace_in_file, pull_docker_image
-from utils.duckietown_utils import get_distro_version, get_robot_types, get_robot_configurations
+from disk_image.create.constants import \
+    AUTOBOOT_STACKS_DIR, \
+    MODULES_TO_LOAD_MINIMAL, \
+    DOCKER_IMAGE_TEMPLATE
+from disk_image.create.utils import \
+    list_files,\
+    run_cmd,\
+    replace_in_file,\
+    pull_docker_image
+from utils.duckietown_utils import \
+    get_distro_version,\
+    get_robot_types,\
+    get_robot_configurations
 
 DEVICE_ARCH = "amd64"
 DISK_NAME = "root"
@@ -137,7 +147,7 @@ class DTCommand(DTCommandAbs):
                 remote_docker = docker.DockerClient(base_url=endpoint_url)
                 dtslogger.info("Transferring Docker images...")
                 # pull images inside the disk image
-                for module in MODULES_TO_LOAD:
+                for module in MODULES_TO_LOAD_MINIMAL:
                     image = DOCKER_IMAGE_TEMPLATE(
                         owner=module["owner"],
                         module=module["module"],
