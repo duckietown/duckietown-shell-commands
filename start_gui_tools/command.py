@@ -206,8 +206,13 @@ class DTCommand(DTCommandAbs):
                     env["DISPLAY"] = os.environ["DISPLAY"]
         # custom volumes
         if parsed.mount:
-            src, dst, *_ = f"{parsed.mount}:{parsed.mount}".split(":")
-            volumes[src] = {"bind": dst, "mode": "rw"}
+            dtslogger.debug(f"Mounting...")
+            mounts = parsed.mount.split(" ")
+            for m in mounts:
+                src, dst, *_ = f"{m}:{m}".split(":")
+                dtslogger.debug(f"src: {src} dst: {dst}")
+                volumes[src] = {"bind": dst, "mode": "rw"}
+            dtslogger.debug(" ")
         # print some stats
         dtslogger.debug(
             f"Running {container_name} with environment vars:\n\n"
