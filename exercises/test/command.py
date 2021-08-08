@@ -1,4 +1,5 @@
 import argparse
+from ast import parse
 import getpass
 import json
 import os
@@ -189,6 +190,14 @@ class DTCommand(DTCommandAbs):
             help="Run this step of the challenge",
         )
 
+        parser.add_argument(
+            "--oakd",
+            dest="oakd",
+            action="store_true",
+            default=False,
+            help="Enable OAK-D camera comminication.",
+        )
+
         parser.add_argument("launcher", nargs="?", default=None, help="(Optional) Launcher to execute")
 
         parsed = parser.parse_args(args)
@@ -231,14 +240,17 @@ class DTCommand(DTCommandAbs):
         if parsed.launcher is not None:
             config["agent_run_cmd"] = f"{parsed.launcher}.sh"
 
-        try:
-            agent_base_image0 = BASELINE_IMAGES[config["agent_base"]]
-        except Exception as e:
-            msg = (
-                f"Check config.yaml. Unknown base image {config['agent_base']}. "
-                f"Available base images are {BASELINE_IMAGES}"
-            )
-            raise Exception(msg) from e
+        if parsed.oakd:
+            agent_base_image0 = "duckietown/oakd-base:daffy"
+        else:
+            try:
+                agent_base_image0 = BASELINE_IMAGES[config["agent_base"]]
+            except Exception as e:
+                msg = (
+                    f"Check config.yaml. Unknown base image {config['agent_base']}. "
+                    f"Available base images are {BASELINE_IMAGES}"
+                )
+                raise Exception(msg) from e
 
         use_ros = bool(config.get("ros", True))
         the_challenge = parsed.challenge or config.get("challenge", None)
@@ -311,7 +323,7 @@ class DTCommand(DTCommandAbs):
 
         sim_spec: ImageRunSpec
         expman_spec: ImageRunSpec
-
+        
         if use_challenge:
             token = shell.shell_config.token_dt1
             if token is None:
