@@ -18,12 +18,12 @@ from utils.exercises_utils import get_exercise_config
 usage = """
 
 ## Basic usage
-    This is a helper for the exercises. 
+    This is a helper for the oakd. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercises` commands, use `dts exercises -h`.
+    To know more on the `oakd` commands, use `dts oakd -h`.
 
-        $ dts exercises lab 
+        $ dts oakd lab 
 
 """
 JUPYTER_WS = "/jupyter_ws"

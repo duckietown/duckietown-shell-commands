@@ -24,25 +24,25 @@ from utils.yaml_utils import load_yaml
 usage = """
 
 ## Basic usage
-    This is a helper for the exercises. 
+    This is a helper for the oakd. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercise` commands, use `dts duckiebot exercise -h`.
+    To know more on the `oakd` commands, use `dts oakd -h`.
 
-        $ dts exercise build 
+        $ dts oakd build 
 
 """
 
 BRANCH = "daffy"
 ARCH = "amd64"
-ROS_TEMPLATE_IMAGE = f"duckietown/oakd-base:{BRANCH}-{ARCH}"
+OAKD_TEMPLATE_IMAGE = f"duckvision/oakd-base:{BRANCH}-{ARCH}"
 CF = "config.yaml"
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts exercise build"
+        prog = "dts oakd build"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
@@ -168,7 +168,7 @@ class DTCommand(DTCommandAbs):
 
             client = check_docker_environment()
 
-            ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
+            ros_template_image = add_registry(OAKD_TEMPLATE_IMAGE)
 
             if parsed.debug:
                 cmd = "bash"

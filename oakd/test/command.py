@@ -34,7 +34,6 @@ from utils.docker_utils import (
     remove_if_running,
 )
 from utils.exceptions import InvalidUserInput
-from utils.exercises_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 from utils.notebook_utils import convert_notebooks
@@ -43,33 +42,23 @@ from utils.yaml_utils import load_yaml
 usage = """
 
 ## Basic usage
-    This is an helper for the exercises.
+    This is an helper for the oakd.
     You must run this command inside an exercise folder.
 
-    To know more on the `exercises` commands, use `dts exercises test -h`.
+    To know more on the `oakd` commands, use `dts oakd test -h`.
 
-        $ dts exercise test --duckiebot_name [DUCKIEBOT_NAME]
+        $ dts oakd test --duckiebot_name [DUCKIEBOT_NAME]
 
 """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-# AIDO_REGISTRY = "registry-stage.duckietown.org"
-ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
-# no arch
-SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"
-EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
-BRIDGE_IMAGE = f"duckietown/dt-duckiebot-fifos-bridge:{BRANCH}"
 
 DEFAULT_REMOTE_USER = "duckie"
-AGENT_ROS_PORT = "11312"
 
-ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
-PORT_MANAGER = 8090
 
 OAKD_BASE_IMAGE = "duckietown/oakd-base:daffy"
-
 
 class DTCommand(DTCommandAbs):
     @staticmethod

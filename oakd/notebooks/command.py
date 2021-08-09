@@ -3,12 +3,12 @@ from dt_shell import DTCommandAbs, DTShell
 usage = """
 
 ## Basic usage
-    This is a helper for the exercises. 
+    This is a helper for the oakd. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercises` commands, use `dts exercises -h`.
+    To know more on the `oakd` commands, use `dts oakd -h`.
 
-        $ dts exercises notebooks 
+        $ dts oakd notebooks 
 
 """
 
@@ -17,5 +17,5 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        # this is just a proxy command to `dts exercises lab`
+        # this is just a proxy command to `dts oakd lab`
         shell.include.oakd.lab.command(shell, args)
