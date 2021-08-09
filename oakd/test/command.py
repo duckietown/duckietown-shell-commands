@@ -224,10 +224,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug(agent_params)
 
         pull_if_not_exist(agent_client, agent_params["image"])
-        agent_container = agent_client.containers.run(**agent_params)
-
-        attach_cmd = f"docker -H {duckiebot_name}.local attach {agent_container_name}"
-        start_command_in_subprocess(attach_cmd)
+    
 
         # Launch things one by one
 
@@ -272,6 +269,14 @@ class DTCommand(DTCommandAbs):
         containers_to_monitor.append(vnc_container)
 
         dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
+
+
+        agent_container = agent_client.containers.run(**agent_params)
+
+        containers_to_monitor.append(agent_container)
+
+        attach_cmd = f"docker -H {duckiebot_name}.local attach {agent_container_name}"
+        start_command_in_subprocess(attach_cmd)
 
         # Setup functions for monitor and cleanup
 
