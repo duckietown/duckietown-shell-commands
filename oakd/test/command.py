@@ -94,9 +94,14 @@ class DTCommand(DTCommandAbs):
             help="Will run the agent in interactive mode with the code mounted",
         )
 
-        parser.add_argument("launcher", nargs="?", default=None,
-                            help="(Optional) Launcher to execute")
-
+        parser.add_argument(
+            "-L",
+            "--launcher",
+            type=str,
+            default="default",
+            help="(Optional) Launcher to run inside the container",
+        )
+        
         parsed = parser.parse_args(args)
 
         #
