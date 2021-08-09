@@ -48,13 +48,6 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Should we also start the no VNC browser?",
         )
-        parser.add_argument(
-            "--oakd",
-            dest="oakd",
-            action="store_true",
-            default=False,
-            help="Enable OAK-D camera comminication.",
-        )
 
         parsed = parser.parse_args(args)
 
@@ -165,7 +158,7 @@ class DTCommand(DTCommandAbs):
                     "LOCAL",
                 ],
             )
-            
+
         def run_jupyter():
             # run start-gui-tools
             shell.include.start_gui_tools.command(
@@ -193,31 +186,6 @@ class DTCommand(DTCommandAbs):
                 ],
             )
 
-        def run_jupyter_oakd():
-            # run start-gui-tools
-            dtslogger.info("...OAK-D setup.")
-            shell.include.start_gui_tools.command(
-                shell,
-                [
-                    "--launcher",
-                    "jupyter",
-                    "--image",
-                    "duckietown/dt-gui-tools-oakd:master-amd64",
-                    "--mount",
-                    f"/run/udev:/run/udev /dev/bus/usb:/dev/bus/usb {labdir}:{JUPYTER_WS} /tmp/.X11-unix:/tmp/.X11-unix /tmp/argus_socket:/tmp/argus_socket /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket",
-                    "--name",
-                    jupyter_container_name,
-                    "--network",
-                    "host",
-                    "--no-scream",
-                    "--detach",
-                    "LOCAL",
-                    f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
-                    f"NotebookApp.ip=0.0.0.0",
-                    "allow-root"
-                ],
-            )
-
         def shutdown(*_):
             global IS_SHUTDOWN
             IS_SHUTDOWN = True
@@ -236,10 +204,7 @@ class DTCommand(DTCommandAbs):
             if parsed.vnc:
                 run_vnc()
                 containers_to_monitor.append(vnc_container_name)
-            if parsed.oakd:
-                run_jupyter_oakd()
-            else:
-                run_jupyter()
+            run_jupyter()
             containers_to_monitor.append(jupyter_container_name)
             open_url()
             # capture SIGINT and abort
