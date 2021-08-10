@@ -72,6 +72,8 @@ Setup:
 
         if parsed.stop:
             env['DT_SENSOR_CAMERA_DISABLE'] = 1
+        if parsed.start:
+            env['DT_SENSOR_CAMERA_DISABLE'] = 0 # it's not needed but it's good to have a value enven when the camera is on
 
         pull_if_not_exist(duckiebot_client, image)
 
