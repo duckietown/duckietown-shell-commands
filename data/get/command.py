@@ -9,7 +9,7 @@ from utils.misc_utils import human_size
 from dt_data_api import DataClient, TransferStatus
 
 
-VALID_SPACES = ["public", "private"]
+VALID_SPACES = ["user", "public", "private"]
 
 
 class DTCommand(DTCommandAbs):
