@@ -40,7 +40,11 @@ Where <space> can be one of [public, private].
             help="Storage space the object should be downloaded from",
         )
         parser.add_argument(
-            "-f", "--force", default=False, action="store_true", help="Overwrites local file if it exists"
+            "-f",
+            "--force",
+            default=False,
+            action="store_true",
+            help="Overwrites local file if it exists"
         )
         parser.add_argument("object", nargs=1, help="Destination path of the object")
         parser.add_argument("file", nargs=1, help="File to download")
