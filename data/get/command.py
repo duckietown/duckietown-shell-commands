@@ -91,6 +91,9 @@ Where <space> can be one of [public, private].
         parsed.object = object_path
         if space:
             parsed.space = space
+        # if the destination is a directory, add the filename to it
+        if os.path.isdir(parsed.file):
+            parsed.file = os.path.join(parsed.file, os.path.basename(parsed.object))
         # make sure that the input file does not exist
         if os.path.isfile(parsed.file) and not parsed.force:
             dtslogger.error(f"File '{parsed.file}' already exists! Must be forced.")
