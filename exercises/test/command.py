@@ -243,6 +243,8 @@ class DTCommand(DTCommandAbs):
         use_ros = bool(config.get("ros", True))
         the_challenge = parsed.challenge or config.get("challenge", None)
         the_step = parsed.step or config.get("step", None)
+        log_dir = config.get("log_dir", None)
+
         dtslogger.debug(f"config : {config}")
         dtslogger.debug(f"use_ros: {use_ros}")
 
@@ -608,6 +610,10 @@ class DTCommand(DTCommandAbs):
                     os.path.join(working_dir, "launchers"): {
                         "bind": "/code/launchers",
                         "mode": "ro",
+                    },
+                    os.path.join(working_dir,log_dir): {
+                        "bind": "/logs",
+                        "mode": "rw",
                     }
                 },
                 "auto_remove": True,
