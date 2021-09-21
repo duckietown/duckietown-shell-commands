@@ -1,6 +1,9 @@
+import contextlib
 import os
 import argparse
 import signal
+import subprocess
+import tempfile
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import ProgressBar
@@ -10,6 +13,22 @@ from dt_data_api import DataClient, TransferStatus
 
 
 VALID_SPACES = ["user", "public", "private"]
+
+
+class TempZipFile:
+
+    def __init__(self):
+        self._tmpfile = tempfile.NamedTemporaryFile()
+        self.fpath = f"{self._tmpfile.name}.zip"
+        dtslogger.debug(f"Creating temporary file {self.fpath}...")
+
+    def __enter__(self):
+        self._tmpfile.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._tmpfile.__exit__(exc_type, exc_val, exc_tb)
+        dtslogger.debug(f"Removing temporary file {self.fpath}.")
+        os.remove(self.fpath)
 
 
 class DTCommand(DTCommandAbs):
@@ -45,7 +64,19 @@ Where <space> can be one of {str(VALID_SPACES)}.
             default=None,
             help="(Optional) Duckietown token to use for the upload action",
         )
-        parser.add_argument("file", nargs=1, help="File to upload")
+        parser.add_argument(
+            "-z",
+            "--compress",
+            default=False,
+            action="store_true",
+            help="Compress directory (required when 'file' is a directory)",
+        )
+        parser.add_argument(
+            "--exclude",
+            default=None,
+            help="(Optional) Files to exclude when compressing a directory",
+        )
+        parser.add_argument("file", nargs=1, help="File or directory to upload")
         parser.add_argument("object", nargs=1, help="Destination path of the object")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -68,7 +99,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
             print(DTCommand.usage)
             exit(1)
         # parse args
-        space, object_path = (arg1, arg2) if arg2 != "_" else (None, arg1)
+        space, object_key = (arg1, arg2) if arg2 != "_" else (None, arg1)
         # make sure that the space is given in at least one form
         if space is None and parsed.space is None:
             dtslogger.error("You must specify a storage space for the object.")
@@ -85,15 +116,19 @@ Where <space> can be one of {str(VALID_SPACES)}.
             print(DTCommand.usage)
             exit(4)
         # sanitize object path (remove leading `/`)
-        object_path = object_path[1:] if object_path.startswith("/") else object_path
+        object_key = object_key.lstrip('/')
         # converge args to parsed
-        parsed.object = object_path
+        parsed.object = object_key
         if space:
             parsed.space = space
         # make sure that the input file exists
-        if not os.path.isfile(parsed.file):
-            dtslogger.error(f"File '{parsed.file}' not found!")
+        if not os.path.exists(parsed.file):
+            dtslogger.error(f"File/directory '{parsed.file}' not found!")
             exit(5)
+        # make sure we are compressing when sending a directory
+        if os.path.isdir(parsed.file) and not parsed.compress:
+            dtslogger.error(f"Argument -z/--compress is required when uploading a directory.")
+            exit(8)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
         # get the token if it is not given
@@ -134,16 +169,30 @@ Where <space> can be one of {str(VALID_SPACES)}.
             # check status
             check_status(h)
 
+        # upload (file or directory)
+        ctx_mgr = contextlib.suppress()
+        object_fpath = parsed.file
+
+        # upload directory
+        if os.path.isdir(parsed.file):
+            ctx_mgr = TempZipFile()
+            object_fpath = ctx_mgr.fpath
+            exclude = parsed.exclude.split(",") if parsed.exclude else []
+            zip_opts = (["-x"] + exclude) if len(exclude) else []
+            dtslogger.info(f"Compressing '{parsed.file}' to temporary file '{object_fpath}'...")
+            zip_cmd = ["zip"] + zip_opts + ["-r", object_fpath, "./"]
+            dtslogger.debug(f"$ {zip_cmd}")
+            subprocess.check_call(zip_cmd, cwd=parsed.file)
+
         # upload file
-        dtslogger.info(f"Uploading {parsed.file} -> [{parsed.space}]:{parsed.object}")
-        handler = storage.upload(parsed.file, parsed.object)
-        handler.register_callback(cb)
-
-        # capture SIGINT and abort
-        signal.signal(signal.SIGINT, lambda *_: handler.abort())
-
-        # wait for the upload to finish
-        handler.join()
+        with ctx_mgr:
+            dtslogger.info(f"Uploading {object_fpath} -> [{parsed.space}]:{parsed.object}")
+            handler = storage.upload(object_fpath, parsed.object)
+            handler.register_callback(cb)
+            # capture SIGINT and abort
+            signal.signal(signal.SIGINT, lambda *_: handler.abort())
+            # wait for the upload to finish
+            handler.join()
 
         # check status
         check_status(handler)
