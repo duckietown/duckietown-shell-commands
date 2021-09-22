@@ -65,6 +65,7 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
+ROSBAG_DIR = "/data/logs"
 
 
 class DTCommand(DTCommandAbs):
@@ -611,8 +612,8 @@ class DTCommand(DTCommandAbs):
                         "bind": "/code/launchers",
                         "mode": "ro",
                     },
-                    os.path.join(working_dir,log_dir): {
-                        "bind": "/logs",
+                    os.path.join(working_dir, log_dir): {
+                        "bind": ROSBAG_DIR,
                         "mode": "rw",
                     }
                 },
