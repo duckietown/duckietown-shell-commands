@@ -1,7 +1,9 @@
+import os
 import re
 
 
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
+USER_DATA_DIR = os.path.expanduser(os.path.join("~", ".duckietown"))
 
 
 def get_robot_types():
