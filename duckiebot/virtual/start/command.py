@@ -5,10 +5,10 @@ import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.utils import pull_docker_image
-from utils.duckietown_utils import get_distro_version
+from utils.duckietown_utils import get_distro_version, USER_DATA_DIR
 
 DISK_NAME = "root"
-VIRTUAL_FLEET_DIR = os.path.expanduser(os.path.join("~", "Duckietown", "virtual_robots"))
+VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-amd64"
 
 

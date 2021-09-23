@@ -18,12 +18,13 @@ from disk_image.create.utils import \
 from utils.duckietown_utils import \
     get_distro_version,\
     get_robot_types,\
-    get_robot_configurations
+    get_robot_configurations, \
+    USER_DATA_DIR
 
 DEVICE_ARCH = "amd64"
 DISK_NAME = "root"
 DEFAULT_STACK = "duckietown"
-VIRTUAL_FLEET_DIR = os.path.expanduser(os.path.join("~", "Duckietown", "virtual_robots"))
+VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 COMMANDS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..")
 STACKS_DIR = os.path.join(COMMANDS_DIR, "stack", "stacks", DEFAULT_STACK)
