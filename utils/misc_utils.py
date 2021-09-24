@@ -47,3 +47,7 @@ def sudo_open(path, mode, *_, **__):
     # ---
     proc = subprocess.Popen(["sudo", tool, path], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     return proc.stdout if mode == "r" else proc.stdin
+
+
+def versiontuple(version: str):
+    return tuple(map(int, (version.split("."))))
