@@ -94,7 +94,7 @@ class DTCommand(DTCommandAbs):
         
         You can now run the Duckiematrix application using the command:
         
-            >   dts matrix run
+            >   dts matrix run --standalone --sandbox
         
         """)
 

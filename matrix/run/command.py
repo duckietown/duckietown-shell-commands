@@ -1,30 +1,24 @@
 import argparse
 import logging
 import os
-import signal
 import subprocess
 import time
 from threading import Thread
-from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Callable
 
+import docker as dockerlib
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import DEFAULT_REGISTRY, get_client
 from utils.duckiematrix_utils import \
     APP_NAME, \
-    DCSS_SPACE_NAME, \
-    APP_RELEASES_DIR, \
     get_most_recent_version_installed, \
-    remote_zip_obj, \
-    get_latest_version, get_path_to_binary
-
+    get_path_to_binary
 from utils.duckietown_utils import get_distro_version
-from utils.misc_utils import versiontuple
-
 
 DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-amd64"
+EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 
 DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {
     "network_mode": "host"
@@ -49,6 +43,7 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument(
             "-s",
+            "-S",
             "--standalone",
             default=False,
             action="store_true",
@@ -66,6 +61,14 @@ class DTCommand(DTCommandAbs):
             default=None,
             type=str,
             help="Directory containing the map to load"
+        )
+        parser.add_argument(
+            "-e",
+            "--engine",
+            dest="engine_hostname",
+            default=None,
+            type=str,
+            help="Hostname or IP address of the engine to connect to"
         )
         parser.add_argument(
             "--sandbox",
@@ -141,7 +144,7 @@ class DTCommand(DTCommandAbs):
                             "modes cannot be used together.")
             return
         run_engine = parsed.standalone or parsed.engine_only
-        run_app = not parsed.engine_only
+        run_renderer = not parsed.engine_only
         # - sandbox VS engine-only
         if parsed.standalone and parsed.engine_only:
             dtslogger.error("Sandbox (--sandbox) and Engine-Only (--engine-only) "
@@ -178,7 +181,12 @@ class DTCommand(DTCommandAbs):
             return
         # run the engine if in standalone or engine mode
         engine: Optional[Container] = None
+        docker: Optional[dockerlib.DockerClient] = None
+        engine_config: dict = {}
+        terminate_engine: Optional[Callable] = None
+        # configure engine
         if run_engine:
+            dtslogger.info("Configuring Engine...")
             docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
                 dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
@@ -235,36 +243,16 @@ class DTCommand(DTCommandAbs):
             docker = get_client()
             # run engine container
             dtslogger.debug(engine_config)
-            engine = docker.containers.run(**engine_config)
-            # attach ctrl-c handler
+            dtslogger.info("Engine configured!")
+            # ENGINE is now configured
+            # -------------------------------------------------------------------------------------
 
-            def on_sigint(*_):
-                # noinspection PyBroadException
-                try:
-                    dtslogger.info("Cleaning up containers...")
-                    engine.stop()
-                except Exception:
-                    dtslogger.warn("We couldn't ensure that the engine container was removed. "
-                                   "Just a heads up that it might still be running.")
-
-            # capture SIGINT and abort
-            signal.signal(signal.SIGINT, on_sigint)
-
-            # print out logs if we are in verbose mode
-            if parsed.verbose:
-                def verbose_reader(stream):
-                    try:
-                        while True:
-                            line = next(stream).decode("utf-8")
-                            print(line, end="")
-                    except StopIteration:
-                        dtslogger.info('Engine container terminated.')
-
-                container_stream = engine.logs(stream=True)
-                Thread(target=verbose_reader, args=(container_stream,), daemon=True).start()
-
-        # run the app
-        if run_app:
+        # configure renderer
+        app_bin: Optional[str] = None
+        app_config: list = []
+        terminate_renderer: Optional[Callable] = None
+        if run_renderer:
+            dtslogger.info("Configuring Renderer...")
             version = parsed.version if parsed.version else get_most_recent_version_installed()
             dtslogger.debug(f"Will try to run {version}...")
             # make sure the app is installed
@@ -286,29 +274,118 @@ class DTCommand(DTCommandAbs):
             else:
                 # by default we use Vulkan
                 app_config += ["-force-vulkan"]
-            # wait for the engine to become healthy
-            # TODO: not sure how to get the container's health
-            # run the app
-            app_cmd = [app_bin] + app_config
-            dtslogger.debug(f"$ > {app_cmd}")
-            time.sleep(5)
-            subprocess.check_call(app_cmd, shell=True)
+            # custom engine
+            if parsed.engine_hostname is not None:
+                app_config += ["--engine-hostname", parsed.engine_hostname]
+            # ---
+            dtslogger.info("Renderer configured!")
+            # RENDERER is now configured
+            # -------------------------------------------------------------------------------------
 
+        # run
+        try:
+            # - engine
             if run_engine:
-                on_sigint()
+                dtslogger.info("Launching Engine...")
+                engine = docker.containers.run(**engine_config)
 
-            # thread = Thread(
-            #     target=subprocess.Popen,
-            #     args=(app_cmd,),
-            #     kwargs={"shell": True},
-            #     daemon=True
-            # )
-            # thread.start()
-            # # attach to app if we are not attaching to the
-            # if not parsed.verbose:
-            #     thread.join()
+                # this is how we terminate the engine
+                def terminate_engine(*_):
+                    # noinspection PyBroadException
+                    try:
+                        dtslogger.info("Cleaning up containers...")
+                        engine.stop()
+                    except Exception:
+                        dtslogger.warn("We couldn't ensure that the engine container was removed. "
+                                       "Just a heads up that it might still be running.")
 
+                # print out logs if we are in verbose mode
+                if parsed.verbose:
+                    def verbose_reader(stream):
+                        try:
+                            while True:
+                                line = next(stream).decode("utf-8")
+                                print(line, end="")
+                        except StopIteration:
+                            dtslogger.info('Engine container terminated.')
+
+                    container_stream = engine.logs(stream=True)
+                    Thread(target=verbose_reader, args=(container_stream,), daemon=True).start()
+
+            # - renderer
+            if run_renderer:
+                # wait for the engine (if any) to become healthy
+                if run_engine:
+                    timeout = 20
+                    dtslogger.info(f"Waiting up to {timeout} seconds for the Engine to start...")
+                    try:
+                        wait_until_healthy(engine, timeout=timeout)
+                    except Exception as e:
+                        dtslogger.error(f"The Engine failed to become healthy within {timeout} "
+                                        f"seconds. Try running with the --verbose flag to gain "
+                                        f"insights into the problem.\n"
+                                        f"The error reads:\n{e}")
+                        terminate_engine()
+                        return
+
+                # run the app
+                dtslogger.info("Launching Renderer...")
+                app_cmd = [app_bin] + app_config
+                dtslogger.debug(f"$ > {app_cmd}")
+                time.sleep(5)
+                renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                # this is how we terminate the renderer
+
+                def terminate_renderer(*_):
+                    # noinspection PyBroadException
+                    try:
+                        renderer.kill()
+                    except Exception:
+                        pass
+
+                # wait for the renderer to terminate
+                join_renderer(renderer, parsed.verbose)
+            else:
+                # wait for the engine to terminate
+                engine.wait()
+
+        finally:
+            if run_engine:
+                terminate_engine()
+            if run_renderer:
+                terminate_renderer()
 
     @staticmethod
     def complete(shell, word, line):
         return []
+
+
+def wait_until_healthy(container: Container, timeout: int = -1):
+    stime = time.time()
+    while True:
+        container.reload()
+        if container.status not in ["created", "running"]:
+            raise ValueError(f"Container was found in status '{container.status}'")
+        attrs = container.attrs
+        if "State" in attrs and "Health" in attrs["State"]:
+            health = attrs["State"]["Health"]["Status"]
+            # check health
+            if health == "healthy":
+                return
+        # ---
+        time.sleep(1)
+        if 0 < timeout < time.time() - stime:
+            raise TimeoutError()
+
+
+def join_renderer(process: subprocess.Popen, verbose: bool = False):
+    while True:
+        line = process.stdout.readline()
+        if not line:
+            break
+        line = line.decode("utf-8")
+        if EXTERNAL_SHUTDOWN_REQUEST in line:
+            process.kill()
+            return
+        if verbose:
+            print(line, end="")

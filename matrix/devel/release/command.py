@@ -53,16 +53,16 @@ class DTCommand(DTCommandAbs):
             return
 
         # make sure we are in the right place
-        build_dir = os.path.abspath("./Build")
+        build_dir = os.path.abspath("./Release")
         if not os.path.isdir(build_dir):
-            dtslogger.error("Directory './Build' not found. Are you running this command from the "
-                            "root of the duckiematrix project?")
+            dtslogger.error("Directory './Release' not found. Are you running this command "
+                            "from the root of the duckiematrix project?")
             return
 
         # read app.json
         json_fp = os.path.join(build_dir, f"{APP_NAME}.json")
         if not os.path.isfile(json_fp):
-            dtslogger.error(f"File './Build/{APP_NAME}.json' not found. Did you build the app?")
+            dtslogger.error(f"File './Release/{APP_NAME}.json' not found. Did you build the app?")
             return
 
         # load metadata
