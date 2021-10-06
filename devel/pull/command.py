@@ -4,11 +4,10 @@ import os
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.docker_utils import (
-    DEFAULT_MACHINE,
     DEFAULT_REGISTRY,
     get_endpoint_architecture,
     get_client,
-    push_image, pull_image,
+    pull_image,
 )
 from utils.dtproject_utils import DTProject
 
@@ -37,7 +36,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
+            default=None,
             help="Docker socket or hostname from where to push the image",
         )
         parsed, _ = parser.parse_known_args(args=args)
