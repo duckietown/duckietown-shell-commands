@@ -179,6 +179,7 @@ napoleon_use_keyword = config.get("napoleon_use_keyword", True)
 
 napoleon_custom_section = [(sec_name, "Parameters") for sec_name in config.get("custom_sections", [])]
 
+numfig = True
 
 # Intersphinx config
 intersphinx_mapping_default = {
