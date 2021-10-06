@@ -155,6 +155,8 @@ class DTCommand(DTCommandAbs):
         engine: Optional[MatrixEngine] = None
         if run_engine:
             engine = shell.include.matrix.engine.run.make_engine(shell, parsed, use_defaults=True)
+            if engine is None:
+                return
             # ENGINE is now configured
             # -------------------------------------------------------------------------------------
 

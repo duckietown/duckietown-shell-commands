@@ -38,34 +38,34 @@ class MatrixEngine:
     def is_running(self) -> bool:
         return self.engine is not None and self.engine.status == "running"
 
-    def configure(self, shell: DTShell, parsed: argparse.Namespace) -> Optional[dict]:
+    def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
         self.verbose = parsed.verbose
         # check for conflicting arguments
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
                             "cannot be used together.")
-            return
+            return False
         # make sure the map is given (when not in sandbox standalone mode)
         if not parsed.map and not parsed.sandbox:
             dtslogger.error("You need to specify a map with -m/--map or choose to run in "
                             "--sandbox mode to use a default map.")
-            return
+            return False
         # make sure the map path exists when given
         map_dir = os.path.abspath(parsed.map) if parsed.map is not None else None
-        map_name = os.path.basename(parsed.map) if parsed.map is not None else None
+        map_name = os.path.basename(parsed.map.rstrip('/')) if parsed.map is not None else None
         if map_dir is not None and not os.path.isdir(map_dir):
             dtslogger.error(f"The given path '{map_dir}' does not exist.")
-            return
+            return False
         # make sure the map itself exists when given
-        if map_dir is not None and not os.path.isdir(os.path.join(map_dir, "main.yaml")):
+        if map_dir is not None and not os.path.isfile(os.path.join(map_dir, "main.yaml")):
             dtslogger.error(f"The given path '{map_dir}' does not contain a valid map.")
-            return
+            return False
         # make sure the time step is only given in gym mode
         if parsed.delta_t is not None and not parsed.simulation:
             dtslogger.error("You can specify a --delta-t only when running with "
                             "--gym/--simulation.")
-            return
+            return False
         # configure engine
         dtslogger.info("Configuring Engine...")
         docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
@@ -124,6 +124,7 @@ class MatrixEngine:
         dtslogger.debug(engine_config)
         self.config = engine_config
         dtslogger.info("Engine configured!")
+        return True
 
     def stop(self):
         if self.config is None:
@@ -263,14 +264,17 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False) \
-            -> MatrixEngine:
+            -> Optional[MatrixEngine]:
         if use_defaults:
             defaults = DTCommand._parse_args([])
             defaults.__dict__.update(parsed.__dict__)
             parsed = defaults
         # create engine
         engine = MatrixEngine()
-        engine.configure(shell, parsed)
+        configured = engine.configure(shell, parsed)
+        if not configured:
+            return None
+        # ---
         return engine
 
     @staticmethod
@@ -280,6 +284,9 @@ class DTCommand(DTCommandAbs):
             parsed = DTCommand._parse_args(args)
         # ---
         engine = DTCommand.make_engine(shell, parsed)
+        if engine is None:
+            return
+        # ---
         engine.start()
         engine.join()
 
