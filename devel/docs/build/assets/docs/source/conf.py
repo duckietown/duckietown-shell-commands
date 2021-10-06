@@ -138,6 +138,9 @@ extensions += ["sphinx.ext.autodoc"]
 # Intersphinx: create hyperlinks to other repos and packages
 extensions += ["sphinx.ext.intersphinx"]
 
+# Custom extensions
+extensions += config.get("extensions", [])
+
 # Load all the necessary mock imports
 print(" - Reading mock_imports...")
 if os.path.isfile("mock_imports"):
