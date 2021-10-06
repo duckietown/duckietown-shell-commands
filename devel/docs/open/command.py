@@ -1,18 +1,8 @@
 import argparse
 import os
-import sys
 import webbrowser
 
-import docker
-import tarfile
-import io
-import pathlib
-
 from dt_shell import DTCommandAbs, dtslogger
-
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
-from utils.cli_utils import start_command_in_subprocess
-from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
