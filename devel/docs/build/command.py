@@ -1,15 +1,15 @@
 import argparse
-import os
-import sys
-import docker
-import tarfile
 import io
+import os
 import pathlib
+import sys
+import tarfile
 
+import docker
 from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
 from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
 from utils.dtproject_utils import DTProject
 
 
@@ -112,7 +112,12 @@ class DTCommand(DTCommandAbs):
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
         # dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         docs_image, logs = dclient.images.build(
-            path=cmd_dir, buildargs={"BASE_IMAGE": image}, nocache=parsed.no_cache
+            path=cmd_dir,
+            buildargs={
+                "BASE_IMAGE": image,
+                "BOOK_NAME": project.name
+            },
+            nocache=parsed.no_cache
         )
         print(build_logs_to_string(logs))
         dtslogger.info("Done!")
@@ -152,13 +157,18 @@ class DTCommand(DTCommandAbs):
         container.wait()
 
         # copy the results back to the host
-        bits, stat = container.get_archive(path="/docs/out/")
+        bits, stat = container.get_archive(path=f"/{project.name}")
         out_files_buf = io.BytesIO()
         for b in bits:
             out_files_buf.write(b)
         out_files_buf.seek(0)
         t = tarfile.open(fileobj=out_files_buf, mode="r")
         t.extractall(pathlib.Path(repo_file("html")))
+
+        # keep also the .tgz
+        out_files_buf.seek(0)
+        with open(repo_file("html", "package.tgz"), "wb") as fout:
+            fout.write(out_files_buf.read())
 
         # delete container
         container.remove()
