@@ -22,9 +22,13 @@ class DTCommand(DTCommandAbs):
         local_docker = docker.from_env()
         try:
             vbot_container = local_docker.containers.get(f"dts-virtual-{parsed.robot}")
-            dtslogger.info(f"Shutting down virtual robot '{parsed.robot}'...")
+            dtslogger.info(f"Shutting down virtual robot '{parsed.robot}', "
+                           f"this might take a while...")
             vbot_container.exec_run(cmd="shutdown")
+            vbot_container.wait()
             dtslogger.info("Done!")
+            return True
         except docker.errors.NotFound:
             # warn and exit
             dtslogger.error(f"No running virtual robot found with name '{parsed.robot}'")
+            return False

@@ -227,7 +227,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Launching Renderer...")
                 app_cmd = [app_bin] + app_config
                 dtslogger.debug(f"$ > {app_cmd}")
-                time.sleep(5)
+                time.sleep(2)
                 renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
                 # this is how we terminate the renderer
 

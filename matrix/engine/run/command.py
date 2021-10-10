@@ -80,7 +80,6 @@ class MatrixEngine:
         engine_config = {
             "image": engine_image,
             "command": ["--"],
-            "auto_remove": True,
             "detach": True,
             "stdout": True,
             "stderr": True,
@@ -107,7 +106,7 @@ class MatrixEngine:
             engine_config["volumes"] = {
                 map_dir: {
                     'bind': map_location,
-                    'mode': 'ro'
+                    'mode': 'rw' if parsed.build_assets else 'ro'
                 }
             }
             engine_config["command"] += ["--map", map_name]
@@ -117,6 +116,9 @@ class MatrixEngine:
         # robot links
         for link in parsed.links:
             engine_config["command"] += ["--link", *link]
+        # build assets
+        if parsed.build_assets:
+            engine_config["command"] += ["--build-assets"]
         # debug mode
         if dtslogger.level <= logging.DEBUG:
             engine_config["command"] += ["--debug"]
@@ -129,15 +131,20 @@ class MatrixEngine:
     def stop(self):
         if self.config is None:
             raise ValueError("Configure the engine first.")
-        if not self.is_running:
-            return
+        dtslogger.info("Cleaning up containers...")
+        if self.is_running:
+            # noinspection PyBroadException
+            try:
+                self.engine.stop()
+            except Exception:
+                dtslogger.warn("We couldn't ensure that the engine container was stopped. "
+                               "Just a heads up that it might still be running.")
         # noinspection PyBroadException
         try:
-            dtslogger.info("Cleaning up containers...")
-            self.engine.stop()
+            self.engine.remove()
         except Exception:
             dtslogger.warn("We couldn't ensure that the engine container was removed. "
-                           "Just a heads up that it might still be running.")
+                           "Just a heads up that it might still be there.")
         self.engine = None
 
     def start(self, join: bool = False) -> bool:
@@ -161,7 +168,15 @@ class MatrixEngine:
 
                 container_stream = self.engine.logs(stream=True)
                 Thread(target=verbose_reader, args=(container_stream,), daemon=True).start()
-        except BaseException:
+        except BaseException as e:
+            dtslogger.error(f"An error occurred while running the engine. The error reads:\n{e}")
+            self.stop()
+            return False
+        # make sure the engine is running
+        try:
+            self.engine.reload()
+        except BaseException as e:
+            dtslogger.error(f"An error occurred while running the engine. The error reads:\n{e}")
             self.stop()
             return False
         # join (if needed)
@@ -251,6 +266,12 @@ class DTCommand(DTCommandAbs):
             default=[],
             metavar=("matrix", "world"),
             help="Link robots inside the matrix to robots outside",
+        )
+        parser.add_argument(
+            "--build-assets",
+            default=False,
+            action="store_true",
+            help="Build assets and exit"
         )
         parser.add_argument(
             "-vv",

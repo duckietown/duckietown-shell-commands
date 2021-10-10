@@ -124,6 +124,7 @@ class DTCommand(DTCommandAbs):
             pull_docker_image(local_docker, "docker:dind")
             # run auxiliary Docker engine
             remote_docker_dir = os.path.join(vbot_root_dir, "var", "lib", "docker")
+            creator_container_name = f"dts-duckiebot-virtual-create-env-{parsed.robot}"
             remote_docker_engine_container = local_docker.containers.run(
                 image="docker:dind",
                 detach=True,
@@ -131,14 +132,14 @@ class DTCommand(DTCommandAbs):
                 auto_remove=True,
                 publish_all_ports=True,
                 privileged=True,
-                name="dts-disk-image-aux-docker",
+                name=creator_container_name,
                 volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
                 entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
             )
             dtslogger.info("Waiting 20 seconds for your new robot to start...")
             time.sleep(20)
             # get IP address of the container
-            container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
+            container_info = local_docker.api.inspect_container(creator_container_name)
             container_ip = container_info["NetworkSettings"]["IPAddress"]
             # create remote docker client
             endpoint_url = f"tcp://{container_ip}:2375"
