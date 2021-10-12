@@ -3,13 +3,14 @@ import pathlib
 import argparse
 from shutil import which
 
+import docker
 import yaml
 
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, pull_image
+from utils.docker_utils import get_endpoint_architecture, pull_image, DEFAULT_REGISTRY
 from utils.misc_utils import sanitize_hostname
 from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
@@ -45,6 +46,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Pull images before running",
         )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use images from this Docker registry",
+        )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -55,13 +62,13 @@ class DTCommand(DTCommandAbs):
                 "Please, install it using the command:\n\n"
                 "\tpip3 install docker-compose\n\n"
             )
-            return
+            return False
         # ---
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
         if multi.is_multicommand:
             multi.execute()
-            return
+            return True
         # ---
         parsed.stack = parsed.stack[0]
         project_name = parsed.stack.replace("/", "_")
@@ -78,15 +85,20 @@ class DTCommand(DTCommandAbs):
         # sanitize stack
         stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
-        stack_file = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
+        stack_cmd_dir = pathlib.Path(__file__).parent.parent.absolute()
+        stack_file = os.path.join(stack_cmd_dir, "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
-            return
+            return False
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
         else:
             parsed.machine = DEFAULT_MACHINE
+        # info about registry
+        registry_hostname = parsed.registry
+        if registry_hostname != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {registry_hostname}")
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -97,8 +109,14 @@ class DTCommand(DTCommandAbs):
                 stack_content = yaml.safe_load(fin)
             for service in stack_content["services"].values():
                 image_name = service["image"].replace("${ARCH}", endpoint_arch)
+                image_name = image_name.replace("${REGISTRY}", registry_hostname)
                 dtslogger.info(f"Pulling image `{image_name}`...")
-                pull_image(image_name, parsed.machine)
+                try:
+                    pull_image(image_name, parsed.machine)
+                except docker.errors.NotFound:
+                    dtslogger.error(f"Image '{image_name}' not found on registry "
+                                    f"'{registry_hostname}'. Aborting.")
+                    return False
         # print info
         dtslogger.info(f"Running stack [{stack}]...")
         print("------>")
@@ -109,15 +127,21 @@ class DTCommand(DTCommandAbs):
         env.update(os.environ)
         # add ARCH
         env["ARCH"] = endpoint_arch
+        env["REGISTRY"] = registry_hostname
         # -d/--detach
         if parsed.detach:
             docker_arguments.append("--detach")
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose", f"-H={H}", "--project-name", project_name, "--file", stack_file, "up"]
+            ["docker-compose",
+             f"--host={H}",
+             "--project-name", project_name,
+             "--file", stack_file,
+             "up"]
             + docker_arguments,
             env=env,
         )
         # ---
         print("<------")
+        return True

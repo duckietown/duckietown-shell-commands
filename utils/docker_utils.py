@@ -24,6 +24,7 @@ DEFAULT_DOCKER_TCP_PORT = "2375"
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
+STAGING_REGISTRY = "registry-stage2.duckietown.org"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}

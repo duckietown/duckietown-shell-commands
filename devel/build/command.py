@@ -23,6 +23,7 @@ from utils.docker_utils import (
     get_endpoint_ncpus,
     get_client,
     pull_image,
+    STAGING_REGISTRY,
 )
 
 from utils.pip_utils import DEFAULT_INDEX_URL
@@ -167,6 +168,20 @@ class DTCommand(DTCommandAbs):
             "-v", "--verbose", default=False, action="store_true",
             help="Be verbose"
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use images from this Docker registry",
+        )
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -182,11 +197,20 @@ class DTCommand(DTCommandAbs):
         # define build-args
         buildargs = {"buildargs": {}, "labels": {}}
 
-        # custom Docker registry
-        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-        if docker_registry != DEFAULT_REGISTRY:
-            dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-            buildargs["buildargs"]["DOCKER_REGISTRY"] = docker_registry
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+            buildargs["buildargs"]["DOCKER_REGISTRY"] = parsed.registry
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -209,6 +233,8 @@ class DTCommand(DTCommandAbs):
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
 
+        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
+
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -218,7 +244,9 @@ class DTCommand(DTCommandAbs):
             parsed.stamp = True
             parsed.force_cache = True
             # check that the env variables are set
-            for key in ["ARCH", "DT_TOKEN", "DOCKERHUB_PULL_USER", "DOCKERHUB_PULL_TOKEN"]:
+            for key in ["ARCH", "DT_TOKEN",
+                        f"REGISTRY_{STAGEPROD}_PULL_USER",
+                        f"REGISTRY_{STAGEPROD}_PULL_TOKEN"]:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -318,11 +346,10 @@ class DTCommand(DTCommandAbs):
         )
         # login (CI only)
         if parsed.ci:
-            dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
-            docker.login(
-                username=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"],
-                password=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_TOKEN"],
-            )
+            ci_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_USER"]
+            ci_password = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_TOKEN"]
+            dtslogger.info(f'Logging in as `{ci_username}`')
+            docker.login(username=ci_username, password=ci_password)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()
@@ -337,7 +364,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
-        image = f"{docker_registry}/{image}"
+        image = f"{parsed.registry}/{image}"
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:

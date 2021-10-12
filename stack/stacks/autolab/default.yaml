@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   autolab-proxy:
-    image: duckietown/dt-autolab-proxy:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-autolab-proxy:daffy-${ARCH}
     container_name: autolab-proxy
     restart: always
     network_mode: host
@@ -12,7 +12,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   autolab-localization:
-    image: duckietown/dt-autolab-localization:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-autolab-localization:daffy-${ARCH}
     container_name: autolab-localization
     restart: unless-stopped
     network_mode: host

@@ -9,6 +9,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_client,
     push_image,
+    STAGING_REGISTRY,
 )
 from utils.dtproject_utils import DTProject
 
@@ -59,6 +60,20 @@ class DTCommand(DTCommandAbs):
             default="duckietown",
             help="the docker registry username to tag the image with",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -70,13 +85,31 @@ class DTCommand(DTCommandAbs):
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
+
         # show info about project
         shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
+
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
+        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
+
         # CI builds
         if parsed.ci:
             # check that the env variables are set
-            for key in ["DOCKERHUB_USER", "DOCKERHUB_TOKEN"]:
+            for key in [f"REGISTRY_{STAGEPROD}_USER", f"REGISTRY_{STAGEPROD}_TOKEN"]:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -99,18 +132,15 @@ class DTCommand(DTCommandAbs):
         push_args = {}
         if parsed.ci:
             push_args["auth_config"] = {
-                "username": os.environ["DUCKIETOWN_CI_DOCKERHUB_USER"],
-                "password": os.environ["DUCKIETOWN_CI_DOCKERHUB_TOKEN"],
+                "username": os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_USER"],
+                "password": os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_TOKEN"],
             }
         # spin up docker client
         docker = get_client(parsed.machine)
         # create defaults
         image = project.image(parsed.arch, owner=parsed.username)
+        image = f"{parsed.registry}/{image}"
 
-        # custom Docker registry
-        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-
-        image = f"{docker_registry}/{image}"
         dtslogger.info(f"Pushing image {image}...")
         push_image(image, docker, progress=not parsed.ci, **push_args)
         dtslogger.info("Image successfully pushed!")
