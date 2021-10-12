@@ -2,6 +2,8 @@ import os
 import re
 import copy
 import json
+from typing import Optional
+
 import yaml
 import subprocess
 import requests
@@ -180,11 +182,13 @@ class DTProject:
     def is_detached(self):
         return self._repository.detached if self._repository else False
 
-    def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
+    def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown",
+              version: Optional[str] = None) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
-        version = re.sub(r"[^\w\-.]", "-", self.version_name)
+        if version is None:
+            version = re.sub(r"[^\w\-.]", "-", self.version_name)
         return f"{owner}/{self.name}:{version}{loop}{docs}-{arch}"
 
     def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:

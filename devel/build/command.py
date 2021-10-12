@@ -367,7 +367,11 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        image_version = None
+        if parsed.staging:
+            image_version = project.distro
+        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
+                              version=image_version)
         image = f"{parsed.registry}/{image}"
         # search for launchers (template v2+)
         launchers = []

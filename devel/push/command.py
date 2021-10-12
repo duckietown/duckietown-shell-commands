@@ -138,7 +138,10 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client(parsed.machine)
         # create defaults
-        image = project.image(parsed.arch, owner=parsed.username)
+        image_version = None
+        if parsed.staging:
+            image_version = project.distro
+        image = project.image(parsed.arch, owner=parsed.username, version=image_version)
         image = f"{parsed.registry}/{image}"
 
         dtslogger.info(f"Pushing image {image}...")
