@@ -58,6 +58,7 @@ ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
 SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
 EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
 BRIDGE_IMAGE = f"duckietown/dt-duckiebot-fifos-bridge:{BRANCH}"
+VNC_IMAGE = f"duckietown/dt-gui-tools:{BRANCH}-amd64"
 
 DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
@@ -216,7 +217,7 @@ class DTCommand(DTCommandAbs):
         #   get current working directory to check if it is an exercise directory
         #
         working_dir = os.getcwd()
-        exercise_name = os.path.basename(working_dir)
+        exercise_name = (os.path.basename(working_dir)).lower()
         dtslogger.info(f"Running exercise {exercise_name}")
 
         config_file = os.path.join(working_dir, "config.yaml")
@@ -422,7 +423,8 @@ class DTCommand(DTCommandAbs):
             shutil.rmtree(challenges_dir)
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
-        shutil.copytree(assets_challenges_dir, challenges_dir)
+        if os.path.exists(assets_challenges_dir):
+            shutil.copytree(assets_challenges_dir, challenges_dir)
 
         fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
@@ -591,7 +593,19 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(ros_container)
 
             # let's launch vnc
-            vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+            # if we have a lab_dir - then let's see if the image exists locally otherwise try to build
+            # otherwise just use the base image
+            labdir_name = config.get("lab_dir", None)
+            if labdir_name is None:
+                dtslogger.info("No lab dir - running base VNC image")
+                vnc_image = VNC_IMAGE
+            else:
+                vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+                local_client_images = local_client.images.list()
+                if f"<Image: '{vnc_image}:latest'>" not in local_client_images:
+                    dtslogger.error(f"Failed to find {vnc_image} in local images."
+                    "You must run dts exercises build first to build your lab image to run notebooks")
+                exit(1)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
