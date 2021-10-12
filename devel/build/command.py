@@ -243,10 +243,14 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
+            keys_required = ["ARCH", "DT_TOKEN"]
+            # TODO: this is temporary given that we have separate accounts for pulling/pushing
+            #  from/to DockerHub
+            if not parsed.staging:
+                keys_required += ["REGISTRY_PRODUCTION_PULL_USER",
+                                  "REGISTRY_PRODUCTION_PULL_TOKEN"]
             # check that the env variables are set
-            for key in ["ARCH", "DT_TOKEN",
-                        f"REGISTRY_{STAGEPROD}_PULL_USER",
-                        f"REGISTRY_{STAGEPROD}_PULL_TOKEN"]:
+            for key in keys_required:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -345,7 +349,7 @@ class DTCommand(DTCommandAbs):
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         )
         # login (CI only)
-        if parsed.ci:
+        if parsed.ci and not parsed.staging:
             ci_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_USER"]
             ci_password = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_TOKEN"]
             dtslogger.info(f'Logging in as `{ci_username}`')
