@@ -300,7 +300,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning("Forced!")
         # create image name
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry)
+                              registry=parsed.registry, staging=parsed.staging)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(

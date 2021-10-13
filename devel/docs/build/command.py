@@ -118,7 +118,8 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
 
         # create defaults
-        image = project.image(arch, loop=parsed.loop, owner=parsed.username, registry=parsed.registry)
+        image = project.image(arch, loop=parsed.loop, owner=parsed.username,
+                              registry=parsed.registry, staging=parsed.staging)
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators

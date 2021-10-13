@@ -183,36 +183,43 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown",
-              version: Optional[str] = None, registry: str = DEFAULT_REGISTRY) -> str:
+              version: Optional[str] = None, registry: str = DEFAULT_REGISTRY,
+              staging: bool = False) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
         if version is None:
             version = re.sub(r"[^\w\-.]", "-", self.version_name)
+        if staging and version == f"{self.distro}-staging":
+            version = self.distro
         # TODO: this is temporary, at some point we should always have the registry in the name
         registry = f"{registry}/" if registry != DEFAULT_REGISTRY else ""
         return f"{registry}{owner}/{self.name}:{version}{loop}{docs}-{arch}"
 
     def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown",
-                      registry: str = DEFAULT_REGISTRY) -> str:
+                      registry: str = DEFAULT_REGISTRY,
+                      staging: bool = False) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
         assert_canonical_arch(arch)
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
+        if staging and version == f"{self.distro}-staging":
+            version = self.distro
         # TODO: this is temporary, at some point we should always have the registry in the name
         registry = f"{registry}/" if registry != DEFAULT_REGISTRY else ""
         return f"{registry}{owner}/{self.name}:{version}{docs}-{arch}"
 
     def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown",
-                    registry: str = DEFAULT_REGISTRY):
-        image_tag = self.image(arch, owner=owner, registry=registry)
+                    registry: str = DEFAULT_REGISTRY, staging: bool = False):
+        image_tag = self.image(arch, owner=owner, registry=registry, staging=staging)
         try:
             configurations = self.configurations()
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, registry=registry)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, registry=registry,
+                                      staging=staging)
         # remove useless data
         del inspect["ContainerConfig"]
         del inspect["Config"]["Labels"]
@@ -292,9 +299,9 @@ class DTProject:
         return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
 
     def image_metadata(self, endpoint, arch: str, owner: str = "duckietown",
-                       registry: str = DEFAULT_REGISTRY):
+                       registry: str = DEFAULT_REGISTRY, staging: bool = False):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner, registry=registry)
+        image_name = self.image(arch, owner=owner, registry=registry, staging=staging)
         try:
             image = client.images.get(image_name)
             return image.attrs
@@ -302,9 +309,9 @@ class DTProject:
             return None
 
     def image_labels(self, endpoint, arch: str, owner: str = "duckietown",
-                     registry: str = DEFAULT_REGISTRY):
+                     registry: str = DEFAULT_REGISTRY, staging: bool = False):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner, registry=registry)
+        image_name = self.image(arch, owner=owner, registry=registry, staging=staging)
         try:
             image = client.images.get(image_name)
             return image.labels

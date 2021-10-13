@@ -82,10 +82,12 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        images = [project.image(parsed.arch, registry=parsed.registry)]
+        images = [project.image(parsed.arch, registry=parsed.registry,
+                                staging=parsed.staging)]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(parsed.arch, registry=parsed.registry))
+            images.append(project.image_release(parsed.arch, registry=parsed.registry,
+                                                staging=parsed.staging))
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

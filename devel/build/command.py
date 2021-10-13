@@ -367,11 +367,8 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        image_version = None
-        if parsed.staging:
-            image_version = project.distro
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              version=image_version, registry=parsed.registry)
+                              registry=parsed.registry, staging=parsed.staging)
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -490,7 +487,8 @@ class DTCommand(DTCommandAbs):
                 local_sha = project.sha
                 # get remote image metadata
                 try:
-                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
+                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username,
+                                                  registry=parsed.registry, staging=parsed.staging)
                     time_label = dtlabel("time")
                     sha_label = dtlabel("code.sha")
                     if time_label in labels and sha_label in labels:
@@ -547,7 +545,8 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(parsed.arch, owner=parsed.username, registry=parsed.registry)
+            rimage = project.image_release(parsed.arch, owner=parsed.username,
+                                           registry=parsed.registry, staging=parsed.staging)
             dimage.tag(*rimage.split(":"))
             msg = f"Successfully tagged {rimage}"
             buildlog.append(msg)
@@ -606,7 +605,8 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
-                metadata = project.ci_metadata(docker, parsed.arch, registry=parsed.registry)
+                metadata = project.ci_metadata(docker, parsed.arch, registry=parsed.registry,
+                                               staging=parsed.staging)
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),

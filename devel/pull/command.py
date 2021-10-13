@@ -92,7 +92,7 @@ class DTCommand(DTCommandAbs):
         docker = get_client(parsed.machine)
 
         # create defaults
-        image = project.image(parsed.arch, registry=parsed.registry)
+        image = project.image(parsed.arch, registry=parsed.registry, staging=parsed.staging)
 
         # custom Docker registry
         # TODO: add parsed.registry here
