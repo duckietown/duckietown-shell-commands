@@ -286,27 +286,30 @@ class DTProject:
         # ---
         return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
 
-    def image_metadata(self, endpoint, arch: str, owner: str = "duckietown"):
+    def image_metadata(self, endpoint, arch: str, owner: str = "duckietown",
+                       registry: str = DEFAULT_REGISTRY):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner)
+        image_name = f"{registry}/{self.image(arch, owner=owner)}"
         try:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
             return None
 
-    def image_labels(self, endpoint, arch: str, owner: str = "duckietown"):
+    def image_labels(self, endpoint, arch: str, owner: str = "duckietown",
+                     registry: str = DEFAULT_REGISTRY):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner)
+        image_name = f"{registry}/{self.image(arch, owner=owner)}"
         try:
             image = client.images.get(image_name)
             return image.labels
         except (APIError, ImageNotFound):
             return None
 
-    def remote_image_metadata(self, arch: str, owner: str = "duckietown"):
+    def remote_image_metadata(self, arch: str, owner: str = "duckietown",
+                              registry: str = DEFAULT_REGISTRY):
         assert_canonical_arch(arch)
-        image = f"{owner}/{self.name}"
+        image = f"{registry}/{owner}/{self.name}"
         tag = f"{self.version_name}-{arch}"
         return self.inspect_remote_image(image, tag)
 
