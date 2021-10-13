@@ -13,7 +13,7 @@ from docker.errors import APIError, ImageNotFound
 from types import SimpleNamespace
 
 from dt_shell import UserError
-from utils.docker_utils import sanitize_docker_baseurl
+from utils.docker_utils import sanitize_docker_baseurl, DEFAULT_REGISTRY
 
 REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
 
@@ -199,7 +199,8 @@ class DTProject:
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{owner}/{self.name}:{version}{docs}-{arch}"
 
-    def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown", registry: str = "docker.io"):
+    def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown",
+                    registry: str = DEFAULT_REGISTRY):
         image_tag = f"{registry}/{self.image(arch, owner=owner)}"
         try:
             configurations = self.configurations()

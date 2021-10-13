@@ -607,7 +607,7 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
-                metadata = project.ci_metadata(docker, parsed.arch, registry=docker_registry)
+                metadata = project.ci_metadata(docker, parsed.arch, registry=parsed.registry)
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),
