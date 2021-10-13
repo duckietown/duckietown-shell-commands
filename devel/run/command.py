@@ -6,7 +6,8 @@ import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import check_program_dependency
-from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
+from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE, \
+    DEFAULT_REGISTRY, STAGING_REGISTRY
 from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
@@ -149,6 +150,20 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Detach from the container and let it run",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
@@ -203,10 +218,26 @@ class DTCommand(DTCommandAbs):
                 suppress_errors=True,
             )
             return
+
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
         # get the module configuration
         module_configuration_args = []
         # apply default module configuration
@@ -268,7 +299,8 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
         # create image name
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
+                              registry=parsed.registry)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(

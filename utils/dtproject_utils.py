@@ -183,31 +183,36 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown",
-              version: Optional[str] = None) -> str:
+              version: Optional[str] = None, registry: str = DEFAULT_REGISTRY) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
         if version is None:
             version = re.sub(r"[^\w\-.]", "-", self.version_name)
-        return f"{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+        # TODO: this is temporary, at some point we should always have the registry in the name
+        registry = f"{registry}/" if registry != DEFAULT_REGISTRY else ""
+        return f"{registry}{owner}/{self.name}:{version}{loop}{docs}-{arch}"
 
-    def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:
+    def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown",
+                      registry: str = DEFAULT_REGISTRY) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
         assert_canonical_arch(arch)
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
-        return f"{owner}/{self.name}:{version}{docs}-{arch}"
+        # TODO: this is temporary, at some point we should always have the registry in the name
+        registry = f"{registry}/" if registry != DEFAULT_REGISTRY else ""
+        return f"{registry}{owner}/{self.name}:{version}{docs}-{arch}"
 
     def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown",
                     registry: str = DEFAULT_REGISTRY):
-        image_tag = f"{registry}/{self.image(arch, owner=owner)}"
+        image_tag = self.image(arch, owner=owner, registry=registry)
         try:
             configurations = self.configurations()
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, registry=registry)
         # remove useless data
         del inspect["ContainerConfig"]
         del inspect["Config"]["Labels"]
@@ -289,7 +294,7 @@ class DTProject:
     def image_metadata(self, endpoint, arch: str, owner: str = "duckietown",
                        registry: str = DEFAULT_REGISTRY):
         client = _docker_client(endpoint)
-        image_name = f"{registry}/{self.image(arch, owner=owner)}"
+        image_name = self.image(arch, owner=owner, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.attrs
@@ -299,7 +304,7 @@ class DTProject:
     def image_labels(self, endpoint, arch: str, owner: str = "duckietown",
                      registry: str = DEFAULT_REGISTRY):
         client = _docker_client(endpoint)
-        image_name = f"{registry}/{self.image(arch, owner=owner)}"
+        image_name = self.image(arch, owner=owner, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.labels

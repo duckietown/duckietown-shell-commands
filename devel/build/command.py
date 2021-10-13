@@ -371,8 +371,7 @@ class DTCommand(DTCommandAbs):
         if parsed.staging:
             image_version = project.distro
         image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              version=image_version)
-        image = f"{parsed.registry}/{image}"
+                              version=image_version, registry=parsed.registry)
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -548,7 +547,7 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(parsed.arch, owner=parsed.username)
+            rimage = project.image_release(parsed.arch, owner=parsed.username, registry=parsed.registry)
             dimage.tag(*rimage.split(":"))
             msg = f"Successfully tagged {rimage}"
             buildlog.append(msg)

@@ -7,7 +7,7 @@ from utils.docker_utils import (
     DEFAULT_REGISTRY,
     get_endpoint_architecture,
     get_client,
-    pull_image,
+    pull_image, STAGING_REGISTRY,
 )
 from utils.dtproject_utils import DTProject
 
@@ -39,6 +39,20 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Docker socket or hostname from where to push the image",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -50,19 +64,38 @@ class DTCommand(DTCommandAbs):
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
+
         # show info about project
         shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
+
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
         # spin up docker client
         docker = get_client(parsed.machine)
+
         # create defaults
-        image = project.image(parsed.arch)
+        image = project.image(parsed.arch, registry=parsed.registry)
 
         # custom Docker registry
+        # TODO: add parsed.registry here
         docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
 
         image = f"{docker_registry}/{image}"

@@ -141,15 +141,15 @@ class DTCommand(DTCommandAbs):
         image_version = None
         if parsed.staging:
             image_version = project.distro
-        image = project.image(parsed.arch, owner=parsed.username, version=image_version)
-        image = f"{parsed.registry}/{image}"
+        image = project.image(parsed.arch, owner=parsed.username, version=image_version,
+                              registry=parsed.registry)
 
         dtslogger.info(f"Pushing image {image}...")
         push_image(image, docker, progress=not parsed.ci, **push_args)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
-            image = project.image_release(parsed.arch, owner=parsed.username)
+            image = project.image_release(parsed.arch, owner=parsed.username, registry=parsed.registry)
             dtslogger.info(f"Pushing image {image}...")
             push_image(image, docker, progress=not parsed.ci, **push_args)
             dtslogger.info("Image successfully pushed!")

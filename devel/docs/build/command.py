@@ -9,7 +9,8 @@ import docker
 from dt_shell import DTCommandAbs, dtslogger
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
+from utils.docker_utils import get_endpoint_architecture, build_logs_to_string, DEFAULT_REGISTRY, \
+    STAGING_REGISTRY
 from utils.dtproject_utils import DTProject
 
 
@@ -54,6 +55,20 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -85,11 +100,25 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
 
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
         # get the arch
         arch = get_endpoint_architecture()
 
         # create defaults
-        image = project.image(arch, loop=parsed.loop, owner=parsed.username)
+        image = project.image(arch, loop=parsed.loop, owner=parsed.username, registry=parsed.registry)
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators

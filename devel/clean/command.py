@@ -5,7 +5,8 @@ import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, DEFAULT_REGISTRY, \
+    STAGING_REGISTRY
 from utils.dtproject_utils import DTProject
 
 
@@ -33,6 +34,20 @@ class DTCommand(DTCommandAbs):
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname where to clean the image",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment"
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -43,18 +58,34 @@ class DTCommand(DTCommandAbs):
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
+
         # show info about project
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        images = [project.image(parsed.arch)]
+        images = [project.image(parsed.arch, registry=parsed.registry)]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(parsed.arch))
+            images.append(project.image_release(parsed.arch, registry=parsed.registry))
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)
