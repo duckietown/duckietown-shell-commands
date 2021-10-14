@@ -602,21 +602,24 @@ class DTCommand(DTCommandAbs):
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
 
+            vnc_volumes = {os.path.join(working_dir, "launchers"): {"bind": "/code/launchers",
+                                                                    "mode": "ro",
+                                                                    }
+                           }
+
+            if log_dir is not None:
+                vnc_volumes[os.path.join(working_dir,log_dir)] = {"bind": ROSBAG_DIR,
+                                                                  "mode": "rw",
+                                                                  }
+
+
+
             vnc_params = {
                 "image": vnc_image,
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": {
-                    os.path.join(working_dir, "launchers"): {
-                        "bind": "/code/launchers",
-                        "mode": "ro",
-                    },
-                    os.path.join(working_dir, log_dir): {
-                        "bind": ROSBAG_DIR,
-                        "mode": "rw",
-                    }
-                },
+                "volumes": vnc_volumes,
                 "auto_remove": True,
                 "stream": True,
                 "detach": True,
