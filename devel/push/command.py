@@ -124,6 +124,7 @@ class DTCommand(DTCommandAbs):
         # push release version
         if project.is_release():
             image = project.image_release(parsed.arch, owner=parsed.username)
+            image = f"{docker_registry}/{image}"
             dtslogger.info(f"Pushing image {image}...")
             push_image(image, docker, progress=not parsed.ci, **push_args)
             dtslogger.info("Image successfully pushed!")

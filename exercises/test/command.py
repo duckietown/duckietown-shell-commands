@@ -52,7 +52,6 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-# AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
 SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
 EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
