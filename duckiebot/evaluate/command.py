@@ -223,7 +223,7 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info(f"Building image for {arch}")
-            AIDO_REGISTRY = os.environ.get(ENV_REGISTRY, "docker.io")
+            USE_REGISTRY = os.environ.get(ENV_REGISTRY, "docker.io")
             cmd = [
                 "docker",
                 "-H %s" % machine,  # XXX - should be separate arguments
@@ -233,7 +233,7 @@ class DTCommand(DTCommandAbs):
                 "--build-arg",
                 f"ARCH={arch}",
                 "--build-arg",
-                f"{ENV_REGISTRY}={AIDO_REGISTRY}",
+                f"{ENV_REGISTRY}={USE_REGISTRY}",
                 "-f",
                 dockerfile,
             ]

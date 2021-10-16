@@ -194,7 +194,6 @@ class DTCommand(DTCommandAbs):
         # if True:
         #     dtslogger.warning(f"Using {ENV_REGISTRY={docker_registry!r}.")
         #     docker_build_args["DOCKER_REGISTRY"] = docker_registry  # XXX: transition to unified variable
-        #     docker_build_args["AIDO_REGISTRY"] = docker_registry  # XXX: transition to unified variable
         # staging
         if parsed.staging:
             parsed.registry = STAGING_REGISTRY

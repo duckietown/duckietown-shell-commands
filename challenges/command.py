@@ -12,7 +12,7 @@ from dt_shell.env_checks import check_docker_environment
 environments: Dict[str, Dict[str, str]] = {
     "daffy": {},
     "daffy-staging": {
-        "AIDO_REGISTRY": "registry-stage2.duckietown.org",
+        "DOCKER_REGISTRY": "registry-stage2.duckietown.org",
         "DTSERVER": "https://challenges-stage.duckietown.org",
         "PIP_INDEX_URL": "https://staging.duckietown.org/root/devel/",
     },
