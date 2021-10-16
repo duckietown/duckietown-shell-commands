@@ -14,6 +14,7 @@ from docker.errors import APIError, ContainerError, ImageNotFound
 from termcolor import colored
 
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -187,11 +188,11 @@ class DTCommand(DTCommandAbs):
         cache_from = None
 
         # custom Docker registry
-        # docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+        # docker_registry = os.environ.get(ENV_REGISTRY", DEFAULT_REGISTRY)
         # # if docker_registry != DEFAULT_REGISTRY:
         # # AC: always be explicit - maybe the dockerfile has the wrong default
         # if True:
-        #     dtslogger.warning(f"Using DOCKER_REGISTRY={docker_registry!r}.")
+        #     dtslogger.warning(f"Using {ENV_REGISTRY={docker_registry!r}.")
         #     docker_build_args["DOCKER_REGISTRY"] = docker_registry  # XXX: transition to unified variable
         #     docker_build_args["AIDO_REGISTRY"] = docker_registry  # XXX: transition to unified variable
         # staging
@@ -199,15 +200,15 @@ class DTCommand(DTCommandAbs):
             parsed.registry = STAGING_REGISTRY
         else:
             # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
                 parsed.registry = docker_registry
 
         # registry
         if parsed.registry != DEFAULT_REGISTRY:
             dtslogger.info(f"Using custom registry: {parsed.registry}")
-            buildargs["buildargs"]["DOCKER_REGISTRY"] = parsed.registry
+            docker_build_args["buildargs"][ENV_REGISTRY] = parsed.registry
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)

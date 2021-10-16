@@ -5,10 +5,16 @@ import shutil
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import check_program_dependency
-from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE, \
-    DEFAULT_REGISTRY, STAGING_REGISTRY
-from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    DOCKER_INFO,
+    get_endpoint_architecture,
+    STAGING_REGISTRY,
+)
+from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -19,7 +25,6 @@ DEFAULT_REMOTE_USER = "duckie"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Runs the current project"
 
     @staticmethod
@@ -156,7 +161,7 @@ class DTCommand(DTCommandAbs):
             dest="staging",
             action="store_true",
             default=False,
-            help="Use staging environment"
+            help="Use staging environment",
         )
         parser.add_argument(
             "--registry",
@@ -224,9 +229,9 @@ class DTCommand(DTCommandAbs):
             parsed.registry = STAGING_REGISTRY
         else:
             # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
                 parsed.registry = docker_registry
 
         # registry
@@ -299,8 +304,13 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
         # create image name
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry, staging=parsed.staging)
+        image = project.image(
+            parsed.arch,
+            loop=parsed.loop,
+            owner=parsed.username,
+            registry=parsed.registry,
+            staging=parsed.staging,
+        )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(
@@ -384,8 +394,9 @@ class DTCommand(DTCommandAbs):
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments else
-            (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
+            []
+            if not parsed.arguments
+            else (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:

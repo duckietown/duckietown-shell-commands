@@ -7,10 +7,15 @@ import tarfile
 
 import docker
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    build_logs_to_string,
+    DEFAULT_REGISTRY,
+    STAGING_REGISTRY,
+)
 from utils.dtproject_utils import DTProject
 
 
@@ -61,7 +66,7 @@ class DTCommand(DTCommandAbs):
             dest="staging",
             action="store_true",
             default=False,
-            help="Use staging environment"
+            help="Use staging environment",
         )
         parser.add_argument(
             "--registry",
@@ -105,9 +110,9 @@ class DTCommand(DTCommandAbs):
             parsed.registry = STAGING_REGISTRY
         else:
             # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
                 parsed.registry = docker_registry
 
         # registry
@@ -118,8 +123,9 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
 
         # create defaults
-        image = project.image(arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry, staging=parsed.staging)
+        image = project.image(
+            arch, loop=parsed.loop, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
+        )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators
@@ -142,12 +148,7 @@ class DTCommand(DTCommandAbs):
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
         # dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         docs_image, logs = dclient.images.build(
-            path=cmd_dir,
-            buildargs={
-                "BASE_IMAGE": image,
-                "BOOK_NAME": project.name
-            },
-            nocache=parsed.no_cache
+            path=cmd_dir, buildargs={"BASE_IMAGE": image, "BOOK_NAME": project.name}, nocache=parsed.no_cache
         )
         print(build_logs_to_string(logs))
         dtslogger.info("Done!")

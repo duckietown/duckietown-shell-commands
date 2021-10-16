@@ -4,9 +4,9 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
+from duckietown_docker_utils import ENV_REGISTRY
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, DEFAULT_REGISTRY, STAGING_REGISTRY
 from utils.dtproject_utils import DTProject
 
 
@@ -40,7 +40,7 @@ class DTCommand(DTCommandAbs):
             dest="staging",
             action="store_true",
             default=False,
-            help="Use staging environment"
+            help="Use staging environment",
         )
         parser.add_argument(
             "--registry",
@@ -68,9 +68,9 @@ class DTCommand(DTCommandAbs):
             parsed.registry = STAGING_REGISTRY
         else:
             # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
                 parsed.registry = docker_registry
 
         # registry
@@ -82,12 +82,12 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        images = [project.image(parsed.arch, registry=parsed.registry,
-                                staging=parsed.staging)]
+        images = [project.image(parsed.arch, registry=parsed.registry, staging=parsed.staging)]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(parsed.arch, registry=parsed.registry,
-                                                staging=parsed.staging))
+            images.append(
+                project.image_release(parsed.arch, registry=parsed.registry, staging=parsed.staging)
+            )
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

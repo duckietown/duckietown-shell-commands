@@ -507,23 +507,6 @@ def build_logs_to_string(build_logs):
     return s
 
 
-#
-# IMPORTANT_ENVS = {
-#     ENV_REGISTRY: "docker.io",
-#     "PIP_INDEX_URL": "https://pypi.org/simple",
-#     "DTSERVER": "https://challenges.duckietown.org/v4",
-# }
-
-#
-# def replace_important_env_vars(s: str) -> str:
-#     for vname, vdefault in IMPORTANT_ENVS.items():
-#         vref = "${%s}" % vname
-#         if vref in s:
-#             value = os.environ.get(vname, vdefault)
-#             s = s.replace(vref, value)
-#     return s
-
-
 logger = dtslogger
 
 escape = re.compile("\x1b\[[\d;]*?m")

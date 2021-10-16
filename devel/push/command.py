@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -95,9 +96,9 @@ class DTCommand(DTCommandAbs):
             parsed.registry = STAGING_REGISTRY
         else:
             # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
             if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
                 parsed.registry = docker_registry
 
         # registry
