@@ -1,38 +1,43 @@
 import argparse
-import io
 import os
-import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, dtslogger
 
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from utils.docker_utils import (
+    DEFAULT_REGISTRY,
+    get_endpoint_architecture,
+    get_client,
+    pull_image, STAGING_REGISTRY,
+)
 from utils.dtproject_utils import DTProject
+
+from dt_shell import DTShell
 
 
 class DTCommand(DTCommandAbs):
-    help = "Removes the Docker images relative to the current project"
+    help = "Pulls the images relative to the current project"
 
     @staticmethod
     def _parse_args(args):
+        # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the project to clean",
+            help="Directory containing the project to push",
         )
         parser.add_argument(
             "-a",
             "--arch",
             default=None,
-            help="Target architecture for the image to clean",
+            help="Target architecture for the image to push",
         )
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
-            help="Docker socket or hostname where to clean the image",
+            default=None,
+            help="Docker socket or hostname from where to push the image",
         )
         parser.add_argument(
             "--stage",
@@ -57,10 +62,11 @@ class DTCommand(DTCommandAbs):
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
+        parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
 
         # show info about project
-        shell.include.devel.info.command(shell, args)
+        shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
 
         # staging
@@ -81,47 +87,22 @@ class DTCommand(DTCommandAbs):
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # spin up docker client
+        docker = get_client(parsed.machine)
+
         # create defaults
-        images = [project.image(parsed.arch, registry=parsed.registry,
-                                staging=parsed.staging)]
-        # clean release version
-        if project.is_release():
-            images.append(project.image_release(parsed.arch, registry=parsed.registry,
-                                                staging=parsed.staging))
-        # remove images
-        for image in images:
-            img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)
-            if img:
-                dtslogger.info("Removing image {}...".format(image))
-                try:
-                    _run_cmd(["docker", "-H=%s" % parsed.machine, "rmi", image])
-                except RuntimeError:
-                    dtslogger.warn(
-                        "We had some issues removing the image '{:s}' on '{:s}'".format(image, parsed.machine)
-                        + ". Just a heads up!"
-                    )
+        image = project.image(parsed.arch, registry=parsed.registry, staging=parsed.staging)
+
+        # custom Docker registry
+        # TODO: add parsed.registry here
+        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+
+        image = f"{docker_registry}/{image}"
+        dtslogger.info(f"Pulling image {image}...")
+        pull_image(image, docker)
+        dtslogger.info("Image successfully pulled!")
 
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-def _run_cmd(cmd, get_output=False, print_output=False):
-    dtslogger.debug("$ %s" % cmd)
-    if get_output:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        lines = []
-        for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
-            line = line.rstrip()
-            if print_output:
-                print(line)
-            if line:
-                lines.append(line)
-        proc.wait()
-        if proc.returncode != 0:
-            msg = "The command {} returned exit code {}".format(cmd, proc.returncode)
-            dtslogger.error(msg)
-            raise RuntimeError(msg)
-        return lines
-    else:
-        subprocess.check_call(cmd)

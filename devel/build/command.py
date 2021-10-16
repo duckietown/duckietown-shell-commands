@@ -23,6 +23,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     pull_image,
+    STAGING_REGISTRY,
 )
 from utils.dtproject_utils import (
     BUILD_COMPATIBILITY_MAP,
@@ -154,6 +155,20 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment",
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use images from this Docker registry",
+        )
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -172,13 +187,27 @@ class DTCommand(DTCommandAbs):
         cache_from = None
 
         # custom Docker registry
-        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-        # if docker_registry != DEFAULT_REGISTRY:
-        # AC: always be explicit - maybe the dockerfile has the wrong default
-        if True:
-            dtslogger.warning(f"Using DOCKER_REGISTRY={docker_registry!r}.")
-            docker_build_args["DOCKER_REGISTRY"] = docker_registry  # XXX: transition to unified variable
-            docker_build_args["AIDO_REGISTRY"] = docker_registry  # XXX: transition to unified variable
+        # docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+        # # if docker_registry != DEFAULT_REGISTRY:
+        # # AC: always be explicit - maybe the dockerfile has the wrong default
+        # if True:
+        #     dtslogger.warning(f"Using DOCKER_REGISTRY={docker_registry!r}.")
+        #     docker_build_args["DOCKER_REGISTRY"] = docker_registry  # XXX: transition to unified variable
+        #     docker_build_args["AIDO_REGISTRY"] = docker_registry  # XXX: transition to unified variable
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+            buildargs["buildargs"]["DOCKER_REGISTRY"] = parsed.registry
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -204,6 +233,8 @@ class DTCommand(DTCommandAbs):
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
 
+        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
+
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -212,8 +243,13 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
+            keys_required = ["ARCH", "DT_TOKEN"]
+            # TODO: this is temporary given that we have separate accounts for pulling/pushing
+            #  from/to DockerHub
+            if not parsed.staging:
+                keys_required += ["REGISTRY_PRODUCTION_PULL_USER", "REGISTRY_PRODUCTION_PULL_TOKEN"]
             # check that the env variables are set
-            for key in ["ARCH", "DT_TOKEN", "DOCKERHUB_PULL_USER", "DOCKERHUB_PULL_TOKEN"]:
+            for key in keys_required:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -310,12 +346,11 @@ class DTCommand(DTCommandAbs):
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         )
         # login (CI only)
-        if parsed.ci:
-            dtslogger.info(f'Logging in as `{os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"]}`')
-            docker.login(
-                username=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_USER"],
-                password=os.environ["DUCKIETOWN_CI_DOCKERHUB_PULL_TOKEN"],
-            )
+        if parsed.ci and not parsed.staging:
+            ci_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_USER"]
+            ci_password = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_TOKEN"]
+            dtslogger.info(f"Logging in as `{ci_username}`")
+            docker.login(username=ci_username, password=ci_password)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()
@@ -329,8 +364,13 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
-        image = f"{docker_registry}/{image}"
+        image = project.image(
+            parsed.arch,
+            loop=parsed.loop,
+            owner=parsed.username,
+            registry=parsed.registry,
+            staging=parsed.staging,
+        )
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -448,7 +488,13 @@ class DTCommand(DTCommandAbs):
                 local_sha = project.sha
                 # get remote image metadata
                 try:
-                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username)
+                    labels = project.image_labels(
+                        parsed.machine,
+                        parsed.arch,
+                        parsed.username,
+                        registry=parsed.registry,
+                        staging=parsed.staging,
+                    )
                     time_label = dtlabel("time")
                     sha_label = dtlabel("code.sha")
                     if time_label in labels and sha_label in labels:
@@ -507,7 +553,9 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(parsed.arch, owner=parsed.username)
+            rimage = project.image_release(
+                parsed.arch, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
+            )
             dimage.tag(*rimage.split(":"))
             msg = f"Successfully tagged {rimage}"
             buildlog.append(msg)
@@ -566,7 +614,9 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
-                metadata = project.ci_metadata(docker, parsed.arch, registry=docker_registry)
+                metadata = project.ci_metadata(
+                    docker, parsed.arch, registry=parsed.registry, staging=parsed.staging
+                )
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),
