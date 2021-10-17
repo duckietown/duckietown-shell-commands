@@ -207,7 +207,7 @@ class DTCommand(DTCommandAbs):
         # registry
         if parsed.registry != DEFAULT_REGISTRY:
             dtslogger.info(f"Using custom registry: {parsed.registry}")
-            docker_build_args["buildargs"][ENV_REGISTRY] = parsed.registry
+            docker_build_args[ENV_REGISTRY] = parsed.registry
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
