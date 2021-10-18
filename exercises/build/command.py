@@ -215,16 +215,16 @@ class DTCommand(DTCommandAbs):
                 attach_cmd = f"docker attach {container_name}"
                 start_command_in_subprocess(attach_cmd)
 
-        up = check_up_to_date(shell, "mooc-exercises")
-        dtslogger.debug(up.commit.sha)
-        if not up.uptodate:
-            n = datetime.now(tz=pytz.utc)
-            delta = n - up.commit.date
-            hours = delta.total_seconds() / (60 * 60)
-            dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. "
-                           f"Please merge from upstream.")
-            dtslogger.warn(f"Commit {up.commit.url}")
-        else:
-            dtslogger.debug("OK, up to date ")
+        # up = check_up_to_date(shell, "mooc-exercises")
+        # dtslogger.debug(up.commit.sha)
+        # if not up.uptodate:
+        #     n = datetime.now(tz=pytz.utc)
+        #     delta = n - up.commit.date
+        #     hours = delta.total_seconds() / (60 * 60)
+        #     dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. "
+        #                    f"Please merge from upstream.")
+        #     dtslogger.warn(f"Commit {up.commit.url}")
+        # else:
+        #     dtslogger.debug("OK, up to date ")
 
         dtslogger.info("Build complete")
