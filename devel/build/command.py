@@ -497,6 +497,8 @@ class DTCommand(DTCommandAbs):
                     )
                     time_label = dtlabel("time")
                     sha_label = dtlabel("code.sha")
+                    dtslogger.debug("Remote image labels:\n%s\n" % json.dumps(labels, indent=4,
+                                                                              sort_keys=True))
                     if time_label in labels and sha_label in labels:
                         remote_time = labels[time_label]
                         remote_sha = labels[sha_label]
