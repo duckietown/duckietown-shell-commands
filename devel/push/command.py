@@ -160,7 +160,7 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker, progress=not parsed.ci, **push_args)
+        push_image(image, docker, **push_args)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
@@ -170,7 +170,7 @@ class DTCommand(DTCommandAbs):
                 parsed.arch, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
             )
             dtslogger.info(f"Pushing image {image}...")
-            push_image(image, docker, progress=not parsed.ci, **push_args)
+            push_image(image, docker, **push_args)
             dtslogger.info("Image successfully pushed!")
 
     @staticmethod
