@@ -37,8 +37,8 @@ BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
 CLOUD_BUILDERS = {
-    "arm32v7": "ec2-3-215-236-113.compute-1.amazonaws.com",
-    "arm64v8": "ec2-3-215-236-113.compute-1.amazonaws.com",
+    "arm32v7": "build-arm.duckietown.org",
+    "arm64v8": "build-arm.duckietown.org",
     "amd64": "ec2-3-210-65-73.compute-1.amazonaws.com",
 }
 
