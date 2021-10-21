@@ -22,6 +22,7 @@ RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = "2375"
+DEFAULT_API_TIMEOUT = 240
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
@@ -78,13 +79,14 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
 
 def get_client(endpoint=None):
     if endpoint is None:
-        client = docker.from_env()
+        client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
         client = (
             endpoint
             if isinstance(endpoint, docker.DockerClient)
-            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint),
+                                     timeout=DEFAULT_API_TIMEOUT)
         )
     # (try to) login
     try:

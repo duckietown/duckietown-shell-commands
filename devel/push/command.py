@@ -132,9 +132,14 @@ class DTCommand(DTCommandAbs):
         # login (CI only)
         push_args = {}
         if parsed.ci:
+            registry_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_USER"]
+            registry_token = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_TOKEN"]
+            registry_token_hidden = "*" * (len(registry_token) - 3) + registry_token[-3:]
+            dtslogger.debug(f"Logging in on '{parsed.registry}' as "
+                            f"'{registry_username}:{registry_token_hidden}'")
             push_args["auth_config"] = {
-                "username": os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_USER"],
-                "password": os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_TOKEN"],
+                "username": registry_username,
+                "password": registry_token
             }
         # spin up docker client
         docker = get_client(parsed.machine)
@@ -155,7 +160,7 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker, progress=not parsed.ci, **push_args)
+        push_image(image, docker, **push_args)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
@@ -165,7 +170,7 @@ class DTCommand(DTCommandAbs):
                 parsed.arch, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
             )
             dtslogger.info(f"Pushing image {image}...")
-            push_image(image, docker, progress=not parsed.ci, **push_args)
+            push_image(image, docker, **push_args)
             dtslogger.info("Image successfully pushed!")
 
     @staticmethod
