@@ -135,12 +135,10 @@ class DTCommand(DTCommandAbs):
             registry_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_USER"]
             registry_token = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_TOKEN"]
             registry_token_hidden = "*" * (len(registry_token) - 3) + registry_token[-3:]
-            dtslogger.debug(f"Logging in on '{parsed.registry}' as "
-                            f"'{registry_username}:{registry_token_hidden}'")
-            push_args["auth_config"] = {
-                "username": registry_username,
-                "password": registry_token
-            }
+            dtslogger.debug(
+                f"Logging in on '{parsed.registry}' as " f"'{registry_username}:{registry_token_hidden}'"
+            )
+            push_args["auth_config"] = {"username": registry_username, "password": registry_token}
         # spin up docker client
         docker = get_client(parsed.machine)
 

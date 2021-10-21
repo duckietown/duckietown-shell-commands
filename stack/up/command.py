@@ -114,8 +114,9 @@ class DTCommand(DTCommandAbs):
                 try:
                     pull_image(image_name, parsed.machine)
                 except docker.errors.NotFound:
-                    dtslogger.error(f"Image '{image_name}' not found on registry "
-                                    f"'{registry_hostname}'. Aborting.")
+                    dtslogger.error(
+                        f"Image '{image_name}' not found on registry " f"'{registry_hostname}'. Aborting."
+                    )
                     return False
         # print info
         dtslogger.info(f"Running stack [{stack}]...")
@@ -134,11 +135,7 @@ class DTCommand(DTCommandAbs):
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose",
-             f"--host={H}",
-             "--project-name", project_name,
-             "--file", stack_file,
-             "up"]
+            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file, "up"]
             + docker_arguments,
             env=env,
         )

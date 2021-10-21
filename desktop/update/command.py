@@ -1,8 +1,14 @@
 import argparse
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import get_endpoint_architecture, get_client, pull_image, DEFAULT_MACHINE, \
-    DEFAULT_REGISTRY, STAGING_REGISTRY
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    get_client,
+    pull_image,
+    DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
+    STAGING_REGISTRY,
+)
 from utils.duckietown_utils import get_distro_version
 
 OTHER_IMAGES_TO_UPDATE = [
@@ -29,7 +35,7 @@ class DTCommand(DTCommandAbs):
             dest="staging",
             action="store_true",
             default=False,
-            help="Use staging code"
+            help="Use staging code",
         )
         parser.add_argument(
             "--registry",
@@ -48,8 +54,9 @@ class DTCommand(DTCommandAbs):
         # compile image names
         arch = get_endpoint_architecture(DEFAULT_MACHINE)
         distro = get_distro_version(shell)
-        images = [img.format(registry=parsed.registry, distro=distro, arch=arch)
-                  for img in OTHER_IMAGES_TO_UPDATE]
+        images = [
+            img.format(registry=parsed.registry, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
+        ]
         client = get_client()
         # do update
         for image in images:

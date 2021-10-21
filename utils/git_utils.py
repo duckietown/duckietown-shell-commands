@@ -23,20 +23,20 @@ class UpdateResult:
 
 
 def get_last_commit(user: str, repo: str, branch: str) -> CommitInfo:
-    url = f'https://api.github.com/repos/{user}/{repo}/branches/{branch}'
+    url = f"https://api.github.com/repos/{user}/{repo}/branches/{branch}"
     response = requests.get(url)
     if response.status_code >= 400:
-        msg = f'Cannot get commit from github API ({response.status_code}) '
+        msg = f"Cannot get commit from github API ({response.status_code}) "
         raise Exception(msg)
     res = response.json()
-    commit = res['commit']
+    commit = res["commit"]
     dtslogger.debug(json.dumps(res, indent=2))
-    sha = commit['sha']
-    url = commit['url']
+    sha = commit["sha"]
+    url = commit["url"]
 
     import dateutil.parser
 
-    date_time_str = commit['commit']['author']['date']
+    date_time_str = commit["commit"]["author"]["date"]
     # 2012-03-06T23:06:50Z
     # d = datetime.fromisoformat(date_time_str)
     d = dateutil.parser.parse(date_time_str)
@@ -44,8 +44,8 @@ def get_last_commit(user: str, repo: str, branch: str) -> CommitInfo:
 
 
 def check_up_to_date(shell: DTShell, repo: str) -> UpdateResult:
-    dtslogger.debug('Checking for updated exercises')
-    ci = get_last_commit('duckietown', repo, get_distro_version(shell))
+    dtslogger.debug("Checking for updated exercises")
+    ci = get_last_commit("duckietown", repo, get_distro_version(shell))
 
     cmd = "git", "merge-base", "--is-ancestor", ci.sha, "HEAD"
     try:

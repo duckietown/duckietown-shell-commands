@@ -9,7 +9,7 @@ DEFAULT_DEVICE = "raspberry_pi"
 DEVICE_TO_COMMAND = {
     "raspberry_pi": RaspberryPiCommand,
     "raspberry_pi_arm64v8": RaspberryPi64Command,
-    "jetson_nano": JetsonNanoCommand
+    "jetson_nano": JetsonNanoCommand,
 }
 
 

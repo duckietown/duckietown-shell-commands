@@ -2,8 +2,13 @@ import argparse
 
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import get_endpoint_architecture, get_client, pull_image, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    get_client,
+    pull_image,
+    DEFAULT_REGISTRY,
+    STAGING_REGISTRY,
+)
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
@@ -37,7 +42,7 @@ class DTCommand(DTCommandAbs):
             dest="staging",
             action="store_true",
             default=False,
-            help="Use staging code"
+            help="Use staging code",
         )
         parser.add_argument(
             "--registry",
@@ -63,21 +68,17 @@ class DTCommand(DTCommandAbs):
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
-        images = [img.format(registry=parsed.registry, distro=distro, arch=arch)
-                  for img in OTHER_IMAGES_TO_UPDATE]
+        images = [
+            img.format(registry=parsed.registry, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
+        ]
         client = get_client(hostname)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update
         # call `stack up` command
         success = shell.include.stack.up.command(
-            shell, [
-                "--machine", parsed.robot,
-                "--registry", parsed.registry,
-                "--detach",
-                "--pull",
-                parsed.stack
-            ]
+            shell,
+            ["--machine", parsed.robot, "--registry", parsed.registry, "--detach", "--pull", parsed.stack],
         )
         if not success:
             return
@@ -87,16 +88,8 @@ class DTCommand(DTCommandAbs):
             try:
                 pull_image(image, client)
             except docker.errors.NotFound:
-                dtslogger.error(f"Image '{image}' not found on registry '{parsed.registry}'. "
-                                f"Aborting.")
+                dtslogger.error(f"Image '{image}' not found on registry '{parsed.registry}'. " f"Aborting.")
                 return
         # clean duckiebot (again)
         if not parsed.no_clean:
-            shell.include.duckiebot.clean.command(
-                shell, [
-                    parsed.robot,
-                    "--all",
-                    "--yes",
-                    "--untagged"
-                ]
-            )
+            shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all", "--yes", "--untagged"])

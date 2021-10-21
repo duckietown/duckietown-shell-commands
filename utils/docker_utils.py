@@ -85,8 +85,7 @@ def get_client(endpoint=None):
         client = (
             endpoint
             if isinstance(endpoint, docker.DockerClient)
-            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint),
-                                     timeout=DEFAULT_API_TIMEOUT)
+            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
         )
     # (try to) login
     try:
