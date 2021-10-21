@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
@@ -635,16 +636,21 @@ class DTCommand(DTCommandAbs):
                 for remote_fname in remote_fnames:
                     remote_fname = remote_fname.replace(":", "/")
                     dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
-                    shell.include.data.push.command(
-                        shell,
-                        [],
-                        parsed=SimpleNamespace(
-                            file=[fout.name],
-                            object=[remote_fname],
-                            token=token,
-                            space="public",
-                        ),
-                    )
+                    try:
+                        shell.include.data.push.command(
+                            shell,
+                            [],
+                            parsed=SimpleNamespace(
+                                file=[fout.name],
+                                object=[remote_fname],
+                                token=token,
+                                space="public",
+                            ),
+                        )
+                    except:
+                        dtslogger.error(f"Could not push metadata file:\n{traceback.format_exc()}")
+                        dtslogger.error(f"Tmp hack ignoring")
+                        # raise
 
         # perform remove (if needed)
         if parsed.rm:
