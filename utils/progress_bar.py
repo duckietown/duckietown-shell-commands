@@ -1,5 +1,8 @@
 import sys
+
 import math
+
+__all__ = ["ProgressBar"]
 
 
 class ProgressBar:

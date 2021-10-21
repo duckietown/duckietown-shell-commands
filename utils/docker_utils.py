@@ -11,8 +11,9 @@ from docker.errors import NotFound
 
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import ProgressBar, start_command_in_subprocess
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
+from utils.progress_bar import ProgressBar
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -21,9 +22,11 @@ RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = "2375"
+DEFAULT_API_TIMEOUT = 240
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
+STAGING_REGISTRY = "registry-stage2.duckietown.org"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -76,13 +79,13 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
 
 def get_client(endpoint=None):
     if endpoint is None:
-        client = docker.from_env()
+        client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
         client = (
             endpoint
             if isinstance(endpoint, docker.DockerClient)
-            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
         )
     # (try to) login
     try:
@@ -163,10 +166,7 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (
-        image_name,
-        hostname,
-    )
+    command = f"docker save {image_name} | gzip | pv | ssh -C duckie@{hostname}.local docker load"
     subprocess.check_output(["/bin/sh", "-c", command])
 
 
@@ -182,7 +182,7 @@ def default_env(duckiebot_name, duckiebot_ip):
     return {
         "ROS_MASTER": duckiebot_name,
         "DUCKIEBOT_NAME": duckiebot_name,
-        "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
+        "ROS_MASTER_URI": f"http://{duckiebot_ip}:11311",
         "DUCKIEFLEET_ROOT": "/data/config",
         "DUCKIEBOT_IP": duckiebot_ip,
         "DUCKIETOWN_SERVER": duckiebot_ip,
@@ -217,7 +217,7 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
         return duckiebot_client.containers.run(**params)
     else:
         dtslogger.warn(
-            "Container with image %s is already running on %s, skipping..." % (image_name, duckiebot_name)
+            f"Container with image {image_name} is already running on {duckiebot_name}, skipping..."
         )
 
 
@@ -232,7 +232,7 @@ def record_bag(duckiebot_name, duration):
         "privileged": True,
         "detach": True,
         "environment": default_env(duckiebot_name, duckiebot_ip),
-        "command": 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
+        "command": f'bash -c "cd /data && rosbag record --duration {duration} -a"',
         "volumes": bind_local_data_dir(),
     }
 
@@ -241,32 +241,6 @@ def record_bag(duckiebot_name, duration):
         parameters["entrypoint"] = "qemu3-arm-static"
 
     return local_client.containers.run(**parameters)
-
-
-def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    duckiebot_client = get_remote_client(duckiebot_ip)
-
-    container_name = "evaluator"
-    try:
-        container = duckiebot_client.containers.get(container_name)
-        dtslogger.info("slim remote already running on %s, restarting..." % duckiebot_name)
-        stop_container(container)
-        remove_container(container)
-    except Exception as e:
-        dtslogger.info("Starting slim remote on %s" % duckiebot_name)
-
-    parameters = {
-        "image": SLIMREMOTE_IMAGE,
-        "remove": True,
-        "privileged": True,
-        "detach": True,
-        "environment": {"DUCKIETOWN_MAXSPEED": max_vel},
-        "name": container_name,
-        "ports": {"5558": "5558", "8902": "8902"},
-    }
-
-    return duckiebot_client.containers.run(**parameters)
 
 
 def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
@@ -280,13 +254,13 @@ def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None,
 
     try:
         container = local_client.containers.get(container_name)
-        dtslogger.info("an image already on localhost - stopping it first..")
+        dtslogger.info("A container is already running on localhost - stopping it first..")
         stop_container(container)
         remove_container(container)
     except Exception as e:
-        dtslogger.warn("coulgn't remove existing container: %s" % e)
+        dtslogger.warn(f"Could not remove existing container: {e}")
 
-    dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
+    dtslogger.info(f"Running {image_name} on localhost with environment vars: {env_vars}")
 
     params = {
         "image": image_name,
@@ -312,9 +286,7 @@ def start_picamera(duckiebot_name):
     duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
-    dtslogger.info(
-        "Running %s on %s with environment vars: %s" % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars)
-    )
+    dtslogger.info(f"Running {RPI_DUCKIEBOT_ROS_PICAM} on {duckiebot_name} with environment vars: {env_vars}")
 
     return duckiebot_client.containers.run(
         image=RPI_DUCKIEBOT_ROS_PICAM,
@@ -329,10 +301,10 @@ def start_picamera(duckiebot_name):
 def check_if_running(client: DockerClient, container_name: str):
     try:
         _ = client.containers.get(container_name)
-        dtslogger.info("%s is running." % container_name)
+        dtslogger.info(f"{container_name!r} is running.")
         return True
     except Exception as e:
-        dtslogger.error("%s is NOT running - Aborting" % e)
+        dtslogger.error(f"{container_name!r} is NOT running - Aborting:\n{e}")
         return False
 
 
@@ -359,7 +331,7 @@ def remove_if_running(client: DockerClient, container_name: str):
         try:
             remove_container(container)
         except Exception as e:
-            dtslogger.error("Could not remove existing container: %s" % e)
+            dtslogger.error(f"Could not remove existing container: {e}")
 
 
 def start_rqt_image_view(duckiebot_name=None):
@@ -390,7 +362,7 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
 
-    dtslogger.info("Running %s on localhost with environment vars: %s" % (RPI_GUI_TOOLS, env_vars))
+    dtslogger.info(f"Running {RPI_GUI_TOOLS} on localhost with environment vars: {env_vars}")
 
     return local_client.containers.run(
         image=RPI_GUI_TOOLS,
@@ -450,12 +422,9 @@ def start_gui_tools(duckiebot_name):
 def attach_terminal(container_name, hostname=None):
     if hostname is not None:
         duckiebot_ip = get_duckiebot_ip(hostname)
-        docker_attach_command = "docker -H %s:2375 attach %s" % (
-            duckiebot_ip,
-            container_name,
-        )
+        docker_attach_command = f"docker -H {duckiebot_ip}:2375 attach {container_name}"
     else:
-        docker_attach_command = "docker attach %s" % container_name
+        docker_attach_command = f"docker attach {container_name}"
     return start_command_in_subprocess(docker_attach_command, os.environ)
 
 
@@ -475,14 +444,14 @@ def stop_container(container):
     try:
         container.stop()
     except Exception as e:
-        dtslogger.warn("Container %s not found to stop! %s" % (container, e))
+        dtslogger.warn(f"Container {container} not found to stop! {e}")
 
 
 def remove_container(container):
     try:
         container.remove()
     except Exception as e:
-        dtslogger.warn("Container %s not found to remove! %s" % (container, e))
+        dtslogger.warn(f"Container {container} not found to remove! {e}")
 
 
 def pull_if_not_exist(client, image_name):
@@ -491,7 +460,7 @@ def pull_if_not_exist(client, image_name):
     try:
         client.images.get(image_name)
     except ImageNotFound:
-        dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
+        dtslogger.info(f"Image {image_name!r} not found. Pulling from registry.")
         loader = "Downloading ."
         for _ in client.api.pull(image_name, stream=True, decode=True):
             loader += "."
@@ -536,22 +505,6 @@ def build_logs_to_string(build_logs):
         for k, v in l.items():
             if k == "stream":
                 s += str(v)
-    return s
-
-
-IMPORTANT_ENVS = {
-    "AIDO_REGISTRY": "docker.io",
-    "PIP_INDEX_URL": "https://pypi.org/simple",
-    "DTSERVER": "https://challenges.duckietown.org/v4",
-}
-
-
-def replace_important_env_vars(s: str) -> str:
-    for vname, vdefault in IMPORTANT_ENVS.items():
-        vref = "${%s}" % vname
-        if vref in s:
-            value = os.environ.get(vname, vdefault)
-            s = s.replace(vref, value)
     return s
 
 

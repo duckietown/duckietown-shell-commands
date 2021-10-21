@@ -1,17 +1,18 @@
+import argparse
 import os
 import pathlib
-import argparse
 from shutil import which
 
-import yaml
-
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from utils.avahi_utils import wait_for_service
+from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import DEFAULT_DOCKER_TCP_PORT, DEFAULT_MACHINE, get_endpoint_architecture
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, pull_image
+from utils.docker_utils import get_endpoint_architecture, DEFAULT_REGISTRY
 from utils.misc_utils import sanitize_hostname
-from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = "default"
@@ -31,6 +32,12 @@ class DTCommand(DTCommandAbs):
             "--machine",
             default=None,
             help="Docker socket or hostname where to run the image",
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use images from this Docker registry",
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
@@ -65,7 +72,8 @@ class DTCommand(DTCommandAbs):
         # sanitize stack
         stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
-        stack_file = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
+        stack_cmd_dir = pathlib.Path(__file__).parent.parent.absolute()
+        stack_file = os.path.join(stack_cmd_dir, "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return
@@ -74,6 +82,10 @@ class DTCommand(DTCommandAbs):
             parsed.machine = sanitize_hostname(parsed.machine)
         else:
             parsed.machine = DEFAULT_MACHINE
+        # info about registry
+        registry_hostname = parsed.registry
+        if registry_hostname != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {registry_hostname}")
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -86,10 +98,11 @@ class DTCommand(DTCommandAbs):
         env.update(os.environ)
         # add ARCH
         env["ARCH"] = endpoint_arch
+        env["REGISTRY"] = registry_hostname
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose", f"-H={H}", "--project-name", project_name, "--file", stack_file, "down"],
+            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file, "down"],
             env=env,
         )
         # ---

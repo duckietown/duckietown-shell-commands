@@ -7,7 +7,7 @@ import yaml
 from utils.avahi_utils import wait_for_service
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, pull_image
+from utils.docker_utils import get_endpoint_architecture, pull_image, DEFAULT_REGISTRY
 from utils.misc_utils import sanitize_hostname
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.multi_command_utils import MultiCommand
@@ -29,6 +29,12 @@ class DTCommand(DTCommandAbs):
             "--machine",
             default=None,
             help="Docker socket or hostname where to run the image",
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Pull images from this Docker registry",
         )
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
@@ -52,7 +58,8 @@ class DTCommand(DTCommandAbs):
         # sanitize stack
         stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
         # check stack
-        stack_file = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "stacks", stack) + ".yaml"
+        stack_cmd_dir = pathlib.Path(__file__).parent.parent.absolute()
+        stack_file = os.path.join(stack_cmd_dir, "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return
@@ -61,6 +68,10 @@ class DTCommand(DTCommandAbs):
             parsed.machine = sanitize_hostname(parsed.machine)
         else:
             parsed.machine = DEFAULT_MACHINE
+        # info about registry
+        registry_hostname = parsed.registry
+        if registry_hostname != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {registry_hostname}")
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -73,6 +84,7 @@ class DTCommand(DTCommandAbs):
             stack_content = yaml.safe_load(fin)
         for service in stack_content["services"].values():
             image_name = service["image"].replace("${ARCH}", endpoint_arch)
+            image_name = image_name.replace("${REGISTRY}", registry_hostname)
             dtslogger.info(f"Pulling image `{image_name}`...")
             pull_image(image_name, parsed.machine)
         # ---

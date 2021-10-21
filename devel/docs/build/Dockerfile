@@ -1,6 +1,10 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
+ARG BOOK_NAME
+ENV BOOK_NAME "${BOOK_NAME}"
+RUN echo "Building book: ${BOOK_NAME}"
+
 # environment
 ENV DISABLE_CONTRACTS 1
 
@@ -24,8 +28,8 @@ RUN cd "/" \
     && cd /napoleon \
     && python3 setup.py install -f
 
-RUN mkdir /docs/in
-RUN mkdir /docs/out
+RUN mkdir -p /docs/in
+RUN mkdir -p /${BOOK_NAME}
 RUN mkdir -p /out
 
 COPY assets/output-html.manifest.yaml /out
@@ -35,7 +39,5 @@ RUN chmod -R 777 /docs
 CMD cp -r /docs/in/* /docs/source/ \
     && cd /docs \
     && sphinx-build -b html source build/html \
-    && cp -r /docs/build/html/* /docs/out \
-    && cp -r /docs/build/html/* /out \
-    && tar --create --gzip --verbose --file=/docs/out/package.tgz  /out/* \
+    && cp -r /docs/build/html/* /${BOOK_NAME}/ \
     || cat /tmp/sphinx-err-*.log

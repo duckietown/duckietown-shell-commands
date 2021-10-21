@@ -3,19 +3,20 @@ import getpass
 import json
 import os
 import platform
-import grp
 import sys
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import docker
+import grp
 import pytz
+from docker.errors import APIError
+
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
-
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import pull_if_not_exist, remove_if_running, get_client
+from utils.docker_utils import get_client, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
 from utils.git_utils import check_up_to_date
 from utils.notebook_utils import convert_notebooks
@@ -134,6 +135,10 @@ class DTCommand(DTCommandAbs):
         if wsdir_name is None:
             raise ValueError("The exercise configuration file 'config.yaml' does not have a "
                              "'ws_dir' key to indicate where the solution is stored")
+            raise ValueError(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'ws_dir' key to indicate where code is stored"
+
         wsdir = os.path.join(working_dir, wsdir_name)
         if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
             msg = (
@@ -150,7 +155,7 @@ class DTCommand(DTCommandAbs):
         if "files" in config:
             convert_notebooks(config["files"])
 
-        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
+        REGISTRY = os.getenv(ENV_REGISTRY, "docker.io")
 
         def add_registry(x):
             if REGISTRY in x:
@@ -172,9 +177,7 @@ class DTCommand(DTCommandAbs):
 
             container_name = "ros_template_catkin_build"
             remove_if_running(client, container_name)
-            ros_template_volumes = {
-                working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}
-            }
+            ros_template_volumes = {working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}}
             on_mac = "Darwin" in platform.system()
             if on_mac:
                 group_add = []
@@ -202,19 +205,22 @@ class DTCommand(DTCommandAbs):
                         "USER": getpass.getuser(),
                         "USERID": os.getuid(),
                         "HOME": FAKE_HOME_GUEST,
-                        "PYTHONDONTWRITEBYTECODE": "1"
+                        "PYTHONDONTWRITEBYTECODE": "1",
                     },
                     "user": os.getuid(),
-                    "group_add": group_add
+                    "group_add": group_add,
                 }
 
-                dtslogger.debug(f"Running with configuration:\n\n"
-                                f"{json.dumps(ros_template_params, indent=4, sort_keys=True)}")
+                dtslogger.debug(
+                    f"Running with configuration:\n\n"
+                    f"{json.dumps(ros_template_params, indent=4, sort_keys=True)}"
+                )
                 pull_if_not_exist(client, ros_template_params["image"])
                 client.containers.run(**ros_template_params)
                 attach_cmd = f"docker attach {container_name}"
                 start_command_in_subprocess(attach_cmd)
 
+        # The problem with the below is that it presumes that we are in a repo called `mooc-exercises` which is not a good assumption
         # up = check_up_to_date(shell, "mooc-exercises")
         # dtslogger.debug(up.commit.sha)
         # if not up.uptodate:
@@ -226,5 +232,6 @@ class DTCommand(DTCommandAbs):
         #     dtslogger.warn(f"Commit {up.commit.url}")
         # else:
         #     dtslogger.debug("OK, up to date ")
+
 
         dtslogger.info("Build complete")

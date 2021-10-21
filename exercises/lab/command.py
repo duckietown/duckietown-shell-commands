@@ -1,16 +1,15 @@
+import argparse
 import getpass
 import os
 import signal
 import sys
 import time
 import webbrowser
-import argparse
 
-import docker
+from docker.errors import APIError, ImageNotFound, NotFound
 
 from dt_data_api import APIError
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-
 from utils.docker_utils import get_client
 from utils.exceptions import InvalidUserInput
 from utils.exercises_utils import get_exercise_config
@@ -34,7 +33,6 @@ IS_SHUTDOWN = False
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
 
@@ -57,8 +55,10 @@ class DTCommand(DTCommandAbs):
         # an existing directory
         labdir_name = config.lab_dir
         if labdir_name is None:
-            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
-                             "'lab_dir' key to indicate where notebooks are stored")
+            raise ValueError(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'lab_dir' key to indicate where notebooks are stored"
+            )
         labdir = os.path.join(config.root, labdir_name)
         if not os.path.exists(labdir) or not os.path.isdir(labdir):
             msg = (
@@ -71,8 +71,10 @@ class DTCommand(DTCommandAbs):
         # an existing directory
         wsdir_name = config.ws_dir
         if wsdir_name is None:
-            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
-                             "'ws_dir' key to indicate where code is stored")
+            raise ValueError(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'ws_dir' key to indicate where code is stored"
+            )
         wsdir = os.path.join(config.root, wsdir_name)
         if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
             msg = (
@@ -99,26 +101,21 @@ class DTCommand(DTCommandAbs):
         client = get_client()
         try:
             client.images.get(lab_image_name)
-        except docker.errors.ImageNotFound:
+        except ImageNotFound:
             dtslogger.error("You must run the command `dts exercises build` before using the lab.")
             exit(1)
 
         dockerfile = os.path.join(config.root, "Dockerfile.lab")
         if not os.path.exists(dockerfile):
-            msg = f'There is no Dockerfile.lab present at {dockerfile}'
+            msg = f"There is no Dockerfile.lab present at {dockerfile}"
             raise UserError(msg)
 
-        logs = client.api.build(
-            path=labdir,
-            tag=lab_image_name,
-            dockerfile="Dockerfile.lab",
-            decode=True
-        )
+        logs = client.api.build(path=labdir, tag=lab_image_name, dockerfile="Dockerfile.lab", decode=True)
         dtslogger.info("Building environment...")
         try:
             for log in logs:
-                if 'stream' in log:
-                    sys.stdout.write(log['stream'])
+                if "stream" in log:
+                    sys.stdout.write(log["stream"])
             sys.stdout.flush()
         except APIError as e:
             dtslogger.error(str(e))
@@ -182,7 +179,7 @@ class DTCommand(DTCommandAbs):
                     "--detach",
                     "LOCAL",
                     f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
-                    f"NotebookApp.ip=0.0.0.0"
+                    f"NotebookApp.ip=0.0.0.0",
                 ],
             )
 
@@ -194,10 +191,10 @@ class DTCommand(DTCommandAbs):
                     dtslogger.info(f"Stopping container '{container_name}'")
                     container = client.containers.get(container_id=container_name)
                     container.stop()
-                except docker.errors.NotFound:
+                except NotFound:
                     # all is good
                     dtslogger.warning(f"Container {container_name} not found.")
-                except docker.errors.APIError as _e:
+                except APIError as _e:
                     print(_e)
 
         try:
@@ -212,6 +209,6 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             print(e)
             return
-
+        global IS_SHUTDOWN
         while not IS_SHUTDOWN:
             time.sleep(1)

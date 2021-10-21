@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -9,6 +10,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_client,
     push_image,
+    STAGING_REGISTRY,
 )
 from utils.dtproject_utils import DTProject
 
@@ -59,6 +61,20 @@ class DTCommand(DTCommandAbs):
             default="duckietown",
             help="the docker registry username to tag the image with",
         )
+        parser.add_argument(
+            "--stage",
+            "--staging",
+            dest="staging",
+            action="store_true",
+            default=False,
+            help="Use staging environment",
+        )
+        parser.add_argument(
+            "--registry",
+            type=str,
+            default=DEFAULT_REGISTRY,
+            help="Use this Docker registry",
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -70,13 +86,31 @@ class DTCommand(DTCommandAbs):
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
+
         # show info about project
         shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
+
+        # staging
+        if parsed.staging:
+            parsed.registry = STAGING_REGISTRY
+        else:
+            # custom Docker registry
+            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
+            if docker_registry != DEFAULT_REGISTRY:
+                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
+                parsed.registry = docker_registry
+
+        # registry
+        if parsed.registry != DEFAULT_REGISTRY:
+            dtslogger.info(f"Using custom registry: {parsed.registry}")
+
+        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
+
         # CI builds
         if parsed.ci:
             # check that the env variables are set
-            for key in ["DOCKERHUB_USER", "DOCKERHUB_TOKEN"]:
+            for key in [f"REGISTRY_{STAGEPROD}_USER", f"REGISTRY_{STAGEPROD}_TOKEN"]:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
                     dtslogger.error(
                         "Variable DUCKIETOWN_CI_{:s} required when building with --ci".format(key)
@@ -98,27 +132,43 @@ class DTCommand(DTCommandAbs):
         # login (CI only)
         push_args = {}
         if parsed.ci:
-            push_args["auth_config"] = {
-                "username": os.environ["DUCKIETOWN_CI_DOCKERHUB_USER"],
-                "password": os.environ["DUCKIETOWN_CI_DOCKERHUB_TOKEN"],
-            }
+            registry_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_USER"]
+            registry_token = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_TOKEN"]
+            registry_token_hidden = "*" * (len(registry_token) - 3) + registry_token[-3:]
+            dtslogger.debug(
+                f"Logging in on '{parsed.registry}' as " f"'{registry_username}:{registry_token_hidden}'"
+            )
+            push_args["auth_config"] = {"username": registry_username, "password": registry_token}
         # spin up docker client
         docker = get_client(parsed.machine)
+
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {project.version_name!r} with {parsed.tag!r}")
+            project._repository.branch = parsed.tag
         # create defaults
-        image = project.image(parsed.arch, owner=parsed.username)
+        image_version = None
+        if parsed.staging:
+            image_version = project.distro
+        image = project.image(
+            parsed.arch,
+            owner=parsed.username,
+            version=image_version,
+            registry=parsed.registry,
+            staging=parsed.staging,
+        )
 
-        # custom Docker registry
-        docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-
-        image = f"{docker_registry}/{image}"
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker, progress=not parsed.ci, **push_args)
+        push_image(image, docker, **push_args)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
-            image = project.image_release(parsed.arch, owner=parsed.username)
+            # image = project.image_release(parsed.arch, owner=parsed.username)
+            # image = f"{docker_registry}/{image}"
+            image = project.image_release(
+                parsed.arch, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
+            )
             dtslogger.info(f"Pushing image {image}...")
-            push_image(image, docker, progress=not parsed.ci, **push_args)
+            push_image(image, docker, **push_args)
             dtslogger.info("Image successfully pushed!")
 
     @staticmethod

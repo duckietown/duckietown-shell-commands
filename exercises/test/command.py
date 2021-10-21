@@ -12,18 +12,17 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
-from tempfile import TemporaryDirectory
-import grp
 
+import grp
 import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
@@ -53,7 +52,6 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-# AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
 SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
 EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
@@ -301,7 +299,7 @@ class DTCommand(DTCommandAbs):
             arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
-        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
+        REGISTRY = os.getenv(ENV_REGISTRY, "docker.io")
 
         def add_registry(x):
             if REGISTRY in x:
@@ -855,7 +853,6 @@ def launch_agent(
         group_add = []
     else:
         group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
-
 
     agent_env["PYTHONDONTWRITEBYTECODE"] = "1"
     agent_params = {
