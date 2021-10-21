@@ -486,29 +486,34 @@ class DTCommand(DTCommandAbs):
                 # project is clean
                 build_time = None
                 local_sha = project.sha
+                image_labels = None
                 # get remote image metadata
                 try:
-                    labels = project.image_labels(
+                    image_labels = project.image_labels(
                         parsed.machine,
                         parsed.arch,
                         parsed.username,
                         registry=parsed.registry,
                         staging=parsed.staging,
                     )
-                    time_label = dtlabel("time")
-                    sha_label = dtlabel("code.sha")
-                    dtslogger.debug(
-                        "Remote image labels:\n%s\n" % json.dumps(labels, indent=4, sort_keys=True)
-                    )
-                    if time_label in labels and sha_label in labels:
-                        remote_time = labels[time_label]
-                        remote_sha = labels[sha_label]
-                        if remote_sha == local_sha and remote_time != "ND":
-                            dtslogger.debug("Identical image found. Reusing cache.")
-                            # local and remote SHA match, reuse time
-                            build_time = remote_time
                 except BaseException as e:
                     dtslogger.warning(f"Cannot fetch image metadata. Reason: {str(e)}")
+                if image_labels is None:
+                    dtslogger.warning(f"Cannot fetch image metadata for '{image}'.")
+                    image_labels = {}
+                # ---
+                time_label = dtlabel("time")
+                sha_label = dtlabel("code.sha")
+                dtslogger.debug(
+                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4, sort_keys=True)
+                )
+                if time_label in image_labels and sha_label in image_labels:
+                    remote_time = image_labels[time_label]
+                    remote_sha = image_labels[sha_label]
+                    if remote_sha == local_sha and remote_time != "ND":
+                        dtslogger.debug("Identical image found. Reusing cache.")
+                        # local and remote SHA match, reuse time
+                        build_time = remote_time
         # default build_time
         build_time = build_time or datetime.datetime.utcnow().isoformat()
         dtslogger.debug(f"Image timestamp: {build_time}")
