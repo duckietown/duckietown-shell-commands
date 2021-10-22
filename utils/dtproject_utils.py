@@ -4,6 +4,7 @@ import os
 import random
 import re
 import subprocess
+import traceback
 from types import SimpleNamespace
 from typing import Optional
 
@@ -321,7 +322,7 @@ class DTProject:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
-            raise Exception(f"Cannot get image metadata for {image_name!r}")
+            raise Exception(f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
 
     def image_labels(
         self,
