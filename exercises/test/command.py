@@ -775,7 +775,8 @@ class ContainersMonitor(threading.Thread):
             for container in self._containers_to_monitor:
                 try:
                     container.reload()
-                except (APIError, TimeoutError):
+                except (APIError, TimeoutError) as e:
+                    dtslogger.warn(f"Cannot reload container {container.name!r}: {e}")
                     continue
                 status = container.status
                 dtslogger.debug(f"container {container.name} in state {status}")
