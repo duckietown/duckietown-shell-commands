@@ -123,8 +123,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image."
-                 "Use when the base image is also a development version",
+            help="Docker tag for the base image." "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -189,7 +188,9 @@ class DTCommand(DTCommandAbs):
         project = DTProject(parsed.workdir)
         if parsed.tag:
             dtslogger.info(f"Overriding version {project.version_name!r} with {parsed.tag!r}")
-            project._repository.branch = parsed.tag
+            version = parsed.tag
+        else:
+            version = project._repository.branch
         try:
             project_template_ver = int(project.type_version)
         except ValueError:
@@ -337,6 +338,7 @@ class DTCommand(DTCommandAbs):
             loop=parsed.loop,
             owner=parsed.username,
             registry=registry_to_use,
+            version=version,
         )
         # search for launchers (template v2+)
         launchers = []
