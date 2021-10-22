@@ -123,7 +123,8 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image.  Use when the base image is also a development version",
+            help="Docker tag for the base image."
+                 "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
