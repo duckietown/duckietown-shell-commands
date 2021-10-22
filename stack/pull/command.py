@@ -1,15 +1,13 @@
+import argparse
 import os
 import pathlib
-import argparse
 
 import yaml
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service
-
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, pull_image, DEFAULT_REGISTRY
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use, pull_image
 from utils.misc_utils import sanitize_hostname
-from utils.docker_utils import DEFAULT_MACHINE
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = "default"
@@ -17,7 +15,6 @@ DUCKIETOWN_STACK = "duckietown"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Easy way to pull code on Duckietown robots"
 
     @staticmethod
@@ -30,12 +27,7 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Docker socket or hostname where to run the image",
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Pull images from this Docker registry",
-        )
+
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -69,9 +61,8 @@ class DTCommand(DTCommandAbs):
         else:
             parsed.machine = DEFAULT_MACHINE
         # info about registry
-        registry_hostname = parsed.registry
-        if registry_hostname != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {registry_hostname}")
+        registry_to_use = get_registry_to_use()
+
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -84,7 +75,7 @@ class DTCommand(DTCommandAbs):
             stack_content = yaml.safe_load(fin)
         for service in stack_content["services"].values():
             image_name = service["image"].replace("${ARCH}", endpoint_arch)
-            image_name = image_name.replace("${REGISTRY}", registry_hostname)
+            image_name = image_name.replace("${REGISTRY}", registry_to_use)
             dtslogger.info(f"Pulling image `{image_name}`...")
             pull_image(image_name, parsed.machine)
         # ---

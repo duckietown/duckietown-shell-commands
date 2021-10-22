@@ -22,10 +22,11 @@ from requests import ReadTimeout
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
+from duckietown_docker_utils import continuously_monitor
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
+    get_registry_to_use,
     get_remote_client,
     pull_if_not_exist,
     pull_image,
@@ -122,15 +123,6 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="just stop all the containers",
         )
-        #
-        # parser.add_argument(
-        #     "--staging",
-        #     "-t",
-        #     dest="staging",
-        #     action="store_true",
-        #     default=False,
-        #     help="Should we use the staging AIDO registry?",
-        # )
 
         parser.add_argument(
             "--local",
@@ -299,7 +291,7 @@ class DTCommand(DTCommandAbs):
             arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
-        REGISTRY = os.getenv(ENV_REGISTRY, "docker.io")
+        REGISTRY = get_registry_to_use()
 
         def add_registry(x):
             if REGISTRY in x:
@@ -601,8 +593,11 @@ class DTCommand(DTCommandAbs):
                 vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
                 local_client_images = local_client.images.list()
                 if f"<Image: '{vnc_image}:latest'>" not in local_client_images:
-                    dtslogger.error(f"Failed to find {vnc_image} in local images."
-                    "You must run dts exercises build first to build your lab image to run notebooks")
+                    dtslogger.error(
+                        f"Failed to find {vnc_image} in local images."
+                        "You must run dts exercises build first to build your lab image to run "
+                        "notebooks"
+                    )
                 exit(1)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env

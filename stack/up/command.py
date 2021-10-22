@@ -12,8 +12,8 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
     DEFAULT_MACHINE,
-    DEFAULT_REGISTRY,
     get_endpoint_architecture,
+    get_registry_to_use,
     pull_image,
 )
 from utils.misc_utils import sanitize_hostname
@@ -49,12 +49,7 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Pull images before running",
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use images from this Docker registry",
-        )
+
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -99,9 +94,8 @@ class DTCommand(DTCommandAbs):
         else:
             parsed.machine = DEFAULT_MACHINE
         # info about registry
-        registry_hostname = parsed.registry
-        if registry_hostname != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {registry_hostname}")
+        registry_to_use = get_registry_to_use()
+
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -112,14 +106,13 @@ class DTCommand(DTCommandAbs):
                 stack_content = yaml.safe_load(fin)
             for service in stack_content["services"].values():
                 image_name = service["image"].replace("${ARCH}", endpoint_arch)
-                image_name = image_name.replace("${REGISTRY}", registry_hostname)
+                image_name = image_name.replace("${REGISTRY}", registry_to_use)
                 dtslogger.info(f"Pulling image `{image_name}`...")
                 try:
                     pull_image(image_name, parsed.machine)
                 except NotFound:
-                    dtslogger.error(
-                        f"Image '{image_name}' not found on registry " f"'{registry_hostname}'. Aborting."
-                    )
+                    msg = f"Image '{image_name}' not found on registry '{registry_to_use}'. Aborting."
+                    dtslogger.error(msg)
                     return False
         # print info
         dtslogger.info(f"Running stack [{stack}]...")
@@ -131,7 +124,7 @@ class DTCommand(DTCommandAbs):
         env.update(os.environ)
         # add ARCH
         env["ARCH"] = endpoint_arch
-        env["REGISTRY"] = registry_hostname
+        env["REGISTRY"] = registry_to_use
         # -d/--detach
         if parsed.detach:
             docker_arguments.append("--detach")

@@ -5,14 +5,12 @@ import shutil
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
-from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import (
     DEFAULT_MACHINE,
-    DEFAULT_REGISTRY,
     DOCKER_INFO,
     get_endpoint_architecture,
-    STAGING_REGISTRY,
+    get_registry_to_use,
 )
 from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
@@ -155,20 +153,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Detach from the container and let it run",
         )
-        parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment",
-        )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use this Docker registry",
-        )
+
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
@@ -224,19 +209,7 @@ class DTCommand(DTCommandAbs):
             )
             return
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
 
         # pick the right architecture if not set
         if parsed.arch is None:
@@ -305,11 +278,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning("Forced!")
         # create image name
         image = project.image(
-            parsed.arch,
+            arch=parsed.arch,
             loop=parsed.loop,
             owner=parsed.username,
-            registry=parsed.registry,
-            staging=parsed.staging,
+            registry=registry_to_use,
         )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")

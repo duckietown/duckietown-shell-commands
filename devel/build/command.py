@@ -14,17 +14,16 @@ from docker.errors import APIError, ContainerError, ImageNotFound
 from termcolor import colored
 
 from dt_shell import DTCommandAbs, dtslogger
-from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_MACHINE,
-    DEFAULT_REGISTRY,
     DOCKER_INFO,
     get_client,
+    get_docker_auth_from_env,
     get_endpoint_architecture,
     get_endpoint_ncpus,
+    get_registry_to_use,
     pull_image,
-    STAGING_REGISTRY,
 )
 from utils.dtproject_utils import (
     BUILD_COMPATIBILITY_MAP,
@@ -36,7 +35,7 @@ from utils.dtproject_utils import (
 )
 from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
-from utils.pip_utils import DEFAULT_INDEX_URL
+from utils.pip_utils import get_pip_index_url
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 
@@ -156,20 +155,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment",
-        )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use images from this Docker registry",
-        )
+
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -187,27 +173,7 @@ class DTCommand(DTCommandAbs):
         labels = {}
         cache_from = None
 
-        # custom Docker registry
-        # docker_registry = os.environ.get(ENV_REGISTRY", DEFAULT_REGISTRY)
-        # # if docker_registry != DEFAULT_REGISTRY:
-        # # AC: always be explicit - maybe the dockerfile has the wrong default
-        # if True:
-        #     dtslogger.warning(f"Using {ENV_REGISTRY={docker_registry!r}.")
-        #     docker_build_args["DOCKER_REGISTRY"] = docker_registry  # XXX: transition to unified variable
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
-            docker_build_args[ENV_REGISTRY] = parsed.registry
+        registry_to_use = get_registry_to_use()
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -233,8 +199,6 @@ class DTCommand(DTCommandAbs):
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
 
-        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
-
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -246,8 +210,7 @@ class DTCommand(DTCommandAbs):
             keys_required = ["ARCH", "DT_TOKEN"]
             # TODO: this is temporary given that we have separate accounts for pulling/pushing
             #  from/to DockerHub
-            if not parsed.staging:
-                keys_required += ["REGISTRY_PRODUCTION_PULL_USER", "REGISTRY_PRODUCTION_PULL_TOKEN"]
+
             # check that the env variables are set
             for key in keys_required:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
@@ -346,9 +309,8 @@ class DTCommand(DTCommandAbs):
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         )
         # login (CI only)
-        if parsed.ci and not parsed.staging:
-            ci_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_USER"]
-            ci_password = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_TOKEN"]
+        if parsed.ci:
+            ci_username, ci_password = get_docker_auth_from_env()
             dtslogger.info(f"Logging in as `{ci_username}`")
             docker.login(username=ci_username, password=ci_password)
         # get info about docker endpoint
@@ -365,11 +327,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
         image = project.image(
-            parsed.arch,
+            arch=parsed.arch,
             loop=parsed.loop,
             owner=parsed.username,
-            registry=parsed.registry,
-            staging=parsed.staging,
+            registry=registry_to_use,
         )
         # search for launchers (template v2+)
         launchers = []
@@ -435,10 +396,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
 
         # custom Pip registry
-        pip_index_url = os.environ.get("PIP_INDEX_URL", DEFAULT_INDEX_URL)
-        if pip_index_url != DEFAULT_INDEX_URL:
-            dtslogger.warning(f"Using custom PIP_INDEX_URL='{pip_index_url}'.")
-            docker_build_args["PIP_INDEX_URL"] = pip_index_url
+
+        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
 
         # custom build arguments
         for key, value in parsed.build_arg:
@@ -491,10 +450,9 @@ class DTCommand(DTCommandAbs):
                 try:
                     image_labels = project.image_labels(
                         parsed.machine,
-                        parsed.arch,
-                        parsed.username,
-                        registry=parsed.registry,
-                        staging=parsed.staging,
+                        arch=parsed.arch,
+                        owner=parsed.username,
+                        registry=registry_to_use,
                     )
                 except BaseException as e:
                     dtslogger.warning(f"Cannot fetch image metadata. Reason: {str(e)}")
@@ -562,7 +520,9 @@ class DTCommand(DTCommandAbs):
         # tag release images
         if project.is_release():
             rimage = project.image_release(
-                parsed.arch, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
+                arch=parsed.arch,
+                owner=parsed.username,
+                registry=registry_to_use,
             )
             dimage.tag(*rimage.split(":"))
             msg = f"Successfully tagged {rimage}"
@@ -623,7 +583,10 @@ class DTCommand(DTCommandAbs):
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
                 metadata = project.ci_metadata(
-                    docker, parsed.arch, registry=parsed.registry, staging=parsed.staging
+                    docker,
+                    arch=parsed.arch,
+                    registry=registry_to_use,
+                    owner="duckietown",  # FIXME: AC: this was not passed, now it's hardcoded
                 )
                 # add build metadata
                 metadata["build"] = {

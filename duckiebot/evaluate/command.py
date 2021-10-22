@@ -11,6 +11,7 @@ from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
+    get_registry_to_use,
     get_remote_client,
     record_bag,
     remove_if_running,
@@ -223,7 +224,7 @@ class DTCommand(DTCommandAbs):
             tag = "myimage"
 
             dtslogger.info(f"Building image for {arch}")
-            USE_REGISTRY = os.environ.get(ENV_REGISTRY, "docker.io")
+            registry_to_use = get_registry_to_use()
             cmd = [
                 "docker",
                 "-H %s" % machine,  # XXX - should be separate arguments
@@ -233,7 +234,7 @@ class DTCommand(DTCommandAbs):
                 "--build-arg",
                 f"ARCH={arch}",
                 "--build-arg",
-                f"{ENV_REGISTRY}={USE_REGISTRY}",
+                f"{ENV_REGISTRY}={registry_to_use}",
                 "-f",
                 dockerfile,
             ]
