@@ -407,16 +407,47 @@ class DTCommand(DTCommandAbs):
         os.makedirs(fifos_dir)
         challenges_dir = os.path.join(tmpdir, "run-challenges")
 
-        dtslogger.info(f"Results will be stored in: {challenges_dir}")
-
         if os.path.exists(challenges_dir):
             shutil.rmtree(challenges_dir)
+        os.makedirs(challenges_dir)
+        # note: you must create a file in the /challenges mount point
+        # because otherwise the experiment manager will think that something is off.
+        os.makedirs(os.path.join(challenges_dir, "challenge-solution-output"))
+        os.makedirs(os.path.join(challenges_dir, "challenge-evaluation-output"))
+        os.makedirs(os.path.join(challenges_dir, "challenge-description"))
+        os.makedirs(os.path.join(challenges_dir, "tmp"))
+
+        touch_one = os.path.join(challenges_dir, "not_empty.txt")
+        with open(touch_one, "w") as f:
+            f.write("not_empty")
+
+        # os.sync()
+        time.sleep(3)
+
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
+
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         if os.path.exists(assets_challenges_dir):
             shutil.copytree(assets_challenges_dir, challenges_dir)
 
-        fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+
+        agent_bind = {
+            # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
+            challenges_dir: {
+                "bind": "/challenges",
+                "mode": "rw",
+                "propagation": "rshared",
+            },
+            **fifos_bind0,
+        }
+        sim_bind = {
+            **fifos_bind0,
+        }
+        bridge_bind = {
+            **fifos_bind0,
+        }
 
         experiment_manager_bind = {
             # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
@@ -426,7 +457,7 @@ class DTCommand(DTCommandAbs):
                 "propagation": "rshared",
             },
             "/tmp": {"bind": "/tmp", "mode": "rw"},
-            **fifos_bind,
+            **fifos_bind0,
         }
 
         if parsed.scenarios is not None:
@@ -454,10 +485,9 @@ class DTCommand(DTCommandAbs):
             running_on_mac = False  # if we aren't running on mac we're on Linux
 
         # Launch things one by one
-
+        auto_remove = False
         if parsed.sim:
             # let's launch the simulator
-
             dtslogger.info(f"Running simulator {sim_container_name} from {sim_spec.image_name}")
             env = dict(sim_spec.environment)
             if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
@@ -469,8 +499,8 @@ class DTCommand(DTCommandAbs):
                 "name": sim_container_name,
                 "network": agent_network.name,  # always local
                 "environment": env,
-                "volumes": fifos_bind,
-                "auto_remove": True,
+                "volumes": sim_bind,
+                "auto_remove": auto_remove,
                 "tty": True,
                 "detach": True,
             }
@@ -513,7 +543,7 @@ class DTCommand(DTCommandAbs):
                 "ports": expman_port,
                 "network": agent_network.name,  # always local
                 "volumes": experiment_manager_bind,
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "detach": True,
                 "tty": True,
                 "user": uid,
@@ -542,7 +572,7 @@ class DTCommand(DTCommandAbs):
                 bridge_container_name,
                 env_dir,
                 duckiebot_name,
-                fifos_bind,
+                bridge_bind,
                 bridge_image,
                 parsed,
                 running_on_mac,
@@ -561,12 +591,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
             ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
+
             ros_params = {
                 "image": ros_image,
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
             }
@@ -618,7 +649,7 @@ class DTCommand(DTCommandAbs):
                         "mode": "ro",
                     }
                 },
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -680,7 +711,7 @@ class DTCommand(DTCommandAbs):
         try:
             launch_agent(
                 agent_container_name=agent_container_name,
-                agent_volumes=fifos_bind,
+                agent_volumes=agent_bind,
                 parsed=parsed,
                 working_dir=working_dir,
                 exercise_name=exercise_name,
