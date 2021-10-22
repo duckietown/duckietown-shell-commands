@@ -6,6 +6,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
+from utils.duckietown_utils import DEFAULT_OWNER
 
 
 class DTCommand(DTCommandAbs):
@@ -67,12 +68,11 @@ class DTCommand(DTCommandAbs):
             version = parsed.tag
 
         # create defaults
-        owner = "duckietown"  # FIXME: AC: this was not passed, now hardcoded
         images = [
             project.image(
                 arch=parsed.arch,
                 registry=registry_to_use,
-                owner=owner,
+                owner=DEFAULT_OWNER,
                 version=version
             )]
         # clean release version
@@ -80,7 +80,7 @@ class DTCommand(DTCommandAbs):
             images.append(project.image_release(
                 arch=parsed.arch,
                 registry=registry_to_use,
-                owner=owner
+                owner=DEFAULT_OWNER
             ))
         # remove images
         for image in images:

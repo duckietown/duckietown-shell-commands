@@ -4,6 +4,7 @@ import os
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_client, get_endpoint_architecture, get_registry_to_use, pull_image
 from utils.dtproject_utils import DTProject
+from utils.duckietown_utils import DEFAULT_OWNER
 
 
 class DTCommand(DTCommandAbs):
@@ -69,12 +70,11 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client(parsed.machine)
 
-        owner = "duckietown"  # FIXME: AC: this was not computed, now hardcoded
         # create defaults
         image = project.image(
             arch=parsed.arch,
             registry=registry_to_use,
-            owner=owner,
+            owner=DEFAULT_OWNER,
             version=version
         )
 

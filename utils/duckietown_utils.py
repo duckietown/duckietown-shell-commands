@@ -1,6 +1,6 @@
 import re
 
-
+DEFAULT_OWNER = "duckietown"
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
 
 

@@ -35,6 +35,7 @@ from utils.dtproject_utils import (
     DTProject,
     get_cloud_builder,
 )
+from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
@@ -599,7 +600,8 @@ class DTCommand(DTCommandAbs):
                     docker,
                     arch=parsed.arch,
                     registry=registry_to_use,
-                    owner="duckietown",  # FIXME: AC: this was not passed, now it's hardcoded
+                    owner=DEFAULT_OWNER,
+                    version=version
                 )
                 # add build metadata
                 metadata["build"] = {
