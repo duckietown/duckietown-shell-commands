@@ -164,7 +164,7 @@ class DTCommand(DTCommandAbs):
             client = check_docker_environment()
             ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
 
-            dtslogger.debug(f"{ros_template_image=}")
+            dtslogger.debug(f"ros_template_image = {ros_template_image}")
             if parsed.debug:
                 cmd = ["bash"]
             elif parsed.clean:
