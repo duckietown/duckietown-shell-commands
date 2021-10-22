@@ -243,7 +243,7 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
-            keys_required = ["ARCH", "DT_TOKEN"]
+            keys_required = ["DT_TOKEN"]
             # TODO: this is temporary given that we have separate accounts for pulling/pushing
             #  from/to DockerHub
             if not parsed.staging:
@@ -256,7 +256,6 @@ class DTCommand(DTCommandAbs):
                     )
                     exit(5)
             # set configuration
-            parsed.arch = os.environ["DUCKIETOWN_CI_ARCH"]
             labels[dtlabel("image.authoritative")] = "1"
 
         # cloud build
