@@ -59,6 +59,9 @@ class DTCommand(DTCommandAbs):
             default="duckietown",
             help="the docker registry username to tag the image with",
         )
+        parser.add_argument(
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
+        )
 
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -110,9 +113,10 @@ class DTCommand(DTCommandAbs):
 
         if parsed.tag:
             dtslogger.info(f"Overriding version {project.version_name!r} with {parsed.tag!r}")
-            project._repository.branch = parsed.tag
-        # create defaults
-        image_version = None
+            image_version = parsed.tag
+        else:
+            image_version = project._repository.branch
+
         image = project.image(
             arch=parsed.arch,
             owner=parsed.username,
