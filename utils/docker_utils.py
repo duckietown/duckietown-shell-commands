@@ -105,7 +105,7 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
         return f"tcp://{baseurl}:{port}"
 
 
-def get_client(endpoint=None):
+def get_client(endpoint=None, registry: Optional[str] = None):
     if endpoint is None:
         client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
@@ -117,19 +117,19 @@ def get_client(endpoint=None):
         )
     # (try to) login
     try:
-        _login_client(client)
+        _login_client(client, registry=registry)
     except BaseException:
-        dtslogger.warning("An error occurred while trying to login to DockerHub.")
+        dtslogger.warning("An error occurred while trying to login to Docker registry.")
     # ---
     return client
 
 
-def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT, registry: Optional[str] = None):
     client = docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
     try:
-        _login_client(client)
+        _login_client(client, registry=registry)
     except BaseException:
-        dtslogger.warning("An error occurred while trying to login to DockerHub.")
+        dtslogger.warning("An error occurred while trying to login to Docker registry.")
     return client
 
 
