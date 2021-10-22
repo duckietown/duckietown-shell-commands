@@ -124,7 +124,6 @@ class DTCommand(DTCommandAbs):
             help="just stop all the containers",
         )
 
-
         parser.add_argument(
             "--local",
             "-l",
@@ -282,8 +281,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             rsync_cmd = "rsync -a "
             if "rsync_exclude" in config:
-                for dir in config["rsync_exclude"]:
-                    rsync_cmd += f"--exclude {working_dir}/{dir} "
+                for d in config["rsync_exclude"]:
+                    rsync_cmd += f"--exclude {working_dir}/{d} "
             rsync_cmd += f"{working_dir} {remote_base_path}"
             dtslogger.info(f"rsync command: {rsync_cmd}")
             _run_cmd(rsync_cmd, shell=True)
@@ -598,7 +597,6 @@ class DTCommand(DTCommandAbs):
                         f"Failed to find {vnc_image} in local images."
                         "You must run dts exercises build first to build your lab image to run "
                         "notebooks"
-
                     )
                 exit(1)
             vnc_image = add_registry(vnc_image)
