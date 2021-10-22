@@ -203,9 +203,9 @@ class DTProject:
         self,
         *,
         arch: str,
-        docs: bool = False,
         owner: str,
         registry: str,
+        docs: bool = False,
     ) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
