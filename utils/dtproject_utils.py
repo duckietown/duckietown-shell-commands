@@ -229,6 +229,7 @@ class DTProject:
             configurations = {}
         # do docker inspect
         inspect = self.image_metadata(endpoint, arch=arch, owner=owner, registry=registry)
+
         # remove useless data
         del inspect["ContainerConfig"]
         del inspect["Config"]["Labels"]
@@ -320,7 +321,7 @@ class DTProject:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
-            return None
+            raise Exception(f"Cannot get image metadata for {image_name!r}")
 
     def image_labels(
         self,
