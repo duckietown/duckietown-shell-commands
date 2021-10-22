@@ -4,12 +4,10 @@ import json
 import os
 import platform
 import sys
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import grp
-import pytz
 from docker.errors import APIError
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -18,7 +16,6 @@ from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import get_client, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
-from utils.git_utils import check_up_to_date
 from utils.notebook_utils import convert_notebooks
 from utils.yaml_utils import load_yaml
 
@@ -123,7 +120,7 @@ class DTCommand(DTCommandAbs):
                         if "stream" in log:
                             sys.stdout.write(log["stream"])
                     sys.stdout.flush()
-                except docker.errors.APIError as e:
+                except APIError as e:
                     dtslogger.error(str(e))
                     exit(1)
                 dtslogger.info("Environment built!")
@@ -167,7 +164,7 @@ class DTCommand(DTCommandAbs):
             ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
 
             if parsed.debug:
-                cmd = "bash"
+                cmd = ["bash"]
             elif parsed.clean:
                 cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
             else:
@@ -218,7 +215,8 @@ class DTCommand(DTCommandAbs):
                 attach_cmd = f"docker attach {container_name}"
                 start_command_in_subprocess(attach_cmd)
 
-        # The problem with the below is that it presumes that we are in a repo called `mooc-exercises` which is not a good assumption
+        # The problem with the below is that it presumes that we are in a repo called `mooc-exercises`
+        # which is not a good assumption
         # up = check_up_to_date(shell, "mooc-exercises")
         # dtslogger.debug(up.commit.sha)
         # if not up.uptodate:
