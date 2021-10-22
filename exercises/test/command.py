@@ -124,6 +124,7 @@ class DTCommand(DTCommandAbs):
             help="just stop all the containers",
         )
 
+
         parser.add_argument(
             "--local",
             "-l",
@@ -597,8 +598,10 @@ class DTCommand(DTCommandAbs):
                         f"Failed to find {vnc_image} in local images."
                         "You must run dts exercises build first to build your lab image to run "
                         "notebooks"
+
                     )
                 exit(1)
+            vnc_image = add_registry(vnc_image)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
