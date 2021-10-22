@@ -33,6 +33,7 @@ from utils.dtproject_utils import (
     DISTRO_KEY,
     dtlabel,
     DTProject,
+    get_cloud_builder,
 )
 from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
@@ -208,7 +209,7 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
-            keys_required = ["ARCH", "DT_TOKEN"]
+            keys_required = ["DT_TOKEN"]
             # TODO: this is temporary given that we have separate accounts for pulling/pushing
             #  from/to DockerHub
 
@@ -220,7 +221,6 @@ class DTCommand(DTCommandAbs):
                     )
                     exit(5)
             # set configuration
-            parsed.arch = os.environ["DUCKIETOWN_CI_ARCH"]
             labels[dtlabel("image.authoritative")] = "1"
 
         # cloud build
@@ -243,7 +243,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
                 exit(3)
             # update machine parameter
-            parsed.machine = CLOUD_BUILDERS[parsed.arch]
+            parsed.machine = get_cloud_builder(parsed.arch)
             # in CI we can force builds on specific architectures
             if parsed.ci_force_builder_arch is not None:
                 # force routing to the given architecture node
@@ -254,7 +254,7 @@ class DTCommand(DTCommandAbs):
                     )
                     exit(7)
                 # update machine parameter
-                parsed.machine = CLOUD_BUILDERS[parsed.ci_force_builder_arch]
+                parsed.machine = get_cloud_builder(parsed.ci_force_builder_arch)
                 dtslogger.info(f"Build forced to happen on {parsed.ci_force_builder_arch} CI node")
             # configure docker for DT
             if parsed.ci:
