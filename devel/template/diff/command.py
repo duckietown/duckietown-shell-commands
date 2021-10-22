@@ -1,14 +1,12 @@
-import os
 import argparse
+import os
 import subprocess
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.dtproject_utils import DTProject
-
-from dt_shell import DTShell, DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Computes the diff between the current project and its template"
 
     @staticmethod

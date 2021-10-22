@@ -4,11 +4,10 @@ from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    DEFAULT_REGISTRY,
     get_client,
     get_endpoint_architecture,
+    get_registry_to_use,
     pull_image,
-    STAGING_REGISTRY,
 )
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
@@ -37,32 +36,14 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
         )
-        parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging code",
-        )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use images from this Docker registry",
-        )
+
         parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
         # clean duckiebot
         if not parsed.no_clean:
             shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
@@ -70,7 +51,7 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
         images = [
-            img.format(registry=parsed.registry, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
+            img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client(hostname)
         # it looks like the update is going to happen, mark the event
@@ -79,7 +60,7 @@ class DTCommand(DTCommandAbs):
         # call `stack up` command
         success = shell.include.stack.up.command(
             shell,
-            ["--machine", parsed.robot, "--registry", parsed.registry, "--detach", "--pull", parsed.stack],
+            ["--machine", parsed.robot, "--detach", "--pull", parsed.stack],
         )
         if not success:
             return
@@ -89,7 +70,7 @@ class DTCommand(DTCommandAbs):
             try:
                 pull_image(image, client)
             except NotFound:
-                dtslogger.error(f"Image '{image}' not found on registry '{parsed.registry}'. " f"Aborting.")
+                dtslogger.error(f"Image '{image}' not found on registry '{registry_to_use}'. " f"Aborting.")
                 return
         # clean duckiebot (again)
         if not parsed.no_clean:

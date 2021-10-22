@@ -1,7 +1,7 @@
-import os
 import argparse
+import os
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 MAP_EDITOR_LAUNCHER = "editor"
 

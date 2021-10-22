@@ -2,8 +2,8 @@ import os
 import platform
 import re
 import subprocess
-import sys
 from os.path import expanduser
+from typing import Tuple
 
 import docker
 from docker import DockerClient
@@ -11,6 +11,7 @@ from docker.errors import NotFound
 
 from dt_shell import dtslogger
 from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
 from utils.progress_bar import ProgressBar
@@ -26,7 +27,6 @@ DEFAULT_API_TIMEOUT = 240
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
-STAGING_REGISTRY = "registry-stage2.duckietown.org"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -37,6 +37,34 @@ Docker Endpoint:
   Total Memory: {MemTotal}
   CPUs: {NCPU}
 """
+
+
+def get_registry_to_use() -> str:
+    docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
+    if docker_registry != DEFAULT_REGISTRY:
+        dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
+    return docker_registry
+
+
+class AuthNotFound(Exception):
+    pass
+
+
+def hide_string(s: str) -> str:
+    hidden = "*" * (len(s) - 3) + s[-3:]
+    return hidden
+
+
+def get_docker_auth_from_env() -> Tuple[str, str]:
+    try:
+        registry_username = os.environ[f"DOCKER_USERNAME"]
+    except KeyError as e:
+        raise AuthNotFound("Cannot find DOCKER_USERNAME in env.")
+    try:
+        registry_token = os.environ[f"DOCKER_PASSWORD"]
+    except KeyError as e:
+        raise AuthNotFound("Cannot find DOCKER_PASSWORD in env.")
+    return registry_username, registry_token
 
 
 def get_endpoint_ncpus(epoint=None):
@@ -468,23 +496,6 @@ def pull_if_not_exist(client, image_name):
                 print(" " * 60, end="\r", flush=True)
                 loader = "Downloading ."
             print(loader, end="\r", flush=True)
-
-
-def build_if_not_exist(client, image_path, tag):
-    from docker.errors import BuildError
-    import json
-
-    try:
-        # loader = 'Building .'
-        for line in client.api.build(
-            path=image_path, nocache=True, rm=True, tag=tag, dockerfile=image_path + "/Dockerfile"
-        ):
-            try:
-                sys.stdout.write(json.loads(line.decode("utf-8"))["stream"])
-            except Exception:
-                pass
-    except BuildError as e:
-        print("Unable to build, reason: {} ".format(str(e)))
 
 
 def build_logs_to_string(build_logs):

@@ -1,15 +1,14 @@
-import os
-import json
-import time
 import argparse
+import json
 import logging
+import os
+import time
 from collections import defaultdict
 from typing import List, Set
 
 from dt_shell import DTCommandAbs, dtslogger
-
-from utils.table_utils import format_matrix, fill_cell
 from utils.duckietown_utils import get_robot_types
+from utils.table_utils import fill_cell, format_matrix
 
 REFRESH_HZ = 1.0
 
@@ -27,7 +26,6 @@ usage = """
 
 
 class DiscoverListener:
-
     services = defaultdict(dict)
     supported_services = [
         "DT::ONLINE",

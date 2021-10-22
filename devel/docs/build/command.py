@@ -6,21 +6,16 @@ import sys
 import tarfile
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger
-from duckietown_docker_utils import ENV_REGISTRY
 
+from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import (
-    get_endpoint_architecture,
-    build_logs_to_string,
-    DEFAULT_REGISTRY,
-    STAGING_REGISTRY,
-)
+from utils.docker_utils import build_logs_to_string, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project's documentation"
+    # FIXME: honor DOCKER_REGISTRY
 
     @staticmethod
     def command(shell, args):
@@ -60,20 +55,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
-        parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment",
-        )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use this Docker registry",
-        )
+
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -105,26 +87,17 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
 
         # get the arch
         arch = get_endpoint_architecture()
 
         # create defaults
         image = project.image(
-            arch, loop=parsed.loop, owner=parsed.username, registry=parsed.registry, staging=parsed.staging
+            arch=arch,
+            loop=parsed.loop,
+            owner=parsed.username,
+            registry=registry_to_use,
         )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
@@ -155,6 +128,7 @@ class DTCommand(DTCommandAbs):
 
         # clear output directories
         for f in os.listdir(repo_file(repo_file("html"))):
+            # noinspection PyTypeChecker
             if f.endswith("DOCS_WILL_BE_GENERATED_HERE"):
                 continue
             start_command_in_subprocess(
@@ -172,6 +146,7 @@ class DTCommand(DTCommandAbs):
         in_files_buf = io.BytesIO()
         in_files = tarfile.open(fileobj=in_files_buf, mode="w")
         for obj in os.listdir(repo_file("docs")):
+            # noinspection PyTypeChecker
             in_files.add(os.path.join(repo_file("docs"), obj), arcname=obj)
         in_files_buf.seek(0)
 

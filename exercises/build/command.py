@@ -14,9 +14,10 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_client, pull_if_not_exist, remove_if_running
+from utils.docker_utils import get_client, get_registry_to_use, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
 from utils.notebook_utils import convert_notebooks
+from utils.pip_utils import get_pip_index_url
 from utils.yaml_utils import load_yaml
 
 usage = """
@@ -42,15 +43,6 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts exercise build"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        parser.add_argument(
-            "--staging",
-            "-t",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Should we use the staging AIDO registry?",
-        )
 
         parser.add_argument(
             "--debug",
@@ -87,13 +79,18 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
         config = load_yaml(cfile)
 
+        docker_build_args = {}
+
+        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
+        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+
         # make sure this exercise has a lab_dir key in its config file and that it points to
         # an existing directory
         labdir_name = config.get("lab_dir", None)
         if labdir_name is None:
             dtslogger.info(
                 "The exercise configuration file 'config.yaml' does not have a "
-                "'lab_dir' key to indicate where notebooks are stored. We will not build the labs"
+                "'lab_dir' key to indicate where notebooks are stored. We will not build the labs."
             )
         else:
             labdir = os.path.join(working_dir, labdir_name)
@@ -112,7 +109,11 @@ class DTCommand(DTCommandAbs):
                 lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
                 client = get_client()
                 logs = client.api.build(
-                    path=labdir, tag=lab_image_name, dockerfile="Dockerfile.lab", decode=True
+                    buildargs=docker_build_args,
+                    path=labdir,
+                    tag=lab_image_name,
+                    dockerfile="Dockerfile.lab",
+                    decode=True,
                 )
                 dtslogger.info("Building environment...")
                 try:
@@ -150,11 +151,11 @@ class DTCommand(DTCommandAbs):
         if "files" in config:
             convert_notebooks(config["files"])
 
-        REGISTRY = os.getenv(ENV_REGISTRY, "docker.io")
+        REGISTRY = get_registry_to_use()
 
         def add_registry(x):
             if REGISTRY in x:
-                raise
+                raise Exception()
             return REGISTRY + "/" + x
 
         if use_ros:
@@ -163,6 +164,7 @@ class DTCommand(DTCommandAbs):
             client = check_docker_environment()
             ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
 
+            dtslogger.debug(f"{ros_template_image=}")
             if parsed.debug:
                 cmd = ["bash"]
             elif parsed.clean:
