@@ -1,12 +1,13 @@
 import argparse
 
-import docker
+from docker.errors import NotFound
+
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    get_endpoint_architecture,
-    get_client,
-    pull_image,
     DEFAULT_REGISTRY,
+    get_client,
+    get_endpoint_architecture,
+    pull_image,
     STAGING_REGISTRY,
 )
 from utils.duckietown_utils import get_distro_version
@@ -87,7 +88,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pulling image `{image}`...")
             try:
                 pull_image(image, client)
-            except docker.errors.NotFound:
+            except NotFound:
                 dtslogger.error(f"Image '{image}' not found on registry '{parsed.registry}'. " f"Aborting.")
                 return
         # clean duckiebot (again)
