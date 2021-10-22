@@ -312,7 +312,8 @@ class DTCommand(DTCommandAbs):
         # login (CI only)
         if parsed.ci:
             ci_username, ci_password = get_docker_auth_from_env()
-            dtslogger.info(f"Logging in as `{ci_username}`")
+            ci_password_hidden = "*" * (len(ci_password)-3) + ci_password[-3:]
+            dtslogger.info(f"Logging in as `{ci_username}:{ci_password_hidden}`")
             docker.login(username=ci_username, password=ci_password)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
