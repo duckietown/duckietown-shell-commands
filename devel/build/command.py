@@ -314,7 +314,7 @@ class DTCommand(DTCommandAbs):
             ci_username, ci_password = get_docker_auth_from_env()
             ci_password_hidden = "*" * (len(ci_password)-3) + ci_password[-3:]
             dtslogger.info(f"Logging in as `{ci_username}:{ci_password_hidden}`")
-            docker.login(username=ci_username, password=ci_password)
+            docker.login(username=ci_username, password=ci_password, registry=registry_to_use)
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()

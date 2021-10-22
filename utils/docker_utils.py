@@ -3,7 +3,7 @@ import platform
 import re
 import subprocess
 from os.path import expanduser
-from typing import Tuple
+from typing import Tuple, Optional
 
 import docker
 from docker import DockerClient
@@ -133,11 +133,14 @@ def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
     return client
 
 
-def _login_client(client):
-    username = os.environ.get("DOCKERHUB_USERNAME", None)
-    password = os.environ.get("DOCKERHUB_PASSWORD", None)
+def _login_client(client, registry: Optional[str] = None):
+    username = os.environ.get("DOCKER_USERNAME", None)
+    password = os.environ.get("DOCKER_PASSWORD", None)
+    args = {}
+    if registry is not None:
+        args["registry"] = registry
     if username is not None and password is not None:
-        client.login(username=username, password=password)
+        client.login(username=username, password=password, **args)
 
 
 # TODO quick hack to make this work - duplication of code above bad
