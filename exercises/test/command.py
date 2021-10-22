@@ -123,14 +123,6 @@ class DTCommand(DTCommandAbs):
             help="just stop all the containers",
         )
         #
-        # parser.add_argument(
-        #     "--staging",
-        #     "-t",
-        #     dest="staging",
-        #     action="store_true",
-        #     default=False,
-        #     help="Should we use the staging AIDO registry?",
-        # )
 
         parser.add_argument(
             "--local",
@@ -601,9 +593,12 @@ class DTCommand(DTCommandAbs):
                 vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
                 local_client_images = local_client.images.list()
                 if f"<Image: '{vnc_image}:latest'>" not in local_client_images:
-                    dtslogger.error(f"Failed to find {vnc_image} in local images."
-                    "You must run dts exercises build first to build your lab image to run notebooks")
+                    dtslogger.error(
+                        f"Failed to find {vnc_image} in local images."
+                        "You must run dts exercises build first to build your lab image to run notebooks"
+                    )
                 exit(1)
+            vnc_image = add_registry(vnc_image)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:

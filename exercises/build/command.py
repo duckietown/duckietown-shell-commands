@@ -94,8 +94,10 @@ class DTCommand(DTCommandAbs):
         # an existing directory
         labdir_name = config.get("lab_dir", None)
         if labdir_name is None:
-            dtslogger.info("The exercise configuration file 'config.yaml' does not have a "
-                             "'lab_dir' key to indicate where notebooks are stored. We will not build the labs")
+            dtslogger.info(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'lab_dir' key to indicate where notebooks are stored. We will not build the labs"
+            )
         else:
             labdir = os.path.join(working_dir, labdir_name)
             if not os.path.exists(labdir) or not os.path.isdir(labdir):
@@ -113,16 +115,13 @@ class DTCommand(DTCommandAbs):
                 lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
                 client = get_client()
                 logs = client.api.build(
-                    path=labdir,
-                    tag=lab_image_name,
-                    dockerfile="Dockerfile.lab",
-                    decode=True
+                    path=labdir, tag=lab_image_name, dockerfile="Dockerfile.lab", decode=True
                 )
                 dtslogger.info("Building environment...")
                 try:
                     for log in logs:
-                        if 'stream' in log:
-                            sys.stdout.write(log['stream'])
+                        if "stream" in log:
+                            sys.stdout.write(log["stream"])
                     sys.stdout.flush()
                 except docker.errors.APIError as e:
                     dtslogger.error(str(e))
@@ -133,11 +132,10 @@ class DTCommand(DTCommandAbs):
         # an existing directory
         wsdir_name = config.get("ws_dir", None)
         if wsdir_name is None:
-            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
-                             "'ws_dir' key to indicate where the solution is stored")
             raise ValueError(
                 "The exercise configuration file 'config.yaml' does not have a "
-                "'ws_dir' key to indicate where code is stored"
+                "'ws_dir' key to indicate where the solution is stored"
+            )
 
         wsdir = os.path.join(working_dir, wsdir_name)
         if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
@@ -232,6 +230,5 @@ class DTCommand(DTCommandAbs):
         #     dtslogger.warn(f"Commit {up.commit.url}")
         # else:
         #     dtslogger.debug("OK, up to date ")
-
 
         dtslogger.info("Build complete")
