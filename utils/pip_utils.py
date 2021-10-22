@@ -1,4 +1,6 @@
 DEFAULT_INDEX_URL = "https://pypi.org/simple"
+import os
+from dt_shell import dtslogger
 
 
 def get_pip_index_url() -> str:

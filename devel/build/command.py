@@ -14,6 +14,7 @@ from docker.errors import APIError, ContainerError, ImageNotFound
 from termcolor import colored
 
 from dt_shell import DTCommandAbs, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -165,7 +166,7 @@ class DTCommand(DTCommandAbs):
                 multi.execute()
                 return
         if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+            parsed, _ = parser.parse_known_args(args=args)  # FIXME: this ignores other arguments
         # ---
 
         # define build-args
@@ -398,6 +399,7 @@ class DTCommand(DTCommandAbs):
         # custom Pip registry
 
         docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
+        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
 
         # custom build arguments
         for key, value in parsed.build_arg:

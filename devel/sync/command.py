@@ -3,7 +3,6 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
-
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.misc_utils import sanitize_hostname
@@ -13,7 +12,6 @@ DEFAULT_REMOTE_USER = "duckie"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Syncs the current project with another machine"
 
     @staticmethod

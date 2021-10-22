@@ -1,10 +1,10 @@
-import os
 import argparse
+import os
+
 import termcolor as tc
 
+from dt_shell import DTCommandAbs, DTShell
 from utils.dtproject_utils import DTProject
-
-from dt_shell import DTShell, DTCommandAbs
 
 PROJECT_INFO = """
 {project}
@@ -24,7 +24,6 @@ nocolor = lambda s, *_: s
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Shows information about the current project"
 
     @staticmethod

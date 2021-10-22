@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+
 import termcolor as tc
 
 LAYER_SIZE_YELLOW = 20 * 1024 ** 2  # 20 MB

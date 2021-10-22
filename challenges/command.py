@@ -11,22 +11,9 @@ from dt_shell import check_package_version, DTCommandAbs, DTShell, dtslogger, Us
 from dt_shell.env_checks import check_docker_environment
 
 
-# environments: Dict[str, Dict[str, str]] = {
-#     "daffy": {},
-#     "daffy-staging": {
-#         "DOCKER_REGISTRY": "registry-stage2.duckietown.org",
-#         "DTSERVER": "https://challenges-stage.duckietown.org",
-#         "PIP_INDEX_URL": "https://staging.duckietown.org/root/devel/",
-#     },
-# }
-
-
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        # version = shell.shell_config.duckietown_version
-        # envs = environments.get(version, {})
-        # dtslogger.info(f"Version: {version}\nUsing special envs:\n{json.dumps(envs, indent=2)}")
         check_package_version("duckietown-docker-utils-daffy", "6.0.78")
         from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
