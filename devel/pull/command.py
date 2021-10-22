@@ -31,6 +31,11 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Docker socket or hostname from where to push the image",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
 
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -55,12 +60,23 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # spin up docker client
         docker = get_client(parsed.machine)
 
         owner = "duckietown"  # FIXME: AC: this was not computed, now hardcoded
         # create defaults
-        image = project.image(arch=parsed.arch, registry=registry_to_use, owner=owner)
+        image = project.image(
+            arch=parsed.arch,
+            registry=registry_to_use,
+            owner=owner,
+            version=version
+        )
 
         dtslogger.info(f"Pulling image {image}...")
         pull_image(image, docker)

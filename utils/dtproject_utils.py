@@ -221,14 +221,15 @@ class DTProject:
         arch: str,
         registry: str,
         owner: str,
+        version: str
     ):
-        image_tag = self.image(arch=arch, owner=owner, registry=registry)
+        image_tag = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             configurations = self.configurations()
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, registry=registry)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version, registry=registry)
 
         # remove useless data
         del inspect["ContainerConfig"]
@@ -257,7 +258,7 @@ class DTProject:
                 "is_detached": self.is_detached(),
             },
             "configurations": configurations,
-            "labels": self.image_labels(endpoint, arch=arch, owner=owner, registry=registry),
+            "labels": self.image_labels(endpoint, arch=arch, owner=owner, version=version, registry=registry),
         }
         # ---
         return meta
@@ -314,9 +315,10 @@ class DTProject:
         arch: str,
         owner: str,
         registry: str,
+        version: str
     ):
         client = _docker_client(endpoint)
-        image_name = self.image(arch=arch, owner=owner, registry=registry)
+        image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.attrs
@@ -330,9 +332,10 @@ class DTProject:
         arch: str,
         owner: str,
         registry: str,
+        version: str
     ):
         client = _docker_client(endpoint)
-        image_name = self.image(arch=arch, owner=owner, registry=registry)
+        image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.labels

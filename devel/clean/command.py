@@ -32,6 +32,11 @@ class DTCommand(DTCommandAbs):
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname where to clean the image",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
 
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -54,12 +59,29 @@ class DTCommand(DTCommandAbs):
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
         owner = "duckietown"  # FIXME: AC: this was not passed, now hardcoded
-        images = [project.image(arch=parsed.arch, registry=registry_to_use, owner=owner)]
+        images = [
+            project.image(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=owner,
+                version=version
+            )]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(arch=parsed.arch, registry=registry_to_use, owner=owner))
+            images.append(project.image_release(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=owner
+            ))
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

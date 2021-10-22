@@ -153,6 +153,11 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Detach from the container and let it run",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
 
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
@@ -215,6 +220,12 @@ class DTCommand(DTCommandAbs):
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
 
         # get the module configuration
         module_configuration_args = []
@@ -280,8 +291,9 @@ class DTCommand(DTCommandAbs):
         image = project.image(
             arch=parsed.arch,
             loop=parsed.loop,
-            owner=parsed.username,
             registry=registry_to_use,
+            owner=parsed.username,
+            version=version
         )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")

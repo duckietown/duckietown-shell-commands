@@ -155,7 +155,9 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
         )
 
         # get pre-parsed or parse arguments
@@ -186,11 +188,13 @@ class DTCommand(DTCommandAbs):
         # show info about project
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # tag
+        version = project.version_name
         if parsed.tag:
-            dtslogger.info(f"Overriding version {project.version_name!r} with {parsed.tag!r}")
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
-        else:
-            version = project._repository.branch
+
         try:
             project_template_ver = int(project.type_version)
         except ValueError:

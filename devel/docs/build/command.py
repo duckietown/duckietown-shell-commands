@@ -55,6 +55,11 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
 
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
@@ -92,12 +97,19 @@ class DTCommand(DTCommandAbs):
         # get the arch
         arch = get_endpoint_architecture()
 
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
         image = project.image(
             arch=arch,
             loop=parsed.loop,
-            owner=parsed.username,
             registry=registry_to_use,
+            owner=parsed.username,
+            version=version
         )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 

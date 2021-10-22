@@ -111,17 +111,17 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client(parsed.machine)
 
+        # tag
+        version = project.version_name
         if parsed.tag:
-            dtslogger.info(f"Overriding version {project.version_name!r} with {parsed.tag!r}")
-            image_version = parsed.tag
-        else:
-            image_version = project._repository.branch
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
 
         image = project.image(
             arch=parsed.arch,
-            owner=parsed.username,
-            version=image_version,
             registry=registry_to_use,
+            owner=parsed.username,
+            version=version
         )
 
         dtslogger.info(f"Pushing image {image}...")
