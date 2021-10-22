@@ -465,8 +465,9 @@ class DTCommand(DTCommandAbs):
                     image_labels = project.image_labels(
                         parsed.machine,
                         arch=parsed.arch,
-                        owner=parsed.username,
                         registry=registry_to_use,
+                        owner=parsed.username,
+                        version=version
                     )
                 except BaseException as e:
                     dtslogger.warning(f"Cannot fetch image metadata. Reason: {str(e)}")

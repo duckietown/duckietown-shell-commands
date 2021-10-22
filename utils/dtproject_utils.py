@@ -259,7 +259,13 @@ class DTProject:
                 "is_detached": self.is_detached(),
             },
             "configurations": configurations,
-            "labels": self.image_labels(endpoint, arch=arch, owner=owner, version=version, registry=registry),
+            "labels": self.image_labels(
+                endpoint,
+                arch=arch,
+                registry=registry,
+                owner=owner,
+                version=version,
+            ),
         }
         # ---
         return meta
