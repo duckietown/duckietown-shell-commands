@@ -10,9 +10,11 @@ from docker.errors import APIError, ImageNotFound, NotFound
 
 from dt_data_api import APIError
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from utils.docker_utils import get_client
+from duckietown_docker_utils import ENV_REGISTRY
+from utils.docker_utils import get_client, get_registry_to_use
 from utils.exceptions import InvalidUserInput
 from utils.exercises_utils import get_exercise_config
+from utils.pip_utils import get_pip_index_url
 
 usage = """
 
@@ -110,7 +112,19 @@ class DTCommand(DTCommandAbs):
             msg = f"There is no Dockerfile.lab present at {dockerfile}"
             raise UserError(msg)
 
-        logs = client.api.build(path=labdir, tag=lab_image_name, dockerfile="Dockerfile.lab", decode=True)
+        docker_build_args = {}
+
+        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
+        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+
+        buildargs = {
+            "buildargs": docker_build_args,
+            "path": labdir,
+            "tag": lab_image_name,
+            "dockerfile": "Dockerfile.lab",
+        }
+
+        logs = client.api.build(**buildargs, decode=True)
         dtslogger.info("Building environment...")
         try:
             for log in logs:

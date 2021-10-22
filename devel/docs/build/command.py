@@ -15,6 +15,7 @@ from utils.dtproject_utils import DTProject
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project's documentation"
+    # FIXME: honor DOCKER_REGISTRY
 
     @staticmethod
     def command(shell, args):

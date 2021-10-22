@@ -2,7 +2,6 @@ import os
 import platform
 import re
 import subprocess
-import sys
 from os.path import expanduser
 from typing import Tuple
 
@@ -15,7 +14,6 @@ from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
-
 from utils.progress_bar import ProgressBar
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
@@ -498,23 +496,6 @@ def pull_if_not_exist(client, image_name):
                 print(" " * 60, end="\r", flush=True)
                 loader = "Downloading ."
             print(loader, end="\r", flush=True)
-
-
-def build_if_not_exist(client, image_path, tag):
-    from docker.errors import BuildError
-    import json
-
-    try:
-        # loader = 'Building .'
-        for line in client.api.build(
-            path=image_path, nocache=True, rm=True, tag=tag, dockerfile=image_path + "/Dockerfile"
-        ):
-            try:
-                sys.stdout.write(json.loads(line.decode("utf-8"))["stream"])
-            except Exception:
-                pass
-    except BuildError as e:
-        print("Unable to build, reason: {} ".format(str(e)))
 
 
 def build_logs_to_string(build_logs):
