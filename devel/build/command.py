@@ -17,12 +17,10 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
-    AuthNotFound,
     copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
     DOCKER_INFO,
     get_client,
-    get_docker_auth_from_env,
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,

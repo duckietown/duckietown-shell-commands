@@ -140,7 +140,9 @@ class DTCommand(DTCommandAbs):
 
 def command_config(shell: DTShell, args: List[str]):
     parser = argparse.ArgumentParser(prog="dts challenges config")
-    parser.add_argument("--docker-server", dest="server", help="Docker server", default="docker.io")
+    parser.add_argument(
+        "--docker-registry", "--docker-server", dest="server", help="Docker server", default="docker.io"
+    )
     parser.add_argument("--docker-username", dest="username", help="Docker username", required=True)
     parser.add_argument(
         "--docker-password", dest="password", help="Docker password or Docker token", required=True

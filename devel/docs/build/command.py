@@ -9,12 +9,18 @@ import docker
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import build_logs_to_string, get_endpoint_architecture, get_registry_to_use
+from utils.docker_utils import (
+    build_logs_to_string,
+    get_endpoint_architecture,
+    get_registry_to_use,
+    login_client,
+)
 from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project's documentation"
+
     # FIXME: honor DOCKER_REGISTRY
 
     @staticmethod
@@ -56,9 +62,7 @@ class DTCommand(DTCommandAbs):
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
         parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
@@ -105,11 +109,7 @@ class DTCommand(DTCommandAbs):
 
         # create defaults
         image = project.image(
-            arch=arch,
-            loop=parsed.loop,
-            registry=registry_to_use,
-            owner=parsed.username,
-            version=version
+            arch=arch, loop=parsed.loop, registry=registry_to_use, owner=parsed.username, version=version
         )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
@@ -127,6 +127,8 @@ class DTCommand(DTCommandAbs):
 
         # Get a docker client
         dclient = docker.from_env()
+
+        login_client(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
 
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")
