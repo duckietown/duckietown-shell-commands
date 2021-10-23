@@ -17,7 +17,7 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import get_client, get_registry_to_use, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
 from utils.notebook_utils import convert_notebooks
-from utils.pip_utils import get_pip_index_url
+from utils.pip_utils import get_pip_index_url, import_or_install
 from utils.yaml_utils import load_yaml
 
 usage = """
@@ -41,6 +41,14 @@ CF = "config.yaml"
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        # to clone the mooc repo
+        import_or_install("gitpython", "git")
+
+        # to convert the notebook into a python script
+        import_or_install("nbformat", "nbformat")
+        import_or_install("nbconvert", "nbconvert")
+
         prog = "dts exercise build"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 

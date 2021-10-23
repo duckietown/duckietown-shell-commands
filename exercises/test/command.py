@@ -37,6 +37,7 @@ from utils.exercises_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 from utils.notebook_utils import convert_notebooks
+from utils.pip_utils import import_or_install
 from utils.yaml_utils import load_yaml
 
 usage = """
@@ -72,6 +73,13 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts exercise test"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+        # to clone the mooc repo
+        import_or_install("gitpython", "git")
+
+        # to convert the notebook into a python script
+        import_or_install("nbformat", "nbformat")
+        import_or_install("nbconvert", "nbconvert")
 
         class Levels(str, Enum):
 

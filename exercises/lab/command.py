@@ -14,7 +14,7 @@ from duckietown_docker_utils import ENV_REGISTRY
 from utils.docker_utils import get_client, get_registry_to_use
 from utils.exceptions import InvalidUserInput
 from utils.exercises_utils import get_exercise_config
-from utils.pip_utils import get_pip_index_url
+from utils.pip_utils import get_pip_index_url, import_or_install
 
 usage = """
 
@@ -37,6 +37,12 @@ IS_SHUTDOWN = False
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        # to clone the mooc repo
+        import_or_install("gitpython", "git")
+
+        # to convert the notebook into a python script
+        import_or_install("nbformat", "nbformat")
+        import_or_install("nbconvert", "nbconvert")
 
         prog = "dts exercise lab"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
