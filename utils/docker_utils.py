@@ -155,7 +155,12 @@ def copy_docker_env_into_configuration(shell_config: ShellConfig):
         shell_config.docker_credentials[registry] = {"username": env_username, "secret": env_password}
 
 
+class CouldNotLogin(Exception):
+    pass
+
+
 def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
     if registry not in shell_config.docker_credentials:
         msg = f"Cannot find {registry!r} in available config credentials.\n"
         msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
@@ -167,7 +172,7 @@ def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
 
         if raise_on_error:
             dtslogger.error(msg)
-            raise Exception(f"Could not login to {registry!r}.")
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
         else:
             dtslogger.warn(msg)
             dtslogger.warn("I will try to continue because raise_on_error = False.")
@@ -187,10 +192,17 @@ def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
 
 
 def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
     res = client.login(username=username, password=password, registry=registry)
     dtslogger.debug(f"login response: {res}")
+    # Status': 'Login Succeeded'
+    if res.get("Status", None) == "Login Succeeded":
+        pass
+    else:
+        if raise_on_error:
+            raise CouldNotLogin(f"Could not login to {registry!r}: {res}")
     # TODO: check for error
 
 
