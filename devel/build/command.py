@@ -13,10 +13,12 @@ from types import SimpleNamespace
 from docker.errors import APIError, ContainerError, ImageNotFound
 from termcolor import colored
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
+    AuthNotFound,
+    copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
     DOCKER_INFO,
     get_client,
@@ -24,6 +26,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
+    login_client,
     pull_image,
 )
 from utils.dtproject_utils import (
@@ -46,7 +49,7 @@ class DTCommand(DTCommandAbs):
     help = "Builds the current project"
 
     @staticmethod
-    def command(shell, args, **kwargs):
+    def command(shell: DTShell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -156,9 +159,7 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         # get pre-parsed or parse arguments
@@ -315,16 +316,13 @@ class DTCommand(DTCommandAbs):
                 labels[label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
+
         # build-arg NCPUS
         docker_build_args["NCPUS"] = (
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         )
-        # login (CI only)
-        if parsed.ci:
-            ci_username, ci_password = get_docker_auth_from_env()
-            ci_password_hidden = "*" * (len(ci_password) - 3) + ci_password[-3:]
-            dtslogger.info(f"Logging in as `{ci_username}:{ci_password_hidden}`")
-            docker.login(username=ci_username, password=ci_password, registry=registry_to_use)
+        #  (CI only)
+
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()
@@ -333,6 +331,9 @@ class DTCommand(DTCommandAbs):
             return
         epoint["MemTotal"] = human_size(epoint["MemTotal"])
         print(DOCKER_INFO.format(**epoint))
+
+        copy_docker_env_into_configuration(shell.shell_config)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
@@ -467,7 +468,7 @@ class DTCommand(DTCommandAbs):
                         arch=parsed.arch,
                         registry=registry_to_use,
                         owner=parsed.username,
-                        version=version
+                        version=version,
                     )
                 except BaseException as e:
                     dtslogger.warning(f"Cannot fetch image metadata. Reason: {str(e)}")
@@ -598,11 +599,7 @@ class DTCommand(DTCommandAbs):
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
                 metadata = project.ci_metadata(
-                    docker,
-                    arch=parsed.arch,
-                    registry=registry_to_use,
-                    owner=DEFAULT_OWNER,
-                    version=version
+                    docker, arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version
                 )
                 # add build metadata
                 metadata["build"] = {

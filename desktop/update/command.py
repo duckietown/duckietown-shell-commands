@@ -6,6 +6,7 @@ from utils.docker_utils import (
     get_client,
     get_endpoint_architecture,
     get_registry_to_use,
+    login_client,
     pull_image,
 )
 from utils.duckietown_utils import get_distro_version
@@ -40,6 +41,7 @@ class DTCommand(DTCommandAbs):
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client()
+        login_client(client, shell.shell_config, registry_to_use, raise_on_error=False)
         # do update
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")

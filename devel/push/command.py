@@ -4,12 +4,14 @@ import os
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
     AuthNotFound,
+    copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
     get_client,
     get_docker_auth_from_env,
     get_endpoint_architecture,
     get_registry_to_use,
     hide_string,
+    login_client,
     push_image,
 )
 from utils.dtproject_utils import DTProject
@@ -95,23 +97,12 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # login (CI only)
-        push_args = {}
-        if parsed.ci:
-            try:
-                registry_username, registry_token = get_docker_auth_from_env()
-            except AuthNotFound as e:
-                msg = f"Credentials not found when building with --ci: {e}"
-                dtslogger.error(msg)
-                raise SystemExit(2)
-
-            registry_token_hidden = hide_string(registry_token)
-            msg = f"Logging in on '{registry_to_use}' as {registry_username}:{registry_token_hidden}'"
-            dtslogger.debug(msg)
-            push_args["auth_config"] = {"username": registry_username, "password": registry_token}
         # spin up docker client
         docker = get_client(parsed.machine)
 
-        # tag
+        copy_docker_env_into_configuration(shell.shell_config)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
+
         version = project.version_name
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
@@ -122,7 +113,7 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker, **push_args)
+        push_image(image, docker)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
@@ -132,7 +123,7 @@ class DTCommand(DTCommandAbs):
                 registry=registry_to_use,
             )
             dtslogger.info(f"Pushing release image {image}...")
-            push_image(image, docker, **push_args)
+            push_image(image, docker)
             dtslogger.info("Image successfully pushed!")
 
     @staticmethod

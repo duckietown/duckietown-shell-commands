@@ -2,7 +2,13 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import get_client, get_endpoint_architecture, get_registry_to_use, pull_image
+from utils.docker_utils import (
+    get_client,
+    get_endpoint_architecture,
+    get_registry_to_use,
+    login_client,
+    pull_image,
+)
 from utils.dtproject_utils import DTProject
 from utils.duckietown_utils import DEFAULT_OWNER
 
@@ -33,9 +39,7 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname from where to push the image",
         )
         parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parsed, _ = parser.parse_known_args(args=args)
@@ -69,13 +73,10 @@ class DTCommand(DTCommandAbs):
 
         # spin up docker client
         docker = get_client(parsed.machine)
-
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=False)
         # create defaults
         image = project.image(
-            arch=parsed.arch,
-            registry=registry_to_use,
-            owner=DEFAULT_OWNER,
-            version=version
+            arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version
         )
 
         dtslogger.info(f"Pulling image {image}...")

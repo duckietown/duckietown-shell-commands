@@ -3,13 +3,14 @@ import platform
 import re
 import subprocess
 from os.path import expanduser
-from typing import Optional, Tuple
+from typing import Tuple
 
 import docker
 from docker import DockerClient
 from docker.errors import NotFound
 
 from dt_shell import dtslogger
+from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
@@ -105,7 +106,7 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
         return f"tcp://{baseurl}:{port}"
 
 
-def get_client(endpoint=None, registry: Optional[str] = None):
+def get_client(endpoint=None):
     if endpoint is None:
         client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
@@ -115,42 +116,89 @@ def get_client(endpoint=None, registry: Optional[str] = None):
             if isinstance(endpoint, docker.DockerClient)
             else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
         )
+
+    # FIXME: AFD to review
+    # AC: Note the client is not registry-specific, don't try to login here.
+    # AC: not the place to do it - note that we also would need to login to multiple registries in some cases
     # (try to) login
-    try:
-        _login_client(client, registry=registry)
-    except BaseException:
-        dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
-    # ---
+    # try:
+    #     _login_client(client, registry=registry)
+    # except BaseException:
+    #     dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
+    # # ---
     return client
 
 
-def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT, registry: Optional[str] = None):
+def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) -> DockerClient:
     client = docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
+    # FIXME: AFD to review
     try:
-        _login_client(client, registry=registry)
-    except BaseException:
-        dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
+        env_username, env_password = get_docker_auth_from_env()
+    except AuthNotFound:
+        pass
+    else:
+        registry = DEFAULT_REGISTRY
+        try:
+            _login_client(client, registry, env_username, env_password, raise_on_error=False)
+        except BaseException:
+            dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
 
 
-def _login_client(client, registry: Optional[str] = None):
+def copy_docker_env_into_configuration(shell_config: ShellConfig):
+    registry = get_registry_to_use()
     try:
-        username, password = get_docker_auth_from_env()
-    except AuthNotFound as e:
-        logger.error(f"Cannot get docker username and password: {e}")
-        username, password = None, None
-    args = {}
-    if registry is not None:
-        args["registry"] = registry
-    if username is not None and password is not None:
-        client.login(username=username, password=password, **args)
+        env_username, env_password = get_docker_auth_from_env()
+    except AuthNotFound:
+        pass
+    else:
+        shell_config.docker_credentials[registry] = {"username": env_username, "secret": env_password}
+
+
+def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+    if registry not in shell_config.docker_credentials:
+        msg = f"Cannot find {registry!r} in available config credentials.\n"
+        msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+        msg += (
+            f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
+            f"--docker-password ...\n"
+        )
+        msg += "\nfor each of the servers"
+
+        if raise_on_error:
+            dtslogger.error(msg)
+            raise Exception(f"Could not login to {registry!r}.")
+        else:
+            dtslogger.warn(msg)
+            dtslogger.warn("I will try to continue because raise_on_error = False.")
+
+    else:
+        reg_credentials = shell_config.docker_credentials[registry]
+        docker_username = reg_credentials["username"]
+        docker_password = reg_credentials["secret"]
+
+        _login_client(
+            client,
+            username=docker_username,
+            password=docker_password,
+            registry=registry,
+            raise_on_error=raise_on_error,
+        )
+
+
+def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool):
+    password_hidden = hide_string(password)
+    dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+    res = client.login(username=username, password=password, registry=registry)
+    dtslogger.debug(f"login response: {res}")
+    # TODO: check for error
 
 
 # TODO quick hack to make this work - duplication of code above bad
-def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKER_TCP_PORT) -> str:
     from utils.dtproject_utils import CANONICAL_ARCH
 
-    client = get_remote_client(duckiebot_ip, port)
+    client = get_remote_client(duckiebot_ip=duckiebot_ip, port=port)
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
@@ -158,7 +206,7 @@ def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT
     return CANONICAL_ARCH[epoint_arch]
 
 
-def pull_image(image, endpoint=None, progress=True):
+def pull_image(image: str, endpoint: str = None, progress=True):
     client = get_client(endpoint)
     layers = set()
     pulled = set()
@@ -178,13 +226,14 @@ def pull_image(image, endpoint=None, progress=True):
         pbar.done()
 
 
-def push_image(image: str, endpoint=None, progress=True, **kwargs) -> str:
+def push_image(image: str, endpoint=None, progress=True) -> str:
     client = get_client(endpoint)
+
     layers = set()
     pushed = set()
     pbar = ProgressBar() if progress else None
     final_digest = None
-    for line in client.api.push(*image.split(":"), stream=True, decode=True, **kwargs):
+    for line in client.api.push(*image.split(":"), stream=True, decode=True):
         if "error" in line:
             l = str(line["error"])
             msg = f"Cannot push image {image}:\n{l}"
