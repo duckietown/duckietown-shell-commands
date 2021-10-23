@@ -3,7 +3,7 @@ import platform
 import re
 import subprocess
 from os.path import expanduser
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import docker
 from docker import DockerClient
@@ -58,11 +58,11 @@ def hide_string(s: str) -> str:
 def get_docker_auth_from_env() -> Tuple[str, str]:
     try:
         registry_username = os.environ[f"DOCKER_USERNAME"]
-    except KeyError as e:
+    except KeyError:
         raise AuthNotFound("Cannot find DOCKER_USERNAME in env.")
     try:
         registry_token = os.environ[f"DOCKER_PASSWORD"]
-    except KeyError as e:
+    except KeyError:
         raise AuthNotFound("Cannot find DOCKER_PASSWORD in env.")
     return registry_username, registry_token
 
@@ -119,7 +119,7 @@ def get_client(endpoint=None, registry: Optional[str] = None):
     try:
         _login_client(client, registry=registry)
     except BaseException:
-        dtslogger.warning("An error occurred while trying to login to Docker registry.")
+        dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     # ---
     return client
 
@@ -129,13 +129,16 @@ def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT, registry: Opti
     try:
         _login_client(client, registry=registry)
     except BaseException:
-        dtslogger.warning("An error occurred while trying to login to Docker registry.")
+        dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
 
 
 def _login_client(client, registry: Optional[str] = None):
-    username = os.environ.get("DOCKER_USERNAME", None)
-    password = os.environ.get("DOCKER_PASSWORD", None)
+    try:
+        username, password = get_docker_auth_from_env()
+    except AuthNotFound as e:
+        logger.error(f"Cannot get docker username and password: {e}")
+        username, password = None, None
     args = {}
     if registry is not None:
         args["registry"] = registry
@@ -175,13 +178,26 @@ def pull_image(image, endpoint=None, progress=True):
         pbar.done()
 
 
-def push_image(image, endpoint=None, progress=True, **kwargs):
+def push_image(image: str, endpoint=None, progress=True, **kwargs) -> str:
     client = get_client(endpoint)
     layers = set()
     pushed = set()
     pbar = ProgressBar() if progress else None
+    final_digest = None
     for line in client.api.push(*image.split(":"), stream=True, decode=True, **kwargs):
-        if "id" not in line or "status" not in line:
+        if "error" in line:
+            l = str(line["error"])
+            msg = f"Cannot push image {image}:\n{l}"
+            raise Exception(msg)
+
+        if "aux" in line:
+            if "Digest" in line["aux"]:
+                final_digest = line["aux"]["Digest"]
+                continue
+        if "id" not in line:
+            if "status" in line:
+                print(line["status"])
+                continue
             continue
         layer_id = line["id"]
         layers.add(layer_id)
@@ -193,6 +209,12 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
             pbar.update(percentage)
     if progress:
         pbar.done()
+    if final_digest is None:
+        msg = "Expected to get final digest, but none arrived "
+        dtslogger.warning(msg)
+    else:
+        dtslogger.info(f"Push successful - final digest {final_digest}")
+    return final_digest
 
 
 def push_image_to_duckiebot(image_name, hostname):

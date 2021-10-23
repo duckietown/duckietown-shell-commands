@@ -118,10 +118,7 @@ class DTCommand(DTCommandAbs):
             version = parsed.tag
 
         image = project.image(
-            arch=parsed.arch,
-            registry=registry_to_use,
-            owner=parsed.username,
-            version=version
+            arch=parsed.arch, registry=registry_to_use, owner=parsed.username, version=version
         )
 
         dtslogger.info(f"Pushing image {image}...")
@@ -134,7 +131,7 @@ class DTCommand(DTCommandAbs):
                 owner=parsed.username,
                 registry=registry_to_use,
             )
-            dtslogger.info(f"Pushing image {image}...")
+            dtslogger.info(f"Pushing release image {image}...")
             push_image(image, docker, **push_args)
             dtslogger.info("Image successfully pushed!")
 
