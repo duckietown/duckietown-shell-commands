@@ -93,7 +93,8 @@ class DTCommand(DTCommandAbs):
 
                     tar.add(f)
 
-                tar.add(".git")
+                if os.path.exists(".git"):
+                    tar.add(".git")
             finally:
                 tar.close()
             tar2 = tarfile.open(cwd + ".tar", mode="r")
