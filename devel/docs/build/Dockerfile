@@ -40,4 +40,5 @@ CMD cp -r /docs/in/* /docs/source/ \
     && cd /docs \
     && sphinx-build -b html source build/html \
     && cp -r /docs/build/html/* /${BOOK_NAME}/ \
+    && cp /out/output-html.manifest.yaml /${BOOK_NAME}/ \
     || cat /tmp/sphinx-err-*.log
