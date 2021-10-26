@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 
-import argparse
-import logging
 import os
-import pathlib
 import sys
 import time
-
-from utils.misc_utils import human_time
-from utils.progress_bar import ProgressBar
+import logging
+import argparse
+import pathlib
 
 logging.basicConfig()
 logger = logging.getLogger("dd")
@@ -16,8 +13,8 @@ logger = logging.getLogger("dd")
 utils_dir = os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "utils")
 sys.path.append(utils_dir)
 
-# import progress_bar
-# import misc_utils
+import progress_bar
+import misc_utils
 
 
 # configure parser
@@ -39,7 +36,7 @@ src_size = os.stat(parsed.input).st_size
 written = 0
 current_progress = 0
 stime = time.time()
-pbar = ProgressBar(header="Flashing [ETA: ND]")
+pbar = progress_bar.ProgressBar(header="Flashing [ETA: ND]")
 
 # open resources
 src = open(parsed.input, "rb")
@@ -62,7 +59,7 @@ try:
             # compute ETA
             elapsed = time.time() - stime
             eta = (100 - current_progress) * (elapsed / current_progress)
-            pbar.set_header("Flashing [ETA: {}]".format(human_time(eta, True)))
+            pbar.set_header("Flashing [ETA: {}]".format(misc_utils.human_time(eta, True)))
         # read next chunk
         chunk = src.read(parsed.block_size)
     # flus`h I/O buffer
@@ -78,4 +75,4 @@ finally:
 
 # jump to 100% if success
 pbar.update(100)
-logger.info("Flashed in {}".format(human_time(time.time() - stime)))
+logger.info("Flashed in {}".format(misc_utils.human_time(time.time() - stime)))
