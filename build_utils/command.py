@@ -39,7 +39,10 @@ class DTCommand(DTCommandAbs):
         else:
             development = False
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
-        dt1_token = shell.get_dt1_token()
+        try:
+            dt1_token = shell.get_dt1_token()
+        except:
+            dt1_token = None
         # username, secret = get_dockerhub_username_and_password()
         client = check_docker_environment()
         shell_config = shell.shell_config
