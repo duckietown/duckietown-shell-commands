@@ -6,9 +6,13 @@ import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import check_program_dependency
-from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE, \
-    DEFAULT_REGISTRY, STAGING_REGISTRY
-from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DOCKER_INFO,
+    get_endpoint_architecture,
+    get_registry_to_use,
+)
+from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -19,7 +23,6 @@ DEFAULT_REMOTE_USER = "duckie"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Runs the current project"
 
     @staticmethod
@@ -151,19 +154,11 @@ class DTCommand(DTCommandAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment"
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use this Docker registry",
-        )
+
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
@@ -219,24 +214,18 @@ class DTCommand(DTCommandAbs):
             )
             return
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
 
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
 
         # get the module configuration
         module_configuration_args = []
@@ -299,8 +288,13 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
         # create image name
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry, staging=parsed.staging)
+        image = project.image(
+            arch=parsed.arch,
+            loop=parsed.loop,
+            registry=registry_to_use,
+            owner=parsed.username,
+            version=version
+        )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(
@@ -384,8 +378,9 @@ class DTCommand(DTCommandAbs):
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments else
-            (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
+            []
+            if not parsed.arguments
+            else (["--"] if not cmd_option else []) + list(map(lambda s: "--%s" % s, parsed.arguments))
         )
         # docker arguments
         if not parsed.docker_args:

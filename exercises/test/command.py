@@ -12,21 +12,21 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast, Dict, List, Optional
-from tempfile import TemporaryDirectory
-import grp
 
+import grp
 import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
+from requests import ReadTimeout
+
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor
-from requests import ReadTimeout
-
 from utils.cli_utils import check_program_dependency, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
+    get_registry_to_use,
     get_remote_client,
     pull_if_not_exist,
     pull_image,
@@ -37,6 +37,7 @@ from utils.exercises_utils import BASELINE_IMAGES
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 from utils.notebook_utils import convert_notebooks
+from utils.pip_utils import import_or_install
 from utils.yaml_utils import load_yaml
 
 usage = """
@@ -53,11 +54,11 @@ usage = """
 
 BRANCH = "daffy"
 DEFAULT_ARCH = "amd64"
-# AIDO_REGISTRY = "registry-stage.duckietown.org"
 ROSCORE_IMAGE = f"duckietown/dt-commons:{BRANCH}"
 SIMULATOR_IMAGE = f"duckietown/challenge-aido_lf-simulator-gym:{BRANCH}-amd64"  # no arch
 EXPERIMENT_MANAGER_IMAGE = f"duckietown/challenge-aido_lf-experiment_manager:{BRANCH}-amd64"
 BRIDGE_IMAGE = f"duckietown/dt-duckiebot-fifos-bridge:{BRANCH}"
+VNC_IMAGE = f"duckietown/dt-gui-tools:{BRANCH}-amd64"
 
 DEFAULT_REMOTE_USER = "duckie"
 AGENT_ROS_PORT = "11312"
@@ -72,6 +73,13 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts exercise test"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
+
+        # to clone the mooc repo
+        import_or_install("gitpython", "git")
+
+        # to convert the notebook into a python script
+        import_or_install("nbformat", "nbformat")
+        import_or_install("nbconvert", "nbconvert")
 
         class Levels(str, Enum):
 
@@ -123,15 +131,6 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="just stop all the containers",
         )
-        #
-        # parser.add_argument(
-        #     "--staging",
-        #     "-t",
-        #     dest="staging",
-        #     action="store_true",
-        #     default=False,
-        #     help="Should we use the staging AIDO registry?",
-        # )
 
         parser.add_argument(
             "--local",
@@ -216,7 +215,7 @@ class DTCommand(DTCommandAbs):
         #   get current working directory to check if it is an exercise directory
         #
         working_dir = os.getcwd()
-        exercise_name = os.path.basename(working_dir)
+        exercise_name = (os.path.basename(working_dir)).lower()
         dtslogger.info(f"Running exercise {exercise_name}")
 
         config_file = os.path.join(working_dir, "config.yaml")
@@ -290,8 +289,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             rsync_cmd = "rsync -a "
             if "rsync_exclude" in config:
-                for dir in config["rsync_exclude"]:
-                    rsync_cmd += f"--exclude {working_dir}/{dir} "
+                for d in config["rsync_exclude"]:
+                    rsync_cmd += f"--exclude {working_dir}/{d} "
             rsync_cmd += f"{working_dir} {remote_base_path}"
             dtslogger.info(f"rsync command: {rsync_cmd}")
             _run_cmd(rsync_cmd, shell=True)
@@ -300,7 +299,7 @@ class DTCommand(DTCommandAbs):
             arch = get_endpoint_architecture(duckiebot_hostname)
             agent_client = duckiebot_client
 
-        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
+        REGISTRY = get_registry_to_use()
 
         def add_registry(x):
             if REGISTRY in x:
@@ -416,15 +415,47 @@ class DTCommand(DTCommandAbs):
         os.makedirs(fifos_dir)
         challenges_dir = os.path.join(tmpdir, "run-challenges")
 
-        dtslogger.info(f"Results will be stored in: {challenges_dir}")
-
         if os.path.exists(challenges_dir):
             shutil.rmtree(challenges_dir)
+        os.makedirs(challenges_dir)
+        # note: you must create a file in the /challenges mount point
+        # because otherwise the experiment manager will think that something is off.
+        os.makedirs(os.path.join(challenges_dir, "challenge-solution-output"))
+        os.makedirs(os.path.join(challenges_dir, "challenge-evaluation-output"))
+        os.makedirs(os.path.join(challenges_dir, "challenge-description"))
+        os.makedirs(os.path.join(challenges_dir, "tmp"))
+
+        touch_one = os.path.join(challenges_dir, "not_empty.txt")
+        with open(touch_one, "w") as f:
+            f.write("not_empty")
+
+        # os.sync()
+        time.sleep(3)
+
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
+
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
-        shutil.copytree(assets_challenges_dir, challenges_dir)
+        if os.path.exists(assets_challenges_dir):
+            shutil.copytree(assets_challenges_dir, challenges_dir)
 
-        fifos_bind = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+
+        agent_bind = {
+            # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
+            challenges_dir: {
+                "bind": "/challenges",
+                "mode": "rw",
+                "propagation": "rshared",
+            },
+            **fifos_bind0,
+        }
+        sim_bind = {
+            **fifos_bind0,
+        }
+        bridge_bind = {
+            **fifos_bind0,
+        }
 
         experiment_manager_bind = {
             # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
@@ -434,7 +465,7 @@ class DTCommand(DTCommandAbs):
                 "propagation": "rshared",
             },
             "/tmp": {"bind": "/tmp", "mode": "rw"},
-            **fifos_bind,
+            **fifos_bind0,
         }
 
         if parsed.scenarios is not None:
@@ -462,10 +493,9 @@ class DTCommand(DTCommandAbs):
             running_on_mac = False  # if we aren't running on mac we're on Linux
 
         # Launch things one by one
-
+        auto_remove = False
         if parsed.sim:
             # let's launch the simulator
-
             dtslogger.info(f"Running simulator {sim_container_name} from {sim_spec.image_name}")
             env = dict(sim_spec.environment)
             if loglevels[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
@@ -477,8 +507,8 @@ class DTCommand(DTCommandAbs):
                 "name": sim_container_name,
                 "network": agent_network.name,  # always local
                 "environment": env,
-                "volumes": fifos_bind,
-                "auto_remove": True,
+                "volumes": sim_bind,
+                "auto_remove": auto_remove,
                 "tty": True,
                 "detach": True,
             }
@@ -521,7 +551,7 @@ class DTCommand(DTCommandAbs):
                 "ports": expman_port,
                 "network": agent_network.name,  # always local
                 "volumes": experiment_manager_bind,
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "detach": True,
                 "tty": True,
                 "user": uid,
@@ -550,7 +580,7 @@ class DTCommand(DTCommandAbs):
                 bridge_container_name,
                 env_dir,
                 duckiebot_name,
-                fifos_bind,
+                bridge_bind,
                 bridge_image,
                 parsed,
                 running_on_mac,
@@ -569,12 +599,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Running ROS container {ros_container_name} from {ros_image}")
 
             ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
+
             ros_params = {
                 "image": ros_image,
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
             }
@@ -591,7 +622,23 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(ros_container)
 
             # let's launch vnc
-            vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+            # if we have a lab_dir - then let's see if the image exists locally otherwise try to build
+            # otherwise just use the base image
+            labdir_name = config.get("lab_dir", None)
+            if labdir_name is None:
+                dtslogger.info("No lab dir - running base VNC image")
+                vnc_image = VNC_IMAGE
+            else:
+                vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+                local_client_images = local_client.images.list()
+                if f"<Image: '{vnc_image}:latest'>" not in local_client_images:
+                    dtslogger.error(
+                        f"Failed to find {vnc_image} in local images."
+                        "You must run dts exercises build first to build your lab image to run "
+                        "notebooks"
+                    )
+                exit(1)
+            vnc_image = add_registry(vnc_image)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
@@ -610,7 +657,7 @@ class DTCommand(DTCommandAbs):
                         "mode": "ro",
                     }
                 },
-                "auto_remove": True,
+                "auto_remove": auto_remove,
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -672,7 +719,7 @@ class DTCommand(DTCommandAbs):
         try:
             launch_agent(
                 agent_container_name=agent_container_name,
-                agent_volumes=fifos_bind,
+                agent_volumes=agent_bind,
                 parsed=parsed,
                 working_dir=working_dir,
                 exercise_name=exercise_name,
@@ -767,7 +814,8 @@ class ContainersMonitor(threading.Thread):
             for container in self._containers_to_monitor:
                 try:
                     container.reload()
-                except (APIError, TimeoutError):
+                except (APIError, TimeoutError) as e:
+                    dtslogger.warn(f"Cannot reload container {container.name!r}: {e}")
                     continue
                 status = container.status
                 dtslogger.debug(f"container {container.name} in state {status}")
@@ -841,7 +889,6 @@ def launch_agent(
         group_add = []
     else:
         group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
-
 
     agent_env["PYTHONDONTWRITEBYTECODE"] = "1"
     agent_params = {

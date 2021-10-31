@@ -15,8 +15,7 @@ def convert_notebooks(config_files: List):
             target_dir = file_["notebook"]["target_dir"]
             notebook_file = file_["notebook"]["input_file"]
 
-            dtslogger.info(
-                f"Converting the {notebook_file} into a Python script...")
+            dtslogger.info(f"Converting the {notebook_file} into a Python script...")
 
             convertNotebook(notebook_file, target_dir)
 

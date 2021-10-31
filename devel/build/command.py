@@ -1,59 +1,57 @@
 import argparse
 import copy
+import datetime
 import json
 import os
 import sys
 import time
-import datetime
-from shutil import which
 from pathlib import Path
+from shutil import which
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
+from docker.errors import APIError, ContainerError, ImageNotFound
 from termcolor import colored
-from docker.errors import ImageNotFound, ContainerError, APIError
 
-from dt_shell import DTCommandAbs, dtslogger
-
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from duckietown_docker_utils import ENV_REGISTRY
+from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
+    copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
-    DEFAULT_REGISTRY,
     DOCKER_INFO,
+    get_client,
     get_endpoint_architecture,
     get_endpoint_ncpus,
-    get_client,
+    get_registry_to_use,
+    login_client,
     pull_image,
-    STAGING_REGISTRY,
 )
-
-from utils.pip_utils import DEFAULT_INDEX_URL
-
 from utils.dtproject_utils import (
-    CANONICAL_ARCH,
     BUILD_COMPATIBILITY_MAP,
+    CANONICAL_ARCH,
     CLOUD_BUILDERS,
-    DTProject,
-    dtlabel,
     DISTRO_KEY,
+    dtlabel,
+    DTProject,
+    get_cloud_builder,
 )
-from utils.misc_utils import human_time, human_size, sanitize_hostname
+from utils.duckietown_utils import DEFAULT_OWNER
+from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
-from utils.cli_utils import start_command_in_subprocess
-
-from .image_analyzer import ImageAnalyzer, EXTRA_INFO_SEPARATOR
+from utils.pip_utils import get_pip_index_url
+from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Builds the current project"
 
     @staticmethod
-    def command(shell, args, **kwargs):
+    def command(shell: DTShell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(),
-            help="Directory containing the project to build"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -63,8 +61,7 @@ class DTCommand(DTCommandAbs):
             help="Target architecture for the image to build",
         )
         parser.add_argument(
-            "-H", "--machine", default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -73,8 +70,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true",
-            help="Whether to use the Docker cache"
+            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -105,8 +101,7 @@ class DTCommand(DTCommandAbs):
             help="Build arguments to pass to Docker build",
         )
         parser.add_argument(
-            "--push", default=False, action="store_true",
-            help="Whether to push the resulting image"
+            "--push", default=False, action="store_true", help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--rm",
@@ -130,8 +125,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image. "
-                 "Use when the base image is also a development version",
+            help="Docker tag for the base image." "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -153,35 +147,19 @@ class DTCommand(DTCommandAbs):
             "--stamp", default=False, action="store_true", help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D", "--destination", default=None,
-            help="Docker socket or hostname where to deliver the image"
+            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs", default=False, action="store_true",
-            help="Build the code documentation as well"
+            "--docs", default=False, action="store_true", help="Build the code documentation as well"
         )
         parser.add_argument(
-            "--ncpus", default=None, type=int,
-            help="Value to pass as build-arg `NCPUS` to docker build."
+            "--ncpus", default=None, type=int, help="Value to pass as build-arg `NCPUS` to docker build."
         )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "-v", "--verbose", default=False, action="store_true",
-            help="Be verbose"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment"
-        )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use images from this Docker registry",
-        )
+
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -191,26 +169,18 @@ class DTCommand(DTCommandAbs):
                 multi.execute()
                 return
         if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+            parsed, remaining = parser.parse_known_args(args=args)  # FIXME: this ignores other arguments
+
+            if remaining:
+                dtslogger.info(f"I do not know about these arguments: {remaining}")
         # ---
 
         # define build-args
-        buildargs = {"buildargs": {}, "labels": {}}
+        docker_build_args = {}
+        labels = {}
+        cache_from = None
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
-            buildargs["buildargs"]["DOCKER_REGISTRY"] = parsed.registry
+        registry_to_use = get_registry_to_use()
 
         stime = time.time()
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -218,6 +188,13 @@ class DTCommand(DTCommandAbs):
         # show info about project
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         try:
             project_template_ver = int(project.type_version)
         except ValueError:
@@ -233,8 +210,6 @@ class DTCommand(DTCommandAbs):
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
 
-        STAGEPROD = "STAGE" if parsed.staging else "PRODUCTION"
-
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -243,12 +218,10 @@ class DTCommand(DTCommandAbs):
             parsed.rm = True
             parsed.stamp = True
             parsed.force_cache = True
-            keys_required = ["ARCH", "DT_TOKEN"]
+            keys_required = ["DT_TOKEN"]
             # TODO: this is temporary given that we have separate accounts for pulling/pushing
             #  from/to DockerHub
-            if not parsed.staging:
-                keys_required += ["REGISTRY_PRODUCTION_PULL_USER",
-                                  "REGISTRY_PRODUCTION_PULL_TOKEN"]
+
             # check that the env variables are set
             for key in keys_required:
                 if "DUCKIETOWN_CI_" + key not in os.environ:
@@ -257,8 +230,7 @@ class DTCommand(DTCommandAbs):
                     )
                     exit(5)
             # set configuration
-            parsed.arch = os.environ["DUCKIETOWN_CI_ARCH"]
-            buildargs["labels"][dtlabel("image.authoritative")] = "1"
+            labels[dtlabel("image.authoritative")] = "1"
 
         # cloud build
         if parsed.cloud:
@@ -277,12 +249,10 @@ class DTCommand(DTCommandAbs):
                 exit(4)
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
-                dtslogger.error(
-                    f"No cloud machines found for target architecture {parsed.arch}. Aborting..."
-                )
+                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
                 exit(3)
             # update machine parameter
-            parsed.machine = CLOUD_BUILDERS[parsed.arch]
+            parsed.machine = get_cloud_builder(parsed.arch)
             # in CI we can force builds on specific architectures
             if parsed.ci_force_builder_arch is not None:
                 # force routing to the given architecture node
@@ -293,7 +263,7 @@ class DTCommand(DTCommandAbs):
                     )
                     exit(7)
                 # update machine parameter
-                parsed.machine = CLOUD_BUILDERS[parsed.ci_force_builder_arch]
+                parsed.machine = get_cloud_builder(parsed.ci_force_builder_arch)
                 dtslogger.info(f"Build forced to happen on {parsed.ci_force_builder_arch} CI node")
             # configure docker for DT
             if parsed.ci:
@@ -313,23 +283,23 @@ class DTCommand(DTCommandAbs):
         # add code labels
         project_head_version = project.head_version if project.is_clean() else "ND"
         project_closest_version = project.closest_version
-        buildargs["labels"][dtlabel("code.distro")] = project.distro
-        buildargs["labels"][dtlabel("code.version.head")] = project_head_version
-        buildargs["labels"][dtlabel("code.version.closest")] = project_closest_version
+        labels[dtlabel("code.distro")] = project.distro
+        labels[dtlabel("code.version.head")] = project_head_version
+        labels[dtlabel("code.version.closest")] = project_closest_version
         # git-based project
         if "git" in project.adapters:
-            buildargs["labels"][dtlabel("code.vcs")] = "git"
-            buildargs["labels"][dtlabel("code.repository")] = project.name
-            buildargs["labels"][dtlabel("code.branch")] = project.version_name
-            buildargs["labels"][dtlabel("code.url")] = project.url
+            labels[dtlabel("code.vcs")] = "git"
+            labels[dtlabel("code.repository")] = project.name
+            labels[dtlabel("code.branch")] = project.version_name
+            labels[dtlabel("code.url")] = project.url
         else:
-            buildargs["labels"][dtlabel("code.vcs")] = "ND"
-            buildargs["labels"][dtlabel("code.repository")] = "ND"
-            buildargs["labels"][dtlabel("code.branch")] = "ND"
-            buildargs["labels"][dtlabel("code.url")] = "ND"
+            labels[dtlabel("code.vcs")] = "ND"
+            labels[dtlabel("code.repository")] = "ND"
+            labels[dtlabel("code.branch")] = "ND"
+            labels[dtlabel("code.url")] = "ND"
         # add template labels
-        buildargs["labels"][dtlabel("template.name")] = project.type
-        buildargs["labels"][dtlabel("template.version")] = project.type_version
+        labels[dtlabel("template.name")] = project.type
+        labels[dtlabel("template.version")] = project.type_version
         # check if the index is clean
         if project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
@@ -341,19 +311,16 @@ class DTCommand(DTCommandAbs):
         if project_template_ver >= 2:
             for cfg_name, cfg_data in project.configurations().items():
                 label = dtlabel(f"image.configuration.{cfg_name}")
-                buildargs["labels"][label] = json.dumps(cfg_data)
+                labels[label] = json.dumps(cfg_data)
         # create docker client
         docker = get_client(parsed.machine)
+
         # build-arg NCPUS
-        buildargs["buildargs"]["NCPUS"] = (
+        docker_build_args["NCPUS"] = (
             str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         )
-        # login (CI only)
-        if parsed.ci and not parsed.staging:
-            ci_username = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_USER"]
-            ci_password = os.environ[f"DUCKIETOWN_CI_REGISTRY_{STAGEPROD}_PULL_TOKEN"]
-            dtslogger.info(f'Logging in as `{ci_username}`')
-            docker.login(username=ci_username, password=ci_password)
+        #  (CI only)
+
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info()
@@ -362,13 +329,21 @@ class DTCommand(DTCommandAbs):
             return
         epoint["MemTotal"] = human_size(epoint["MemTotal"])
         print(DOCKER_INFO.format(**epoint))
+
+        copy_docker_env_into_configuration(shell.shell_config)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # create defaults
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry, staging=parsed.staging)
+        image = project.image(
+            arch=parsed.arch,
+            loop=parsed.loop,
+            owner=parsed.username,
+            registry=registry_to_use,
+            version=version,
+        )
         # search for launchers (template v2+)
         launchers = []
         if project_template_ver >= 2:
@@ -389,7 +364,7 @@ class DTCommand(DTCommandAbs):
 
             launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]
             # add launchers to image labels
-            buildargs["labels"][dtlabel("code.launchers")] = ",".join(sorted(launchers))
+            labels[dtlabel("code.launchers")] = ",".join(sorted(launchers))
         # print info about multiarch
         msg = "Building an image for {} on {}.".format(parsed.arch, epoint["Architecture"])
         dtslogger.info(msg)
@@ -407,8 +382,7 @@ class DTCommand(DTCommandAbs):
                     )
                     dtslogger.info("Multiarch Enabled!")
                 except (ContainerError, ImageNotFound, APIError) as e:
-                    msg = "Multiarch cannot be enabled on the target machine. " \
-                          "This might cause issues."
+                    msg = "Multiarch cannot be enabled on the target machine. " "This might cause issues."
                     dtslogger.warning(msg)
                     dtslogger.debug(f"The error reads:\n\t{str(e)}\n")
             else:
@@ -418,30 +392,29 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(msg)
 
         # architecture target
-        buildargs["buildargs"]["ARCH"] = parsed.arch
+        docker_build_args["ARCH"] = parsed.arch
 
         # development base images
         if parsed.base_tag is not None:
-            buildargs["buildargs"][DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
+            docker_build_args[DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
 
         # loop mode (Experimental)
         if parsed.loop:
-            buildargs["buildargs"]["BASE_IMAGE"] = project.name
-            buildargs["buildargs"]["BASE_TAG"] = "-".join([project.version_name, parsed.arch])
-            buildargs["labels"][dtlabel("image.loop")] = "1"
+            docker_build_args["BASE_IMAGE"] = project.name
+            docker_build_args["BASE_TAG"] = "-".join([project.version_name, parsed.arch])
+            labels[dtlabel("image.loop")] = "1"
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
             dtslogger.warn(msg)
 
         # custom Pip registry
-        pip_index_url = os.environ.get("PIP_INDEX_URL", DEFAULT_INDEX_URL)
-        if pip_index_url != DEFAULT_INDEX_URL:
-            dtslogger.warning(f"Using custom PIP_INDEX_URL='{pip_index_url}'.")
-            buildargs["buildargs"]["PIP_INDEX_URL"] = pip_index_url
+
+        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
+        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
 
         # custom build arguments
         for key, value in parsed.build_arg:
-            buildargs["buildargs"][key] = value
+            docker_build_args[key] = value
 
         # cache
         if not parsed.no_cache:
@@ -471,7 +444,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Found an image with the same name. Using it as cache source.")
             # configure cache
             if parsed.force_cache and is_present:
-                buildargs["cache_from"] = [image]
+                cache_from = [image]
 
         # stamp image
         build_time = "ND"
@@ -485,40 +458,55 @@ class DTCommand(DTCommandAbs):
                 # project is clean
                 build_time = None
                 local_sha = project.sha
+                image_labels = None
                 # get remote image metadata
                 try:
-                    labels = project.image_labels(parsed.machine, parsed.arch, parsed.username,
-                                                  registry=parsed.registry, staging=parsed.staging)
-                    time_label = dtlabel("time")
-                    sha_label = dtlabel("code.sha")
-                    if time_label in labels and sha_label in labels:
-                        remote_time = labels[time_label]
-                        remote_sha = labels[sha_label]
-                        if remote_sha == local_sha and remote_time != "ND":
-                            dtslogger.debug("Identical image found. Reusing cache.")
-                            # local and remote SHA match, reuse time
-                            build_time = remote_time
+                    image_labels = project.image_labels(
+                        parsed.machine,
+                        arch=parsed.arch,
+                        registry=registry_to_use,
+                        owner=parsed.username,
+                        version=version,
+                    )
                 except BaseException as e:
                     dtslogger.warning(f"Cannot fetch image metadata. Reason: {str(e)}")
+                if image_labels is None:
+                    dtslogger.warning(f"Cannot fetch image metadata for '{image}'.")
+                    image_labels = {}
+                # ---
+                time_label = dtlabel("time")
+                sha_label = dtlabel("code.sha")
+                dtslogger.debug(
+                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4, sort_keys=True)
+                )
+                if time_label in image_labels and sha_label in image_labels:
+                    remote_time = image_labels[time_label]
+                    remote_sha = image_labels[sha_label]
+                    if remote_sha == local_sha and remote_time != "ND":
+                        dtslogger.debug("Identical image found. Reusing cache.")
+                        # local and remote SHA match, reuse time
+                        build_time = remote_time
         # default build_time
         build_time = build_time or datetime.datetime.utcnow().isoformat()
         dtslogger.debug(f"Image timestamp: {build_time}")
         # add timestamp label
-        buildargs["labels"][dtlabel("time")] = build_time
+        labels[dtlabel("time")] = build_time
         # add code SHA label (CI only)
         code_sha = project.sha if project.is_clean() else "ND"
-        buildargs["labels"][dtlabel("code.sha")] = code_sha
+        labels[dtlabel("code.sha")] = code_sha
 
-        # collect build args
-        buildargs.update(
-            {
-                "path": parsed.workdir,
-                "rm": True,
-                "pull": parsed.pull,
-                "nocache": parsed.no_cache,
-                "tag": image,
-            }
-        )
+        buildargs = {
+            "buildargs": docker_build_args,
+            "labels": labels,
+            "path": parsed.workdir,
+            "rm": True,
+            "pull": parsed.pull,
+            "nocache": parsed.no_cache,
+            "tag": image,
+        }
+        if cache_from:
+            buildargs["cache_from"] = cache_from
+
         dtslogger.debug("Build arguments:\n%s\n" % json.dumps(buildargs, sort_keys=True, indent=4))
 
         # build image
@@ -545,8 +533,11 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(parsed.arch, owner=parsed.username,
-                                           registry=parsed.registry, staging=parsed.staging)
+            rimage = project.image_release(
+                arch=parsed.arch,
+                owner=parsed.username,
+                registry=registry_to_use,
+            )
             dimage.tag(*rimage.split(":"))
             msg = f"Successfully tagged {rimage}"
             buildlog.append(msg)
@@ -605,8 +596,9 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             with NamedTemporaryFile("wt") as fout:
-                metadata = project.ci_metadata(docker, parsed.arch, registry=parsed.registry,
-                                               staging=parsed.staging)
+                metadata = project.ci_metadata(
+                    docker, arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version
+                )
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),

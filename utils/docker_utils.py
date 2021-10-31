@@ -2,17 +2,20 @@ import os
 import platform
 import re
 import subprocess
-import sys
 from os.path import expanduser
+from typing import Tuple
 
 import docker
 from docker import DockerClient
 from docker.errors import NotFound
 
 from dt_shell import dtslogger
+from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import ProgressBar, start_command_in_subprocess
+from duckietown_docker_utils import ENV_REGISTRY
+from utils.cli_utils import start_command_in_subprocess
 from utils.networking_utils import get_duckiebot_ip
+from utils.progress_bar import ProgressBar
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -21,10 +24,10 @@ RPI_DUCKIEBOT_ROS_PICAM = "duckietown/rpi-duckiebot-ros-picam:master18"
 RPI_ROS_KINETIC_ROSCORE = "duckietown/rpi-ros-kinetic-roscore:master18"
 SLIMREMOTE_IMAGE = "duckietown/duckietown-slimremote:testing"
 DEFAULT_DOCKER_TCP_PORT = "2375"
+DEFAULT_API_TIMEOUT = 240
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
-STAGING_REGISTRY = "registry-stage2.duckietown.org"
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -35,6 +38,34 @@ Docker Endpoint:
   Total Memory: {MemTotal}
   CPUs: {NCPU}
 """
+
+
+def get_registry_to_use() -> str:
+    docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
+    if docker_registry != DEFAULT_REGISTRY:
+        dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
+    return docker_registry
+
+
+class AuthNotFound(Exception):
+    pass
+
+
+def hide_string(s: str) -> str:
+    hidden = "*" * (len(s) - 3) + s[-3:]
+    return hidden
+
+
+def get_docker_auth_from_env() -> Tuple[str, str]:
+    try:
+        registry_username = os.environ[f"DOCKER_USERNAME"]
+    except KeyError:
+        raise AuthNotFound("Cannot find DOCKER_USERNAME in env.")
+    try:
+        registry_token = os.environ[f"DOCKER_PASSWORD"]
+    except KeyError:
+        raise AuthNotFound("Cannot find DOCKER_PASSWORD in env.")
+    return registry_username, registry_token
 
 
 def get_endpoint_ncpus(epoint=None):
@@ -77,44 +108,109 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
 
 def get_client(endpoint=None):
     if endpoint is None:
-        client = docker.from_env()
+        client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
         client = (
             endpoint
             if isinstance(endpoint, docker.DockerClient)
-            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
+            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
         )
+
+    # FIXME: AFD to review
+    # AC: Note the client is not registry-specific, don't try to login here.
+    # AC: not the place to do it - note that we also would need to login to multiple registries in some cases
     # (try to) login
-    try:
-        _login_client(client)
-    except BaseException:
-        dtslogger.warning("An error occurred while trying to login to DockerHub.")
-    # ---
+    # try:
+    #     _login_client(client, registry=registry)
+    # except BaseException:
+    #     dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
+    # # ---
     return client
 
 
-def get_remote_client(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) -> DockerClient:
     client = docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
+    # FIXME: AFD to review
     try:
-        _login_client(client)
-    except BaseException:
-        dtslogger.warning("An error occurred while trying to login to DockerHub.")
+        env_username, env_password = get_docker_auth_from_env()
+    except AuthNotFound:
+        pass
+    else:
+        registry = DEFAULT_REGISTRY
+        try:
+            _login_client(client, registry, env_username, env_password, raise_on_error=False)
+        except BaseException:
+            dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
 
 
-def _login_client(client):
-    username = os.environ.get("DOCKERHUB_USERNAME", None)
-    password = os.environ.get("DOCKERHUB_PASSWORD", None)
-    if username is not None and password is not None:
-        client.login(username=username, password=password)
+def copy_docker_env_into_configuration(shell_config: ShellConfig):
+    registry = get_registry_to_use()
+    try:
+        env_username, env_password = get_docker_auth_from_env()
+    except AuthNotFound:
+        pass
+    else:
+        shell_config.docker_credentials[registry] = {"username": env_username, "secret": env_password}
+
+
+class CouldNotLogin(Exception):
+    pass
+
+
+def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
+    if registry not in shell_config.docker_credentials:
+        msg = f"Cannot find {registry!r} in available config credentials.\n"
+        msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+        msg += (
+            f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
+            f"--docker-password ...\n"
+        )
+        msg += "\nfor each of the servers"
+
+        if raise_on_error:
+            dtslogger.error(msg)
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
+        else:
+            dtslogger.warn(msg)
+            dtslogger.warn("I will try to continue because raise_on_error = False.")
+
+    else:
+        reg_credentials = shell_config.docker_credentials[registry]
+        docker_username = reg_credentials["username"]
+        docker_password = reg_credentials["secret"]
+
+        _login_client(
+            client,
+            username=docker_username,
+            password=docker_password,
+            registry=registry,
+            raise_on_error=raise_on_error,
+        )
+
+
+def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
+    password_hidden = hide_string(password)
+    dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+    res = client.login(username=username, password=password, registry=registry)
+    dtslogger.debug(f"login response: {res}")
+    # Status': 'Login Succeeded'
+    if res.get("Status", None) == "Login Succeeded":
+        pass
+    else:
+        if raise_on_error:
+            raise CouldNotLogin(f"Could not login to {registry!r}: {res}")
+    # TODO: check for error
 
 
 # TODO quick hack to make this work - duplication of code above bad
-def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT):
+def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKER_TCP_PORT) -> str:
     from utils.dtproject_utils import CANONICAL_ARCH
 
-    client = get_remote_client(duckiebot_ip, port)
+    client = get_remote_client(duckiebot_ip=duckiebot_ip, port=port)
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
@@ -122,7 +218,7 @@ def get_endpoint_architecture_from_ip(duckiebot_ip, port=DEFAULT_DOCKER_TCP_PORT
     return CANONICAL_ARCH[epoint_arch]
 
 
-def pull_image(image, endpoint=None, progress=True):
+def pull_image(image: str, endpoint: str = None, progress=True):
     client = get_client(endpoint)
     layers = set()
     pulled = set()
@@ -142,13 +238,27 @@ def pull_image(image, endpoint=None, progress=True):
         pbar.done()
 
 
-def push_image(image, endpoint=None, progress=True, **kwargs):
+def push_image(image: str, endpoint=None, progress=True) -> str:
     client = get_client(endpoint)
+
     layers = set()
     pushed = set()
     pbar = ProgressBar() if progress else None
-    for line in client.api.push(*image.split(":"), stream=True, decode=True, **kwargs):
-        if "id" not in line or "status" not in line:
+    final_digest = None
+    for line in client.api.push(*image.split(":"), stream=True, decode=True):
+        if "error" in line:
+            l = str(line["error"])
+            msg = f"Cannot push image {image}:\n{l}"
+            raise Exception(msg)
+
+        if "aux" in line:
+            if "Digest" in line["aux"]:
+                final_digest = line["aux"]["Digest"]
+                continue
+        if "id" not in line:
+            if "status" in line:
+                print(line["status"])
+                continue
             continue
         layer_id = line["id"]
         layers.add(layer_id)
@@ -160,14 +270,17 @@ def push_image(image, endpoint=None, progress=True, **kwargs):
             pbar.update(percentage)
     if progress:
         pbar.done()
+    if final_digest is None:
+        msg = "Expected to get final digest, but none arrived "
+        dtslogger.warning(msg)
+    else:
+        dtslogger.info(f"Push successful - final digest {final_digest}")
+    return final_digest
 
 
 def push_image_to_duckiebot(image_name, hostname):
     # If password required, we need to configure with sshpass
-    command = "docker save %s | gzip | pv | ssh -C duckie@%s.local docker load" % (
-        image_name,
-        hostname,
-    )
+    command = f"docker save {image_name} | gzip | pv | ssh -C duckie@{hostname}.local docker load"
     subprocess.check_output(["/bin/sh", "-c", command])
 
 
@@ -183,7 +296,7 @@ def default_env(duckiebot_name, duckiebot_ip):
     return {
         "ROS_MASTER": duckiebot_name,
         "DUCKIEBOT_NAME": duckiebot_name,
-        "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
+        "ROS_MASTER_URI": f"http://{duckiebot_ip}:11311",
         "DUCKIEFLEET_ROOT": "/data/config",
         "DUCKIEBOT_IP": duckiebot_ip,
         "DUCKIETOWN_SERVER": duckiebot_ip,
@@ -218,7 +331,7 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
         return duckiebot_client.containers.run(**params)
     else:
         dtslogger.warn(
-            "Container with image %s is already running on %s, skipping..." % (image_name, duckiebot_name)
+            f"Container with image {image_name} is already running on {duckiebot_name}, skipping..."
         )
 
 
@@ -233,7 +346,7 @@ def record_bag(duckiebot_name, duration):
         "privileged": True,
         "detach": True,
         "environment": default_env(duckiebot_name, duckiebot_ip),
-        "command": 'bash -c "cd /data && rosbag record --duration %s -a"' % duration,
+        "command": f'bash -c "cd /data && rosbag record --duration {duration} -a"',
         "volumes": bind_local_data_dir(),
     }
 
@@ -242,32 +355,6 @@ def record_bag(duckiebot_name, duration):
         parameters["entrypoint"] = "qemu3-arm-static"
 
     return local_client.containers.run(**parameters)
-
-
-def start_slimremote_duckiebot_container(duckiebot_name, max_vel):
-    duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    duckiebot_client = get_remote_client(duckiebot_ip)
-
-    container_name = "evaluator"
-    try:
-        container = duckiebot_client.containers.get(container_name)
-        dtslogger.info("slim remote already running on %s, restarting..." % duckiebot_name)
-        stop_container(container)
-        remove_container(container)
-    except Exception as e:
-        dtslogger.info("Starting slim remote on %s" % duckiebot_name)
-
-    parameters = {
-        "image": SLIMREMOTE_IMAGE,
-        "remove": True,
-        "privileged": True,
-        "detach": True,
-        "environment": {"DUCKIETOWN_MAXSPEED": max_vel},
-        "name": container_name,
-        "ports": {"5558": "5558", "8902": "8902"},
-    }
-
-    return duckiebot_client.containers.run(**parameters)
 
 
 def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
@@ -281,13 +368,13 @@ def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None,
 
     try:
         container = local_client.containers.get(container_name)
-        dtslogger.info("an image already on localhost - stopping it first..")
+        dtslogger.info("A container is already running on localhost - stopping it first..")
         stop_container(container)
         remove_container(container)
     except Exception as e:
-        dtslogger.warn("coulgn't remove existing container: %s" % e)
+        dtslogger.warn(f"Could not remove existing container: {e}")
 
-    dtslogger.info("Running %s on localhost with environment vars: %s" % (image_name, env_vars))
+    dtslogger.info(f"Running {image_name} on localhost with environment vars: {env_vars}")
 
     params = {
         "image": image_name,
@@ -313,9 +400,7 @@ def start_picamera(duckiebot_name):
     duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
-    dtslogger.info(
-        "Running %s on %s with environment vars: %s" % (RPI_DUCKIEBOT_ROS_PICAM, duckiebot_name, env_vars)
-    )
+    dtslogger.info(f"Running {RPI_DUCKIEBOT_ROS_PICAM} on {duckiebot_name} with environment vars: {env_vars}")
 
     return duckiebot_client.containers.run(
         image=RPI_DUCKIEBOT_ROS_PICAM,
@@ -330,10 +415,10 @@ def start_picamera(duckiebot_name):
 def check_if_running(client: DockerClient, container_name: str):
     try:
         _ = client.containers.get(container_name)
-        dtslogger.info("%s is running." % container_name)
+        dtslogger.info(f"{container_name!r} is running.")
         return True
     except Exception as e:
-        dtslogger.error("%s is NOT running - Aborting" % e)
+        dtslogger.error(f"{container_name!r} is NOT running - Aborting:\n{e}")
         return False
 
 
@@ -360,7 +445,7 @@ def remove_if_running(client: DockerClient, container_name: str):
         try:
             remove_container(container)
         except Exception as e:
-            dtslogger.error("Could not remove existing container: %s" % e)
+            dtslogger.error(f"Could not remove existing container: {e}")
 
 
 def start_rqt_image_view(duckiebot_name=None):
@@ -391,7 +476,7 @@ def start_rqt_image_view(duckiebot_name=None):
         env_vars["IP"] = IP
         subprocess.call(["xhost", "+IP"])
 
-    dtslogger.info("Running %s on localhost with environment vars: %s" % (RPI_GUI_TOOLS, env_vars))
+    dtslogger.info(f"Running {RPI_GUI_TOOLS} on localhost with environment vars: {env_vars}")
 
     return local_client.containers.run(
         image=RPI_GUI_TOOLS,
@@ -451,12 +536,9 @@ def start_gui_tools(duckiebot_name):
 def attach_terminal(container_name, hostname=None):
     if hostname is not None:
         duckiebot_ip = get_duckiebot_ip(hostname)
-        docker_attach_command = "docker -H %s:2375 attach %s" % (
-            duckiebot_ip,
-            container_name,
-        )
+        docker_attach_command = f"docker -H {duckiebot_ip}:2375 attach {container_name}"
     else:
-        docker_attach_command = "docker attach %s" % container_name
+        docker_attach_command = f"docker attach {container_name}"
     return start_command_in_subprocess(docker_attach_command, os.environ)
 
 
@@ -476,14 +558,14 @@ def stop_container(container):
     try:
         container.stop()
     except Exception as e:
-        dtslogger.warn("Container %s not found to stop! %s" % (container, e))
+        dtslogger.warn(f"Container {container} not found to stop! {e}")
 
 
 def remove_container(container):
     try:
         container.remove()
     except Exception as e:
-        dtslogger.warn("Container %s not found to remove! %s" % (container, e))
+        dtslogger.warn(f"Container {container} not found to remove! {e}")
 
 
 def pull_if_not_exist(client, image_name):
@@ -492,7 +574,7 @@ def pull_if_not_exist(client, image_name):
     try:
         client.images.get(image_name)
     except ImageNotFound:
-        dtslogger.info("Image %s not found. Pulling from registry." % (image_name))
+        dtslogger.info(f"Image {image_name!r} not found. Pulling from registry.")
         loader = "Downloading ."
         for _ in client.api.pull(image_name, stream=True, decode=True):
             loader += "."
@@ -500,23 +582,6 @@ def pull_if_not_exist(client, image_name):
                 print(" " * 60, end="\r", flush=True)
                 loader = "Downloading ."
             print(loader, end="\r", flush=True)
-
-
-def build_if_not_exist(client, image_path, tag):
-    from docker.errors import BuildError
-    import json
-
-    try:
-        # loader = 'Building .'
-        for line in client.api.build(
-            path=image_path, nocache=True, rm=True, tag=tag, dockerfile=image_path + "/Dockerfile"
-        ):
-            try:
-                sys.stdout.write(json.loads(line.decode("utf-8"))["stream"])
-            except Exception:
-                pass
-    except BuildError as e:
-        print("Unable to build, reason: {} ".format(str(e)))
 
 
 def build_logs_to_string(build_logs):
@@ -537,22 +602,6 @@ def build_logs_to_string(build_logs):
         for k, v in l.items():
             if k == "stream":
                 s += str(v)
-    return s
-
-
-IMPORTANT_ENVS = {
-    "AIDO_REGISTRY": "docker.io",
-    "PIP_INDEX_URL": "https://pypi.org/simple",
-    "DTSERVER": "https://challenges.duckietown.org/v4",
-}
-
-
-def replace_important_env_vars(s: str) -> str:
-    for vname, vdefault in IMPORTANT_ENVS.items():
-        vref = "${%s}" % vname
-        if vref in s:
-            value = os.environ.get(vname, vdefault)
-            s = s.replace(vref, value)
     return s
 
 

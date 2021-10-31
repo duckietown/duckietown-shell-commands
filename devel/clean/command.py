@@ -3,11 +3,10 @@ import io
 import os
 import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
+from utils.duckietown_utils import DEFAULT_OWNER
 
 
 class DTCommand(DTCommandAbs):
@@ -35,19 +34,11 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to clean the image",
         )
         parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment"
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use this Docker registry",
-        )
+
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -63,31 +54,34 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
 
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
-        images = [project.image(parsed.arch, registry=parsed.registry,
-                                staging=parsed.staging)]
+        images = [
+            project.image(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=DEFAULT_OWNER,
+                version=version
+            )]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(parsed.arch, registry=parsed.registry,
-                                                staging=parsed.staging))
+            images.append(project.image_release(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=DEFAULT_OWNER
+            ))
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

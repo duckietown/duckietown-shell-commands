@@ -1,15 +1,18 @@
+import argparse
 import os
 import pathlib
-import argparse
 from shutil import which
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
-
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_endpoint_architecture, DEFAULT_REGISTRY
+from utils.docker_utils import (
+    DEFAULT_DOCKER_TCP_PORT,
+    DEFAULT_MACHINE,
+    get_endpoint_architecture,
+    get_registry_to_use,
+)
 from utils.misc_utils import sanitize_hostname
-from utils.docker_utils import DEFAULT_MACHINE, DEFAULT_DOCKER_TCP_PORT
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_STACK = "default"
@@ -17,7 +20,6 @@ DUCKIETOWN_STACK = "duckietown"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Easy way to remove code from Duckietown robots"
 
     @staticmethod
@@ -30,12 +32,7 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Docker socket or hostname where to run the image",
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use images from this Docker registry",
-        )
+
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -80,9 +77,8 @@ class DTCommand(DTCommandAbs):
         else:
             parsed.machine = DEFAULT_MACHINE
         # info about registry
-        registry_hostname = parsed.registry
-        if registry_hostname != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {registry_hostname}")
+        registry_to_use = get_registry_to_use()
+
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         endpoint_arch = get_endpoint_architecture(parsed.machine)
@@ -95,15 +91,11 @@ class DTCommand(DTCommandAbs):
         env.update(os.environ)
         # add ARCH
         env["ARCH"] = endpoint_arch
-        env["REGISTRY"] = registry_hostname
+        env["REGISTRY"] = registry_to_use  # FIXME
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose",
-             f"--host={H}",
-             "--project-name", project_name,
-             "--file", stack_file,
-             "down"],
+            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file, "down"],
             env=env,
         )
         # ---

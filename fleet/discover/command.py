@@ -1,13 +1,14 @@
-import os
-import json
-import time
 import argparse
+import json
 import logging
+import os
+import time
 from collections import defaultdict
-from dt_shell import DTCommandAbs, dtslogger
+from typing import List, Set
 
-from utils.table_utils import format_matrix, fill_cell
+from dt_shell import DTCommandAbs, dtslogger
 from utils.duckietown_utils import get_robot_types
+from utils.table_utils import fill_cell, format_matrix
 
 REFRESH_HZ = 1.0
 
@@ -25,7 +26,6 @@ usage = """
 
 
 class DiscoverListener:
-
     services = defaultdict(dict)
     supported_services = [
         "DT::ONLINE",
@@ -75,9 +75,11 @@ class DiscoverListener:
         # clear terminal
         os.system("cls" if os.name == "nt" else "clear")
         # get all discovered hostnames
-        hostnames = set()
+        hostnames: Set[str] = set()
+
         for service in self.supported_services:
-            hostnames.update(self.services[service])
+            hostnames_for_service: List[str] = list(self.services[service])
+            hostnames.update(hostnames_for_service)
         # create hostname -> robot_type map
         hostname_to_type = defaultdict(lambda: "ND")
         for device_hostname in self.services["DT::ROBOT_TYPE"]:
@@ -85,7 +87,7 @@ class DiscoverListener:
             if len(dev["txt"]) and "type" in dev["txt"]:
                 try:
                     hostname_to_type[device_hostname] = dev["txt"]["type"]
-                except:
+                except:  # XXX: complain a bit
                     pass
         # create hostname -> robot_configuration map
         hostname_to_config = defaultdict(lambda: "ND")
@@ -162,6 +164,8 @@ class DTCommand(DTCommandAbs):
         # perform discover
         zeroconf = Zeroconf()
         listener = DiscoverListener(args=parsed)
+        # FIXME: @afdaniele - wrong type - listener supposed to be ServiceListener
+        #        should DiscoverListener be a subclass of ServiceListener
         ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
 
         while True:

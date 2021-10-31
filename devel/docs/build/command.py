@@ -6,16 +6,22 @@ import sys
 import tarfile
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger
 
+from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string, DEFAULT_REGISTRY, \
-    STAGING_REGISTRY
+from utils.docker_utils import (
+    build_logs_to_string,
+    get_endpoint_architecture,
+    get_registry_to_use,
+    login_client,
+)
 from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project's documentation"
+
+    # FIXME: honor DOCKER_REGISTRY
 
     @staticmethod
     def command(shell, args):
@@ -56,19 +62,9 @@ class DTCommand(DTCommandAbs):
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
         parser.add_argument(
-            "--stage",
-            "--staging",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Use staging environment"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument(
-            "--registry",
-            type=str,
-            default=DEFAULT_REGISTRY,
-            help="Use this Docker registry",
-        )
+
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -100,26 +96,21 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
 
-        # staging
-        if parsed.staging:
-            parsed.registry = STAGING_REGISTRY
-        else:
-            # custom Docker registry
-            docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
-            if docker_registry != DEFAULT_REGISTRY:
-                dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
-                parsed.registry = docker_registry
-
-        # registry
-        if parsed.registry != DEFAULT_REGISTRY:
-            dtslogger.info(f"Using custom registry: {parsed.registry}")
+        registry_to_use = get_registry_to_use()
 
         # get the arch
         arch = get_endpoint_architecture()
 
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
-        image = project.image(arch, loop=parsed.loop, owner=parsed.username,
-                              registry=parsed.registry, staging=parsed.staging)
+        image = project.image(
+            arch=arch, loop=parsed.loop, registry=registry_to_use, owner=parsed.username, version=version
+        )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators
@@ -137,23 +128,21 @@ class DTCommand(DTCommandAbs):
         # Get a docker client
         dclient = docker.from_env()
 
+        login_client(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
+
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
         # dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         docs_image, logs = dclient.images.build(
-            path=cmd_dir,
-            buildargs={
-                "BASE_IMAGE": image,
-                "BOOK_NAME": project.name
-            },
-            nocache=parsed.no_cache
+            path=cmd_dir, buildargs={"BASE_IMAGE": image, "BOOK_NAME": project.name}, nocache=parsed.no_cache
         )
         print(build_logs_to_string(logs))
         dtslogger.info("Done!")
 
         # clear output directories
         for f in os.listdir(repo_file(repo_file("html"))):
+            # noinspection PyTypeChecker
             if f.endswith("DOCS_WILL_BE_GENERATED_HERE"):
                 continue
             start_command_in_subprocess(
@@ -171,6 +160,7 @@ class DTCommand(DTCommandAbs):
         in_files_buf = io.BytesIO()
         in_files = tarfile.open(fileobj=in_files_buf, mode="w")
         for obj in os.listdir(repo_file("docs")):
+            # noinspection PyTypeChecker
             in_files.add(os.path.join(repo_file("docs"), obj), arcname=obj)
         in_files_buf.seek(0)
 

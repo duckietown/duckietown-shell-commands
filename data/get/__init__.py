@@ -2,15 +2,15 @@
 #
 # Maintainer: Andrea F. Daniele
 
+import glob as _glob
 from os.path import (
-    exists as _exists,
-    dirname as _dirname,
     basename as _basename,
+    dirname as _dirname,
+    exists as _exists,
     isdir as _isdir,
     isfile as _isfile,
     join as _join,
 )
-import glob as _glob
 
 # constants
 _this_dir = _dirname(__file__)

@@ -32,16 +32,9 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
         parser.add_argument(
-            "--network",
-            default="host",
-            help="Name of the network to connect the container to"
+            "--network", default="host", help="Name of the network to connect the container to"
         )
-        parser.add_argument(
-            "--port",
-            action='append',
-            default=[],
-            type=str
-        )
+        parser.add_argument("--port", action="append", default=[], type=str)
         parser.add_argument(
             "--sim",
             action="store_true",
@@ -144,7 +137,7 @@ class DTCommand(DTCommandAbs):
             pull_if_not_exist(client, image)
 
         if parsed.image is None:
-            ci = get_last_commit('duckietown', 'dt-gui-tools', 'daffy')
+            ci = get_last_commit("duckietown", "dt-gui-tools", "daffy")
 
             im = client.images.get(image)
 
@@ -155,14 +148,16 @@ class DTCommand(DTCommandAbs):
                 delta = n - ci.date
                 hours = delta.total_seconds() / (60 * 60)
                 if hours > 0.10:  # allow some minutes to pass before warning
-                    msg = (f'The image  {image} is not up to date.\n'
-                           f'There was a new release {hours:.1f} hours ago.\n'
-                           f'Use "dts desktop update" to update')
+                    msg = (
+                        f"The image  {image} is not up to date.\n"
+                        f"There was a new release {hours:.1f} hours ago.\n"
+                        f'Use "dts desktop update" to update'
+                    )
                     dtslogger.error(msg)
                 else:
-                    dtslogger.warn(f'There is a new commit but too early to warn ({hours:.2f} hours). ')
+                    dtslogger.warn(f"There is a new commit but too early to warn ({hours:.2f} hours). ")
             else:
-                dtslogger.debug(f'OK, local image and repo have sha {sha}')
+                dtslogger.debug(f"OK, local image and repo have sha {sha}")
 
         # create container name and make there is no name clash
         default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
@@ -233,7 +228,7 @@ class DTCommand(DTCommandAbs):
             "command": cmd,
             "volumes": volumes,
             "network_mode": parsed.network,
-            "ports": {}
+            "ports": {},
         }
 
         # custom UID

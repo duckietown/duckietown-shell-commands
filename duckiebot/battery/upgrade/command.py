@@ -6,8 +6,10 @@ from time import sleep
 
 import docker
 import requests
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from docker.errors import APIError, ContainerError
+from docker.models.containers import Container
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client, get_endpoint_architecture, pull_image
 from utils.duckietown_utils import get_distro_version
@@ -32,7 +34,6 @@ class ExitCode(IntEnum):
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Upgrades a Duckiebot's battery firmware"
 
     @staticmethod
@@ -60,7 +61,7 @@ class DTCommand(DTCommandAbs):
         except docker.errors.NotFound:
             # this is fine
             pass
-        except docker.errors.APIError as e:
+        except APIError as e:
             dtslogger.error(str(e))
             exit(1)
         # stop device health container
@@ -70,7 +71,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.debug(f"Stopping '{HEALTH_CONTAINER_NAME}' container...")
                 try:
                     device_health.stop()
-                except docker.errors.APIError as e:
+                except APIError as e:
                     dtslogger.error(str(e))
                     exit(1)
                 dtslogger.debug(f"Container '{HEALTH_CONTAINER_NAME}' stopped.")
@@ -80,7 +81,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Container '{HEALTH_CONTAINER_NAME}' not found.")
 
         def start_container_and_try_blocking_until_healthy(
-            container: docker.models.containers.Container,
+            container: Container,
             msg_before: str = "Starting container...",
             msg_after: str = "Container started.",
             timeout_secs: int = 120,
@@ -97,7 +98,7 @@ class DTCommand(DTCommandAbs):
             def try_getting_health_status():
                 try:
                     container.reload()
-                    return container.attrs.get('State').get('Health').get('Status')
+                    return container.attrs.get("State").get("Health").get("Status")
                 except:
                     return None
 
@@ -111,8 +112,7 @@ class DTCommand(DTCommandAbs):
                 secs = 0
                 while not healthy and secs < timeout_secs:
                     dtslogger.debug(
-                        f'Container "{container.name}" not yet healthy. '
-                        "Checking every second..."
+                        f'Container "{container.name}" not yet healthy. ' "Checking every second..."
                     )
                     try:
                         healthy = "healthy" == try_getting_health_status()
@@ -154,7 +154,7 @@ class DTCommand(DTCommandAbs):
 
         # step 1. read the battery current version (unless forced)
         if not parsed.force:
-            dtslogger.info(f'Checking for available battery firmware updates...')
+            dtslogger.info(f"Checking for available battery firmware updates...")
             # we run the helper in "check" mode and expect one of:
             #   - FIRMWARE_UP_TO_DATE           user will be notified
             #   - FIRMWARE_NEEDS_UPDATE         all well, user will be asked to confirm
@@ -179,7 +179,7 @@ class DTCommand(DTCommandAbs):
                         check.remove()
                     if logs:
                         print(logs)
-                except docker.errors.APIError as e:
+                except APIError as e:
                     dtslogger.error(str(e))
                     exit(1)
                 # make sure we know what happened
@@ -202,7 +202,7 @@ class DTCommand(DTCommandAbs):
                     # re-activate device-health
                     if device_health:
                         start_container_and_try_blocking_until_healthy(
-                            container=device_health, 
+                            container=device_health,
                             msg_before="Re-engaging battery (this might take a while)...",
                             msg_after="Battery returned to work!",
                         )
@@ -210,8 +210,7 @@ class DTCommand(DTCommandAbs):
                 #
                 elif status == ExitCode.FIRMWARE_NEEDS_UPDATE:
                     granted = ask_confirmation(
-                        "An updated firmware is available",
-                        question="Do you want to update the battery now?"
+                        "An updated firmware is available", question="Do you want to update the battery now?"
                     )
                     if not granted:
                         dtslogger.info("Enjoy the rest of your day.")
@@ -240,7 +239,7 @@ class DTCommand(DTCommandAbs):
                 # re-activate device-health
                 if device_health:
                     start_container_and_try_blocking_until_healthy(
-                        container=device_health, 
+                        container=device_health,
                         msg_before="Re-engaging battery (this might take a while)...",
                         msg_after="Battery returned to work!",
                     )
@@ -254,10 +253,10 @@ class DTCommand(DTCommandAbs):
                     environment={"DEBUG": DEBUG, **extra_env},
                     command=["--", "--battery", "--dry-run"],
                 )
-            except docker.errors.APIError as e:
+            except APIError as e:
                 dtslogger.error(str(e))
                 exit(1)
-            except docker.errors.ContainerError as e:
+            except ContainerError as e:
                 exit_code = e.exit_status
                 # make sure we know what happened
                 status = None
@@ -265,9 +264,7 @@ class DTCommand(DTCommandAbs):
                 try:
                     status = ExitCode(exit_code)
                 except BaseException:
-                    dtslogger.error(
-                        f"Unrecognized status code: {exit_code}.\n Contact your administrator."
-                    )
+                    dtslogger.error(f"Unrecognized status code: {exit_code}.\n Contact your administrator.")
                     exit(1)
                 # SUCCESS
                 if status == ExitCode.SUCCESS:
@@ -294,12 +291,12 @@ class DTCommand(DTCommandAbs):
                 else:
                     dtslogger.error(f"The battery reported the status '{status.name}'")
                     exit(1)
-        
+
         if container:
             try:
                 dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-dryrun'...")
                 container.remove()
-            except docker.errors.APIError as e:
+            except APIError as e:
                 dtslogger.error(str(e))
                 exit(1)
 
@@ -323,7 +320,7 @@ class DTCommand(DTCommandAbs):
             DTCommand._consume_output(container.attach(stream=True))
             data = container.wait(condition="stopped")
             exit_code = data["StatusCode"]
-        except docker.errors.APIError as e:
+        except APIError as e:
             dtslogger.error(str(e))
             exit(1)
         # try cleaning up
@@ -331,7 +328,7 @@ class DTCommand(DTCommandAbs):
             try:
                 dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-do'...")
                 container.remove()
-            except docker.errors.APIError as e:
+            except APIError as e:
                 dtslogger.error(str(e))
                 exit(1)
 
@@ -354,7 +351,7 @@ class DTCommand(DTCommandAbs):
         # re-activate device-health
         if device_health:
             start_container_and_try_blocking_until_healthy(
-                container=device_health, 
+                container=device_health,
                 msg_before="Re-engaging battery (this might take a while)...",
                 msg_after="Battery returned to work happier than ever!",
             )

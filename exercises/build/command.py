@@ -3,22 +3,21 @@ import getpass
 import json
 import os
 import platform
-import grp
 import sys
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import docker
-import pytz
+import grp
+from docker.errors import APIError
+
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
-
+from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import pull_if_not_exist, remove_if_running, get_client
+from utils.docker_utils import get_client, get_registry_to_use, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
-from utils.git_utils import check_up_to_date
 from utils.notebook_utils import convert_notebooks
+from utils.pip_utils import get_pip_index_url, import_or_install
 from utils.yaml_utils import load_yaml
 
 usage = """
@@ -42,17 +41,16 @@ CF = "config.yaml"
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+
+        # to clone the mooc repo
+        import_or_install("gitpython", "git")
+
+        # to convert the notebook into a python script
+        import_or_install("nbformat", "nbformat")
+        import_or_install("nbconvert", "nbconvert")
+
         prog = "dts exercise build"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-
-        parser.add_argument(
-            "--staging",
-            "-t",
-            dest="staging",
-            action="store_true",
-            default=False,
-            help="Should we use the staging AIDO registry?",
-        )
 
         parser.add_argument(
             "--debug",
@@ -89,26 +87,62 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
         config = load_yaml(cfile)
 
+        docker_build_args = {}
+
+        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
+        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+
         # make sure this exercise has a lab_dir key in its config file and that it points to
         # an existing directory
         labdir_name = config.get("lab_dir", None)
         if labdir_name is None:
-            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
-                             "'lab_dir' key to indicate where notebooks are stored")
-        labdir = os.path.join(working_dir, labdir_name)
-        if not os.path.exists(labdir) or not os.path.isdir(labdir):
-            msg = (
-                f"You must run this command inside an exercise directory "
-                f"containing a `{labdir_name}` directory."
+            dtslogger.info(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'lab_dir' key to indicate where notebooks are stored. We will not build the labs."
             )
-            raise InvalidUserInput(msg)
+        else:
+            labdir = os.path.join(working_dir, labdir_name)
+            if not os.path.exists(labdir) or not os.path.isdir(labdir):
+                msg = (
+                    f"The lab dir f{labdir_name} that is specified in your config file  "
+                    f"doesn't seem to exist."
+                )
+                raise InvalidUserInput(msg)
+            # make sure this exercise has a Dockerfile.lab file
+            dockerfile_lab_name = "Dockerfile.lab"
+            dockerfile_lab = os.path.join(working_dir, dockerfile_lab_name)
+
+            if os.path.exists(dockerfile_lab) and os.path.isfile(dockerfile_lab):
+                # build notebook image
+                lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
+                client = get_client()
+                logs = client.api.build(
+                    buildargs=docker_build_args,
+                    path=labdir,
+                    tag=lab_image_name,
+                    dockerfile="Dockerfile.lab",
+                    decode=True,
+                )
+                dtslogger.info("Building environment...")
+                try:
+                    for log in logs:
+                        if "stream" in log:
+                            sys.stdout.write(log["stream"])
+                    sys.stdout.flush()
+                except APIError as e:
+                    dtslogger.error(str(e))
+                    exit(1)
+                dtslogger.info("Environment built!")
 
         # make sure this exercise has a ws_dir key in its config file and that it points to
         # an existing directory
         wsdir_name = config.get("ws_dir", None)
         if wsdir_name is None:
-            raise ValueError("The exercise configuration file 'config.yaml' does not have a "
-                             "'ws_dir' key to indicate where code is stored")
+            raise ValueError(
+                "The exercise configuration file 'config.yaml' does not have a "
+                "'ws_dir' key to indicate where the solution is stored"
+            )
+
         wsdir = os.path.join(working_dir, wsdir_name)
         if not os.path.exists(wsdir) or not os.path.isdir(wsdir):
             msg = (
@@ -117,36 +151,6 @@ class DTCommand(DTCommandAbs):
             )
             raise InvalidUserInput(msg)
 
-        # make sure this exercise has a Dockerfile.lab file
-        dockerfile_lab_name = "Dockerfile.lab"
-        dockerfile_lab = os.path.join(working_dir, dockerfile_lab_name)
-
-        if os.path.exists(dockerfile_lab) and os.path.isfile(dockerfile_lab):
-            # build notebook image
-            lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
-            client = get_client()
-            logs = client.api.build(
-                path=labdir,
-                tag=lab_image_name,
-                dockerfile="Dockerfile.lab",
-                decode=True
-            )
-            dtslogger.info("Building environment...")
-            try:
-                for log in logs:
-                    if 'stream' in log:
-                        sys.stdout.write(log['stream'])
-                sys.stdout.flush()
-            except docker.errors.APIError as e:
-                dtslogger.error(str(e))
-                exit(1)
-            dtslogger.info("Environment built!")
-
-        if not os.path.exists(os.path.join(working_dir, "config.yaml")):
-            msg = "You must run this command inside the exercise directory"
-            raise InvalidUserInput(msg)
-        fn = os.path.join(working_dir, CF)
-        config = load_yaml(fn)
         use_ros = config.get("ros", False)
 
         # Convert all the notebooks listed in the config file to python scripts and
@@ -155,23 +159,22 @@ class DTCommand(DTCommandAbs):
         if "files" in config:
             convert_notebooks(config["files"])
 
-        REGISTRY = os.getenv("AIDO_REGISTRY", "docker.io")
+        REGISTRY = get_registry_to_use()
 
         def add_registry(x):
             if REGISTRY in x:
-                raise
+                raise Exception()
             return REGISTRY + "/" + x
 
         if use_ros:
 
             ws_dir = config["ws_dir"]
-
             client = check_docker_environment()
-
             ros_template_image = add_registry(ROS_TEMPLATE_IMAGE)
 
+            dtslogger.debug(f"ros_template_image = {ros_template_image}")
             if parsed.debug:
-                cmd = "bash"
+                cmd = ["bash"]
             elif parsed.clean:
                 cmd = ["catkin", "clean", "--workspace", f"{ws_dir}"]
             else:
@@ -179,9 +182,7 @@ class DTCommand(DTCommandAbs):
 
             container_name = "ros_template_catkin_build"
             remove_if_running(client, container_name)
-            ros_template_volumes = {
-                working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}
-            }
+            ros_template_volumes = {working_dir + f"/{ws_dir}": {"bind": f"/code/{ws_dir}", "mode": "rw"}}
             on_mac = "Darwin" in platform.system()
             if on_mac:
                 group_add = []
@@ -209,29 +210,33 @@ class DTCommand(DTCommandAbs):
                         "USER": getpass.getuser(),
                         "USERID": os.getuid(),
                         "HOME": FAKE_HOME_GUEST,
-                        "PYTHONDONTWRITEBYTECODE": "1"
+                        "PYTHONDONTWRITEBYTECODE": "1",
                     },
                     "user": os.getuid(),
-                    "group_add": group_add
+                    "group_add": group_add,
                 }
 
-                dtslogger.debug(f"Running with configuration:\n\n"
-                                f"{json.dumps(ros_template_params, indent=4, sort_keys=True)}")
+                dtslogger.debug(
+                    f"Running with configuration:\n\n"
+                    f"{json.dumps(ros_template_params, indent=4, sort_keys=True)}"
+                )
                 pull_if_not_exist(client, ros_template_params["image"])
                 client.containers.run(**ros_template_params)
                 attach_cmd = f"docker attach {container_name}"
                 start_command_in_subprocess(attach_cmd)
 
-        up = check_up_to_date(shell, "mooc-exercises")
-        dtslogger.debug(up.commit.sha)
-        if not up.uptodate:
-            n = datetime.now(tz=pytz.utc)
-            delta = n - up.commit.date
-            hours = delta.total_seconds() / (60 * 60)
-            dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. "
-                           f"Please merge from upstream.")
-            dtslogger.warn(f"Commit {up.commit.url}")
-        else:
-            dtslogger.debug("OK, up to date ")
+        # The problem with the below is that it presumes that we are in a repo called `mooc-exercises`
+        # which is not a good assumption
+        # up = check_up_to_date(shell, "mooc-exercises")
+        # dtslogger.debug(up.commit.sha)
+        # if not up.uptodate:
+        #     n = datetime.now(tz=pytz.utc)
+        #     delta = n - up.commit.date
+        #     hours = delta.total_seconds() / (60 * 60)
+        #     dtslogger.warn(f"The repo has been updated {hours:.1f} hours ago. "
+        #                    f"Please merge from upstream.")
+        #     dtslogger.warn(f"Commit {up.commit.url}")
+        # else:
+        #     dtslogger.debug("OK, up to date ")
 
         dtslogger.info("Build complete")

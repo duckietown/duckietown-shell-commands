@@ -7,8 +7,8 @@ if sys.version_info < (3, 6):
     msg = "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s." % str(sys.version)
     raise UserError(msg)
 
-min_duckietown_shell = ".".join(["5", "2", "8"])
-duckietown_shell_commands_version = "5.3.20210414"
+min_duckietown_shell = ".".join(["5", "2", "12"])
+duckietown_shell_commands_version = "5.4.5"
 
 
 def parse_version(x):
@@ -34,7 +34,7 @@ def check_compatible():
 Detected Duckietown Shell %s but these commands (%s) need Duckietown Shell >= %s.
 Please, update your Duckietown Shell using the following command,
 \n\n
-        pip3 install --no-cache-dir -U "duckietown-shell>=%s"
+        python3 -m pip install --no-cache-dir -U "duckietown-shell>=%s"
 \n\n.
 """ % (
             render_version(vnow),

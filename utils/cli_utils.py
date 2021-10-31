@@ -1,10 +1,11 @@
 import os
-import sys
 import subprocess
+import sys
 from shutil import which
-from .progress_bar import ProgressBar
 
 from dt_shell import dtslogger
+
+__all__ = ["get_clean_env", "start_command_in_subprocess", "ask_confirmation", "check_program_dependency"]
 
 
 def get_clean_env():
@@ -28,7 +29,7 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
         run_cmd = " ".join(run_cmd)
     for trial in range(retry):
         if trial > 0:
-            msg = f"An error occurred while running {str(run_cmd)}, retrying (trial={trial+1})"
+            msg = f"An error occurred while running {str(run_cmd)}, retrying (trial={trial + 1})"
             dtslogger.warning(msg)
         dtslogger.debug(" $ %s" % str(run_cmd))
         ret = subprocess.run(
