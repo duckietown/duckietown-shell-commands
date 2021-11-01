@@ -3,22 +3,18 @@ import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    AuthNotFound,
-    copy_docker_env_into_configuration,
-    DEFAULT_MACHINE,
     get_client,
-    get_docker_auth_from_env,
     get_endpoint_architecture,
     get_registry_to_use,
-    hide_string,
     login_client,
-    push_image,
+    pull_image,
 )
 from utils.dtproject_utils import DTProject
+from utils.duckietown_utils import DEFAULT_OWNER
 
 
 class DTCommand(DTCommandAbs):
-    help = "Push the images relative to the current project"
+    help = "Pulls the images relative to the current project"
 
     @staticmethod
     def _parse_args(args):
@@ -39,27 +35,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=DEFAULT_MACHINE,
+            default=None,
             help="Docker socket or hostname from where to push the image",
-        )
-        parser.add_argument(
-            "--ci",
-            default=False,
-            action="store_true",
-            help="Overwrites configuration for CI (Continuous Integration) push",
-        )
-        parser.add_argument(
-            "-f",
-            "--force",
-            default=False,
-            action="store_true",
-            help="Whether to force the push when the git index is not clean",
-        )
-        parser.add_argument(
-            "-u",
-            "--username",
-            default="duckietown",
-            help="the docker registry username to tag the image with",
         )
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
@@ -83,48 +60,28 @@ class DTCommand(DTCommandAbs):
 
         registry_to_use = get_registry_to_use()
 
-        # check if the index is clean
-        if project.is_dirty():
-            dtslogger.warning("Your index is not clean (some files are not committed).")
-            dtslogger.warning(
-                "If you know what you are doing, use --force to force the " "execution of the command."
-            )
-            if not parsed.force:
-                exit(1)
-            dtslogger.warning("Forced!")
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
-        # login (CI only)
-        # spin up docker client
-        docker = get_client(parsed.machine)
 
-        copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
-
+        # tag
         version = project.version_name
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
 
+        # spin up docker client
+        docker = get_client(parsed.machine)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=False)
+        # create defaults
         image = project.image(
-            arch=parsed.arch, registry=registry_to_use, owner=parsed.username, version=version
+            arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version
         )
 
-        dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker)
-        dtslogger.info("Image successfully pushed!")
-        # push release version
-        if project.is_release():
-            image = project.image_release(
-                arch=parsed.arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-            )
-            dtslogger.info(f"Pushing release image {image}...")
-            push_image(image, docker)
-            dtslogger.info("Image successfully pushed!")
+        dtslogger.info(f"Pulling image {image}...")
+        pull_image(image, docker)
+        dtslogger.info("Image successfully pulled!")
 
     @staticmethod
     def complete(shell, word, line):

@@ -1,14 +1,17 @@
-import os
-import re
 import copy
 import json
-import yaml
+import os
+import random
+import re
 import subprocess
-import requests
-import docker
-
-from docker.errors import APIError, ImageNotFound
+import traceback
 from types import SimpleNamespace
+from typing import Optional
+
+import docker
+import requests
+import yaml
+from docker.errors import APIError, ImageNotFound
 
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
@@ -35,9 +38,9 @@ BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
 CLOUD_BUILDERS = {
-    "arm32v7": "ec2-3-215-236-113.compute-1.amazonaws.com",
-    "arm64v8": "ec2-3-215-236-113.compute-1.amazonaws.com",
-    "amd64": "ec2-3-210-65-73.compute-1.amazonaws.com",
+    "arm32v7": ["build-arm.duckietown.org", "ec2-3-215-236-113.compute-1.amazonaws.com"],
+    "arm64v8": ["build-arm.duckietown.org", "ec2-3-215-236-113.compute-1.amazonaws.com"],
+    "amd64": ["ec2-3-210-65-73.compute-1.amazonaws.com"],
 }
 
 TEMPLATE_TO_SRC = {
@@ -84,7 +87,6 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
-
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -180,29 +182,56 @@ class DTProject:
     def is_detached(self):
         return self._repository.detached if self._repository else False
 
-    def image(self, arch: str, loop: bool = False, docs: bool = False, owner: str = "duckietown") -> str:
+    def image(
+        self,
+        *,
+        arch: str,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
+        loop: bool = False,
+        docs: bool = False,
+    ) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
-        version = re.sub(r"[^\w\-.]", "-", self.version_name)
-        return f"{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+        if version is None:
+            version = re.sub(r"[^\w\-.]", "-", self.version_name)
 
-    def image_release(self, arch: str, docs: bool = False, owner: str = "duckietown") -> str:
+        return f"{registry}/{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+
+    def image_release(
+        self,
+        *,
+        arch: str,
+        owner: str,
+        registry: str,
+        docs: bool = False,
+    ) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
         assert_canonical_arch(arch)
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
-        return f"{owner}/{self.name}:{version}{docs}-{arch}"
+        return f"{registry}/{owner}/{self.name}:{version}{docs}-{arch}"
 
-    def ci_metadata(self, endpoint, arch: str, owner: str = "duckietown", registry: str = "docker.io"):
-        image_tag = f"{registry}/{self.image(arch, owner=owner)}"
+    def ci_metadata(
+        self,
+        endpoint,
+        *,
+        arch: str,
+        registry: str,
+        owner: str,
+        version: str
+    ):
+        image_tag = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             configurations = self.configurations()
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version, registry=registry)
+
         # remove useless data
         del inspect["ContainerConfig"]
         del inspect["Config"]["Labels"]
@@ -230,7 +259,13 @@ class DTProject:
                 "is_detached": self.is_detached(),
             },
             "configurations": configurations,
-            "labels": self.image_labels(endpoint, arch=arch, owner=owner)
+            "labels": self.image_labels(
+                endpoint,
+                arch=arch,
+                registry=registry,
+                owner=owner,
+                version=version,
+            ),
         }
         # ---
         return meta
@@ -281,27 +316,42 @@ class DTProject:
         # ---
         return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
 
-    def image_metadata(self, endpoint, arch: str, owner: str = "duckietown"):
+    def image_metadata(
+        self,
+        endpoint,
+        arch: str,
+        owner: str,
+        registry: str,
+        version: str
+    ):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner)
+        image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
-            return None
+            raise Exception(f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
 
-    def image_labels(self, endpoint, arch: str, owner: str = "duckietown"):
+    def image_labels(
+        self,
+        endpoint,
+        *,
+        arch: str,
+        owner: str,
+        registry: str,
+        version: str
+    ):
         client = _docker_client(endpoint)
-        image_name = self.image(arch, owner=owner)
+        image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.labels
         except (APIError, ImageNotFound):
             return None
 
-    def remote_image_metadata(self, arch: str, owner: str = "duckietown"):
+    def remote_image_metadata(self, arch: str, owner: str, registry: str):
         assert_canonical_arch(arch)
-        image = f"{owner}/{self.name}"
+        image = f"{registry}/{owner}/{self.name}"
         tag = f"{self.version_name}-{arch}"
         return self.inspect_remote_image(image, tag)
 
@@ -321,7 +371,9 @@ class DTProject:
             msg = "The metadata file '.dtproject' is empty."
             raise UserError(msg)
         # parse metadata
-        metadata = {p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata]}
+        metadata = {
+            p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata if line.strip()]
+        }
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
@@ -428,6 +480,11 @@ def dtlabel(key, value=None):
     if value is not None:
         label = f"{label}={value}"
     return label
+
+
+def get_cloud_builder(arch: str) -> str:
+    arch = canonical_arch(arch)
+    return random.choice(CLOUD_BUILDERS[arch])
 
 
 def _remote_url_to_https(remote_url):

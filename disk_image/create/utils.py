@@ -1,32 +1,31 @@
-from typing import List, Optional
-
+import collections
+import fnmatch
+import glob
+import itertools
 import json
 import os
-import sys
-import fnmatch
-import subprocess
-import time
-import glob
-import collections
 import re
-import yaml
-import itertools
 import shutil
+import subprocess
+import sys
+import time
+from typing import List
 
-from dt_shell import dtslogger
-
-from utils.duckietown_utils import get_distro_version
+import yaml
 
 from disk_image.create.constants import (
-    PARTITION_MOUNTPOINT,
-    FILE_PLACEHOLDER_SIGNATURE,
-    DOCKER_IMAGE_TEMPLATE,
-    MODULES_TO_LOAD,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
+    DOCKER_IMAGE_TEMPLATE,
+    FILE_PLACEHOLDER_SIGNATURE,
+    MODULES_TO_LOAD,
+    PARTITION_MOUNTPOINT,
 )
-from utils.cli_utils import ProgressBar, check_program_dependency
+from dt_shell import dtslogger
+from utils.cli_utils import check_program_dependency
+from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sudo_open
+from utils.progress_bar import ProgressBar
 
 
 class VirtualSDCard:

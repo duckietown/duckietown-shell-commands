@@ -1,16 +1,14 @@
-import os
-import json
-import shutil
 import argparse
+import json
+import os
+import shutil
 import subprocess
 import uuid
 
-from utils.duckietown_utils import get_distro_version
-
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-
-from utils.dtproject_utils import CANONICAL_ARCH
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import DEFAULT_MACHINE
+from utils.dtproject_utils import CANONICAL_ARCH
+from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
@@ -19,7 +17,6 @@ DEFAULT_VOLUMES = ["/var/run/avahi-daemon/socket"]
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Easy way to run CLI commands inside a Duckietown ROS environment"
 
     @staticmethod

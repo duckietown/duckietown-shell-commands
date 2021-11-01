@@ -4,7 +4,9 @@
 
 # import current command
 try:
-    from .command import *
+    # noinspection PyUnresolvedReferences
+    from .command import DTCommand
+
 except ImportError:
     pass
 

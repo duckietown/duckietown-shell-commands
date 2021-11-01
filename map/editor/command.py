@@ -1,7 +1,7 @@
-import os
 import argparse
+import os
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 MAP_EDITOR_LAUNCHER = "editor"
 
@@ -28,26 +28,22 @@ class DTCommand(DTCommandAbs):
         # ---
         # run start-gui-tools
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument(
-            "--image",
-            default=None,
-            help="Custom docker image of dt-gui-tools"
-        )
+        parser.add_argument("--image", default=None, help="Custom docker image of dt-gui-tools")
         parsed = parser.parse_args(args)
         flags = [
-                "--launcher",
-                MAP_EDITOR_LAUNCHER,
-                "--mount",
-                f"{os.getcwd()}:/out",
-                "--wkdir",
-                f"/out",
-                "--uid",
-                str(os.getuid()),
-                "--name",
-                "map-editor",
-                "--no-scream",
-                "LOCAL"
-            ]
+            "--launcher",
+            MAP_EDITOR_LAUNCHER,
+            "--mount",
+            f"{os.getcwd()}:/out",
+            "--wkdir",
+            f"/out",
+            "--uid",
+            str(os.getuid()),
+            "--name",
+            "map-editor",
+            "--no-scream",
+            "LOCAL",
+        ]
         if parsed.image:
             flags.extend(["--image", parsed.image])
         shell.include.start_gui_tools.command(

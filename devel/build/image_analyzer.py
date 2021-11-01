@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+
 import termcolor as tc
 
 LAYER_SIZE_YELLOW = 20 * 1024 ** 2  # 20 MB
@@ -25,8 +26,10 @@ class ImageAnalyzer(object):
     def size_fmt(num, suffix="B", precision=2):
         for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
             if abs(num) < 1024.0:
+                # noinspection PyStringFormat
                 return f"%3.{precision}f %s%s" % (num, unit, suffix)
             num /= 1024.0
+        # noinspection PyStringFormat
         return f"%.{precision}f%s%s".format(num, "Yi", suffix)
 
     @staticmethod
@@ -185,8 +188,7 @@ class ImageAnalyzer(object):
         print("=" * SEPARATORS_LENGTH)
         print()
         print(
-            tc.colored("IMPORTANT", "white", "on_blue")
-            + ": Always ask yourself, can I do better than that?"
+            tc.colored("IMPORTANT", "white", "on_blue") + ": Always ask yourself, can I do better than that?"
         )
         print()
         # ---
