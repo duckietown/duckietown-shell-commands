@@ -198,7 +198,7 @@ def _login_client(client: DockerClient, registry: str, username: str, password: 
     res = client.login(username=username, password=password, registry=registry)
     dtslogger.debug(f"login response: {res}")
     # Status': 'Login Succeeded'
-    if res.get("Status", None) == "Login Succeeded":
+    if res.get("Status", None) in [None, "Login Succeeded"]:
         pass
     else:
         if raise_on_error:
