@@ -331,7 +331,7 @@ class DTCommand(DTCommandAbs):
         print(DOCKER_INFO.format(**epoint))
 
         copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
