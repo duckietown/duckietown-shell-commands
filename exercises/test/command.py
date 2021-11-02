@@ -440,7 +440,7 @@ class DTCommand(DTCommandAbs):
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         if os.path.exists(assets_challenges_dir):
-            shutil.copytree(assets_challenges_dir, os.path.join(challenges_dir,"exercise-challenges"))
+            shutil.copytree(assets_challenges_dir, os.path.join(challenges_dir, "exercise-challenges"))
 
         fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
@@ -631,6 +631,7 @@ class DTCommand(DTCommandAbs):
             if labdir_name is None:
                 dtslogger.info("No lab dir - running base VNC image")
                 vnc_image = VNC_IMAGE
+                vnc_image = add_registry(vnc_image)
             else:
                 vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab:latest"
                 try:
@@ -641,7 +642,7 @@ class DTCommand(DTCommandAbs):
                         "You must run dts exercises build first to build your lab image to run "
                         "notebooks"
                     )
-            vnc_image = add_registry(vnc_image)
+
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
             if not parsed.local:
@@ -649,17 +650,18 @@ class DTCommand(DTCommandAbs):
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
 
-            vnc_volumes = {os.path.join(working_dir, "launchers"): {"bind": "/code/launchers",
-                                                                    "mode": "ro",
-                                                                    }
-                           }
+            vnc_volumes = {
+                os.path.join(working_dir, "launchers"): {
+                    "bind": "/code/launchers",
+                    "mode": "ro",
+                }
+            }
 
             if log_dir is not None:
-                vnc_volumes[os.path.join(working_dir,log_dir)] = {"bind": ROSBAG_DIR,
-                                                                  "mode": "rw",
-                                                                  }
-
-
+                vnc_volumes[os.path.join(working_dir, log_dir)] = {
+                    "bind": ROSBAG_DIR,
+                    "mode": "rw",
+                }
 
             vnc_params = {
                 "image": vnc_image,
