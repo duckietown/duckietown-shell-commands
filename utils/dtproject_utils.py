@@ -421,8 +421,13 @@ class DTProject:
             origin_url = origin_url[:-1]
         repo = origin_url.split("/")[-1]
         # get info about current git INDEX
-        nmodified = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain", "--untracked-files=no"]))
-        nadded = len(_run_cmd(["git", "-C", f'"{path}"', "status", "--porcelain"]))
+        porcelain = ["git", "-C", f'"{path}"', "status", "--porcelain"]
+        modified = _run_cmd(porcelain + ["--untracked-files=no"])
+        nmodified = len(modified)
+        added = _run_cmd(porcelain)
+        # we are not counting files with .resolved extension
+        added = list(filter(lambda f: not f.endswith(".resolved"), added))
+        nadded = len(added)
         # return info
         return {
             "REPOSITORY": repo,

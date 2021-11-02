@@ -195,7 +195,7 @@ def _login_client(client: DockerClient, registry: str, username: str, password: 
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
-    res = client.login(username=username, password=password, registry=registry)
+    res = client.login(username=username, password=password, registry=registry, reauth=True)
     dtslogger.debug(f"login response: {res}")
     # Status': 'Login Succeeded'
     if res.get("Status", None) == "Login Succeeded":
