@@ -66,6 +66,7 @@ AGENT_ROS_PORT = "11312"
 ENV_LOGLEVEL = "LOGLEVEL"
 PORT_VNC = 8087
 PORT_MANAGER = 8090
+ROSBAG_DIR = "/data/logs"
 
 
 class DTCommand(DTCommandAbs):
@@ -242,6 +243,8 @@ class DTCommand(DTCommandAbs):
         use_ros = bool(config.get("ros", True))
         the_challenge = parsed.challenge or config.get("challenge", None)
         the_step = parsed.step or config.get("step", None)
+        log_dir = config.get("log_dir", None)
+
         dtslogger.debug(f"config : {config}")
         dtslogger.debug(f"use_ros: {use_ros}")
 
@@ -437,7 +440,7 @@ class DTCommand(DTCommandAbs):
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         if os.path.exists(assets_challenges_dir):
-            shutil.copytree(assets_challenges_dir, challenges_dir)
+            shutil.copytree(assets_challenges_dir, os.path.join(challenges_dir,"exercise-challenges"))
 
         fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
 
@@ -629,15 +632,15 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("No lab dir - running base VNC image")
                 vnc_image = VNC_IMAGE
             else:
-                vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
-                local_client_images = local_client.images.list()
-                if f"<Image: '{vnc_image}:latest'>" not in local_client_images:
+                vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab:latest"
+                try:
+                    local_client_images = local_client.images.get(vnc_image)
+                except Exception as e:
                     dtslogger.error(
-                        f"Failed to find {vnc_image} in local images."
+                        f"Failed to find <Image: '{vnc_image}:latest'> in local images."
                         "You must run dts exercises build first to build your lab image to run "
                         "notebooks"
                     )
-                exit(1)
             vnc_image = add_registry(vnc_image)
             dtslogger.info(f"Running VNC {vnc_container_name} from {vnc_image}")
             vnc_env = ros_env
@@ -646,17 +649,24 @@ class DTCommand(DTCommandAbs):
                 vnc_env["ROS_MASTER"] = duckiebot_name
                 vnc_env["HOSTNAME"] = duckiebot_name
 
+            vnc_volumes = {os.path.join(working_dir, "launchers"): {"bind": "/code/launchers",
+                                                                    "mode": "ro",
+                                                                    }
+                           }
+
+            if log_dir is not None:
+                vnc_volumes[os.path.join(working_dir,log_dir)] = {"bind": ROSBAG_DIR,
+                                                                  "mode": "rw",
+                                                                  }
+
+
+
             vnc_params = {
                 "image": vnc_image,
                 "name": vnc_container_name,
                 "command": "dt-launcher-vnc",
                 "environment": vnc_env,
-                "volumes": {
-                    os.path.join(working_dir, "launchers"): {
-                        "bind": "/code/launchers",
-                        "mode": "ro",
-                    }
-                },
+                "volumes": vnc_volumes,
                 "auto_remove": auto_remove,
                 "stream": True,
                 "detach": True,
