@@ -288,13 +288,13 @@ class DTCommand(DTCommandAbs):
         else:
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             rsync_cmd = "rsync -a "
             if "rsync_exclude" in config:
                 for d in config["rsync_exclude"]:
                     rsync_cmd += f"--exclude {working_dir}/{d} "
-            rsync_cmd += f"{working_dir} {remote_base_path}"
+            rsync_cmd += f"{working_dir}/* {remote_base_path}"
             dtslogger.info(f"rsync command: {rsync_cmd}")
             _run_cmd(rsync_cmd, shell=True)
 
@@ -435,28 +435,36 @@ class DTCommand(DTCommandAbs):
         # os.sync()
         time.sleep(3)
 
-        dtslogger.info(f"Results will be stored in: {challenges_dir}")
-
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         if os.path.exists(assets_challenges_dir):
             shutil.copytree(assets_challenges_dir, os.path.join(challenges_dir, "exercise-challenges"))
 
-        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
 
-        agent_bind = {
-            # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            challenges_dir: {
+        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        if parsed.local:
+            agent_challenge_dir = challenges_dir
+        else:
+            agent_challenge_dir = os.path.join("/data/logs", thisone)
+
+        challenge_bind0 = {
+            agent_challenge_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
                 "propagation": "rshared",
-            },
+            }
+        }
+
+        agent_bind = {
+            **challenge_bind0,
             **fifos_bind0,
         }
         sim_bind = {
             **fifos_bind0,
         }
         bridge_bind = {
+            **challenge_bind0,
             **fifos_bind0,
         }
 
