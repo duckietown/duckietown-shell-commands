@@ -10,7 +10,14 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_endpoint_architecture, pull_if_not_exist, pull_image, remove_if_running
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    pull_if_not_exist,
+    pull_image,
+    remove_if_running,
+    get_registry_to_use,
+)
+
 from utils.duckietown_utils import get_distro_version
 from utils.git_utils import get_last_commit
 from utils.misc_utils import sanitize_hostname
@@ -129,6 +136,8 @@ class DTCommand(DTCommandAbs):
 
         # open Docker client
         client = check_docker_environment()
+        REGISTRY = get_registry_to_use()
+        image = REGISTRY + "/" + image
 
         # pull image
         if parsed.pull:
@@ -167,7 +176,6 @@ class DTCommand(DTCommandAbs):
         env = {
             "VEHICLE_NAME": parsed.hostname,
             "ROS_MASTER": parsed.hostname,
-            "DUCKIEBOT_NAME": parsed.hostname,
             "ROS_MASTER_URI": "http://%s:11311" % robot_host,
             "HOSTNAME": "default" if parsed.sim else parsed.hostname,
         }
@@ -251,7 +259,7 @@ class DTCommand(DTCommandAbs):
         # print some info
         if parsed.vnc:
             dtslogger.info("Running novnc. Navigate to http://localhost:8087/ in your browser. ")
-        dtslogger.debug(
+        dtslogger.info(
             f"Running container with configuration:\n\n" f"{json.dumps(params, sort_keys=True, indent=4)}\n"
         )
         # run the container
