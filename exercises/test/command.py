@@ -288,13 +288,13 @@ class DTCommand(DTCommandAbs):
         else:
             # let's set some things up to run on the Duckiebot
             check_program_dependency("rsync")
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/"
+            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             rsync_cmd = "rsync -a "
             if "rsync_exclude" in config:
                 for d in config["rsync_exclude"]:
                     rsync_cmd += f"--exclude {working_dir}/{d} "
-            rsync_cmd += f"{working_dir} {remote_base_path}"
+            rsync_cmd += f"{working_dir}/* {remote_base_path}"
             dtslogger.info(f"rsync command: {rsync_cmd}")
             _run_cmd(rsync_cmd, shell=True)
 
@@ -367,7 +367,7 @@ class DTCommand(DTCommandAbs):
 
         if not parsed.local:
             ros_env = {
-                "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
+                "ROS_MASTER_URI": f"http://{duckiebot_name}.local:{AGENT_ROS_PORT}",
             }
         else:
             ros_env = {
@@ -435,28 +435,38 @@ class DTCommand(DTCommandAbs):
         # os.sync()
         time.sleep(3)
 
-        dtslogger.info(f"Results will be stored in: {challenges_dir}")
-
         assets_challenges_dir = os.path.join(working_dir, "assets/setup/challenges")
 
         if os.path.exists(assets_challenges_dir):
             shutil.copytree(assets_challenges_dir, os.path.join(challenges_dir, "exercise-challenges"))
 
-        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        dtslogger.info(f"Results will be stored in: {challenges_dir}")
 
-        agent_bind = {
-            # fifos_volume.name: {"bind": "/fifos", "mode": "rw"},
-            challenges_dir: {
+        fifos_bind0 = {fifos_dir: {"bind": "/fifos", "mode": "rw"}}
+        if parsed.local:
+            agent_challenge_dir = challenges_dir
+        else:
+            agent_challenge_dir = os.path.join("/data/logs", thisone)
+
+        challenge_bind0 = {
+            agent_challenge_dir: {
                 "bind": "/challenges",
                 "mode": "rw",
                 "propagation": "rshared",
-            },
+            }
+        }
+
+        avahi_bind0 = {}
+
+        agent_bind = {
+            **challenge_bind0,
             **fifos_bind0,
         }
         sim_bind = {
             **fifos_bind0,
         }
         bridge_bind = {
+            **challenge_bind0,
             **fifos_bind0,
         }
 
@@ -603,11 +613,22 @@ class DTCommand(DTCommandAbs):
 
             ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
 
+            if not running_on_mac:
+                ros_volumes = {
+                    "/var/run/avahi-daemon/socket": {
+                        "bind": "/var/run/avahi-daemon/socket",
+                        "mode": "rw",
+                    }
+                }
+            else:
+                ros_volumes = {}
+
             ros_params = {
                 "image": ros_image,
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
+                "volumes": ros_volumes,
                 "auto_remove": auto_remove,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
@@ -670,6 +691,7 @@ class DTCommand(DTCommandAbs):
                 "environment": vnc_env,
                 "volumes": vnc_volumes,
                 "auto_remove": auto_remove,
+                "privileged": True,
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -690,7 +712,7 @@ class DTCommand(DTCommandAbs):
 
                 # vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
 
-            dtslogger.debug(f"vnc_params: {vnc_params}")
+            dtslogger.info(f"vnc_params: {json.dumps(vnc_params, sort_keys=True, indent=4)}")
 
             # vnc always runs on local client
             vnc_container = local_client.containers.run(**vnc_params)
@@ -925,6 +947,12 @@ def launch_agent(
         agent_params["stdin_open"] = True
 
     dtslogger.debug(agent_params)
+
+    if not on_mac:
+        agent_params["volumes"]["/var/run/avahi-daemon/socket"] = {
+            "bind": "/var/run/avahi-daemon/socket",
+            "mode": "rw",
+        }
 
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
