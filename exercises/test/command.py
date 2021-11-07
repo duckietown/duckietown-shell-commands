@@ -367,7 +367,7 @@ class DTCommand(DTCommandAbs):
 
         if not parsed.local:
             ros_env = {
-                "ROS_MASTER_URI": f"http://{duckiebot_ip}:{AGENT_ROS_PORT}",
+                "ROS_MASTER_URI": f"http://{duckiebot_name}.local:{AGENT_ROS_PORT}",
             }
         else:
             ros_env = {
@@ -455,6 +455,8 @@ class DTCommand(DTCommandAbs):
                 "propagation": "rshared",
             }
         }
+
+        avahi_bind0 = {}
 
         agent_bind = {
             **challenge_bind0,
@@ -611,11 +613,22 @@ class DTCommand(DTCommandAbs):
 
             ros_port = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
 
+            if not running_on_mac:
+                ros_volumes = {
+                    "/var/run/avahi-daemon/socket": {
+                        "bind": "/var/run/avahi-daemon/socket",
+                        "mode": "rw",
+                    }
+                }
+            else:
+                ros_volumes = {}
+
             ros_params = {
                 "image": ros_image,
                 "name": ros_container_name,
                 "environment": ros_env,
                 "detach": True,
+                "volumes": ros_volumes,
                 "auto_remove": auto_remove,
                 "tty": True,
                 "command": f"roscore -p {AGENT_ROS_PORT}",
@@ -678,6 +691,7 @@ class DTCommand(DTCommandAbs):
                 "environment": vnc_env,
                 "volumes": vnc_volumes,
                 "auto_remove": auto_remove,
+                "privileged": True,
                 "stream": True,
                 "detach": True,
                 "tty": True,
@@ -698,7 +712,7 @@ class DTCommand(DTCommandAbs):
 
                 # vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
 
-            dtslogger.debug(f"vnc_params: {vnc_params}")
+            dtslogger.info(f"vnc_params: {json.dumps(vnc_params, sort_keys=True, indent=4)}")
 
             # vnc always runs on local client
             vnc_container = local_client.containers.run(**vnc_params)
@@ -933,6 +947,12 @@ def launch_agent(
         agent_params["stdin_open"] = True
 
     dtslogger.debug(agent_params)
+
+    if not on_mac:
+        agent_params["volumes"]["/var/run/avahi-daemon/socket"] = {
+            "bind": "/var/run/avahi-daemon/socket",
+            "mode": "rw",
+        }
 
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
