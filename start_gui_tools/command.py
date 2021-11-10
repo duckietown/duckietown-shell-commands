@@ -132,12 +132,14 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
         dtslogger.info(f"Target architecture automatically set to {arch}.")
         # compile image name
-        image = parsed.image if parsed.image else DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
-
-        # open Docker client
+        # let's assume that if they specified an image name that we don't want to add the registry to it
+        # this is need for dts exercises lab for example
         client = check_docker_environment()
-        REGISTRY = get_registry_to_use()
-        image = REGISTRY + "/" + image
+        if parsed.image is not None:
+            REGISTRY = get_registry_to_use()
+            image = REGISTRY + "/" + DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+        else:
+            image = parsed.image
 
         # pull image
         if parsed.pull:
@@ -259,7 +261,7 @@ class DTCommand(DTCommandAbs):
         # print some info
         if parsed.vnc:
             dtslogger.info("Running novnc. Navigate to http://localhost:8087/ in your browser. ")
-        dtslogger.info(
+        dtslogger.debug(
             f"Running container with configuration:\n\n" f"{json.dumps(params, sort_keys=True, indent=4)}\n"
         )
         # run the container

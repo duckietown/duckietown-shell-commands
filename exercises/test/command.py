@@ -712,7 +712,7 @@ class DTCommand(DTCommandAbs):
 
                 # vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
 
-            dtslogger.info(f"vnc_params: {json.dumps(vnc_params, sort_keys=True, indent=4)}")
+            dtslogger.debug(f"vnc_params: {json.dumps(vnc_params, sort_keys=True, indent=4)}")
 
             # vnc always runs on local client
             vnc_container = local_client.containers.run(**vnc_params)
