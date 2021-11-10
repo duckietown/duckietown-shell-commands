@@ -135,7 +135,7 @@ class DTCommand(DTCommandAbs):
         # let's assume that if they specified an image name that we don't want to add the registry to it
         # this is need for dts exercises lab for example
         client = check_docker_environment()
-        if parsed.image is not None:
+        if parsed.image is None:
             REGISTRY = get_registry_to_use()
             image = REGISTRY + "/" + DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
         else:
