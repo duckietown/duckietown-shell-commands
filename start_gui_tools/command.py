@@ -148,27 +148,31 @@ class DTCommand(DTCommandAbs):
             pull_if_not_exist(client, image)
 
         if parsed.image is None:
-            ci = get_last_commit("duckietown", "dt-gui-tools", "daffy")
+            try:
+                ci = get_last_commit("duckietown", "dt-gui-tools", "daffy")
+            except Exception:
+                dtslogger.warning("We could not check for updates, just a heads up.")
+                ci = None
 
-            im = client.images.get(image)
-
-            dtslogger.debug(json.dumps(im.labels, indent=2))
-            sha = im.labels["org.duckietown.label.code.sha"]
-            if ci.sha != sha:
-                n = datetime.now(tz=pytz.utc)
-                delta = n - ci.date
-                hours = delta.total_seconds() / (60 * 60)
-                if hours > 0.10:  # allow some minutes to pass before warning
-                    msg = (
-                        f"The image  {image} is not up to date.\n"
-                        f"There was a new release {hours:.1f} hours ago.\n"
-                        f'Use "dts desktop update" to update'
-                    )
-                    dtslogger.error(msg)
+            if ci is not None:
+                im = client.images.get(image)
+                dtslogger.debug(json.dumps(im.labels, indent=2))
+                sha = im.labels["org.duckietown.label.code.sha"]
+                if ci.sha != sha:
+                    n = datetime.now(tz=pytz.utc)
+                    delta = n - ci.date
+                    hours = delta.total_seconds() / (60 * 60)
+                    if hours > 0.10:  # allow some minutes to pass before warning
+                        msg = (
+                            f"The image  {image} is not up to date.\n"
+                            f"There was a new release {hours:.1f} hours ago.\n"
+                            f'Use "dts desktop update" to update'
+                        )
+                        dtslogger.error(msg)
+                    else:
+                        dtslogger.warn(f"There is a new commit but too early to warn ({hours:.2f} hours). ")
                 else:
-                    dtslogger.warn(f"There is a new commit but too early to warn ({hours:.2f} hours). ")
-            else:
-                dtslogger.debug(f"OK, local image and repo have sha {sha}")
+                    dtslogger.debug(f"OK, local image and repo have sha {sha}")
 
         # create container name and make there is no name clash
         default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
