@@ -1,6 +1,7 @@
 import glob
 import os
 import re
+import sys
 from typing import List, Optional
 
 from dt_data_api import DataClient
@@ -14,6 +15,15 @@ DCSS_APP_DIR = f"assets/{APP_NAME}/"
 DCSS_APP_RELEASES_DIR = f"assets/{APP_NAME}/releases/"
 APP_LOCAL_DIR = os.path.join(USER_DATA_DIR, APP_NAME)
 APP_RELEASES_DIR = os.path.join(APP_LOCAL_DIR, "releases")
+
+
+def get_os_family() -> str:
+    if sys.platform.startswith('linux'):
+        return "linux"
+    elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
+        return "windows"
+    elif sys.platform.startswith('darwin'):
+        return "macosx"
 
 
 def get_latest_version():
@@ -59,12 +69,12 @@ def get_path_to_binary(version: str):
     return os.path.join(app_dir, f"{APP_NAME}.x86_64")
 
 
-def is_version_released(version: str) -> bool:
+def is_version_released(version: str, os_family: str = None) -> bool:
     # create storage client
     client = DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # check whether the object exists
-    release_obj = remote_zip_obj(version)
+    release_obj = remote_zip_obj(version, os_family)
     try:
         storage.head(release_obj)
         return True
@@ -72,8 +82,9 @@ def is_version_released(version: str) -> bool:
         return False
 
 
-def remote_zip_obj(version: str):
-    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}.zip")
+def remote_zip_obj(version: str, os_family: str = None):
+    os_family = os_family or get_os_family()
+    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
 
 
 def mark_as_latest_version(token: str, version: str):
