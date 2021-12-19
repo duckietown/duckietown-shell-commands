@@ -108,7 +108,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warn("Forced!")
 
         # check whether we are releasing an older version
-        latest = get_latest_version()
+        latest = get_latest_version(os_family)
         if versiontuple(latest) > versiontuple(release_version):
             dtslogger.warn(f"The version v{latest} was found on the DCSS, are you releasing "
                            f"an older version? (use -f/--force to continue)")
@@ -135,7 +135,7 @@ class DTCommand(DTCommandAbs):
 
         # mark this as latest (if needed)
         if versiontuple(latest) < versiontuple(release_version):
-            mark_as_latest_version(token, release_version)
+            mark_as_latest_version(token, release_version, os_family)
 
         dtslogger.info(f"Congrats! You just released version v{release_version}.")
 

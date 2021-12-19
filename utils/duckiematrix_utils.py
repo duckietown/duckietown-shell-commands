@@ -26,12 +26,13 @@ def get_os_family() -> str:
         return "macosx"
 
 
-def get_latest_version():
+def get_latest_version(os_family: str = None):
     # create storage client
     client = DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
-    latest_version_obj = os.path.join(DCSS_APP_DIR, "latest")
+    os_family = os_family or get_os_family()
+    latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
     download = storage.download(latest_version_obj)
     download.join()
     return download.data.decode("ascii").strip()
@@ -87,12 +88,12 @@ def remote_zip_obj(version: str, os_family: str = None):
     return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
 
 
-def mark_as_latest_version(token: str, version: str):
+def mark_as_latest_version(token: str, version: str, os_family: str):
     # create storage client
     client = DataClient(token)
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
-    latest_version_obj = os.path.join(DCSS_APP_DIR, "latest")
+    latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
     upload = storage.upload(version.encode("ascii"), latest_version_obj)
     upload.join()
 
