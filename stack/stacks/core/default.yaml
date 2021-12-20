@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   core:
-    image: ${REGISTRY}/duckietown/dt-core:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
     container_name: core
     restart: unless-stopped
     network_mode: host
