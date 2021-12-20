@@ -3,10 +3,10 @@ import io
 import os
 import subprocess
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
-
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture
+from dt_shell import DTCommandAbs, DTShell, dtslogger
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
+from utils.duckietown_utils import DEFAULT_OWNER
 
 
 class DTCommand(DTCommandAbs):
@@ -33,6 +33,12 @@ class DTCommand(DTCommandAbs):
             default=DEFAULT_MACHINE,
             help="Docker socket or hostname where to clean the image",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
+
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -43,18 +49,39 @@ class DTCommand(DTCommandAbs):
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
+
         # show info about project
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        registry_to_use = get_registry_to_use()
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
-        images = [project.image(parsed.arch)]
+        images = [
+            project.image(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=DEFAULT_OWNER,
+                version=version
+            )]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(parsed.arch))
+            images.append(project.image_release(
+                arch=parsed.arch,
+                registry=registry_to_use,
+                owner=DEFAULT_OWNER
+            ))
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

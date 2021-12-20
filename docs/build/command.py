@@ -6,8 +6,7 @@ import sys
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
-
-from utils.docker_utils import replace_important_env_vars
+from duckietown_docker_utils import ENV_REGISTRY, replace_important_env_vars
 
 
 class DTCommand(DTCommandAbs):
@@ -17,7 +16,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
 
         parser.add_argument(
-            "--image", default="${AIDO_REGISTRY}/duckietown/docs-build:ente", help="Which image to use"
+            "--image", default="${%s}/duckietown/docs-build:ente" % ENV_REGISTRY, help="Which image to use"
         )
 
         parsed = parser.parse_args(args=args)

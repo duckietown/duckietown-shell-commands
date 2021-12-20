@@ -1,20 +1,27 @@
 import argparse
-import os
-import sys
-import docker
-import tarfile
 import io
+import os
 import pathlib
+import sys
+import tarfile
+
+import docker
 
 from dt_shell import DTCommandAbs, dtslogger
-
-from utils.docker_utils import get_endpoint_architecture, build_logs_to_string
 from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import (
+    build_logs_to_string,
+    get_endpoint_architecture,
+    get_registry_to_use,
+    login_client,
+)
 from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project's documentation"
+
+    # FIXME: honor DOCKER_REGISTRY
 
     @staticmethod
     def command(shell, args):
@@ -54,6 +61,10 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
+        parser.add_argument(
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
+        )
+
         parser.add_argument("--quiet", default=False, action="store_true", help="Suppress any building log")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -85,11 +96,21 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
 
+        registry_to_use = get_registry_to_use()
+
         # get the arch
         arch = get_endpoint_architecture()
 
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # create defaults
-        image = project.image(arch, loop=parsed.loop, owner=parsed.username)
+        image = project.image(
+            arch=arch, loop=parsed.loop, registry=registry_to_use, owner=parsed.username, version=version
+        )
         # image_docs = project.image(arch, loop=parsed.loop, docs=True, owner=parsed.username)
 
         # file locators
@@ -107,18 +128,21 @@ class DTCommand(DTCommandAbs):
         # Get a docker client
         dclient = docker.from_env()
 
+        login_client(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
+
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")
         cmd_dir = os.path.dirname(os.path.abspath(__file__))
         # dockerfile = os.path.join(cmd_dir, 'Dockerfile')
         docs_image, logs = dclient.images.build(
-            path=cmd_dir, buildargs={"BASE_IMAGE": image}, nocache=parsed.no_cache
+            path=cmd_dir, buildargs={"BASE_IMAGE": image, "BOOK_NAME": project.name}, nocache=parsed.no_cache
         )
         print(build_logs_to_string(logs))
         dtslogger.info("Done!")
 
         # clear output directories
         for f in os.listdir(repo_file(repo_file("html"))):
+            # noinspection PyTypeChecker
             if f.endswith("DOCS_WILL_BE_GENERATED_HERE"):
                 continue
             start_command_in_subprocess(
@@ -136,6 +160,7 @@ class DTCommand(DTCommandAbs):
         in_files_buf = io.BytesIO()
         in_files = tarfile.open(fileobj=in_files_buf, mode="w")
         for obj in os.listdir(repo_file("docs")):
+            # noinspection PyTypeChecker
             in_files.add(os.path.join(repo_file("docs"), obj), arcname=obj)
         in_files_buf.seek(0)
 
@@ -152,13 +177,18 @@ class DTCommand(DTCommandAbs):
         container.wait()
 
         # copy the results back to the host
-        bits, stat = container.get_archive(path="/docs/out/")
+        bits, stat = container.get_archive(path=f"/{project.name}")
         out_files_buf = io.BytesIO()
         for b in bits:
             out_files_buf.write(b)
         out_files_buf.seek(0)
         t = tarfile.open(fileobj=out_files_buf, mode="r")
         t.extractall(pathlib.Path(repo_file("html")))
+
+        # keep also the .tgz
+        out_files_buf.seek(0)
+        with open(repo_file("html", "package.tgz"), "wb") as fout:
+            fout.write(out_files_buf.read())
 
         # delete container
         container.remove()

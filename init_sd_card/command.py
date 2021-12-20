@@ -5,35 +5,35 @@ import json
 import os
 import pathlib
 import re
-import sys
 import shutil
-import subprocess
-import time
 import socket
+import subprocess
+import sys
+import time
 from collections import namedtuple
-from math import log2, floor
+from datetime import datetime
 from types import SimpleNamespace
 from typing import List
 
-from utils.exceptions import InvalidUserInput
-from datetime import datetime
+from math import floor, log2
 
-from dt_shell import DTShell, dtslogger, DTCommandAbs, __version__ as shell_version, UserError
-from utils.cli_utils import ProgressBar, ask_confirmation, check_program_dependency
+from dt_shell import __version__ as shell_version, DTCommandAbs, DTShell, dtslogger
+from utils.cli_utils import ask_confirmation, check_program_dependency
 from utils.duckietown_utils import (
-    get_robot_types,
     get_robot_configurations,
     get_robot_hardware,
+    get_robot_types,
     WIRED_ROBOT_TYPES,
 )
+from utils.exceptions import InvalidUserInput
 from utils.misc_utils import human_time, sudo_open
-
+from utils.progress_bar import ProgressBar
 from .constants import (
-    TIPS_AND_TRICKS,
     LIST_DEVICES_CMD,
+    TIPS_AND_TRICKS,
+    WPA_EAP_NETWORK_CONFIG,
     WPA_OPEN_NETWORK_CONFIG,
     WPA_PSK_NETWORK_CONFIG,
-    WPA_EAP_NETWORK_CONFIG,
 )
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
@@ -56,7 +56,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
-        "jetson_nano_4gb": {"stable": "1.2.0", "experimental": "1.2.2"},
+        "jetson_nano_4gb": {"stable": "1.2.2", "experimental": "1.2.2"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -97,7 +97,6 @@ def BASE_DISK_IMAGE(robot_configuration, experimental=False):
 def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False):
     disk_image = BASE_DISK_IMAGE(robot_configuration, experimental)
     return f"disk_image/{disk_image}.zip"
-
 
 
 class DTCommand(DTCommandAbs):
@@ -762,9 +761,9 @@ def _print_devices_table(devices: List[SimpleNamespace]):
         # that should be a good approximation of the plug-in time (unless the device was used
         # by the user before flashing).
         device_file = pathlib.Path(device.device)
-        plugin_time = datetime.fromtimestamp(min(
-            device_file.stat().st_ctime, device_file.stat().st_atime, device_file.stat().st_mtime
-        ))
+        plugin_time = datetime.fromtimestamp(
+            min(device_file.stat().st_ctime, device_file.stat().st_atime, device_file.stat().st_mtime)
+        )
         time_since_plugin = _time_diff_txt(plugin_time, datetime.now()) + " ago"
         print(row_fmt.format(device.device, f"{device.size_gb}GB", time_since_plugin))
     print()

@@ -1,16 +1,14 @@
-import contextlib
 import os
+import contextlib
 import argparse
 import signal
 import subprocess
 import tempfile
 
-from dt_shell import DTCommandAbs, dtslogger
-from utils.cli_utils import ProgressBar
-from utils.misc_utils import human_size
-
 from dt_data_api import DataClient, TransferStatus
-
+from dt_shell import DTCommandAbs, dtslogger
+from utils.misc_utils import human_size
+from utils.progress_bar import ProgressBar
 
 VALID_SPACES = ["user", "public", "private"]
 
@@ -32,7 +30,6 @@ class TempZipFile:
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Uploads a file to the Duckietown Cloud Storage space"
 
     usage = f"""
@@ -143,6 +140,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
         else:
             # the user provided a token, use that one
             token = parsed.token
+        token_star = "*" * (len(token) - 3) + token[-3:]
+        dtslogger.debug(f"Using token: {token_star}")
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)

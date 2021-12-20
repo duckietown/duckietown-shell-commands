@@ -6,8 +6,13 @@ import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import check_program_dependency
-from utils.docker_utils import DOCKER_INFO, get_endpoint_architecture, DEFAULT_MACHINE
-from utils.dtproject_utils import CANONICAL_ARCH, BUILD_COMPATIBILITY_MAP, DTProject
+from utils.docker_utils import (
+    DEFAULT_MACHINE,
+    DOCKER_INFO,
+    get_endpoint_architecture,
+    get_registry_to_use,
+)
+from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -18,7 +23,6 @@ DEFAULT_REMOTE_USER = "duckie"
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Runs the current project"
 
     @staticmethod
@@ -149,6 +153,12 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Detach from the container and let it run",
         )
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
+        )
+
         parser.add_argument("docker_args", nargs="*", default=[])
         # try to interpret it as a multi-command
         multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
@@ -203,10 +213,20 @@ class DTCommand(DTCommandAbs):
                 suppress_errors=True,
             )
             return
+
+        registry_to_use = get_registry_to_use()
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # tag
+        version = project.version_name
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # get the module configuration
         module_configuration_args = []
         # apply default module configuration
@@ -268,7 +288,13 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             dtslogger.warning("Forced!")
         # create image name
-        image = project.image(parsed.arch, loop=parsed.loop, owner=parsed.username)
+        image = project.image(
+            arch=parsed.arch,
+            loop=parsed.loop,
+            registry=registry_to_use,
+            owner=parsed.username,
+            version=version
+        )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(

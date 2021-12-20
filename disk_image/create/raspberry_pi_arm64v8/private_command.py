@@ -80,10 +80,8 @@ INPUT_DISK_IMAGE_URL = (
     f"{UBUNTU_DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/autoboot/*.yaml":
-        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "APP:/data/config/calibrations/*/default.yaml":
-        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
@@ -141,8 +139,7 @@ class DTCommand(DTCommandAbs):
             "--no-steps", type=str, default="", help="List of steps to skip (comma-separated)"
         )
         parser.add_argument(
-            "-o", "--output", type=str, default=None,
-            help="The destination directory for the output files"
+            "-o", "--output", type=str, default=None, help="The destination directory for the output files"
         )
         parser.add_argument(
             "--no-cache",
@@ -151,8 +148,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to use previously downloaded base ISO image/zip archive (download step)",
         )
         parser.add_argument(
-            "--workdir", type=str, default=TMP_WORKDIR,
-            help="(Optional) temporary working directory to use"
+            "--workdir", type=str, default=TMP_WORKDIR, help="(Optional) temporary working directory to use"
         )
         parser.add_argument(
             "--cache-target",
@@ -333,8 +329,7 @@ class DTCommand(DTCommandAbs):
                         file=[in_file_path("zip")],
                         object=[
                             os.path.join(
-                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template",
-                                f"{UBUNTU_DISK_IMAGE_NAME}.zip"
+                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{UBUNTU_DISK_IMAGE_NAME}.zip"
                             )
                         ],
                         space="public",
@@ -422,8 +417,7 @@ class DTCommand(DTCommandAbs):
                 # mount disk image
                 dtslogger.info(f"Mounting {out_file_path('img')}...")
                 sd_card.mount()
-                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " 
-                               f"on {sd_card.loopdev}")
+                dtslogger.info(f"Disk {out_file_path('img')} successfully mounted " f"on {sd_card.loopdev}")
             # ---
             cache_step("mount")
             dtslogger.info("Step END: mount\n")
@@ -485,10 +479,8 @@ class DTCommand(DTCommandAbs):
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
-                    _transfer_file(ROOT_PARTITION, 
-                                   ["usr", "bin", "qemu-aarch64-static"])
-                    _transfer_file(ROOT_PARTITION, 
-                                   ["run", "systemd", "resolve", "stub-resolv.conf"])
+                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    _transfer_file(ROOT_PARTITION, ["run", "systemd", "resolve", "stub-resolv.conf"])
                     # mount /dev from the host
                     _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
@@ -534,10 +526,9 @@ class DTCommand(DTCommandAbs):
                             + (f"apt-mark hold {to_hold}" if len(to_hold) else ":")
                             + " && "
                             + "apt --yes --force-yes --no-install-recommends"
-                              ' -o Dpkg::Options::="--force-confdef"'
-                              ' -o Dpkg::Options::="--force-confold"'
-                              " full-upgrade && " + (
-                                f"apt-mark unhold {to_hold}" if len(to_hold) else ":"),
+                            ' -o Dpkg::Options::="--force-confdef"'
+                            ' -o Dpkg::Options::="--force-confold"'
+                            " full-upgrade && " + (f"apt-mark unhold {to_hold}" if len(to_hold) else ":"),
                         )
                         # install packages
                         if APT_PACKAGES_TO_INSTALL:
@@ -592,8 +583,7 @@ class DTCommand(DTCommandAbs):
                 # pull dind image
                 pull_docker_image(local_docker, "docker:dind")
                 # run auxiliary Docker engine
-                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var",
-                                                 "lib", "docker")
+                remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
                     image="docker:dind",
                     detach=True,
@@ -608,8 +598,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Waiting 20 seconds for DIND to start...")
                 time.sleep(20)
                 # get IP address of the container
-                container_info = local_docker.api.inspect_container(
-                    "dts-disk-image-aux-docker")
+                container_info = local_docker.api.inspect_container("dts-disk-image-aux-docker")
                 container_ip = container_info["NetworkSettings"]["IPAddress"]
                 # create remote docker client
                 endpoint_url = f"tcp://{container_ip}:2375"
@@ -701,9 +690,7 @@ class DTCommand(DTCommandAbs):
                             for stack in list_files(STACKS_DIR, "yaml"):
                                 origin = os.path.join(STACKS_DIR, stack)
                                 destination = os.path.join(
-                                    PARTITION_MOUNTPOINT(partition),
-                                    AUTOBOOT_STACKS_DIR.lstrip("/"),
-                                    stack
+                                    PARTITION_MOUNTPOINT(partition), AUTOBOOT_STACKS_DIR.lstrip("/"), stack
                                 )
                                 relative = os.path.join(AUTOBOOT_STACKS_DIR, stack)
                                 # validate file
@@ -729,8 +716,7 @@ class DTCommand(DTCommandAbs):
                             validator = _get_validator_fcn(partition, update["relative"])
                             if validator:
                                 dtslogger.debug(f"Validating file {update['relative']}...")
-                                validator(shell, update["origin"], update["relative"],
-                                          arch=DEVICE_ARCH)
+                                validator(shell, update["origin"], update["relative"], arch=DEVICE_ARCH)
                             # create or modify file
                             effect = "MODIFY" if os.path.exists(update["destination"]) else "NEW"
                             dtslogger.info(f"- Updating file ({effect}) [{update['relative']}]")
@@ -740,12 +726,11 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
-                                run_cmd(["sudo", "truncate", f"--size={max_bytes}",
-                                         update["destination"]])
+                                run_cmd(["sudo", "truncate", f"--size={max_bytes}", update["destination"]])
                                 # store preliminary info about the surgery
                                 surgery_plan.append(
                                     {
@@ -849,8 +834,7 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"),
-                     out_file_path("json")])
+            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
             dtslogger.info("Done!")
             cache_step("compress")
             dtslogger.info("Step END: compress\n")

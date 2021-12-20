@@ -10,7 +10,14 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_endpoint_architecture, pull_if_not_exist, pull_image, remove_if_running
+from utils.docker_utils import (
+    get_endpoint_architecture,
+    pull_if_not_exist,
+    pull_image,
+    remove_if_running,
+    get_registry_to_use,
+)
+
 from utils.duckietown_utils import get_distro_version
 from utils.git_utils import get_last_commit
 from utils.misc_utils import sanitize_hostname
@@ -32,16 +39,9 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=USAGE.format(prog))
         parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
         parser.add_argument(
-            "--network",
-            default="host",
-            help="Name of the network to connect the container to"
+            "--network", default="host", help="Name of the network to connect the container to"
         )
-        parser.add_argument(
-            "--port",
-            action='append',
-            default=[],
-            type=str
-        )
+        parser.add_argument("--port", action="append", default=[], type=str)
         parser.add_argument(
             "--sim",
             action="store_true",
@@ -132,10 +132,14 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture()
         dtslogger.info(f"Target architecture automatically set to {arch}.")
         # compile image name
-        image = parsed.image if parsed.image else DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
-
-        # open Docker client
+        # let's assume that if they specified an image name that we don't want to add the registry to it
+        # this is need for dts exercises lab for example
         client = check_docker_environment()
+        if parsed.image is None:
+            REGISTRY = get_registry_to_use()
+            image = REGISTRY + "/" + DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+        else:
+            image = parsed.image
 
         # pull image
         if parsed.pull:
@@ -144,25 +148,31 @@ class DTCommand(DTCommandAbs):
             pull_if_not_exist(client, image)
 
         if parsed.image is None:
-            ci = get_last_commit('duckietown', 'dt-gui-tools', 'ente')
+            try:
+                ci = get_last_commit("duckietown", "dt-gui-tools", "ente")
+            except Exception:
+                dtslogger.warning("We could not check for updates, just a heads up.")
+                ci = None
 
-            im = client.images.get(image)
-
-            dtslogger.debug(json.dumps(im.labels, indent=2))
-            sha = im.labels["org.duckietown.label.code.sha"]
-            if ci.sha != sha:
-                n = datetime.now(tz=pytz.utc)
-                delta = n - ci.date
-                hours = delta.total_seconds() / (60 * 60)
-                if hours > 0.10:  # allow some minutes to pass before warning
-                    msg = (f'The image  {image} is not up to date.\n'
-                           f'There was a new release {hours:.1f} hours ago.\n'
-                           f'Use "dts desktop update" to update')
-                    dtslogger.error(msg)
+            if ci is not None:
+                im = client.images.get(image)
+                dtslogger.debug(json.dumps(im.labels, indent=2))
+                sha = im.labels["org.duckietown.label.code.sha"]
+                if ci.sha != sha:
+                    n = datetime.now(tz=pytz.utc)
+                    delta = n - ci.date
+                    hours = delta.total_seconds() / (60 * 60)
+                    if hours > 0.10:  # allow some minutes to pass before warning
+                        msg = (
+                            f"The image  {image} is not up to date.\n"
+                            f"There was a new release {hours:.1f} hours ago.\n"
+                            f'Use "dts desktop update" to update'
+                        )
+                        dtslogger.error(msg)
+                    else:
+                        dtslogger.warn(f"There is a new commit but too early to warn ({hours:.2f} hours). ")
                 else:
-                    dtslogger.warn(f'There is a new commit but too early to warn ({hours:.2f} hours). ')
-            else:
-                dtslogger.debug(f'OK, local image and repo have sha {sha}')
+                    dtslogger.debug(f"OK, local image and repo have sha {sha}")
 
         # create container name and make there is no name clash
         default_container_name = f"dts_gui_tools_{parsed.hostname}{'_vnc' if parsed.vnc else ''}"
@@ -172,7 +182,6 @@ class DTCommand(DTCommandAbs):
         env = {
             "VEHICLE_NAME": parsed.hostname,
             "ROS_MASTER": parsed.hostname,
-            "DUCKIEBOT_NAME": parsed.hostname,
             "ROS_MASTER_URI": "http://%s:11311" % robot_host,
             "HOSTNAME": "default" if parsed.sim else parsed.hostname,
         }
@@ -233,7 +242,7 @@ class DTCommand(DTCommandAbs):
             "command": cmd,
             "volumes": volumes,
             "network_mode": parsed.network,
-            "ports": {}
+            "ports": {},
         }
 
         # custom UID

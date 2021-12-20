@@ -1,8 +1,8 @@
 import argparse
 
-import docker
-from dt_shell import DTCommandAbs, DTShell, dtslogger
+from docker.errors import APIError
 
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client
 from utils.dtproject_utils import dtlabel
@@ -119,7 +119,7 @@ class DTCommand(DTCommandAbs):
                     client.images.remove(image=image.id, force=True)
                     already_removed.add(image.id)
                     removed += 1
-                except docker.errors.APIError:
+                except APIError:
                     pass
             if removed <= 0:
                 break

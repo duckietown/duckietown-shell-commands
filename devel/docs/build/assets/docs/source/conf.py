@@ -10,8 +10,8 @@ import os
 import os.path
 import sys
 import tempfile
-import yaml
 from shutil import copyfile
+import yaml
 
 ######################################################################################################################
 #
@@ -22,7 +22,6 @@ from shutil import copyfile
 ######################################################################################################################
 
 print("Configuring Sphinx:")
-
 
 # The module name should be repo name if it is defined (but dashes become underscores)
 module_name = os.environ.get("DT_MODULE_TYPE", "nodes").replace("-", "_")
@@ -193,7 +192,6 @@ for package, v in intersphinx_mapping.items():
 intersphinx_mapping = parsed
 
 print(" - Intersphinx map: %s" % str(intersphinx_mapping))
-
 
 ######################################################################################################################
 #

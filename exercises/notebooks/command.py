@@ -14,7 +14,6 @@ usage = """
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args):
         # this is just a proxy command to `dts exercises lab`

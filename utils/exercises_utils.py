@@ -24,6 +24,7 @@ class ExerciseConfig:
     ws_dir: Optional[str]
     lab_dir: Optional[str]
 
+
 def get_exercise_config(d=None) -> ExerciseConfig:
     if d is None:
         working_dir = os.getcwd()
@@ -36,16 +37,15 @@ def get_exercise_config(d=None) -> ExerciseConfig:
     cfile_name = "config.yaml"
     cfile = os.path.join(working_dir, cfile_name)
     if not os.path.exists(cfile):
-        msg = (
-            f"You must run this command inside an exercise directory "
-            f"containing a `{cfile_name}` file."
-        )
+        msg = f"You must run this command inside an exercise directory " f"containing a `{cfile_name}` file."
         raise UserError(msg)
     config = load_yaml(cfile)
 
-    c = ExerciseConfig(files=config.get('files', []),
-                       ws_dir=config.get('ws_dir', None),
-                       lab_dir=config.get('lab_dir', None),
-                       exercise_name=exercise_name,
-                       root=working_dir)
+    c = ExerciseConfig(
+        files=config.get("files", []),
+        ws_dir=config.get("ws_dir", None),
+        lab_dir=config.get("lab_dir", None),
+        exercise_name=exercise_name,
+        root=working_dir,
+    )
     return c

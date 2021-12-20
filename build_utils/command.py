@@ -7,6 +7,7 @@ from typing import List
 
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import check_docker_environment
+from duckietown_docker_utils import ENV_REGISTRY
 
 
 class DTCommand(DTCommandAbs):
@@ -21,7 +22,7 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument(
             "--image",
-            default="${AIDO_REGISTRY}/duckietown/duckietown-challenges-cli:ente-amd64",
+            default="${%s}/duckietown/duckietown-challenges-cli:ente-amd64" % ENV_REGISTRY,
             help="Which image to use",
         )
 
@@ -38,7 +39,10 @@ class DTCommand(DTCommandAbs):
         else:
             development = False
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
-        dt1_token = shell.get_dt1_token()
+        try:
+            dt1_token = shell.get_dt1_token()
+        except:
+            dt1_token = None
         # username, secret = get_dockerhub_username_and_password()
         client = check_docker_environment()
         shell_config = shell.shell_config

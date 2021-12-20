@@ -1,23 +1,22 @@
 import argparse
 
 import docker
-from dt_shell import DTCommandAbs, dtslogger, UserError
+
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
+    bind_avahi_socket,
     bind_duckiebot_data_dir,
     default_env,
-    remove_if_running,
-    pull_if_not_exist,
-    bind_avahi_socket,
     get_endpoint_architecture,
+    pull_if_not_exist,
+    remove_if_running,
 )
+from utils.exceptions import InvalidUserInput
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
-from utils.exceptions import InvalidUserInput
-from dt_shell import DTShell
-
 
 usage = """
 
@@ -37,8 +36,6 @@ ARCH = "arm32v7"
 BRANCH = "ente"
 DEFAULT_IMAGE = "duckietown/dt-core:" + BRANCH + "-" + ARCH
 EXPERIMENTAL_PACKAGE = "experimental_demos"
-
-
 
 
 class DTCommand(DTCommandAbs):

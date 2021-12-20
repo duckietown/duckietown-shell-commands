@@ -18,7 +18,6 @@ repo_team = "duckietown"
 repo_name = "dt-exercises"
 
 
-
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
