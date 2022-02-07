@@ -11,7 +11,6 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
 from docker.errors import APIError, ContainerError, ImageNotFound
-from scanext import error
 from termcolor import colored
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
