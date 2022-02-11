@@ -1,6 +1,7 @@
 BASELINE_IMAGES = {
     "template_ros": "duckietown/challenge-aido_lf-template-ros:daffy",
     "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:daffy",
+    "template_pytorch": "duckietown/challenge-aido_lf-template-pytorch:daffy",
     "template_random": "duckietown/challenge-aido_lf-template-random:daffy",
     "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:daffy",
 }
