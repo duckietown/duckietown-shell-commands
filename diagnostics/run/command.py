@@ -18,6 +18,7 @@ LOG_DEFAULT_SUBGROUP = "default"
 LOG_DEFAULT_APP_ID = "duckietown_user_443_dts_daffy_diagnostics_run"
 LOG_DEFAULT_APP_SECRET = "VvXITEzPuaGwdXC03vCeHnYYjqUOoEc9ZZIJu8oO9UacID3B"
 AVAHI_SOCKET_FILE = "/var/run/avahi-daemon/socket"
+STORAGE_FOLDER = "/tmp"
 
 LOG_API_PROTOCOL = "https"
 LOG_API_HOSTNAME = "dashboard.duckietown.org"
@@ -166,8 +167,8 @@ class DTCommand(DTCommandAbs):
             "-it",
             "--rm",
             "--net=host",
-            "--volume={avahi_socket:s}:{avahi_socket:s}".format(avahi_socket="/tmp"),
-            "--volume={avahi_socket:s}:{avahi_socket:s}".format(avahi_socket="/tmp"),
+            "--volume={avahi_socket:s}:{avahi_socket:s}".format(avahi_socket=AVAHI_SOCKET_FILE),
+            "--volume={storage_folder:s}:{storage_folder:s}".format(storage_folder=STORAGE_FOLDER),
         ]
         # create image name
         image = DIAGNOSTICS_IMAGE.format(version=get_distro_version(shell), arch=image_arch)
