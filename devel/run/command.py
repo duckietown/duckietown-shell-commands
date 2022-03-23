@@ -402,6 +402,7 @@ class DTCommand(DTCommandAbs):
                 exit(2)
             # make sure rsync is installed
             check_program_dependency("rsync")
+            check_program_dependency("sshpass")
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
             remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
             # get projects' locations
@@ -413,7 +414,7 @@ class DTCommand(DTCommandAbs):
                 )
             # run rsync
             for project_path in projects_to_sync:
-                cmd = f"rsync --archive {project_path} {remote_path}"
+                cmd = f'rsync --rsh="sshpass -p quackquack ssh -o StrictHostKeyChecking=no -l {DEFAULT_REMOTE_USER}" --chown={DEFAULT_REMOTE_USER}:{DEFAULT_REMOTE_USER} --archive {project_path} {remote_path}'
                 _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
         # run
