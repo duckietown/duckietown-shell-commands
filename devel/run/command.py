@@ -20,6 +20,7 @@ LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 DEFAULT_NETWORK_MODE = "host"
 DEFAULT_REMOTE_USER = "duckie"
+REMOTE_RSYNC_CODE_LOCATION = "/tmp/code"
 
 
 class DTCommand(DTCommandAbs):
@@ -168,7 +169,7 @@ class DTCommand(DTCommandAbs):
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
             idx = args.index("--")
-            args = args[:idx] + ["--", "--fake"] + args[idx + 1 :]
+            args = args[:idx] + ["--", "--fake"] + args[idx + 1:]
         except ValueError:
             pass
         # parse arguments
@@ -268,10 +269,10 @@ class DTCommand(DTCommandAbs):
                 # get local and remote paths to code and launchfile
                 local_src, destination_src = proj.code_paths()
                 local_launch, destination_launch = proj.launch_paths()
-                # (experimental): when we run remotely, use /code/<project> as base
+                # (experimental): when we run remotely, use /tmp/code/projects/<project> as base
                 if parsed.machine != DEFAULT_MACHINE:
-                    project_path = "/code/%s" % proj.name
-                # compile mounpoints
+                    project_path = os.path.join(REMOTE_RSYNC_CODE_LOCATION, proj.name)
+                # compile mountpoints
                 mount_option += [
                     "-v",
                     "{:s}:{:s}".format(os.path.join(project_path, local_src), destination_src),
@@ -405,7 +406,7 @@ class DTCommand(DTCommandAbs):
             # make sure rsync is installed
             check_program_dependency("rsync")
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:{REMOTE_RSYNC_CODE_LOCATION}/"
             # get projects' locations
             projects_to_sync = [parsed.workdir] if parsed.mount is True else []
             # sync secondary projects
