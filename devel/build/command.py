@@ -394,6 +394,9 @@ class DTCommand(DTCommandAbs):
         # architecture target
         docker_build_args["ARCH"] = parsed.arch
 
+        # docker repository name
+        docker_build_args["REPO_NAME"] = project.name
+
         # development base images
         if parsed.base_tag is not None:
             docker_build_args[DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
