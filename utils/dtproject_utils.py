@@ -122,7 +122,14 @@ class DTProject:
 
     @property
     def name(self):
-        return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
+        # high priority: NAME defined
+        if "NAME" in self._project_info:
+            return self._project_info["NAME"].lower()
+        # medium priority: git repository name
+        if self._repository:
+            return self._repository.name.lower()
+        # low priority (fallback): directory name
+        return os.path.basename(self.path).lower()
 
     @property
     def type(self):
