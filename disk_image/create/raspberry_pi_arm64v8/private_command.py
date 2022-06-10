@@ -119,6 +119,7 @@ APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     "initramfs-tools"
 ]
+DEFAULT_DOCKER_REGISTRY = "docker.io"
 
 
 class DTCommand(DTCommandAbs):
@@ -708,7 +709,15 @@ class DTCommand(DTCommandAbs):
                                     "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s"
                                     % (DEVICE_ARCH, destination)
                                 )
-                                replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
+                                replace_in_file("{ARCH}", "{ARCH:-%s}" %
+                                                DEVICE_ARCH, destination)
+                                # add registry as default value in the stack file
+                                dtslogger.debug(
+                                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
+                                    % (DEFAULT_DOCKER_REGISTRY, destination)
+                                )
+                                replace_in_file("{REGISTRY}", "{REGISTRY:-%s}" %
+                                                DEFAULT_DOCKER_REGISTRY, destination)
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
