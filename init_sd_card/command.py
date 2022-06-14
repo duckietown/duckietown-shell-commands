@@ -55,7 +55,7 @@ ROOT_PARTITIONS = ["root", "APP"]
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
-        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
+        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "3.0.0"},
         "jetson_nano_4gb": {"stable": "1.2.2", "experimental": "1.2.2"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
@@ -74,7 +74,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.2.0": "1.1",
             "1.2.1": "1.1",
         },
-        "raspberry_pi_64": {"2.0.0": "1.1"},
+        "raspberry_pi_64": {"2.0.0": "1.1", "3.0.0": "1.1"},
         "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1"},
         "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
@@ -86,7 +86,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi_64": f"dt-raspios-bullseye-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
