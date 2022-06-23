@@ -1,0 +1,27 @@
+version: '3.2'
+services:
+
+  demo:
+    image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
+    container_name: demo-fos-2022-lane-following
+    command: dt-launcher-event-fos-2022-rht
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  apriltag-behaviors:
+    image: ${REGISTRY}/duckietown/event-fos-2022:latest-${ARCH}
+    container_name: demo-fos-2022-apriltag-behaviors
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+volumes:
+  compose-data:
+  portainer-data:
