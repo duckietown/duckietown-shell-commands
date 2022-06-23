@@ -21,7 +21,3 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-volumes:
-  compose-data:
-  portainer-data:
