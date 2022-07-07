@@ -14,12 +14,12 @@ from utils.duckietown_utils import get_distro_version
 OTHER_IMAGES_TO_UPDATE = [
     "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
     "{registry}/duckietown/dt-core:{distro}-{arch}",
-    "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}",
-    "{registry}/duckietown/aido-base-python3:{distro}-{arch}",
+    # "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}",
+    # "{registry}/duckietown/aido-base-python3:{distro}-{arch}",
 ]
 
 

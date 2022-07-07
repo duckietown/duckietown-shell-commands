@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# the value passed to the trigger is available as first parameter
+value=$1
+
+# dry-run command
+command="status"
+
+# figure out the proper command
+if [[ "${value}" = "on" ]]; then
+    command="start"
+fi
+
+if [[ "${value}" = "off" ]]; then
+    command="stop"
+fi
+
+# enable/disable wifi client process
+systemctl ${command} wpa_supplicant.service
