@@ -20,6 +20,7 @@ MODULES_TO_LOAD_MINIMAL = [
     {"owner": "duckietown", "module": "dt-device-health"},
     {"owner": "duckietown", "module": "dt-device-online"},
     {"owner": "duckietown", "module": "dt-device-proxy"},
+    {"owner": "duckietown", "module": "dt-wifi-access-point"},
     {"owner": "duckietown", "module": "dt-files-api"},
     {"owner": "duckietown", "module": "dt-device-dashboard"},
     {"owner": "duckietown", "module": "dt-ros-commons"},
@@ -33,6 +34,7 @@ MODULES_TO_LOAD = MODULES_TO_LOAD_MINIMAL + [
     {"owner": "duckietown", "module": "dt-code-api"},
     {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
+    {"owner": "duckietown", "module": "dt-vscode"},
     {"owner": "duckietown", "module": "dt-gui-tools"},
 ]
 
