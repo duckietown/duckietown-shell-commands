@@ -86,6 +86,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # ---
         parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]
+        parsed.token = parsed.token if hasattr(parsed, "token") else None
         # check arguments
         # use the format [space]:[object] as a short for
         #      --space [space] [object]
