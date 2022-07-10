@@ -112,6 +112,7 @@ APT_PACKAGES_TO_INSTALL = [
     "avahi-daemon",
     "libnss-mdns",
     "docker-compose",
+    "sysprof",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
     "inotify-tools",
 ]
