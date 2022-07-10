@@ -129,11 +129,22 @@ run_on_every_boot() {
     # setup /etc/hosts
     setup_etc_hosts
 
+    # look for hostname changes
+    if [ -f /etc/.hostname ]; then
+        if cmp -s /etc/hostname /etc/.hostname; then
+            echo "Recreating containers after hostname change..."
+            dt-autoboot --force-recreate
+        fi
+    fi
+
     # run customizable any-boot script
     dt-init-any-boot
 
     # launch triggers handlers
     dt-serve-triggers
+
+    # keep track of hostname changes
+    cp /etc/hostname /etc/.hostname
 
     # mark event
     store_event "boot"

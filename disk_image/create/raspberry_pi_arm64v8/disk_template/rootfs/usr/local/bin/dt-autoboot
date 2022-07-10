@@ -19,6 +19,7 @@ for BOOT_STACK in "${BOOT_STACKS[@]}"; do
         --host "${DOCKER_SOCKET}" \
         --project-name "duckietown" \
         --file "${BOOT_STACK}" \
+        "$@" \
         up \
             -d
     echo "Autoboot stack should be now up!"
