@@ -583,11 +583,11 @@ class DTCommand(DTCommandAbs):
                 # get local docker client
                 local_docker = docker.from_env()
                 # pull dind image
-                pull_docker_image(local_docker, "arm64v8/docker:20.10.5-dind")
+                pull_docker_image(local_docker, "docker:20.10.5-dind")
                 # run auxiliary Docker engine
                 remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
-                    image="arm64v8/docker:20.10.5-dind",
+                    image="docker:20.10.5-dind",
                     detach=True,
                     remove=True,
                     auto_remove=True,
