@@ -74,7 +74,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.2.0": "1.1",
             "1.2.1": "1.1",
         },
-        "raspberry_pi_64": {"2.0.0": "1.1", "3.0.0": "1.1"},
+        "raspberry_pi_64": {"2.0.0": "1.1", "3.0.1": "1.1"},
         "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1"},
         "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
