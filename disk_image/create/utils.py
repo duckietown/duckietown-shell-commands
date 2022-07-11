@@ -219,13 +219,13 @@ def check_cli_tools(*args):
         check_program_dependency(cli_tool)
 
 
-def pull_docker_image(client, image):
+def pull_docker_image(client, image, platform=None):
     repository, tag = image.split(":")
     pbar = ProgressBar()
     total_layers = set()
     completed_layers = set()
-    dtslogger.info(f"Pulling image {image}...")
-    for step in client.api.pull(repository, tag, stream=True, decode=True):
+    dtslogger.info(f"Pulling image {image} (platform={platform or 'auto'})...")
+    for step in client.api.pull(repository, tag, stream=True, decode=True, platform=platform):
         if "status" not in step or "id" not in step:
             continue
         total_layers.add(step["id"])

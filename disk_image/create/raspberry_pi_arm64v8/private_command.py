@@ -618,7 +618,7 @@ class DTCommand(DTCommandAbs):
                             tag=module["tag"] if "tag" in module else None,
                             arch=DEVICE_ARCH,
                         )
-                        pull_docker_image(remote_docker, image)
+                        pull_docker_image(remote_docker, image, platform="linux/arm64")
                     # ---
                     dtslogger.info("Docker images successfully transferred!")
                 except Exception as e:
