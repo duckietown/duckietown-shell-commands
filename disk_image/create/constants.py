@@ -14,7 +14,7 @@ DOCKER_IMAGE_TEMPLATE = (
 )
 
 MODULES_TO_LOAD_MINIMAL = [
-    {"owner": "portainer", "module": "portainer", "tag": "1.24.1-alpine"},
+    {"owner": "portainer", "module": "portainer", "tag": "linux-arm-1.24.1-alpine"},
     {"owner": "duckietown", "module": "dt-base-environment"},
     {"owner": "duckietown", "module": "dt-commons"},
     {"owner": "duckietown", "module": "dt-device-health"},
