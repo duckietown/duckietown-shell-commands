@@ -277,8 +277,8 @@ def find_placeholders_on_disk(disk_image):
         shell=True,
     ).splitlines()
     # parse matches
-    matches = map(lambda m: m.split(" ")[::-1], matches)
-    matches = list(map(lambda m: (m[0], int(m[-1])), matches))
+    matches = map(lambda m: m.split(" ", maxsplit=1)[::-1], matches)
+    matches = list(map(lambda m: (m[0], int(m[1])), matches))
     # fix offset for strings attached to content from contiguous page
     placeholders = {}
     for string, offset in matches:
