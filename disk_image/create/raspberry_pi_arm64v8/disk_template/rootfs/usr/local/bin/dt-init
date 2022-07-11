@@ -32,6 +32,20 @@ store_event() {
 run_on_first_boot() {
     echo "Setting up the robot for its first ever boot..."
 
+    # copy configuration files
+    if [ -d /config ]; then
+        if [ -f /config/hostname ]; then
+            cp /config/hostname /etc/hostname
+            chmod 644 /etc/hostname
+            cp /config/hostname /config/hostname.loaded
+        fi
+        if [ -f /config/wpa_supplicant.conf ]; then
+            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
+            chmod 644 /etc/wpa_supplicant.conf
+            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
+        fi
+    fi
+
     # setup /etc/hosts
     echo "Setting up the environment..."
     setup_etc_hosts
@@ -126,25 +140,23 @@ run_on_first_boot() {
 run_on_every_boot() {
     echo "Setting up the robot for this boot..."
 
-    # setup /etc/hosts
-    setup_etc_hosts
-
-    # look for hostname changes
-    if [ -f /etc/.hostname ]; then
-        if cmp -s /etc/hostname /etc/.hostname; then
-            echo "Recreating containers after hostname change..."
-            dt-autoboot --force-recreate
+    # copy configuration files
+    if [ -d /config ]; then
+        if [ -f /config/wpa_supplicant.conf ]; then
+            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
+            chmod 644 /etc/wpa_supplicant.conf
+            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
         fi
     fi
+
+    # setup /etc/hosts
+    setup_etc_hosts
 
     # run customizable any-boot script
     dt-init-any-boot
 
     # launch triggers handlers
     dt-serve-triggers
-
-    # keep track of hostname changes
-    cp /etc/hostname /etc/.hostname
 
     # mark event
     store_event "boot"
