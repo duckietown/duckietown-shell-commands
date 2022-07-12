@@ -22,8 +22,6 @@ services:
     volumes:
       - /data:/data
       - /secrets:/secrets
-      # host /etc
-      - /etc:/host/etc
       # compose volume
       - compose-data:/user-data/databases
       # avahi socket
