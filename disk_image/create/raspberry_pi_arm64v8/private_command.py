@@ -70,7 +70,7 @@ from disk_image.create.utils import (
 DISK_IMAGE_PARTITION_TABLE = {"boot": 1, "rootfs": 2}
 ROOT_PARTITION = "rootfs"
 DISK_IMAGE_SIZE_GB = 10
-DISK_IMAGE_VERSION = "3.0.2"
+DISK_IMAGE_VERSION = "3.0.3"
 OS_VERSION = "04.04.2022"
 DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
