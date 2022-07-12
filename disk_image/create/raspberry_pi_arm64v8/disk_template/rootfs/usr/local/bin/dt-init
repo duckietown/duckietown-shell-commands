@@ -163,6 +163,25 @@ run_on_every_boot() {
     # launch triggers handlers
     dt-serve-triggers
 
+    # log containers
+    if [ -d /data/logs/containers ]; then
+        for d in /data/logs/containers/*; do
+            if [ -d "$d" ]; then
+                # $d is a directory, check if we have a container with that name
+                container_name=$(basename "${d}")
+                echo "Found directory ${d}, enabling logging for container ${container_name}"
+                if docker ps -q -f name="${container_name}" ; then
+                    log_file=$d/0.log
+                    echo "Container ${container_name} found. Logging to file ${log_file}"
+                    # container found
+                    docker logs -f "${container_name}" > "${log_file}" &
+                else
+                    echo "Container ${container_name} not found. Skipping logging."
+                fi
+            fi
+        done
+    fi
+
     # mark event
     store_event "boot"
 
