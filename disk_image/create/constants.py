@@ -35,7 +35,6 @@ MODULES_TO_LOAD = MODULES_TO_LOAD_MINIMAL + [
     {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
     {"owner": "duckietown", "module": "dt-vscode"},
-    {"owner": "duckietown", "module": "dt-gui-tools"},
 ]
 
 CLI_TOOLS_NEEDED = [
