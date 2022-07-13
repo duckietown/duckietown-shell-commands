@@ -172,6 +172,12 @@ class DTCommand(DTCommandAbs):
             help="Continue with the current artefact, do not overwrite (experts only)",
         )
         parser.add_argument(
+            "--fast-compression",
+            default=False,
+            action="store_true",
+            help="Use fast ZIP compression",
+        )
+        parser.add_argument(
             "--push",
             default=False,
             action="store_true",
@@ -844,7 +850,11 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
+            zip_cmd = ["zip", "-j"]
+            if parsed.fast_compression:
+                zip_cmd += ["-1"]
+            zip_cmd += [out_file_path("zip"), out_file_path("img"), out_file_path("json")]
+            run_cmd(zip_cmd)
             dtslogger.info("Done!")
             cache_step("compress")
             dtslogger.info("Step END: compress\n")
