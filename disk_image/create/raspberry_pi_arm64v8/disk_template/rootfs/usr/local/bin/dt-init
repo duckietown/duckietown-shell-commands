@@ -174,7 +174,7 @@ run_on_every_boot() {
                     log_file=$d/0.log
                     echo "Container ${container_name} found. Logging to file ${log_file}"
                     # container found
-                    docker logs -f "${container_name}" > "${log_file}" &
+                    docker logs --follow --timestamps "${container_name}" > "${log_file}" &
                 else
                     echo "Container ${container_name} not found. Skipping logging."
                 fi
