@@ -90,7 +90,7 @@ class VirtualSDCard:
             output = subprocess.check_output(cmd).decode("utf-8")
             devices = json.loads(output)
             for dev in devices["loopdevices"]:
-                if not ("(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] == self._disk_file):
+                if "(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] != self._disk_file:
                     continue
                 if not quiet:
                     dtslogger.info(f"Unmounting {self._disk_file} from {dev['name']}...")
