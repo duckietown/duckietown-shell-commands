@@ -8,6 +8,16 @@ command="status"
 
 # figure out the proper command
 if [[ "${value}" = "on" ]]; then
+    rfkill unblock wlan
+    command="start"
+fi
+
+if [[ "${value}" = "restart" ]]; then
+    systemctl stop wpa_supplicant.service
+    # clear blocking files
+    rm -rf /run/wpa_supplicant/*
+    # start
+    rfkill unblock wlan
     command="start"
 fi
 
