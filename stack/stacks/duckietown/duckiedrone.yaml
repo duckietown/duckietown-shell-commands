@@ -105,7 +105,7 @@ services:
   wifi-access-point:
     image: ${REGISTRY}/duckietown/dt-wifi-access-point:ente-${ARCH}
     container_name: wifi-access-point
-    restart: on-failure
+    restart: unless-stopped
     network_mode: host
     privileged: true
     volumes:
