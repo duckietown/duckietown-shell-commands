@@ -89,7 +89,7 @@ services:
   vscode:
     image: ${REGISTRY}/duckietown/dt-vscode:ente-${ARCH}
     container_name: vscode
-    restart: on-failure
+    restart: unless-stopped
     network_mode: host
     volumes:
       - /data:/data
@@ -110,6 +110,7 @@ services:
     privileged: true
     volumes:
       - /data:/data
+      - # host triggers
       - /triggers:/triggers
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
