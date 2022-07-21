@@ -110,7 +110,7 @@ services:
     privileged: true
     volumes:
       - /data:/data
-      - # host triggers
+      # host triggers
       - /triggers:/triggers
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
