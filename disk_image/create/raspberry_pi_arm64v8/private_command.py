@@ -105,6 +105,7 @@ MANDATORY_STEPS = ["create", "mount", "unmount"]
 APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
+    "emacs",
     "htop",
     "i2c-tools",
     "libraspberrypi-bin",
