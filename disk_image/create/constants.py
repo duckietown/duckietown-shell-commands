@@ -13,7 +13,7 @@ DOCKER_IMAGE_TEMPLATE = (
     + (f"{version}-{arch}" if tag is None else tag)
 )
 
-MODULES_TO_LOAD_MINIMAL = [
+MODULES_TO_LOAD = [
     {"owner": "portainer", "module": "portainer", "tag": "linux-arm-1.24.1-alpine"},
     {"owner": "duckietown", "module": "dt-base-environment"},
     {"owner": "duckietown", "module": "dt-commons"},
@@ -28,9 +28,6 @@ MODULES_TO_LOAD_MINIMAL = [
     {"owner": "duckietown", "module": "dt-car-interface"},
     {"owner": "duckietown", "module": "dt-rosbridge-websocket"},
     {"owner": "duckietown", "module": "dt-core"},
-]
-
-MODULES_TO_LOAD = MODULES_TO_LOAD_MINIMAL + [
     {"owner": "duckietown", "module": "dt-code-api"},
     {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-system-monitor"},

@@ -8,7 +8,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.constants import \
     AUTOBOOT_STACKS_DIR, \
-    MODULES_TO_LOAD_MINIMAL, \
+    MODULES_TO_LOAD, \
     DOCKER_IMAGE_TEMPLATE, \
     DEFAULT_DOCKER_REGISTRY
 from disk_image.create.utils import \
@@ -157,7 +157,7 @@ class DTCommand(DTCommandAbs):
                 remote_docker = docker.DockerClient(base_url=endpoint_url)
                 dtslogger.info("Transferring Docker images...")
                 # pull images inside the disk image
-                for module in MODULES_TO_LOAD_MINIMAL:
+                for module in MODULES_TO_LOAD:
                     image = DOCKER_IMAGE_TEMPLATE(
                         owner=module["owner"],
                         module=module["module"],
