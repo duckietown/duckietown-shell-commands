@@ -956,6 +956,7 @@ def launch_agent(
 
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
+    agent_container.exec_run(f"chmod +x /code/launchers/{config['agent_run_cmd']}")
 
     attach_cmd = "docker %s attach %s" % (
         "" if parsed.local else f"-H {duckiebot_name}.local",
