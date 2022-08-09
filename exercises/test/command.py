@@ -190,6 +190,13 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument("launcher", nargs="?", default=None, help="(Optional) Launcher to execute")
+        
+        parser.add_argument(
+            "--docker_image",
+            dest="docker_image",
+            default="",
+            help="Name of the Docker Image on which to run the exercise",
+        )
 
         parsed = parser.parse_args(args)
 
@@ -328,7 +335,7 @@ class DTCommand(DTCommandAbs):
             expman_spec = ImageRunSpec(add_registry(EXPERIMENT_MANAGER_IMAGE), expman_env, ports=[])
         # let's update the images based on arch
         ros_image = add_registry(f"{ROSCORE_IMAGE}-{arch}")
-        agent_base_image = add_registry(f"{agent_base_image0}-{arch}")
+        agent_base_image = add_registry(f"{agent_base_image0}-{arch}") if parsed.docker_image == "" else parsed.docker_image
         bridge_image = add_registry(f"{BRIDGE_IMAGE}-{arch}")
 
         # let's clean up any mess from last time
