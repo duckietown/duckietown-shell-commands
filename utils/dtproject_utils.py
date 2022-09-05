@@ -33,14 +33,42 @@ CANONICAL_ARCH = {
     "aarch64": "arm64v8",
 }
 
-BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
+BUILD_COMPATIBILITY_MAP = {
+    "arm32v7": ["arm32v7"],
+    "arm64v8": ["arm32v7", "arm64v8"],
+    "amd64": ["amd64"]
+}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
 CLOUD_BUILDERS = {
-    "arm32v7": ["build-arm.duckietown.org"],
-    "arm64v8": ["build-arm.duckietown.org"],
-    "amd64": ["ec2-3-210-65-73.compute-1.amazonaws.com"],
+    "arm32v7": ["172.27.0.102"],
+    "arm64v8": ["172.27.0.102"],
+    "amd64": ["172.27.0.101"],
+}
+
+ARCH_TO_PLATFORM = {
+    "arm32v7": "linux/arm/v7",
+    "arm64v8": "linux/arm64",
+    "amd64": "linux/amd64"
+}
+
+ARCH_TO_PLATFORM_OS = {
+    "arm32v7": "linux",
+    "arm64v8": "linux",
+    "amd64": "linux"
+}
+
+ARCH_TO_PLATFORM_ARCH = {
+    "arm32v7": "arm",
+    "arm64v8": "arm64",
+    "amd64": "amd64"
+}
+
+ARCH_TO_PLATFORM_VARIANT = {
+    "arm32v7": "v7",
+    "arm64v8": "",
+    "amd64": ""
 }
 
 TEMPLATE_TO_SRC = {
@@ -214,6 +242,18 @@ class DTProject:
         docs = "-docs" if docs else ""
         version = re.sub(r"[^\w\-.]", "-", self.head_version)
         return f"{registry}/{owner}/{self.name}:{version}{docs}-{arch}"
+
+    def manifest(
+        self,
+        *,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
+    ) -> str:
+        if version is None:
+            version = re.sub(r"[^\w\-.]", "-", self.version_name)
+
+        return f"{registry}/{owner}/{self.name}:{version}"
 
     def ci_metadata(
         self,

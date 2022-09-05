@@ -3,7 +3,7 @@ import platform
 import re
 import subprocess
 from os.path import expanduser
-from typing import Tuple
+from typing import Tuple, Optional
 
 import docker
 from docker import DockerClient
@@ -97,7 +97,9 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     return CANONICAL_ARCH[epoint_arch]
 
 
-def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
+def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optional[str]:
+    if baseurl is None:
+        return None
     if baseurl.startswith("unix:"):
         return baseurl
     elif baseurl.startswith("tcp://"):
