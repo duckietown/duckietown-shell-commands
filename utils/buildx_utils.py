@@ -4,6 +4,11 @@ import stat
 from pathlib import Path
 
 import requests
+from dt_shell import UserError
+
+from pydock import DockerClient
+
+from .misc_utils import parse_version
 
 DOCKER_INFO = """
 Docker Endpoint:
@@ -20,7 +25,7 @@ DEFAULT_BUILDX_VERSION = "0.9.1"
 
 
 def install_buildx(version: str = DEFAULT_BUILDX_VERSION):
-    from utils.dtproject_utils import CANONICAL_ARCH
+    from .dtproject_utils import CANONICAL_ARCH
     version = version.lstrip("v")
     # get machine architecture
     machine = platform.machine()
@@ -45,3 +50,30 @@ def install_buildx(version: str = DEFAULT_BUILDX_VERSION):
     # make binary executable
     f = Path(local)
     f.chmod(f.stat().st_mode | stat.S_IEXEC)
+
+
+def ensure_buildx_version(client: DockerClient, v: str):
+    version = client.buildx.version()
+    vnow_str = version['version']
+    vnow = parse_version(vnow_str)
+    if v.endswith("+"):
+        vneed_str = v.rstrip("+")
+        vneed = parse_version(vneed_str)
+        if vnow < vneed:
+            msg = f"""
+
+Detected Docker Buildx {vnow_str} but this command needs Docker Buildx >= {vneed_str}.
+Please, update your Docker Buildx before continuing.
+            
+            """
+            raise UserError(msg)
+    else:
+        vneed = parse_version(v)
+        if vnow != vneed:
+            msg = f"""
+
+Detected Docker Buildx {vnow_str} but this command needs Docker Buildx == {v}.
+Please, install the correct version before continuing.
+            
+            """
+            raise UserError(msg)

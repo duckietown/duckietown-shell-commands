@@ -2,7 +2,7 @@ import ipaddress
 import subprocess
 from shutil import which
 
-__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open"]
+__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version"]
 
 
 def human_time(time_secs, compact=False):
@@ -51,3 +51,8 @@ def sudo_open(path, mode, *_, **__):
     # ---
     proc = subprocess.Popen(["sudo", tool, path], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     return proc.stdout if mode == "r" else proc.stdin
+
+
+def parse_version(v: str) -> tuple:
+    return tuple(map(int, (v.split("."))))
+

@@ -9,14 +9,14 @@ import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
+from typing import Optional
 
 from docker.errors import ImageNotFound
-from termcolor import colored
-
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from duckietown_docker_utils import ENV_REGISTRY
-
-from utils.buildx_utils import install_buildx, DOCKER_INFO
+from pydock import DockerClient
+from termcolor import colored
+from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
 from utils.cli_utils import ask_confirmation, start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -28,6 +28,7 @@ from utils.docker_utils import (
     pull_image,
     sanitize_docker_baseurl,
     get_client,
+    ensure_docker_version
 )
 from utils.dtproject_utils import (
     CANONICAL_ARCH,
@@ -42,10 +43,8 @@ from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
+
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
-
-from python_on_whales import DockerClient
-
 
 
 class DTCommand(DTCommandAbs):
@@ -53,6 +52,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        # check docker version
+
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -114,7 +115,8 @@ class DTCommand(DTCommandAbs):
             help="Build arguments to pass to Docker build",
         )
         parser.add_argument(
-            "--push", default=False, action="store_true", help="Whether to push the resulting image"
+            "--push", default=False, action="store_true",
+            help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--rm",
@@ -355,9 +357,16 @@ class DTCommand(DTCommandAbs):
                 labels[label] = json.dumps(cfg_data)
 
         # create docker client
-        docker = DockerClient(host=sanitize_docker_baseurl(parsed.machine), debug=debug)
+        host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
+        docker = DockerClient(host=host, debug=debug)
 
-        # TODO: this should be removed, use python-on-whales only
+        # ensure docker version
+        ensure_docker_version(docker, "1.4.0+")
+
+        # ensure buildx version
+        ensure_buildx_version(docker, "0.8.0+")
+
+        # TODO: this should be removed, use pydock only
         client = get_client(parsed.machine)
 
         # make sure buildx is installed
@@ -510,7 +519,8 @@ class DTCommand(DTCommandAbs):
                 time_label = dtlabel("time")
                 sha_label = dtlabel("code.sha")
                 dtslogger.debug(
-                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4, sort_keys=True)
+                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4,
+                                                              sort_keys=True)
                 )
                 if time_label in image_labels and sha_label in image_labels:
                     remote_time = image_labels[time_label]
@@ -581,7 +591,7 @@ class DTCommand(DTCommandAbs):
 
         # update manifest
         if parsed.push:
-            # TODO: implement this in python-on-whales
+            # TODO: implement this in pydock
             start_command_in_subprocess(
                 "docker "
                 f"-H {parsed.machine} "
