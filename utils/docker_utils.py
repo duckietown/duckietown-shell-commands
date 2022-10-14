@@ -2,6 +2,7 @@ import os
 import platform
 import re
 import subprocess
+import traceback
 from os.path import expanduser
 from typing import Tuple, Optional
 
@@ -133,7 +134,7 @@ def get_client(endpoint=None):
     # AC: not the place to do it - note that we also would need to login to multiple registries in some cases
     # (try to) login
     # try:
-    #     _login_client(client, registry=registry)
+    #     _login_client_OLD(client, registry=registry)
     # except BaseException:
     #     dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     # # ---
@@ -150,7 +151,7 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
     else:
         registry = DEFAULT_REGISTRY
         try:
-            _login_client(client, registry, env_username, env_password, raise_on_error=False)
+            _login_client_OLD(client, registry, env_username, env_password, raise_on_error=False)
         except BaseException:
             dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
@@ -170,7 +171,7 @@ class CouldNotLogin(Exception):
     pass
 
 
-def login_client(client: DockerClientOLD, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
     """Raises CouldNotLogin"""
     if registry not in shell_config.docker_credentials:
         msg = f"Cannot find {registry!r} in available config credentials.\n"
@@ -202,7 +203,52 @@ def login_client(client: DockerClientOLD, shell_config: ShellConfig, registry: s
         )
 
 
-def _login_client(client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool):
+def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True):
+    """Raises CouldNotLogin"""
+    password_hidden = hide_string(password)
+    dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+    # noinspection PyBroadException
+    try:
+        client.login(server=registry, username=username, password=password)
+    except BaseException:
+        if raise_on_error:
+            traceback.print_exc()
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
+
+
+def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
+    if registry not in shell_config.docker_credentials:
+        msg = f"Cannot find {registry!r} in available config credentials.\n"
+        msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+        msg += (
+            f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
+            f"--docker-password ...\n"
+        )
+        msg += "\nfor each of the servers"
+
+        if raise_on_error:
+            dtslogger.error(msg)
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
+        else:
+            dtslogger.warn(msg)
+            dtslogger.warn("I will try to continue because raise_on_error = False.")
+
+    else:
+        reg_credentials = shell_config.docker_credentials[registry]
+        docker_username = reg_credentials["username"]
+        docker_password = reg_credentials["secret"]
+
+        _login_client_OLD(
+            client,
+            username=docker_username,
+            password=docker_password,
+            registry=registry,
+            raise_on_error=raise_on_error,
+        )
+
+
+def _login_client_OLD(client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")

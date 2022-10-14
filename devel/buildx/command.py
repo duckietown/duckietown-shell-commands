@@ -17,7 +17,7 @@ from duckietown_docker_utils import ENV_REGISTRY
 from pydock import DockerClient
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
-from utils.cli_utils import ask_confirmation, start_command_in_subprocess
+from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     copy_docker_env_into_configuration,
@@ -406,8 +406,10 @@ class DTCommand(DTCommandAbs):
         epoint["mem_total"] = human_size(epoint["mem_total"])
         print(DOCKER_INFO.format(**epoint))
 
+        # login client
         copy_docker_env_into_configuration(shell.shell_config)
-        login_client(client, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)

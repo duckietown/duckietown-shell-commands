@@ -13,7 +13,7 @@ from utils.docker_utils import (
     build_logs_to_string,
     get_endpoint_architecture,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
 )
 from utils.dtproject_utils import DTProject
 
@@ -128,7 +128,7 @@ class DTCommand(DTCommandAbs):
         # Get a docker client
         dclient = docker.from_env()
 
-        login_client(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
+        login_client_OLD(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
 
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")

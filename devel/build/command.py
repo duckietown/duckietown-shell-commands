@@ -24,7 +24,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
     pull_image,
 )
 from utils.dtproject_utils import (
@@ -335,7 +335,7 @@ class DTCommand(DTCommandAbs):
         print(DOCKER_INFO.format(**epoint))
 
         copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
