@@ -501,7 +501,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Found an image with the same name. Using it as cache source.")
             # configure cache
             if parsed.force_cache and is_present:
-                cache_from = [image]
+                cache_from = image
 
         # stamp image
         build_time = "ND"
