@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, List
 
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -44,6 +44,8 @@ from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
+from pydock.components.buildx.imagetools.models import Manifest
+from pydock.exceptions import NoSuchManifest
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 
@@ -115,8 +117,16 @@ class DTCommand(DTCommandAbs):
             help="Build arguments to pass to Docker build",
         )
         parser.add_argument(
-            "--push", default=False, action="store_true",
+            "--push",
+            default=False,
+            action="store_true",
             help="Whether to push the resulting image"
+        )
+        parser.add_argument(
+            "--manifest",
+            default=False,
+            action="store_true",
+            help="Whether to create/update the corresponding manifest"
         )
         parser.add_argument(
             "--rm",
@@ -593,16 +603,38 @@ class DTCommand(DTCommandAbs):
         dimage = client.images.get(image)
 
         # update manifest
-        if parsed.push:
-            # TODO: implement this in pydock
-            start_command_in_subprocess(
-                "docker "
-                f"-H {parsed.machine} "
-                "buildx imagetools create "
-                "--append "
-                f"--tag {manifest} "
-                f"{image}"
-            )
+        dmanifest: Optional[Manifest] = None
+        if parsed.manifest:
+            # check if a manifest already exists
+            dmanifest = docker.manifest.inspect(manifest)
+            amend = dmanifest is not None
+            if amend:
+                dtslogger.info(f"A manifest with name '{manifest}' already exists, updating...")
+            else:
+                dtslogger.info(f"A new manifest with name '{manifest}' will be created.")
+            # find list of images available online
+            manifest_images: List[str] = []
+            for manifest_arch in ARCH_TO_PLATFORM:
+                manifest_image = project.image(
+                    arch=manifest_arch,
+                    loop=parsed.loop,
+                    owner=parsed.username,
+                    registry=registry_to_use,
+                    version=version,
+                )
+                try:
+                    docker.manifest.inspect(manifest_image)
+                except NoSuchManifest:
+                    dtslogger.debug(f"Image '{manifest_image}' not found")
+                    continue
+                manifest_images.append(manifest_image)
+            # update manifest
+            docker.manifest.create(manifest, manifest_images, amend=amend)
+            # get manifest
+            dmanifest = docker.manifest.inspect(manifest)
+            # push manifest
+            if parsed.push:
+                docker.manifest.push(manifest)
 
         # build code docs
         if parsed.docs:
@@ -633,7 +665,10 @@ class DTCommand(DTCommandAbs):
             )
         )
         # - manifest
-        extra_info.append(f"Manifest: {manifest}")
+        if parsed.manifest:
+            extra_info.append(f"Manifest: {manifest}")
+            for m in dmanifest.manifests:
+                extra_info.append(f" - {str(m.platform.as_string())}")
         # compile extra info
         extra_info = "\n".join(extra_info)
 
