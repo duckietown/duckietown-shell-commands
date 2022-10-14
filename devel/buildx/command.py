@@ -371,15 +371,6 @@ class DTCommand(DTCommandAbs):
         host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
         docker = DockerClient(host=host, debug=debug)
 
-        # ensure docker version
-        ensure_docker_version(docker, "1.4.0+")
-
-        # ensure buildx version
-        ensure_buildx_version(docker, "0.8.0+")
-
-        # TODO: this should be removed, use pydock only
-        client = get_client(parsed.machine)
-
         # make sure buildx is installed
         if not docker.buildx.is_installed():
             install = ask_confirmation(
@@ -393,6 +384,15 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Installing buildx...")
             install_buildx()
             dtslogger.info("Buildx installed!")
+
+        # ensure docker version
+        ensure_docker_version(docker, "1.4.0+")
+
+        # ensure buildx version
+        ensure_buildx_version(docker, "0.8.0+")
+
+        # TODO: this should be removed, use pydock only
+        client = get_client(parsed.machine)
 
         # build-arg NCPUS
         docker_build_args["NCPUS"] = (
