@@ -81,6 +81,8 @@ class DTCommand(DTCommandAbs):
             "TEMPLATE_VERSION": template_version,
             "APPLY_DIFF": str(int(parsed.apply)),
         }
+        if parsed.apply:
+            dtslogger.info("Applying diff...")
         p = subprocess.Popen(script_path, env=env, shell=True)
         p.communicate()
 

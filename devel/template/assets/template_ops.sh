@@ -36,8 +36,11 @@ if [ "${APPLY_DIFF}" != "1" ]; then
         ':!code' \
         ':!html' \
         ':!docs' \
+        ':!launchers' \
         ':!packages' \
         ':!dependencies*' \
+        ':!configurations.yaml' \
+        ':!.dtproject' \
         ':!.github' \
         ':!.bumpversion.cfg' \
         ':!README.md' \
@@ -60,8 +63,11 @@ if [ "${APPLY_DIFF}" = "1" ]; then
           ':!code' \
           ':!html' \
           ':!docs' \
+          ':!launchers' \
           ':!packages' \
           ':!dependencies*' \
+          ':!configurations.yaml' \
+          ':!.dtproject' \
           ':!.github' \
           ':!.bumpversion.cfg' \
           ':!README.md' \
