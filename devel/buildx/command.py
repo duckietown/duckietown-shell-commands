@@ -401,6 +401,9 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
+        # architecture target
+        docker_build_args["ARCH"] = parsed.arch
+
         # create defaults
         image = project.image(
             arch=parsed.arch,
