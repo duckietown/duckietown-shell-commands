@@ -114,7 +114,7 @@ TEMPLATE_TO_LAUNCHFILE = {
     "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
 }
 
-DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}
+DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO", "3": "DISTRO"}
 
 DOCKER_HUB_API_URL = {
     "token": "https://auth.docker.io/token?scope=repository:{image}:pull&service=registry.docker.io",
