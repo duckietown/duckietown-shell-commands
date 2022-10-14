@@ -47,9 +47,9 @@ BUILD_COMPATIBILITY_MAP = {
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
 CLOUD_BUILDERS = {
-    "arm32v7": ["172.27.0.102"],
-    "arm64v8": ["172.27.0.102"],
-    "amd64": ["172.27.0.101"],
+    "arm32v7": ["172.27.0.102:2376"],
+    "arm64v8": ["172.27.0.102:2376"],
+    "amd64": ["172.27.0.101:2376"],
 }
 
 ARCH_TO_PLATFORM = {
