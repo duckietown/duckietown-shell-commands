@@ -270,6 +270,7 @@ class DTCommand(DTCommandAbs):
             parsed.push = True
             parsed.rm = True
             parsed.stamp = True
+            parsed.manifest = True
             parsed.force_cache = True
             keys_required = ["DT_TOKEN"]
             # TODO: this is temporary given that we have separate accounts for pulling/pushing
