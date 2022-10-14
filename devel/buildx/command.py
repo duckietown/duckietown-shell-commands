@@ -373,13 +373,14 @@ class DTCommand(DTCommandAbs):
 
         # make sure buildx is installed
         if not docker.buildx.is_installed():
-            install = ask_confirmation(
-                "The CLI plugin for docker 'buildx' is not installed.",
-                question="Do you want to install it?"
-            )
-            if not install:
-                dtslogger.info("Aborting.")
-                return
+            if not parsed.ci:
+                install = ask_confirmation(
+                    "The CLI plugin for docker 'buildx' is not installed.",
+                    question="Do you want to install it?"
+                )
+                if not install:
+                    dtslogger.info("Aborting.")
+                    return
             # install buildx
             dtslogger.info("Installing buildx...")
             install_buildx()
