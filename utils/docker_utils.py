@@ -17,7 +17,7 @@ from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 from .cli_utils import start_command_in_subprocess
-from .networking_utils import get_duckiebot_ip
+from .networking_utils import get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
 from .misc_utils import parse_version
 
@@ -107,9 +107,9 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
     if baseurl.startswith("unix:"):
         return baseurl
     elif baseurl.startswith("tcp://"):
-        return baseurl
+        return resolve_hostname(baseurl)
     else:
-        return f"tcp://{baseurl}:{port}"
+        return f"tcp://{resolve_hostname(baseurl)}:{port}"
 
 
 def get_client(endpoint=None):

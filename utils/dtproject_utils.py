@@ -16,7 +16,12 @@ from docker.errors import APIError, ImageNotFound
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 
-REQUIRED_METADATA_KEYS = {"*": ["TYPE_VERSION"], "1": ["TYPE", "VERSION"], "2": ["TYPE", "VERSION"]}
+REQUIRED_METADATA_KEYS = {
+    "*": ["TYPE_VERSION"],
+    "1": ["TYPE", "VERSION"],
+    "2": ["TYPE", "VERSION"],
+    "3": ["TYPE", "VERSION"],
+}
 
 CANONICAL_ARCH = {
     "arm": "arm32v7",
@@ -75,14 +80,17 @@ TEMPLATE_TO_SRC = {
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/{:s}/".format(repo)),
     },
     "template-ros": {
         "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
     },
     "template-core": {
         "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
     },
     "template-exercise": {"1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo))},
 }
@@ -91,18 +99,19 @@ TEMPLATE_TO_LAUNCHFILE = {
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
     "template-ros": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
     "template-core": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {
-        "1": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
-    },
+    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO"}
