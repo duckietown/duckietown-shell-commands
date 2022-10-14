@@ -55,6 +55,9 @@ class DTCommand(DTCommandAbs):
         template = project.type
         if parsed.template is not None:
             template = parsed.template
+        if template == "none":
+            dtslogger.info("No templates to compare against.")
+            return
         # prepend `duckietown/` if a user is not given
         if "/" not in template:
             template = f"duckietown/{template}"
