@@ -19,6 +19,7 @@ class BuildLayer:
     command: str
     size: float
     id: Optional[str] = None
+    index: Optional[int] = None
 
 
 @dataclasses.dataclass
@@ -122,20 +123,28 @@ class ImageAnalyzer(object):
 
         # map steps to layers
         j = len(historylog) - 1
+        base_image_size = 0
+        final_image_size = 0
+
         for stepno in sorted(buildsteps.keys()):
             buildstep = buildsteps[stepno]
             while j >= 0:
                 layerid, layersize, layercmd = historylog[j]
                 layertype, layercmd = layercmd.split(" ", maxsplit=1)
                 j -= 1
+
+                final_image_size += layersize
                 if stepno == last_FROM or layertype == buildstep.type:
                     buildstep.layer = BuildLayer(
                         type=layertype,
                         command=layercmd,
-                        id=layerid if "missing" not in layerid else None,
                         size=layersize,
+                        id=layerid if "missing" not in layerid else None,
+                        index=j
                     )
                     break
+                else:
+                    base_image_size += layersize
 
         # for each Step, find the layer ID
         cached_layers = 0
@@ -159,7 +168,7 @@ class ImageAnalyzer(object):
             bg_color = "white"
             fg_color = "grey"
             # ---
-            if buildstep.layer.size is not None:
+            if buildstep.layer is not None and buildstep.layer.size is not None:
                 layersize = size_fmt(buildstep.layer.size)
                 fg_color = "white"
                 bg_color = "yellow" if buildstep.layer.size > LAYER_SIZE_YELLOW else "green"
@@ -192,10 +201,6 @@ class ImageAnalyzer(object):
         # get info about layers
         tot_layers = len(buildsteps)
         cached_layers = min(tot_layers, cached_layers)
-
-        # compute size of base and final image
-        base_image_size = buildsteps[1].layer.size
-        final_image_size = sum([buildsteps[sn].layer.size for sn in sorted(buildsteps.keys())[1:]])
 
         # print info about the whole image
         print()
