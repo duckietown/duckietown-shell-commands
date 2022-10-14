@@ -597,8 +597,7 @@ class DTCommand(DTCommandAbs):
                 f"-H {parsed.machine} "
                 "buildx imagetools create "
                 "--append "
-                "--tag "
-                f"{manifest} "
+                f"--tag {manifest} "
                 f"{image}"
             )
 
@@ -631,7 +630,7 @@ class DTCommand(DTCommandAbs):
             )
         )
         # - manifest
-        extra_info.append(f"Manifest name: {manifest}")
+        extra_info.append(f"Manifest: {manifest}")
         # compile extra info
         extra_info = "\n".join(extra_info)
 
