@@ -109,7 +109,12 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
     elif baseurl.startswith("tcp://"):
         return resolve_hostname(baseurl)
     else:
-        return f"tcp://{resolve_hostname(baseurl)}:{port}"
+        url = resolve_hostname(baseurl)
+        if not url.startswith("tcp://"):
+            url = f"tcp://{url}"
+        if url.count(":") == 1:
+            url = f"{url}:{port}"
+        return url
 
 
 def get_client(endpoint=None):

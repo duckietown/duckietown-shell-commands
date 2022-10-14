@@ -27,12 +27,12 @@ def resolve_hostname(hostname: str) -> str:
     protocol = ""
     if "://" in hostname:
         idx = hostname.index("://")
-        protocol, hostname = hostname[0:idx], hostname[idx+1:]
+        protocol, hostname = hostname[0:idx+len("://")], hostname[idx+len("://"):]
     # separate port (if any)
     port = ""
     if ":" in hostname:
         idx = hostname.index(":")
-        hostname, port = hostname[0:idx], hostname[idx+1:]
+        hostname, port = hostname[0:idx], hostname[idx:]
     # perform name resolution
     ip = socket.gethostbyname(hostname)
     return protocol + ip + port
