@@ -20,6 +20,7 @@ from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_versio
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
     DEFAULT_MACHINE,
+    DEFAULT_REGISTRY,
     copy_docker_env_into_configuration,
     get_endpoint_architecture,
     get_endpoint_ncpus,
@@ -150,7 +151,8 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image." "Use when the base image is also a development version",
+            help="Docker tag for the base image."
+                 "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -563,6 +565,19 @@ class DTCommand(DTCommandAbs):
             "tags": [image],
             "platforms": [ARCH_TO_PLATFORM[arch] for arch in parsed.arch.split(",")]
         }
+
+        # when building on CI, we also want to push the real tag to the public default registry
+        if parsed.ci:
+            pimage = project.image(
+                arch=parsed.arch,
+                loop=parsed.loop,
+                owner=parsed.username,
+                # NOTE: this is the public default registry
+                registry=DEFAULT_REGISTRY,
+                # NOTE: this is usually the repo's branch name
+                version=project.version_name,
+            )
+            buildargs["tags"].append(pimage)
 
         # explicit cache source
         if cache_from:
