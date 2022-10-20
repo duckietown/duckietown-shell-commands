@@ -8,19 +8,18 @@ from typing import Tuple, Optional
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
-from docker.errors import NotFound
 from docker import DockerClient as DockerClientOLD
-
-from pydock import DockerClient
-
+from docker.errors import NotFound
 from dt_shell import dtslogger, UserError
 from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
+
+from pydock import DockerClient
 from .cli_utils import start_command_in_subprocess
+from .misc_utils import parse_version
 from .networking_utils import get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
-from .misc_utils import parse_version
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -126,7 +125,8 @@ def get_client(endpoint=None):
         client = (
             endpoint
             if isinstance(endpoint, DockerClientOLD)
-            else DockerClientOLD(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
+            else DockerClientOLD(base_url=sanitize_docker_baseurl(endpoint),
+                                 timeout=DEFAULT_API_TIMEOUT)
         )
 
     # FIXME: AFD to review
@@ -153,25 +153,30 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
         try:
             _login_client_OLD(client, registry, env_username, env_password, raise_on_error=False)
         except BaseException:
-            dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
+            dtslogger.warning(
+                f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
 
 
-def copy_docker_env_into_configuration(shell_config: ShellConfig):
-    registry = get_registry_to_use()
+def copy_docker_env_into_configuration(shell_config: ShellConfig, registry: Optional[str] = None):
+    registry = registry or get_registry_to_use()
     try:
         env_username, env_password = get_docker_auth_from_env()
     except AuthNotFound:
         pass
     else:
-        shell_config.docker_credentials[registry] = {"username": env_username, "secret": env_password}
+        shell_config.docker_credentials[registry] = {
+            "username": env_username,
+            "secret": env_password
+        }
 
 
 class CouldNotLogin(Exception):
     pass
 
 
-def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
+                 raise_on_error: bool):
     """Raises CouldNotLogin"""
     if registry not in shell_config.docker_credentials:
         msg = f"Cannot find {registry!r} in available config credentials.\n"
@@ -203,7 +208,8 @@ def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
         )
 
 
-def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True):
+def _login_client(client: DockerClient, registry: str, username: str, password: str,
+                  raise_on_error: bool = True):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
@@ -216,7 +222,8 @@ def _login_client(client: DockerClient, registry: str, username: str, password: 
             raise CouldNotLogin(f"Could not login to {registry!r}.")
 
 
-def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str,
+                     raise_on_error: bool):
     """Raises CouldNotLogin"""
     if registry not in shell_config.docker_credentials:
         msg = f"Cannot find {registry!r} in available config credentials.\n"
@@ -248,7 +255,8 @@ def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registr
         )
 
 
-def _login_client_OLD(client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool):
+def _login_client_OLD(client: DockerClientOLD, registry: str, username: str, password: str,
+                      raise_on_error: bool):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
@@ -457,7 +465,9 @@ def start_picamera(duckiebot_name):
     duckiebot_client.images.pull(RPI_DUCKIEBOT_ROS_PICAM)
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
-    dtslogger.info(f"Running {RPI_DUCKIEBOT_ROS_PICAM} on {duckiebot_name} with environment vars: {env_vars}")
+    dtslogger.info(
+        f"Running {RPI_DUCKIEBOT_ROS_PICAM} on {duckiebot_name} with environment vars: {env_vars}"
+    )
 
     return duckiebot_client.containers.run(
         image=RPI_DUCKIEBOT_ROS_PICAM,
@@ -507,7 +517,8 @@ def remove_if_running(client: DockerClientOLD, container_name: str):
 
 def start_rqt_image_view(duckiebot_name=None):
     dtslogger.info(
-        """{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format("*" * 20)
+        """{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format(
+            "*" * 20)
     )
     local_client = check_docker_environment()
 
