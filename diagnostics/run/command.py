@@ -18,6 +18,7 @@ LOG_DEFAULT_SUBGROUP = "default"
 LOG_DEFAULT_APP_ID = "duckietown_user_443_dts_daffy_diagnostics_run"
 LOG_DEFAULT_APP_SECRET = "VvXITEzPuaGwdXC03vCeHnYYjqUOoEc9ZZIJu8oO9UacID3B"
 AVAHI_SOCKET_FILE = "/var/run/avahi-daemon/socket"
+STORAGE_FOLDER = "/tmp"
 
 LOG_API_PROTOCOL = "https"
 LOG_API_HOSTNAME = "dashboard.duckietown.org"
@@ -111,6 +112,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-vv", "--verbose", dest="verbose", action="store_true", default=False, help="Run in verbose mode"
         )
+        parser.add_argument(
+            "--no-upload", dest="no_upload", action="store_true", default=False, help="Do not upload the statistics to the Duckietown server."
+        )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         if parsed.app_id is None:
@@ -164,6 +168,7 @@ class DTCommand(DTCommandAbs):
             "--rm",
             "--net=host",
             "--volume={avahi_socket:s}:{avahi_socket:s}".format(avahi_socket=AVAHI_SOCKET_FILE),
+            "--volume={storage_folder:s}:{storage_folder:s}".format(storage_folder=STORAGE_FOLDER),
         ]
         # create image name
         image = DIAGNOSTICS_IMAGE.format(version=get_distro_version(shell), arch=image_arch)
@@ -187,6 +192,9 @@ class DTCommand(DTCommandAbs):
         cli_args += ["--group", parsed.group]
         cli_args += ["--subgroup", parsed.subgroup]
         cli_args += ["--duration", str(parsed.duration)]
+        
+        if parsed.no_upload:
+            cli_args += ["--no-upload"]
         if parsed.debug:
             cli_args += ["--debug"]
         if parsed.verbose:
