@@ -1,15 +1,16 @@
 import argparse
+import glob
 import json
 import logging
 import os
 import signal
-import time
 import uuid
 from typing import Optional
 
-import pydock
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.constants import DTShellConstants
 
+import pydock
 from pydock import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import (
@@ -51,6 +52,13 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest version of the VSCode image available",
         )
         parser.add_argument(
+            "-p",
+            "--port",
+            default=0,
+            type=int,
+            help="Port to bind to. A random port will be assigned by default"
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -90,6 +98,9 @@ class DTCommand(DTCommandAbs):
 
         # variables
         debug = dtslogger.level <= logging.DEBUG
+        # - location for SSL certificate and key
+        root: str = os.path.expanduser(DTShellConstants.ROOT)
+        ssl_dir: str = os.path.join(root, "secrets", "mkcert", "ssl")
 
         # conflicting arguments
         if parsed.image and parsed.arch:
@@ -107,6 +118,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning("You pointed VSCode to a file, opening its parent directory instead")
             parsed.workdir = os.path.dirname(parsed.workdir)
         parsed.workdir = os.path.abspath(parsed.workdir)
+
+        # SSL keys are required
+        if len(glob.glob(os.path.join(ssl_dir, "*.pem"))) != 2:
+            dtslogger.error("An SSL key pair needs to be generated first. Run the following "
+                            "command to create one:\n\n"
+                            "\t$ dts setup mkcert\n\n")
+            return
 
         # sanitize hostname
         if parsed.machine is not None:
@@ -145,10 +163,16 @@ class DTCommand(DTCommandAbs):
         args = {
             "image": image,
             "detach": True,
+            "remove": True,
             "volumes": [
+                # needed by the container to figure out the GID of `docker` on the host
                 ("/etc/group", "/host/etc/group", "ro"),
+                # needed by VSCode to run in a safe context, nothing works in VSCode via HTTP
+                (ssl_dir, "/ssl", "ro"),
+                # this is the actual workspace
                 (parsed.workdir, workdir, "rw"),
             ],
+            "publish": [(f"127.0.0.1:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
             "workdir": workdir
         }
@@ -156,13 +180,18 @@ class DTCommand(DTCommandAbs):
                         f"{json.dumps(args, indent=4, sort_keys=True)}\n")
         container = docker.run(**args)
 
+        # find port exposed by the OS
+        port: str = container.network_settings.ports[f"{VSCODE_PORT}/tcp"][0]["HostPort"]
+
         # print URL to VSCode
-        container_ip: str = container.network_settings.ip_address
-        dtslogger.info("\nYou can open VSCode in your browser by visiting the URL:\n"
-                       "\n"
-                       f"\t> http://{container_ip}:{VSCODE_PORT}\n"
-                       f"\n"
-                       f"--------------------------------------------------------")
+        dtslogger.info(
+            "\nYou can open VSCode in your browser by visiting the URL:\n"
+            "\n"
+            f"\t> https://localhost:{port}\n"
+            f"\n"
+            f"VSCode might take a few seconds to be ready...\n"
+            f"--------------------------------------------------------"
+        )
 
         # attach
         if parsed.detach:
@@ -186,7 +215,6 @@ class DTCommand(DTCommandAbs):
             except pydock.exceptions.DockerException as e:
                 if not DTCommand.requested_stop:
                     raise e
-
 
     @staticmethod
     def complete(shell, word, line):
