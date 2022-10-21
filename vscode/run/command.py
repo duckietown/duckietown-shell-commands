@@ -137,7 +137,7 @@ class DTCommand(DTCommandAbs):
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = docker.info().dict()
-        epoint["mem_total"] = human_size(epoint["mem_total"])
+        epoint["mem_total"] = human_size(epoint["mem_total"]) if epoint["mem_total"] else "ND"
         print(DOCKER_INFO.format(**epoint))
 
         # pick the right architecture if not set
