@@ -34,7 +34,7 @@ usage = """
 
 BRANCH = "daffy"
 ARCH = "amd64"
-ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
+ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-baseline-duckietown:{BRANCH}-{ARCH}"
 CF = "config.yaml"
 
 
