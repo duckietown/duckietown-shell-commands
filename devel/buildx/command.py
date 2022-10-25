@@ -718,42 +718,48 @@ class DTCommand(DTCommandAbs):
         # perform metadata push (if needed)
         if parsed.ci:
             token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
-            with NamedTemporaryFile("wt") as fout:
-                metadata = project.ci_metadata(
-                    client,
-                    arch=parsed.arch,
-                    registry=registry_to_use,
-                    owner=DEFAULT_OWNER,
-                    version=version
-                )
-                # add build metadata
-                metadata["build"] = {
-                    "args": copy.deepcopy(buildargs),
-                    "time": build_time,
-                }
-                metadata["sha"] = dimage.id
-                del metadata["build"]["args"]["labels"]
-                # write to temporary file
-                json.dump(metadata, fout, sort_keys=True, indent=4)
-                fout.flush()
-                # push temporary file
-                remote_fnames = [
-                    f"docker/image/{metadata['tag']}/latest.json",
-                    f"docker/image/{metadata['tag']}/{dimage.id}.json",
-                ]
-                for remote_fname in remote_fnames:
-                    remote_fname = remote_fname.replace(":", "/")
-                    dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
-                    shell.include.data.push.command(
-                        shell,
-                        [],
-                        parsed=SimpleNamespace(
-                            file=[fout.name],
-                            object=[remote_fname],
-                            token=token,
-                            space="public",
-                        ),
+            tags_data = [
+                # NOTE: this image tag is modified by the CLI arguments, e.g., X-staging -> X
+                {"registry": registry_to_use, "version": version},
+                # NOTE: this image tag is pure (no CLI remapping) and refers to the public registry
+                {"registry": DEFAULT_REGISTRY, "version": project.version_name},
+            ]
+            for tag_data in tags_data:
+                with NamedTemporaryFile("wt") as fout:
+                    metadata = project.ci_metadata(
+                        client,
+                        arch=parsed.arch,
+                        owner=DEFAULT_OWNER,
+                        **tag_data
                     )
+                    # add build metadata
+                    metadata["build"] = {
+                        "args": copy.deepcopy(buildargs),
+                        "time": build_time,
+                    }
+                    metadata["sha"] = dimage.id
+                    del metadata["build"]["args"]["labels"]
+                    # write to temporary file
+                    json.dump(metadata, fout, sort_keys=True, indent=4)
+                    fout.flush()
+                    # push temporary file
+                    remote_fnames = [
+                        f"docker/image/{metadata['tag']}/latest.json",
+                        f"docker/image/{metadata['tag']}/{dimage.id}.json",
+                    ]
+                    for remote_fname in remote_fnames:
+                        remote_fname = remote_fname.replace(":", "/")
+                        dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
+                        shell.include.data.push.command(
+                            shell,
+                            [],
+                            parsed=SimpleNamespace(
+                                file=[fout.name],
+                                object=[remote_fname],
+                                token=token,
+                                space="public",
+                            ),
+                        )
 
         # perform remove (if needed)
         if parsed.rm:
