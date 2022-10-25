@@ -115,7 +115,16 @@ class DTCommand(DTCommandAbs):
             action="append",
             nargs=2,
             metavar=("key", "value"),
-            help="Build arguments to pass to Docker build",
+            help="Build arguments to pass to Docker buildx",
+        )
+        parser.add_argument(
+            "-B",
+            "--build-context",
+            default=[],
+            action="append",
+            nargs=2,
+            metavar=("name", "path"),
+            help="Additional build contexts to pass to Docker buildx",
         )
         parser.add_argument(
             "--push",
@@ -477,6 +486,11 @@ class DTCommand(DTCommandAbs):
         for key, value in parsed.build_arg:
             docker_build_args[key] = value
 
+        # additional build contexts
+        docker_build_contexts = {}
+        for name, path in parsed.build_context:
+            docker_build_contexts[name] = path
+
         # cache
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
@@ -559,6 +573,7 @@ class DTCommand(DTCommandAbs):
 
         buildargs = {
             "build_args": docker_build_args,
+            "build_contexts": docker_build_contexts,
             "labels": labels,
             "pull": parsed.pull,
             "push": parsed.push,
@@ -597,7 +612,7 @@ class DTCommand(DTCommandAbs):
         # build image
         buildlog = []
         build = docker.buildx.build(
-            context_path=parsed.workdir,
+            path=parsed.workdir,
             progress="plain",
             stream_logs=True,
             **buildargs
