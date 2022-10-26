@@ -265,16 +265,20 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error('The path "{:s}" is not a Duckietown project'.format(project_path))
                 # get project info
                 proj = DTProject(project_path)
-                # get local and remote paths to code and launchfile
-                local_src, destination_src = proj.code_paths()
+                # (experimental): when we run remotely, use /code/<project> as root
+                root = f"/code/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
+                # get local and remote paths to code
+                local_srcs, destination_srcs = proj.code_paths(root)
+                # compile mountpoints
+                for local_src, destination_src in zip(local_srcs, destination_srcs):
+                    mount_option += [
+                        "-v",
+                        "{:s}:{:s}".format(local_src, destination_src)
+                    ]
+                # get local and remote paths to launchers
                 local_launch, destination_launch = proj.launch_paths()
-                # (experimental): when we run remotely, use /code/<project> as base
-                if parsed.machine != DEFAULT_MACHINE:
-                    project_path = "/code/%s" % proj.name
-                # compile mounpoints
+                # compile mountpoints
                 mount_option += [
-                    "-v",
-                    "{:s}:{:s}".format(os.path.join(project_path, local_src), destination_src),
                     "-v",
                     "{:s}:{:s}".format(os.path.join(project_path, local_launch), destination_launch),
                 ]
@@ -282,7 +286,8 @@ class DTCommand(DTCommandAbs):
         if parsed.mount and project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
             dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to force " "the execution of the command."
+                "If you know what you are doing, use --force (-f) to force "
+                "the execution of the command."
             )
             if not parsed.force:
                 exit(1)

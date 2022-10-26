@@ -9,8 +9,15 @@ from typing import Optional
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
+from utils.exceptions import ShellNeedsUpdate
 
-import pydock
+# NOTE: this is to avoid breaking the user workspace
+try:
+    import pydock
+except ImportError:
+    raise ShellNeedsUpdate("5.2.21")
+# NOTE: this is to avoid breaking the user workspace
+
 from pydock import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import (
@@ -158,7 +165,7 @@ class DTCommand(DTCommandAbs):
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
         container_name: str = f"vscode-{workspace_name}-{container_id}"
-        workdir = f"/code/user_ws/{workspace_name}"
+        workdir = f"/code/{workspace_name}"
         dtslogger.info(f"Running image '{image}'...")
         args = {
             "image": image,

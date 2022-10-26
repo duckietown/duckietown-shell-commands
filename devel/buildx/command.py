@@ -11,8 +11,17 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from typing import Optional, List
 
+from utils.exceptions import ShellNeedsUpdate
+
+# NOTE: this is to avoid breaking the user workspace
+try:
+    import pydock
+except ImportError:
+    raise ShellNeedsUpdate("5.2.21")
+# NOTE: this is to avoid breaking the user workspace
+
 from docker.errors import ImageNotFound
-from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from duckietown_docker_utils import ENV_REGISTRY
 from pydock import DockerClient
 from termcolor import colored
@@ -47,6 +56,7 @@ from utils.pip_utils import get_pip_index_url
 
 from pydock.components.buildx.imagetools.models import Manifest
 from pydock.exceptions import NoSuchManifest
+from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 
@@ -157,6 +167,16 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username to tag the image with",
         )
         parser.add_argument(
+            "--file",
+            default=None,
+            help="Path to the Dockerfile to use, relative to the project path",
+        )
+        parser.add_argument(
+            "--recipe",
+            default=None,
+            help="Path to a recipe to use",
+        )
+        parser.add_argument(
             "-b",
             "--base-tag",
             default=None,
@@ -252,6 +272,16 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # recipe
+        if parsed.recipe is not None:
+            if project.needs_recipe:
+                recipe_dir: str = os.path.abspath(parsed.recipe)
+                dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
+                project.set_recipe_dir(recipe_dir)
+            else:
+                raise UserError("This project does not support recipes")
+        recipe: Optional[DTProject] = project.recipe
 
         # tag
         version = project.version_name
@@ -488,8 +518,13 @@ class DTCommand(DTCommandAbs):
 
         # additional build contexts
         docker_build_contexts = {}
+        # - given via CLI
         for name, path in parsed.build_context:
             docker_build_contexts[name] = path
+        # - recipe contexts
+        if project.needs_recipe:
+            docker_build_contexts[RECIPE_STAGE_NAME] = recipe.path
+            docker_build_contexts[MEAT_STAGE_NAME] = project.path
 
         # cache
         if not parsed.no_cache:
@@ -571,7 +606,19 @@ class DTCommand(DTCommandAbs):
         code_sha = project.sha if project.is_clean() else "ND"
         labels[dtlabel("code.sha")] = code_sha
 
+        # path to Dockerfile
+        dockerfile: str = os.path.join(parsed.workdir, "Dockerfile")
+        if project.needs_recipe:
+            dockerfile = recipe.dockerfile
+        if parsed.file is not None:
+            if project.needs_recipe:
+                dockerfile = os.path.abspath(os.path.join(recipe.path, parsed.file))
+            else:
+                dockerfile = os.path.abspath(os.path.join(parsed.workdir, parsed.file))
+
+        # build options
         buildargs = {
+            "file": dockerfile,
             "build_args": docker_build_args,
             "build_contexts": docker_build_contexts,
             "labels": labels,

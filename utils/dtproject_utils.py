@@ -1,12 +1,14 @@
 import copy
+import glob
 import json
 import os
 import random
 import re
 import subprocess
 import traceback
+from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 
 import docker
 import requests
@@ -15,12 +17,20 @@ from docker.errors import APIError, ImageNotFound
 
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
+from utils.exceptions import RecipeProjectNotFound
+from utils.recipe_utils import get_recipe_project_dir
 
 REQUIRED_METADATA_KEYS = {
     "*": ["TYPE_VERSION"],
     "1": ["TYPE", "VERSION"],
     "2": ["TYPE", "VERSION"],
     "3": ["TYPE", "VERSION"],
+}
+
+REQUIRED_METADATA_PER_TYPE_KEYS = {
+    "template-exercise": {
+        "3": ["NAME", "RECIPE_REPOSITORY", "RECIPE_BRANCH", "RECIPE_LOCATION"],
+    },
 }
 
 CANONICAL_ARCH = {
@@ -92,7 +102,12 @@ TEMPLATE_TO_SRC = {
         "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
         "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo))},
+    "template-exercise-recipe": {
+        "3": lambda repo: ("packages", "/code/catkin_ws/src/{:s}/packages".format(repo))
+    },
+    "template-exercise": {
+        "3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))
+    },
 }
 
 TEMPLATE_TO_LAUNCHFILE = {
@@ -111,7 +126,9 @@ TEMPLATE_TO_LAUNCHFILE = {
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
+    "template-exercise": {
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO", "3": "DISTRO"}
@@ -124,6 +141,7 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
+
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -136,6 +154,7 @@ class DTProject:
         self._type_version = self._project_info["TYPE_VERSION"]
         self._version = self._project_info["VERSION"]
         self._adapters.append("dtproject")
+        self._recipe_dir: Optional[str] = None
         # use `git` adapter if available
         if os.path.isdir(os.path.join(self._path, ".git")):
             repo_info = self._get_repo_info(self._path)
@@ -160,6 +179,10 @@ class DTProject:
     @property
     def name(self):
         return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
+
+    @property
+    def metadata(self) -> Dict[str, str]:
+        return copy.deepcopy(self._project_info)
 
     @property
     def type(self):
@@ -200,6 +223,41 @@ class DTProject:
     @property
     def adapters(self):
         return copy.copy(self._adapters)
+
+    @property
+    def needs_recipe(self) -> bool:
+        return self.type == "template-exercise"
+
+    @property
+    def recipe(self) -> Optional['DTProject']:
+        if self.needs_recipe:
+            if self._recipe_dir:
+                # custom given recipe
+                recipe_dir: str = self._recipe_dir
+            else:
+                # compile a recipe directory from the project's metadata
+                recipe_dir: str = self._recipe_dir or get_recipe_project_dir(
+                    self.metadata["RECIPE_REPOSITORY"],
+                    self.metadata["RECIPE_BRANCH"],
+                    self.metadata["RECIPE_LOCATION"]
+                )
+            # make sure the recipe exists
+            if not os.path.exists(recipe_dir):
+                raise RecipeProjectNotFound(f"Recipe not found at '{recipe_dir}'")
+            # load recipe project
+            return DTProject(recipe_dir)
+
+    @property
+    def dockerfile(self) -> str:
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.dockerfile
+        # this project carries its own Dockerfile
+        return os.path.join(self.path, "Dockerfile")
+
+    def set_recipe_dir(self, path: str):
+        self._recipe_dir = path
 
     def is_release(self):
         if not self.is_clean():
@@ -340,7 +398,7 @@ class DTProject:
             raise KeyError(f"Configuration with name '{name}' not found.")
         return configurations[name]
 
-    def code_paths(self):
+    def code_paths(self, root: Optional[str] = None) -> Tuple[List[str], List[str]]:
         # make sure we support this project version
         if self.type not in TEMPLATE_TO_SRC or self.type_version not in TEMPLATE_TO_SRC[self.type]:
             raise ValueError(
@@ -349,7 +407,28 @@ class DTProject:
                 )
             )
         # ---
-        return TEMPLATE_TO_SRC[self.type][self.type_version](self.name)
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        # local and destination are fixed given project type and version
+        local, destination = TEMPLATE_TO_SRC[self.type][self.type_version](self.name)
+        # 'local' can be a pattern
+        if local.endswith("*"):
+            # resolve 'local' with respect to the project path
+            local_abs: str = os.path.join(self.path, local)
+            # resolve pattern
+            locals = glob.glob(local_abs)
+            # we only support mounting directories
+            locals = [loc for loc in locals if os.path.isdir(loc)]
+            # replace 'self.path' prefix with 'root'
+            locals = [os.path.join(root, os.path.relpath(loc, self.path)) for loc in locals]
+            # destinations take the stem of the source
+            destinations = [os.path.join(destination, Path(loc).stem) for loc in locals]
+        else:
+            # by default, there is only one local and one destination
+            locals: List[str] = [os.path.join(root, local)]
+            destinations: List[str] = [destination]
+        # ---
+        return locals, destinations
 
     def launch_paths(self):
         # make sure we support this project version
@@ -409,24 +488,32 @@ class DTProject:
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
-            msg = f"The path '{metafile}' does not appear to be a Duckietown project. "
+            msg = f"The path '{path}' does not appear to be a Duckietown project. "
             msg += "\nThe metadata file '.dtproject' is missing."
             raise UserError(msg)
         # load '.dtproject'
         with open(metafile, "rt") as metastream:
-            metadata = metastream.readlines()
+            lines: List[str] = metastream.readlines()
         # empty metadata?
-        if not metadata:
-            msg = "The metadata file '.dtproject' is empty."
+        if not lines:
+            msg = f"The metadata file '{metafile}' is empty."
             raise UserError(msg)
+        # strip lines
+        lines = [
+            line.strip() for line in lines
+        ]
+        # remove empty lines and comments
+        lines = [
+            line for line in lines if len(line) > 0 and not line.startswith("#")
+        ]
         # parse metadata
         metadata = {
-            p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata if line.strip()]
+            key.strip().upper(): val.strip() for key, val in [line.split("=") for line in lines]
         }
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
-                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
                 raise UserError(msg)
         # validate version
         version = metadata["TYPE_VERSION"]
@@ -436,7 +523,13 @@ class DTProject:
         # validate metadata
         for key in REQUIRED_METADATA_KEYS[version]:
             if key not in metadata:
-                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
+                raise UserError(msg)
+        # validate metadata keys specific to project type and version
+        type = metadata["TYPE"]
+        for key in REQUIRED_METADATA_PER_TYPE_KEYS.get(type, {}).get(version, []):
+            if key not in metadata:
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
                 raise UserError(msg)
         # metadata is valid
         metadata["PATH"] = path

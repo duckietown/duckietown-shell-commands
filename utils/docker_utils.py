@@ -15,7 +15,6 @@ from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 
-from pydock import DockerClient
 from .cli_utils import start_command_in_subprocess
 from .misc_utils import parse_version
 from .networking_utils import get_duckiebot_ip, resolve_hostname
@@ -173,53 +172,6 @@ def copy_docker_env_into_configuration(shell_config: ShellConfig, registry: Opti
 
 class CouldNotLogin(Exception):
     pass
-
-
-def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
-                 raise_on_error: bool):
-    """Raises CouldNotLogin"""
-    if registry not in shell_config.docker_credentials:
-        msg = f"Cannot find {registry!r} in available config credentials.\n"
-        msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
-        msg += (
-            f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
-            f"--docker-password ...\n"
-        )
-        msg += "\nfor each of the servers"
-
-        if raise_on_error:
-            dtslogger.error(msg)
-            raise CouldNotLogin(f"Could not login to {registry!r}.")
-        else:
-            dtslogger.warn(msg)
-            dtslogger.warn("I will try to continue because raise_on_error = False.")
-
-    else:
-        reg_credentials = shell_config.docker_credentials[registry]
-        docker_username = reg_credentials["username"]
-        docker_password = reg_credentials["secret"]
-
-        _login_client(
-            client,
-            username=docker_username,
-            password=docker_password,
-            registry=registry,
-            raise_on_error=raise_on_error,
-        )
-
-
-def _login_client(client: DockerClient, registry: str, username: str, password: str,
-                  raise_on_error: bool = True):
-    """Raises CouldNotLogin"""
-    password_hidden = hide_string(password)
-    dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
-    # noinspection PyBroadException
-    try:
-        client.login(server=registry, username=username, password=password)
-    except BaseException:
-        if raise_on_error:
-            traceback.print_exc()
-            raise CouldNotLogin(f"Could not login to {registry!r}.")
 
 
 def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str,
@@ -682,28 +634,87 @@ def remove_escapes(s):
     return escape.sub("", s)
 
 
-def ensure_docker_version(client: DockerClient, v: str):
-    version = client.version()
-    vnow_str = version['Server']['Version']
-    vnow = parse_version(vnow_str)
-    if v.endswith("+"):
-        vneed_str = v.rstrip("+")
-        vneed = parse_version(vneed_str)
-        if vnow < vneed:
-            msg = f"""
+try:
+    import pydock
+    _pydock_available: bool = True
+except ImportError:
+    dtslogger.warning("Some functionalities are disabled until you update your shell to v5.2.21+")
+    _pydock_available: bool = False
 
-            Detected Docker Engine {vnow_str} but this command needs Docker Engine >= {vneed_str}.
-            Please, update your Docker Engine before continuing.
 
-            """
-            raise UserError(msg)
-    else:
-        vneed = parse_version(v)
-        if vnow != vneed:
-            msg = f"""
+if _pydock_available:
+    from pydock import DockerClient
 
-            Detected Docker Engine {vnow_str} but this command needs Docker Engine == {v}.
-            Please, install the correct version before continuing.
 
-            """
-            raise UserError(msg)
+    def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
+                     raise_on_error: bool):
+        """Raises CouldNotLogin"""
+        if registry not in shell_config.docker_credentials:
+            msg = f"Cannot find {registry!r} in available config credentials.\n"
+            msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+            msg += (
+                f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
+                f"--docker-password ...\n"
+            )
+            msg += "\nfor each of the servers"
+
+            if raise_on_error:
+                dtslogger.error(msg)
+                raise CouldNotLogin(f"Could not login to {registry!r}.")
+            else:
+                dtslogger.warn(msg)
+                dtslogger.warn("I will try to continue because raise_on_error = False.")
+
+        else:
+            reg_credentials = shell_config.docker_credentials[registry]
+            docker_username = reg_credentials["username"]
+            docker_password = reg_credentials["secret"]
+
+            _login_client(
+                client,
+                username=docker_username,
+                password=docker_password,
+                registry=registry,
+                raise_on_error=raise_on_error,
+            )
+
+
+    def _login_client(client: DockerClient, registry: str, username: str, password: str,
+                      raise_on_error: bool = True):
+        """Raises CouldNotLogin"""
+        password_hidden = hide_string(password)
+        dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+        # noinspection PyBroadException
+        try:
+            client.login(server=registry, username=username, password=password)
+        except BaseException:
+            if raise_on_error:
+                traceback.print_exc()
+                raise CouldNotLogin(f"Could not login to {registry!r}.")
+
+
+    def ensure_docker_version(client: DockerClient, v: str):
+        version = client.version()
+        vnow_str = version['Server']['Version']
+        vnow = parse_version(vnow_str)
+        if v.endswith("+"):
+            vneed_str = v.rstrip("+")
+            vneed = parse_version(vneed_str)
+            if vnow < vneed:
+                msg = f"""
+    
+                Detected Docker Engine {vnow_str} but this command needs Docker Engine >= {vneed_str}.
+                Please, update your Docker Engine before continuing.
+    
+                """
+                raise UserError(msg)
+        else:
+            vneed = parse_version(v)
+            if vnow != vneed:
+                msg = f"""
+    
+                Detected Docker Engine {vnow_str} but this command needs Docker Engine == {v}.
+                Please, install the correct version before continuing.
+    
+                """
+                raise UserError(msg)
