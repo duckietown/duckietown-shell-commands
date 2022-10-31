@@ -30,8 +30,7 @@ if _exists(_join(_this_dir, _command_file)):
         dtslogger.warning(f"Command '{_command}' was not loaded because the shell needs to be "
                           f"updated. Current version is {e.current_version}, required version is "
                           f"{e.version_needed}")
-        from utils.misc_utils import failed_to_load_command as command
-        # command = DTCommand
+        from utils.command_utils import failed_to_load_command as command
 
 # find all modules
 _modules = [m for m in _glob.glob(_join(_this_dir, "*")) if _isdir(m)]
