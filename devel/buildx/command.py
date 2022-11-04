@@ -687,8 +687,11 @@ class DTCommand(DTCommandAbs):
         dmanifest: Optional[Manifest] = None
         if parsed.manifest:
             # check if a manifest already exists
-            dmanifest = docker.manifest.inspect(manifest)
-            amend = dmanifest is not None
+            try:
+                docker.manifest.inspect(manifest)
+                amend: bool = True
+            except NoSuchManifest:
+                amend: bool = False
             if amend:
                 dtslogger.info(f"A manifest with name '{manifest}' already exists, updating...")
             else:
