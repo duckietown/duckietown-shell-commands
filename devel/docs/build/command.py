@@ -174,7 +174,10 @@ class DTCommand(DTCommandAbs):
         logs = container.attach(stdout=True, stderr=True, stream=True, logs=True)
         for log_line in logs:
             print(log_line.decode("utf-8"), end="")
-        container.wait()
+        retcode = container.wait()
+        if retcode != 0:
+            dtslogger.error("The documentation build failed. Aborting.")
+            exit(1)
 
         # copy the results back to the host
         bits, stat = container.get_archive(path=f"/{project.name}")
