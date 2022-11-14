@@ -49,19 +49,14 @@ class DTCommand(DTCommandAbs):
             else:
                 raise UserError("This project does not support recipes")
         recipe: Optional[DTProject] = project.recipe
-
-        # Update/clone recipe repository if necessary
-        # TODO: Detangle project and recipe utils
-        try:
-            update_recipe(repository, branch, location)
-        except UserError as e:
-            dtslogger.info(f"'{str(e)}'. Attempting to clone the repository now.")
-            clone_recipe(repository, branch, location)
+        dtslogger.info(f"Loaded recipe from {recipe.path}")
 
         # Build the project using 'devel buildx' functionality
-        dtslogger.debug(f"Building with 'devel/buildx' using args: {str(buildx_namespace)}")
-        shell.include.devel.buildx.command(shell, args + [""])
-        # buildx handles showing project info and assumed recipe support
+        # dtslogger.debug(f"Building with 'devel/buildx' using args: {}")
+        # shell.include.devel.buildx.command(shell, args + [""])
+        # # buildx handles showing project info and assumed recipe support
+
+        print("clean")
 
     @staticmethod
     def complete(shell, word, line):

@@ -18,7 +18,7 @@ from docker.errors import APIError, ImageNotFound
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 from utils.exceptions import RecipeProjectNotFound
-from utils.recipe_utils import get_recipe_project_dir
+from utils.recipe_utils import get_recipe_project_dir, clone_recipe
 
 REQUIRED_METADATA_KEYS = {
     "*": ["TYPE_VERSION"],
@@ -241,6 +241,14 @@ class DTProject:
                     self.metadata["RECIPE_BRANCH"],
                     self.metadata["RECIPE_LOCATION"]
                 )
+                # clone the project specified recipe if necessary
+                if not os.path.exists(recipe_dir):
+                    clone_recipe(
+                        self.metadata["RECIPE_REPOSITORY"],
+                        self.metadata["RECIPE_BRANCH"],
+                        self.metadata["RECIPE_LOCATION"]
+                    )
+
             # make sure the recipe exists
             if not os.path.exists(recipe_dir):
                 raise RecipeProjectNotFound(f"Recipe not found at '{recipe_dir}'")
