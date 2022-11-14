@@ -4,8 +4,11 @@ import json
 import logging
 import os
 import signal
+import time
 import uuid
 from typing import Optional
+
+import requests
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
@@ -101,6 +104,12 @@ class DTCommand(DTCommandAbs):
             parsed, remaining = parser.parse_known_args(args=args)
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=["workdir"])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
 
         # variables
@@ -187,14 +196,45 @@ class DTCommand(DTCommandAbs):
                         f"{json.dumps(args, indent=4, sort_keys=True)}\n")
         container = docker.run(**args)
 
+        # register signal
+        def _stop_container(*_):
+            dtslogger.info("Stopping VSCode...")
+            DTCommand.requested_stop = True
+            container.kill()
+            dtslogger.info("Done")
+
+        signal.signal(signal.SIGINT, _stop_container)
+
         # find port exposed by the OS
         port: str = container.network_settings.ports[f"{VSCODE_PORT}/tcp"][0]["HostPort"]
+        url: str = f"https://localhost:{port}"
+
+        # wait for VSCode to get up
+        max_wait: int = 20
+        wait: int = 2
+        found: bool = False
+        dtslogger.info(f"Waiting for VSCode (up to {max_wait} seconds)...")
+        for t in range(0, max_wait, wait):
+            # noinspection PyBroadException
+            try:
+                requests.get(url)
+            except Exception:
+                time.sleep(wait)
+                continue
+            found = True
+        if not found:
+            dtslogger.error(f"VSCode failed to come up in {max_wait} seconds. Aborting...")
+            # noinspection PyBroadException
+            try:
+                container.kill()
+            except Exception:
+                pass
 
         # print URL to VSCode
         dtslogger.info(
             "\nYou can open VSCode in your browser by visiting the URL:\n"
             "\n"
-            f"\t> https://localhost:{port}\n"
+            f"\t> {url}\n"
             f"\n"
             f"VSCode might take a few seconds to be ready...\n"
             f"--------------------------------------------------------"
@@ -206,15 +246,6 @@ class DTCommand(DTCommandAbs):
                            f"The container name is {container_name}.")
         else:
             dtslogger.info("Use Ctrl-C in this terminal to stop VSCode.")
-
-            # register signal
-            def _stop_container(*_):
-                dtslogger.info("Stopping VSCode...")
-                DTCommand.requested_stop = True
-                container.kill()
-                dtslogger.info("Done")
-
-            signal.signal(signal.SIGINT, _stop_container)
 
             # wait for the container to stop
             try:
