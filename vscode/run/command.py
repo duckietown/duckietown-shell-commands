@@ -6,6 +6,7 @@ import os
 import signal
 import time
 import uuid
+from pwd import getpwnam
 from typing import Optional
 
 import requests
@@ -67,6 +68,12 @@ class DTCommand(DTCommandAbs):
             default=0,
             type=int,
             help="Port to bind to. A random port will be assigned by default"
+        )
+        parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Username or UID of the user to impersonate inside VSCode"
         )
         parser.add_argument(
             "-v",
@@ -170,6 +177,22 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pulling image '{image}'...")
             docker.image.pull(image, quiet=False)
 
+        # impersonate
+        identity: int = os.getuid()
+        if parsed.impersonate is not None:
+            try:
+                # try interpreting parsed.impersonate as UID
+                identity = int(parsed.impersonate)
+                dtslogger.info(f"Impersonating user with UID {identity}")
+            except ValueError:
+                try:
+                    # try interpreting parsed.impersonate as username
+                    identity = getpwnam(parsed.impersonate).pw_uid
+                    dtslogger.info(f"Impersonating '{parsed.impersonate}' with UID {identity}")
+                except KeyError:
+                    dtslogger.error(f"Cannot impersonate '{parsed.impersonate}', user not found")
+                    return
+
         # launch container
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
@@ -180,6 +203,9 @@ class DTCommand(DTCommandAbs):
             "image": image,
             "detach": True,
             "remove": True,
+            "envs": {
+                "HOST_UID": identity,
+            },
             "volumes": [
                 # needed by the container to figure out the GID of `docker` on the host
                 ("/etc/group", "/host/etc/group", "ro"),

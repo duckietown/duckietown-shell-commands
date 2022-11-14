@@ -67,6 +67,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to skip building VSCode for this project, use plain VSCode instead",
         )
         parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Username or UID of the user to impersonate inside VSCode"
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -154,6 +160,7 @@ class DTCommand(DTCommandAbs):
         vscode_namespace = SimpleNamespace(
             workdir=[parsed.workdir],
             image=vscode_image_name,
+            impersonate=parsed.impersonate,
             verbose=parsed.verbose,
         )
         dtslogger.debug(f"Calling 'vscode/run' with arguments: {str(vscode_namespace)}")
