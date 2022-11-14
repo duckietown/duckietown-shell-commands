@@ -40,7 +40,7 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # Get the recipe info
+        # Load the project recipe
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -51,12 +51,11 @@ class DTCommand(DTCommandAbs):
         recipe: Optional[DTProject] = project.recipe
         dtslogger.info(f"Loaded recipe from {recipe.path}")
 
-        # Build the project using 'devel buildx' functionality
-        # dtslogger.debug(f"Building with 'devel/buildx' using args: {}")
-        # shell.include.devel.buildx.command(shell, args + [""])
-        # # buildx handles showing project info and assumed recipe support
+        # Check if the recipe needs to be updated
 
-        print("clean")
+        # Build the project using 'devel buildx' functionality
+        dtslogger.debug(f"Building with 'devel/buildx' using args: {args}")
+        shell.include.devel.buildx.command(shell, args + [""])
 
     @staticmethod
     def complete(shell, word, line):

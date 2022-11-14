@@ -1,4 +1,5 @@
 import ipaddress
+from re import sub
 import subprocess
 from shutil import which
 
@@ -54,4 +55,4 @@ def sudo_open(path, mode, *_, **__):
 
 
 def parse_version(v: str) -> tuple:
-    return tuple(map(int, (v.split("."))))
+    return tuple(map(int, (sub('[^0-9]', '', v).split("."))))
