@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+from types import SimpleNamespace
 from typing import Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
@@ -19,6 +20,12 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to be built"
+        )
+        parser.add_argument(
+            "-u",
+            "--username",
+            default=os.getlogin(),
+            help="The docker registry username to use",
         )
         parser.add_argument(
             "--recipe",
@@ -51,11 +58,19 @@ class DTCommand(DTCommandAbs):
         recipe: Optional[DTProject] = project.recipe
         dtslogger.info(f"Loaded recipe from {recipe.path}")
 
-        # Check if the recipe needs to be updated
+        # Update the recipe if necessary
 
         # Build the project using 'devel buildx' functionality
+        buildx_namespace: SimpleNamespace = SimpleNamespace(
+            workdir=parsed.workdir,
+            username=parsed.username,
+            file=project.dockerfile,
+            recipe=recipe.path if recipe else None,
+            verbose=parsed.verbose,
+            quiet=not parsed.verbose,
+        )
         dtslogger.debug(f"Building with 'devel/buildx' using args: {args}")
-        shell.include.devel.buildx.command(shell, args + [""])
+        shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
 
     @staticmethod
     def complete(shell, word, line):
