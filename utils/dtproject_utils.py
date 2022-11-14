@@ -213,6 +213,10 @@ class DTProject:
         return self._repository.branch if self._repository else "latest"
 
     @property
+    def safe_version_name(self) -> str:
+        return re.sub(r"[^\w\-.]", "-", self.version_name)
+
+    @property
     def url(self):
         return self._repository.repository_page if self._repository else None
 
@@ -256,6 +260,20 @@ class DTProject:
         # this project carries its own Dockerfile
         return os.path.join(self.path, "Dockerfile")
 
+    @property
+    def vscode_dockerfile(self) -> Optional[str]:
+        # this project's vscode Dockerfile
+        vscode_dockerfile: str = os.path.join(self.path, "Dockerfile.vscode")
+        if os.path.exists(vscode_dockerfile):
+            return vscode_dockerfile
+        # it might be in the recipe (if any)
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.vscode_dockerfile
+        # this project does not have a Dockerfile.vscode
+        return None
+
     def set_recipe_dir(self, path: str):
         self._recipe_dir = path
 
@@ -291,7 +309,7 @@ class DTProject:
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
         if version is None:
-            version = re.sub(r"[^\w\-.]", "-", self.version_name)
+            version = self.safe_version_name
 
         return f"{registry}/{owner}/{self.name}:{version}{loop}{docs}-{arch}"
 
