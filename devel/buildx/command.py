@@ -65,8 +65,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        # check docker version
-
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -216,6 +214,12 @@ class DTCommand(DTCommandAbs):
 
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=[])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
 
         # variables
