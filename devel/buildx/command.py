@@ -649,16 +649,7 @@ class DTCommand(DTCommandAbs):
         # update manifest
         dmanifest: Optional[Manifest] = None
         if parsed.manifest:
-            # check if a manifest already exists
-            try:
-                docker.manifest.inspect(manifest)
-                amend: bool = True
-            except NoSuchManifest:
-                amend: bool = False
-            if amend:
-                dtslogger.info(f"A manifest with name '{manifest}' already exists, updating...")
-            else:
-                dtslogger.info(f"A new manifest with name '{manifest}' will be created.")
+            dtslogger.info(f"Creating manifest with name '{manifest}'...")
             # find list of images available online
             manifest_images: List[str] = []
             for manifest_arch in ARCH_TO_PLATFORM:
@@ -669,22 +660,19 @@ class DTCommand(DTCommandAbs):
                     registry=registry_to_use,
                     version=version,
                 )
-                dtslogger.debug(f"Checking if image {manifest_image} exists.")
+                dtslogger.debug(f" - Checking image {manifest_image}....")
                 try:
                     docker.manifest.inspect(manifest_image)
                 except NoSuchManifest:
                     dtslogger.debug(f"Image {manifest_image}' not found")
                     continue
-                dtslogger.debug(f'Found image {manifest_image} for arch "{manifest_arch}"')
+                dtslogger.debug(f'Found image {manifest_image} for architecture "{manifest_arch}"')
                 manifest_images.append(manifest_image)
             # update manifest
-            dtslogger.debug(f"Creating manifest with images {manifest_images}")
-            docker.manifest.create(manifest, manifest_images, amend=amend)
+            dtslogger.debug(f"Creating manifest '{manifest}' with images: {manifest_images}")
+            docker.buildx.imagetools.create(tag=manifest, source=manifest_images)
             # get manifest
             dmanifest = docker.manifest.inspect(manifest)
-            # push manifest
-            if parsed.push:
-                docker.manifest.push(manifest)
 
         # build code docs
         if parsed.docs:
