@@ -645,9 +645,6 @@ class DTCommand(DTCommandAbs):
             exit(1)
 
         # get resulting image
-        dtslogger.info(f"Pulling the build image {image}.")
-        client.images.pull(image)
-        dtslogger.info("Getting image information.")
         dimage = client.images.get(image)
 
         # update manifest
