@@ -38,7 +38,7 @@ from utils.docker_utils import (
     pull_image,
     sanitize_docker_baseurl,
     get_client,
-    ensure_docker_version
+    ensure_docker_version,
 )
 from utils.dtproject_utils import (
     CANONICAL_ARCH,
@@ -65,15 +65,10 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        # check docker version
-
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to build"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -82,10 +77,7 @@ class DTCommand(DTCommandAbs):
             help="Target architecture(s) for the image to build",
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -94,10 +86,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use the Docker cache"
+            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -137,16 +126,13 @@ class DTCommand(DTCommandAbs):
             help="Additional build contexts to pass to Docker buildx",
         )
         parser.add_argument(
-            "--push",
-            default=False,
-            action="store_true",
-            help="Whether to push the resulting image"
+            "--push", default=False, action="store_true", help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--manifest",
             default=False,
             action="store_true",
-            help="Whether to create/update the corresponding manifest"
+            help="Whether to create/update the corresponding manifest",
         )
         parser.add_argument(
             "--rm",
@@ -180,8 +166,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image."
-                 "Use when the base image is also a development version",
+            help="Docker tag for the base image." "Use when the base image is also a development version",
         )
         parser.add_argument(
             "--ci",
@@ -197,45 +182,23 @@ class DTCommand(DTCommandAbs):
             help="Forces CI to build on a specific architecture node",
         )
         parser.add_argument(
-            "--cloud",
-            default=False,
-            action="store_true",
-            help="Build the image on the cloud"
+            "--cloud", default=False, action="store_true", help="Build the image on the cloud"
         )
         parser.add_argument(
-            "--stamp",
-            default=False,
-            action="store_true",
-            help="Stamp image with the build time"
+            "--stamp", default=False, action="store_true", help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D",
-            "--destination",
-            default=None,
-            help="Docker socket or hostname where to deliver the image"
+            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs",
-            default=False,
-            action="store_true",
-            help="Build the code documentation as well"
+            "--docs", default=False, action="store_true", help="Build the code documentation as well"
         )
         parser.add_argument(
-            "--ncpus",
-            default=None,
-            type=int,
-            help="Value to pass as build-arg `NCPUS` to docker build."
+            "--ncpus", default=None, type=int, help="Value to pass as build-arg `NCPUS` to docker build."
         )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose")
-        parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         # get pre-parsed or parse arguments
@@ -251,6 +214,12 @@ class DTCommand(DTCommandAbs):
 
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=[])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
 
         # variables
@@ -345,8 +314,9 @@ class DTCommand(DTCommandAbs):
                 exit(4)
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
-                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. "
-                                f"Aborting...")
+                dtslogger.error(
+                    f"No cloud machines found for target architecture {parsed.arch}. " f"Aborting..."
+                )
                 exit(3)
             # update machine parameter
             parsed.machine = get_cloud_builder(parsed.arch)
@@ -417,7 +387,7 @@ class DTCommand(DTCommandAbs):
             if not parsed.ci:
                 install = ask_confirmation(
                     "The CLI plugin for docker 'buildx' is not installed.",
-                    question="Do you want to install it?"
+                    question="Do you want to install it?",
                 )
                 if not install:
                     dtslogger.info("Aborting.")
@@ -587,8 +557,7 @@ class DTCommand(DTCommandAbs):
                 time_label = dtlabel("time")
                 sha_label = dtlabel("code.sha")
                 dtslogger.debug(
-                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4,
-                                                              sort_keys=True)
+                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4, sort_keys=True)
                 )
                 if time_label in image_labels and sha_label in image_labels:
                     remote_time = image_labels[time_label]
@@ -625,7 +594,7 @@ class DTCommand(DTCommandAbs):
             "pull": parsed.pull,
             "push": parsed.push,
             "tags": [image],
-            "platforms": [ARCH_TO_PLATFORM[arch] for arch in parsed.arch.split(",")]
+            "platforms": [ARCH_TO_PLATFORM[arch] for arch in parsed.arch.split(",")],
         }
 
         # when building on CI, we also want to push the real tag to the public default registry
@@ -658,12 +627,7 @@ class DTCommand(DTCommandAbs):
 
         # build image
         buildlog = []
-        build = docker.buildx.build(
-            path=parsed.workdir,
-            progress="plain",
-            stream_logs=True,
-            **buildargs
-        )
+        build = docker.buildx.build(path=parsed.workdir, progress="plain", stream_logs=True, **buildargs)
         try:
             for line in build:
                 if not line:
@@ -686,13 +650,7 @@ class DTCommand(DTCommandAbs):
         # update manifest
         dmanifest: Optional[Manifest] = None
         if parsed.manifest:
-            # check if a manifest already exists
-            dmanifest = docker.manifest.inspect(manifest)
-            amend = dmanifest is not None
-            if amend:
-                dtslogger.info(f"A manifest with name '{manifest}' already exists, updating...")
-            else:
-                dtslogger.info(f"A new manifest with name '{manifest}' will be created.")
+            dtslogger.info(f"Creating manifest with name '{manifest}'...")
             # find list of images available online
             manifest_images: List[str] = []
             for manifest_arch in ARCH_TO_PLATFORM:
@@ -703,19 +661,19 @@ class DTCommand(DTCommandAbs):
                     registry=registry_to_use,
                     version=version,
                 )
+                dtslogger.debug(f" - Checking image {manifest_image}....")
                 try:
                     docker.manifest.inspect(manifest_image)
                 except NoSuchManifest:
-                    dtslogger.debug(f"Image '{manifest_image}' not found")
+                    dtslogger.debug(f"Image {manifest_image}' not found")
                     continue
+                dtslogger.debug(f'Found image {manifest_image} for architecture "{manifest_arch}"')
                 manifest_images.append(manifest_image)
             # update manifest
-            docker.manifest.create(manifest, manifest_images, amend=amend)
+            dtslogger.debug(f"Creating manifest '{manifest}' with images: {manifest_images}")
+            docker.buildx.imagetools.create(tag=manifest, source=manifest_images)
             # get manifest
             dmanifest = docker.manifest.inspect(manifest)
-            # push manifest
-            if parsed.push:
-                docker.manifest.push(manifest)
 
         # build code docs
         if parsed.docs:
@@ -725,9 +683,7 @@ class DTCommand(DTCommandAbs):
             shell.include.devel.docs.build.command(shell, args + docs_args)
 
         # get image history
-        historylog = [
-            (layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()
-        ]
+        historylog = [(layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()]
 
         # round up extra info
         extra_info = []
@@ -754,13 +710,7 @@ class DTCommand(DTCommandAbs):
         extra_info = "\n".join(extra_info)
 
         # run docker image analysis
-        ImageAnalyzer.process(
-            buildlog,
-            historylog,
-            codens=100,
-            extra_info=extra_info,
-            nocolor=parsed.ci
-        )
+        ImageAnalyzer.process(buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci)
 
         # perform metadata push (if needed)
         if parsed.ci:
@@ -773,12 +723,7 @@ class DTCommand(DTCommandAbs):
             ]
             for tag_data in tags_data:
                 with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(
-                        client,
-                        arch=parsed.arch,
-                        owner=DEFAULT_OWNER,
-                        **tag_data
-                    )
+                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
                     # add build metadata
                     metadata["build"] = {
                         "args": copy.deepcopy(buildargs),
