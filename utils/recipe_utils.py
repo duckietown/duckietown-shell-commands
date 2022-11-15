@@ -11,21 +11,21 @@ from dt_shell.utils import run_cmd
 
 RECIPE_STAGE_NAME = "recipe"
 MEAT_STAGE_NAME = "meat"
-CHECK_RECIPE_UPDATE_MINS = 6
+CHECK_RECIPE_UPDATE_MINS = 5
+
+
+def get_recipes_dir() -> str:
+    recipes_dir: str = os.path.join(os.path.expanduser(DTShellConstants.ROOT), "recipes")
+    return os.environ.get("DTSHELL_RECIPES", recipes_dir)
+
+
+def get_recipe_repo_dir(repository: str, branch: str) -> str:
+    recipes_dir: str = get_recipes_dir()
+    return os.path.join(recipes_dir, repository, branch)
 
 
 def get_recipe_project_dir(repository: str, branch: str, location: str) -> str:
-    recipes_dir: str = os.path.join(os.path.expanduser(DTShellConstants.ROOT), "recipes")
-    return os.path.join(
-        os.environ.get("DTSHELL_RECIPES", recipes_dir), repository, location.strip("/")
-    )
-
-
-def get_recipe_repo_dir(repository: str) -> str:
-    repo_dir: str = os.path.join(os.path.expanduser(
-        DTShellConstants.ROOT), "recipes", repository
-    )
-    return repo_dir
+    return os.path.join(get_recipe_repo_dir(repository, branch), location.strip("/"))
 
 
 def recipe_project_exists(repository: str, branch: str, location: str) -> bool:
@@ -46,10 +46,12 @@ def clone_recipe(repository: str, branch: str, location: str) -> bool:
 
     # Clone recipes repo into dt-shell root
     try:
-        repo_dir: str = get_recipe_repo_dir(repository)
-        dtslogger.info(f"Downloading recipes into '{repo_dir}' ...")
+        repo_dir: str = get_recipe_repo_dir(repository, branch)
+        dtslogger.info(f"Downloading recipes...")
+        dtslogger.debug(f"Downloading recipes into '{repo_dir}' ...")
         remote_url: str = f"https://github.com/{repository}"
         run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, repo_dir])
+        dtslogger.info(f"Recipes downloaded!")
         return True
     except Exception as e:
         # Excepts as InvalidRemote
@@ -67,10 +69,11 @@ def recipe_needs_update(repository: str, branch: str, location: str) -> bool:
     if os.path.exists(commands_update_check_flag) and os.path.isfile(commands_update_check_flag):
         now = time.time()
         last_time_checked = os.path.getmtime(commands_update_check_flag)
-        use_cached_recipe: bool = now - last_time_checked < CHECK_RECIPE_UPDATE_MINS * 60
+        use_cached_recipe = now - last_time_checked < CHECK_RECIPE_UPDATE_MINS * 60
     else:  # Save the initial .update flag
-        local_sha = run_cmd(["git", "-C", recipe_dir, "rev-parse", "HEAD"])
-        local_sha: str = list(filter(len, local_sha.split("\n")))[0]
+        local_sha: str = run_cmd(["git", "-C", recipe_dir, "rev-parse", "HEAD"])
+        # noinspection PyTypeChecker
+        local_sha = next(filter(len, local_sha.split("\n")))
         save_update_check_flag(recipe_dir, local_sha)
         return False
 
@@ -82,7 +85,7 @@ def recipe_needs_update(repository: str, branch: str, location: str) -> bool:
                 cached_check = json.load(fp)
             except ValueError:
                 return False
-            local_sha: str = cached_check["remote"]
+            local_sha = cached_check["remote"]
 
         # Get the remote sha from github
         dtslogger.info("Fetching remote SHA from github.com ...")
@@ -112,31 +115,35 @@ def update_recipe(repository: str, branch: str, location: str) -> bool:
         raise UserError(f"There is no existing recipe in '{recipe_dir}'.")
 
     # Check for recipe repo updates
-    dtslogger.info("Checking if the project recipe needs to be updated.")
+    dtslogger.info("Checking if the project's recipe needs to be updated...")
     if recipe_needs_update(repository, branch, location):
-        dtslogger.info(f"The recipe in '{recipe_dir}' has available updates. Attempting to pull them.")
+        dtslogger.info("This project's recipe has available updates. Attempting to pull them.")
+        dtslogger.debug(f"Updating recipe '{recipe_dir}'...")
+        wait_on_retry_secs = 4
+        th = {2: "nd", 3: "rd", 4: "th"}
         for trial in range(3):
             try:
-                run_cmd(["git", "-C", recipe_dir, "pull", "--recurse-submodules", "origin", branch])
-                dtslogger.info(f"Updated recipe in '{recipe_dir}'.")
+                run_cmd(["git", "-C", recipe_dir,
+                         "pull", "--recurse-submodules", "origin", branch])
+                dtslogger.debug(f"Updated recipe in '{recipe_dir}'.")
+                dtslogger.info(f"Recipe successfully updated!")
             except RuntimeError as e:
                 dtslogger.error(str(e))
-                wait_time = 4
-                th = {2: "nd", 3: "rd", 4: "th"}
                 dtslogger.warning(
                     "An error occurred while pulling the updated commands. Retrying for "
-                    f"the {trial + 2}-{th[trial + 2]} in {wait_time} seconds."
+                    f"the {trial + 2}-{th[trial + 2]} in {wait_on_retry_secs} seconds."
                 )
-                time.sleep(wait_time)
+                time.sleep(wait_on_retry_secs)
             else:
                 break
         run_cmd(["git", "-C", recipe_dir, "submodule", "update"])
 
         # Get HEAD sha after update and save
-        current_sha = run_cmd(["git", "-C", recipe_dir, "rev-parse", "HEAD"])
-        current_sha: str = list(filter(len, current_sha.split("\n")))[0]
+        current_sha: str = run_cmd(["git", "-C", recipe_dir, "rev-parse", "HEAD"])
+        # noinspection PyTypeChecker
+        current_sha = next(filter(len, current_sha.split("\n")))
         save_update_check_flag(recipe_dir, current_sha)
         return True  # Done updating
     else:
-        dtslogger.info(f"No update needed for recipe in '{recipe_dir}'.")
+        dtslogger.info(f"Recipe is up-to-date.")
         return False

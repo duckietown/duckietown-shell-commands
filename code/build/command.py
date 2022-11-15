@@ -1,16 +1,12 @@
 import argparse
 import os
 from types import SimpleNamespace
-from typing import Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-
 from utils.dtproject_utils import DTProject
-from utils.recipe_utils import clone_recipe, update_recipe
 
 
 class DTCommand(DTCommandAbs):
-
     help = "Builds a Duckietown exercise into an image"
 
     @staticmethod
@@ -18,7 +14,10 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to be built"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to be built"
         )
         parser.add_argument(
             "-u",
@@ -31,7 +30,13 @@ class DTCommand(DTCommandAbs):
             default=None,
             help="Path to use if specifying a custom recipe",
         )
-        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            default=False,
+            action="store_true",
+            help="Be verbose"
+        )
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -39,6 +44,12 @@ class DTCommand(DTCommandAbs):
             parsed, remaining = parser.parse_known_args(args=args)
             if remaining:
                 dtslogger.warning(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=[""])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
 
         # Show dtproject info
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -46,7 +57,7 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # Load the project recipe
+        # Make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -54,18 +65,18 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
-        recipe: Optional[DTProject] = project.recipe
-        dtslogger.info(f"Loaded recipe from {recipe.path}")
+        project.ensure_recipe_exists()
 
         # Try to update the project recipe
-        update: bool = project.update_cached_recipe()
+        if project.update_cached_recipe():
+            dtslogger.info("Recipe updated!")
 
         # Build the project using 'devel buildx' functionality
         buildx_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
             username=parsed.username,
             file=project.dockerfile,
-            recipe=recipe.path if recipe else None,
+            recipe=parsed.recipe,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
         )
