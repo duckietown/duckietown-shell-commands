@@ -11,7 +11,7 @@ from dt_shell.utils import run_cmd
 
 RECIPE_STAGE_NAME = "recipe"
 MEAT_STAGE_NAME = "meat"
-CHECK_RECIPE_UPDATE_MINS = 0
+CHECK_RECIPE_UPDATE_MINS = 6
 
 
 def get_recipe_project_dir(repository: str, branch: str, location: str) -> str:
@@ -96,8 +96,6 @@ def recipe_needs_update(repository: str, branch: str, location: str) -> bool:
             return False
         # check if we need to update
         need_update = local_sha != remote_sha
-        print(local_sha)
-        print(remote_sha)
 
     return need_update
 
