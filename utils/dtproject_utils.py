@@ -18,7 +18,7 @@ from docker.errors import APIError, ImageNotFound
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
 from utils.exceptions import RecipeProjectNotFound
-from utils.recipe_utils import get_recipe_project_dir, clone_recipe
+from utils.recipe_utils import get_recipe_project_dir, clone_recipe, update_recipe
 
 REQUIRED_METADATA_KEYS = {
     "*": ["TYPE_VERSION"],
@@ -284,6 +284,16 @@ class DTProject:
 
     def set_recipe_dir(self, path: str):
         self._recipe_dir = path
+
+    def update_cached_recipe(self):
+        """Update recipe if not using custom given recipe"""
+        if self.needs_recipe and not self._recipe_dir:
+            update_recipe(
+                self.metadata["RECIPE_REPOSITORY"],
+                self.metadata["RECIPE_BRANCH"],
+                self.metadata["RECIPE_LOCATION"]
+            )  # raises: UserError if the recipe has not been cloned
+        return False
 
     def is_release(self):
         if not self.is_clean():

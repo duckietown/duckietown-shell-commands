@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 from types import SimpleNamespace
 from typing import Optional
@@ -41,7 +40,7 @@ class DTCommand(DTCommandAbs):
             if remaining:
                 dtslogger.warning(f"I do not know about these arguments: {remaining}")
 
-        # Show dtproject info (TODO: repeated by buildx call?)
+        # Show dtproject info
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
@@ -58,7 +57,8 @@ class DTCommand(DTCommandAbs):
         recipe: Optional[DTProject] = project.recipe
         dtslogger.info(f"Loaded recipe from {recipe.path}")
 
-        # Update the recipe if necessary
+        # Try to update the project recipe
+        update: bool = project.update_cached_recipe()
 
         # Build the project using 'devel buildx' functionality
         buildx_namespace: SimpleNamespace = SimpleNamespace(
