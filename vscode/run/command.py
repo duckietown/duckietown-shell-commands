@@ -10,6 +10,7 @@ from pwd import getpwnam
 from typing import Optional
 
 import requests
+from urllib3.exceptions import InsecureRequestWarning
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
@@ -33,6 +34,7 @@ from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname
 
 VSCODE_PORT = 8088
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 class DTCommand(DTCommandAbs):
@@ -202,7 +204,7 @@ class DTCommand(DTCommandAbs):
         args = {
             "image": image,
             "detach": True,
-            "remove": True,
+            "remove": False,
             "envs": {
                 "HOST_UID": identity,
             },
@@ -236,14 +238,14 @@ class DTCommand(DTCommandAbs):
         url: str = f"https://localhost:{port}"
 
         # wait for VSCode to get up
-        max_wait: int = 20
+        max_wait: int = 30
         wait: int = 2
         found: bool = False
         dtslogger.info(f"Waiting for VSCode (up to {max_wait} seconds)...")
         for t in range(0, max_wait, wait):
             # noinspection PyBroadException
             try:
-                requests.get(url)
+                requests.get(url, verify=False)
             except Exception:
                 time.sleep(wait)
                 continue
@@ -255,6 +257,8 @@ class DTCommand(DTCommandAbs):
                 container.kill()
             except Exception:
                 pass
+            finally:
+                return
 
         # print URL to VSCode
         dtslogger.info(
