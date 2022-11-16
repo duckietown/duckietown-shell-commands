@@ -117,7 +117,9 @@ class DTCommand(DTCommandAbs):
         # custom VSCode distro
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
-            build_args.append(("DISTRO", parsed.distro))
+        else:
+            parsed.distro = get_distro_version(shell)
+        build_args.append(("DISTRO", parsed.distro))
 
         # some projects carry a Dockerfile.vscode and require a custom VSCode image
         if project.vscode_dockerfile is not None and not parsed.plain:
@@ -150,8 +152,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Skipping build for VSCode, reusing last available build")
         else:
             # use plain VSCode
-            distro: str = parsed.distro or get_distro_version(shell)
-            tag: str = f"{distro}-{arch}"
+            tag: str = f"{parsed.distro}-{arch}"
             vscode_image_name: str = f"{registry_to_use}/duckietown/dt-vscode:{tag}"
         # we know which VSCode to use
         dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
