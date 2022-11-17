@@ -29,7 +29,9 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(),
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
             help="Directory containing the project to open the editor on"
         )
         # parser.add_argument(
@@ -86,6 +88,12 @@ class DTCommand(DTCommandAbs):
             parsed, remaining = parser.parse_known_args(args=args)
             if remaining:
                 dtslogger.warning(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=[])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
 
         # variables
@@ -145,7 +153,8 @@ class DTCommand(DTCommandAbs):
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
-                dtslogger.debug(f"Calling 'devel/buildx' with arguments: {str(buildx_namespace)}")
+                dtslogger.debug(f"Calling command 'devel/buildx' "
+                                f"with arguments: {str(buildx_namespace)}")
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
             else:
