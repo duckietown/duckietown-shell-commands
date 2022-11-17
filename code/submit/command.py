@@ -135,7 +135,6 @@ class DTCommand(DTCommandAbs):
             registry=registry_to_use
         )
         image: pydock.Image = docker.image.inspect(src_name)
-        assert len(image.repo_digests) > 0
 
         # tag the image for aido_submission
         dst_repository = AGENT_SUBMISSION_REPOSITORY
@@ -147,6 +146,8 @@ class DTCommand(DTCommandAbs):
         # push image
         dtslogger.info(f"Pushing submission image '{dst_name}'...")
         docker.image.push(dst_name)
+        image.reload()
+        assert len(image.repo_digests) > 0
         dtslogger.info(f"Image pushed successfully!")
 
         # tag the image for aido_submission
