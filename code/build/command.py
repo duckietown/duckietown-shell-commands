@@ -26,6 +26,12 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username to use",
         )
         parser.add_argument(
+            "--pull",
+            default=False,
+            action="store_true",
+            help="Whether to pull the latest base image used by the Dockerfile",
+        )
+        parser.add_argument(
             "--recipe",
             default=None,
             help="Path to use if specifying a custom recipe",
@@ -76,6 +82,7 @@ class DTCommand(DTCommandAbs):
             workdir=parsed.workdir,
             username=parsed.username,
             file=project.dockerfile,
+            pull=parsed.pull,
             recipe=parsed.recipe,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
