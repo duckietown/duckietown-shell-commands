@@ -273,6 +273,12 @@ class DTCommand(DTCommandAbs):
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
 
+        # duckietown token
+        if parsed.ci:
+            token: str = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
+        else:
+            token: Optional[str] = shell.get_dt1_token()
+
         # CI builds
         if parsed.ci:
             parsed.pull = True
@@ -332,11 +338,6 @@ class DTCommand(DTCommandAbs):
                 # update machine parameter
                 parsed.machine = get_cloud_builder(parsed.ci_force_builder_arch)
                 dtslogger.info(f"Build forced to happen on {parsed.ci_force_builder_arch} CI node")
-            # configure docker for DT
-            if parsed.ci:
-                token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
-            else:
-                token = shell.get_dt1_token()
             # we are not transferring the image back to local when,
             # - we build on CI
             # - we build to push
@@ -391,7 +392,7 @@ class DTCommand(DTCommandAbs):
                 )
                 if not install:
                     dtslogger.info("Aborting.")
-                    return
+                    exit(2)
             # install buildx
             dtslogger.info("Installing buildx...")
             install_buildx()
@@ -714,7 +715,6 @@ class DTCommand(DTCommandAbs):
 
         # perform metadata push (if needed)
         if parsed.ci:
-            token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             tags_data = [
                 # NOTE: this image tag is modified by the CLI arguments, e.g., X-staging -> X
                 {"registry": registry_to_use, "version": version},
@@ -763,6 +763,9 @@ class DTCommand(DTCommandAbs):
                     "We had some issues cleaning up the image on '{:s}'".format(parsed.machine)
                     + ". Just a heads up!"
                 )
+
+        # ---
+        return True
 
     @staticmethod
     def complete(shell, word, line):
