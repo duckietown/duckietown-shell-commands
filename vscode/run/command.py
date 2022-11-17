@@ -38,7 +38,7 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 class DTCommand(DTCommandAbs):
-    help = "Builds the current project"
+    help = "Runs a containerized instance of VSCode"
 
     requested_stop: bool = False
 

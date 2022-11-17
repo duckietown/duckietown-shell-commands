@@ -7,7 +7,7 @@ from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):
-    help = "Builds a Duckietown exercise into an image"
+    help = "Builds a Duckietown project into an image"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -30,6 +30,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Whether to pull the latest base image used by the Dockerfile",
+        )
+        parser.add_argument(
+            "--push",
+            default=False,
+            action="store_true",
+            help="Whether to push the resulting Docker image to the registry",
         )
         parser.add_argument(
             "--recipe",
@@ -58,7 +64,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warning(f"I do not know about these arguments: {remaining}")
         else:
             # combine given args with default values
-            default_parsed = parser.parse_args(args=[""])
+            default_parsed = parser.parse_args(args=[])
             for k, v in parsed.__dict__.items():
                 setattr(default_parsed, k, v)
             parsed = default_parsed
@@ -89,12 +95,13 @@ class DTCommand(DTCommandAbs):
             username=parsed.username,
             file=project.dockerfile,
             pull=parsed.pull,
+            push=parsed.push,
             recipe=parsed.recipe,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
         )
-        dtslogger.debug(f"Building with 'devel/buildx' using args: {args}")
-        shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+        dtslogger.debug(f"Building with 'devel/buildx' using args: {buildx_namespace}")
+        return shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
 
     @staticmethod
     def complete(shell, word, line):

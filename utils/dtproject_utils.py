@@ -270,6 +270,20 @@ class DTProject:
         # this project does not have a Dockerfile.vscode
         return None
 
+    @property
+    def vnc_dockerfile(self) -> Optional[str]:
+        # this project's vnc Dockerfile
+        vnc_dockerfile: str = os.path.join(self.path, "Dockerfile.vnc")
+        if os.path.exists(vnc_dockerfile):
+            return vnc_dockerfile
+        # it might be in the recipe (if any)
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.vnc_dockerfile
+        # this project does not have a Dockerfile.vnc
+        return None
+
     def set_recipe_dir(self, path: str):
         self._custom_recipe_dir = path
 
