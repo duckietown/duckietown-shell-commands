@@ -10,7 +10,7 @@ def load_yaml(file_name: str):
         raise Exception(msg)
     with open(file_name) as f:
         try:
-            env = yaml.load(f, Loader=yaml.FullLoader)
+            env = yaml.safe_load(f)
         except Exception as e:
             msg = f"Cannot load yaml file {file_name}"
             raise Exception(msg) from e

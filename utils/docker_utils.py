@@ -85,19 +85,23 @@ def get_endpoint_ncpus(epoint=None):
     return epoint_ncpus
 
 
-def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
+def get_endpoint_architecture_from_client_OLD(client: DockerClientOLD) -> str:
     from .dtproject_utils import CANONICAL_ARCH
 
-    client = (
-        dockerOLD.from_env()
-        if hostname is None
-        else DockerClientOLD(base_url=sanitize_docker_baseurl(hostname, port))
-    )
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
         exit(1)
     return CANONICAL_ARCH[epoint_arch]
+
+
+def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT) -> str:
+    client = (
+        dockerOLD.from_env()
+        if hostname is None
+        else DockerClientOLD(base_url=sanitize_docker_baseurl(hostname, port))
+    )
+    return get_endpoint_architecture_from_client_OLD(client)
 
 
 def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optional[str]:
