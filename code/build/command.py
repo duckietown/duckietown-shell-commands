@@ -37,6 +37,12 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "-b",
+            "--base-tag",
+            default=None,
+            help="Docker tag for the base image." "Use when the base image is also a development version",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
