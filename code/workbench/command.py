@@ -7,6 +7,7 @@ import grp
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -36,7 +37,7 @@ from utils.docker_utils import (
 )
 from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
-from utils.misc_utils import sanitize_hostname
+from utils.misc_utils import sanitize_hostname, indent_block
 from utils.networking_utils import get_duckiebot_ip
 from utils.yaml_utils import load_yaml
 
@@ -281,12 +282,6 @@ class DTCommand(DTCommandAbs):
         # get information about the host user
         uid = os.getuid()
         username = getpass.getuser()
-
-        # Show dtproject info
-        parsed.workdir = os.path.abspath(parsed.workdir)
-        dtslogger.info("Project workspace: {}".format(parsed.workdir))
-        shell.include.devel.info.command(shell, args)
-        project = DTProject(parsed.workdir)
 
         # make sense of the '--logs' options
         for line in parsed.logs:
@@ -535,7 +530,7 @@ class DTCommand(DTCommandAbs):
         # make temporary directories
         # TODO: use python's temporary directory
         now: str = datetime.datetime.now().strftime("%d%b%y_%H_%M_%S")
-        tmpdir = os.path.join("/tmp", username, prog, now)
+        tmpdir = os.path.join("/tmp", username, re.sub(r"[^\w]", "_", prog), now)
         os.makedirs(tmpdir, exist_ok=False)
 
         # - fifos directory
@@ -816,9 +811,9 @@ class DTCommand(DTCommandAbs):
 
             # run VNC
 
-            # TODO: use 'code/desktop/build' to build VSCode for the project
+            # TODO: use 'code/desktop/build' to build VNC for the project
 
-            # # if we have a lab_dir - then let's see if the image exists locally otherwise try to build
+            # # if we have a lab_dir - let's see if the image exists locally otherwise try to build
             # # otherwise just use the base image
             # labdir_name = settings.get("lab_dir", None)
             # if labdir_name is None:
@@ -933,22 +928,23 @@ class DTCommand(DTCommandAbs):
         if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
             agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
 
+        # noinspection PyBroadException
         try:
             launch_agent(
+                project=project,
                 agent_container_name=agent_container_name,
                 agent_volumes=agent_bind,
                 parsed=parsed,
                 working_dir=parsed.workdir,
-                exercise_name=exercise_name,
                 agent_base_image=agent_image,
                 agent_network=agent_network,
                 agent_client=agent_client,
                 duckiebot=duckiebot,
-                settings=settings,
                 agent_env=agent_env,
             )
-        except Exception as e:
-            dtslogger.error(f"Attached container terminated {e}")
+        except Exception:
+            dtslogger.error(f"Attached container terminated:\n"
+                            f"{indent_block(traceback.format_exc())}\n")
         finally:
             clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
 
@@ -1070,35 +1066,46 @@ class ContainersMonitor(threading.Thread):
 
 
 def launch_agent(
+        project: DTProject,
         agent_container_name: str,
-        agent_volumes,
-        parsed,
+        agent_volumes: Dict[str, dict],
+        parsed: argparse.Namespace,
         working_dir: str,
-        exercise_name: str,
         agent_base_image: str,
         agent_network,
         agent_client: DockerClient,
         duckiebot: str,
-        settings: ProjectSettings,
         agent_env: Dict[str, str],
 ):
-    # Let's launch the ros template
     dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
 
-    ws_dir = "/" + settings.ws_dir
+    # agent is local
+    agent_is_local: bool = parsed.simulation or parsed.local
+    agent_is_remote: bool = not agent_is_local
 
-    if parsed.simulation or parsed.local:
-        agent_volumes[working_dir + "/assets"] = {"bind": "/data/settings", "mode": "rw"}
-        agent_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        agent_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
-    else:
-        agent_volumes[f"/data/settings"] = {"bind": "/data/settings", "mode": "rw"}
-        agent_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers",
-                                                             "mode": "rw"}
-        agent_volumes[f"/code/{exercise_name}{ws_dir}"] = {
-            "bind": f"/code{ws_dir}",
-            "mode": "rw",
-        }
+    # - mount code
+    # when we run remotely, use /code/<project> as root
+    root = project.path if agent_is_local else f"/code/{project.name}"
+    # get local and remote paths to code
+    local_srcs, destination_srcs = project.code_paths(root)
+    # compile mountpoints
+    for local_src, destination_src in zip(local_srcs, destination_srcs):
+        if agent_is_remote or os.path.exists(local_src):
+            agent_volumes[local_src] = {"bind": destination_src, "mode": "rw"}
+
+    # - mount launchers
+    # when we run remotely, use /launch/<project> as root
+    root = project.path if agent_is_local else f"/launch/{project.name}"
+    # get local and remote paths to launchers
+    local_launch, destination_launch = project.launch_paths(root)
+    if agent_is_remote or os.path.exists(local_launch):
+        print(local_launch)
+        agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+
+    # add assets
+    # TODO: is this really necessary?
+    root = project.path if agent_is_local else "/data"
+    agent_volumes[os.path.join(root, "assets")] = {"bind": "/data/settings", "mode": "rw"}
 
     if parsed.local and not parsed.simulation:
         # get the calibrations from the robot with the REST API
@@ -1146,8 +1153,8 @@ def launch_agent(
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
 
-    attach_cmd = "docker %s attach %s" % (
-        "" if parsed.local else f"-H {duckiebot}.local",
+    attach_cmd = "docker %sattach %s" % (
+        "" if parsed.local else f"-H {duckiebot}.local ",
         agent_container_name,
     )
     start_command_in_subprocess(attach_cmd)
@@ -1272,8 +1279,8 @@ def get_calibration_files(destination_dir, duckiebot):
                 fd.write(chunk)
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[
-    str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str], token: str) -> \
+        Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"
