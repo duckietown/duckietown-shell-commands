@@ -8,10 +8,9 @@ from typing import Optional, List
 from pydock import DockerClient
 
 from utils.exceptions import ShellNeedsUpdate
-
-# NOTE: this is to avoid breaking the user workspace
 from utils.misc_utils import sanitize_hostname
 
+# NOTE: this is to avoid breaking the user workspace
 try:
     import pydock
 except ImportError:
