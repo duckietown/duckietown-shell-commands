@@ -8,7 +8,7 @@ import subprocess
 import traceback
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Callable
 
 import docker
 import requests
@@ -86,7 +86,7 @@ ARCH_TO_PLATFORM_VARIANT = {
     "amd64": ""
 }
 
-TEMPLATE_TO_SRC = {
+TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -110,7 +110,7 @@ TEMPLATE_TO_SRC = {
     },
 }
 
-TEMPLATE_TO_LAUNCHFILE = {
+TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
@@ -485,19 +485,20 @@ class DTProject:
         # ---
         return locals, destinations
 
-    def launch_paths(self):
+    def launch_paths(self, root: Optional[str] = None) -> Tuple[str, str]:
         # make sure we support this project version
-        if (
-                self.type not in TEMPLATE_TO_LAUNCHFILE
-                or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
-        ):
+        if self.type not in TEMPLATE_TO_LAUNCHFILE or \
+                self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]:
             raise ValueError(
-                "Template {:s} v{:s} for project {:s} is not supported".format(
-                    self.type, self.type_version, self.path
-                )
+                f"Template {self.type} v{self.type_version} for project {self.path} not supported"
             )
         # ---
-        return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        src, dst = TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        src = os.path.join(root, src)
+        # ---
+        return src, dst
 
     def image_metadata(
             self,

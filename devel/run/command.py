@@ -262,7 +262,7 @@ class DTCommand(DTCommandAbs):
             for project_path in projects_to_mount:
                 # make sure that the project exists
                 if not os.path.isdir(project_path):
-                    dtslogger.error('The path "{:s}" is not a Duckietown project'.format(project_path))
+                    dtslogger.error(f"The path '{project_path}' is not a Duckietown project")
                 # get project info
                 proj = DTProject(project_path)
                 # (experimental): when we run remotely, use /code/<project> as root
@@ -271,17 +271,13 @@ class DTCommand(DTCommandAbs):
                 local_srcs, destination_srcs = proj.code_paths(root)
                 # compile mountpoints
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
-                    mount_option += [
-                        "-v",
-                        "{:s}:{:s}".format(local_src, destination_src)
-                    ]
+                    mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
+                # (experimental): when we run remotely, use /launch/<project> as root
+                root = f"/launch/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
                 # get local and remote paths to launchers
-                local_launch, destination_launch = proj.launch_paths()
+                local_launch, destination_launch = proj.launch_paths(root)
                 # compile mountpoints
-                mount_option += [
-                    "-v",
-                    "{:s}:{:s}".format(os.path.join(project_path, local_launch), destination_launch),
-                ]
+                mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
         # check if the index is clean
         if parsed.mount and project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
