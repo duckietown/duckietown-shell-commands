@@ -43,9 +43,9 @@ Docker Endpoint:
 """
 
 
-def get_registry_to_use() -> str:
+def get_registry_to_use(quiet: bool = False) -> str:
     docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
-    if docker_registry != DEFAULT_REGISTRY:
+    if docker_registry != DEFAULT_REGISTRY and not quiet:
         dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
     return docker_registry
 
@@ -76,7 +76,6 @@ def get_endpoint_ncpus(epoint=None):
     epoint_ncpus = 1
     try:
         epoint_ncpus = client.info()["NCPU"]
-        dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
     except BaseException:
         dtslogger.warning(
             f"Failed to retrieve the number of CPUs on the Docker endpoint. "
@@ -161,8 +160,9 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
     return client
 
 
-def copy_docker_env_into_configuration(shell_config: ShellConfig, registry: Optional[str] = None):
-    registry = registry or get_registry_to_use()
+def copy_docker_env_into_configuration(shell_config: ShellConfig, registry: Optional[str] = None,
+                                       quiet: bool = False):
+    registry = registry or get_registry_to_use(quiet)
     try:
         env_username, env_password = get_docker_auth_from_env()
     except AuthNotFound:
@@ -690,6 +690,7 @@ if _pydock_available:
         dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
         # noinspection PyBroadException
         try:
+            # TODO: add silent=True to pydock/dockertown
             client.login(server=registry, username=username, password=password)
         except BaseException:
             if raise_on_error:

@@ -55,6 +55,12 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Be verbose"
         )
+        parser.add_argument(
+            "--quiet",
+            default=False,
+            action="store_true",
+            help="Be verbose"
+        )
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -69,11 +75,14 @@ class DTCommand(DTCommandAbs):
                 setattr(default_parsed, k, v)
             parsed = default_parsed
 
-        # Show dtproject info
+        # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
-        dtslogger.info("Project workspace: {}".format(parsed.workdir))
-        shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # show dtproject info
+        if not parsed.quiet:
+            dtslogger.info("Project workspace: {}".format(parsed.workdir))
+            shell.include.devel.info.command(shell, args)
 
         # Make sure the project recipe is present
         if parsed.recipe is not None:
@@ -98,7 +107,7 @@ class DTCommand(DTCommandAbs):
             push=parsed.push,
             recipe=parsed.recipe,
             verbose=parsed.verbose,
-            quiet=not parsed.verbose,
+            quiet=parsed.quiet,
         )
         dtslogger.debug(f"Building with 'devel/buildx' using args: {buildx_namespace}")
         return shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
