@@ -43,6 +43,12 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "-L",
+            "--launcher",
+            default=None,
+            help="The launcher to use as entrypoint to the built container",
+        )
+        parser.add_argument(
             "-b",
             "--base-tag",
             default=None,
@@ -98,6 +104,16 @@ class DTCommand(DTCommandAbs):
         if project.update_cached_recipe():
             dtslogger.info("Recipe updated!")
 
+        # collect build arguments (if any)
+        build_arg = []
+        # - launcher
+        if parsed.launcher:
+            # make sure the launcher exists
+            if parsed.launcher not in project.launchers:
+                dtslogger.error(f"Launcher '{parsed.launcher}' not found in the current project")
+                return False
+            build_arg.append(("LAUNCHER", parsed.launcher))
+
         # Build the project using 'devel buildx' functionality
         buildx_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
@@ -108,6 +124,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             verbose=parsed.verbose,
             quiet=parsed.quiet,
+            build_arg=build_arg
         )
         dtslogger.debug(f"Building with 'devel/buildx' using args: {buildx_namespace}")
         return shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)

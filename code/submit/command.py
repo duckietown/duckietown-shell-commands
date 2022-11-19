@@ -68,6 +68,12 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "-L",
+            "--launcher",
+            default="submission",
+            help="The launcher to use as entrypoint to the submission container",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -113,6 +119,7 @@ class DTCommand(DTCommandAbs):
             username=parsed.username,
             pull=parsed.pull,
             recipe=parsed.recipe,
+            launcher=parsed.launcher,
             verbose=parsed.verbose,
             quiet=True
         )

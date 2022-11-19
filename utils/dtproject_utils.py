@@ -287,6 +287,40 @@ class DTProject:
         # this project does not have a Dockerfile.vnc
         return None
 
+    @property
+    def launchers(self) -> List[str]:
+        # read project template version
+        try:
+            project_template_ver = int(self.type_version)
+        except ValueError:
+            project_template_ver = -1
+        # search for launchers (template v2+)
+        if project_template_ver < 2:
+            raise NotImplementedError("Only projects with template type v2+ support launchers.")
+        # we return launchers from both recipe and meat
+        paths: List[str] = [self.path]
+        if self.needs_recipe:
+            paths.append(self.recipe.path)
+        # find launchers
+        launchers = []
+        for root in paths:
+            launchers_dir = os.path.join(root, "launchers")
+            if not os.path.exists(launchers_dir):
+                continue
+            files = [
+                os.path.join(launchers_dir, f)
+                for f in os.listdir(launchers_dir)
+                if os.path.isfile(os.path.join(launchers_dir, f))
+            ]
+
+            def _has_shebang(f):
+                with open(f, "rt") as fin:
+                    return fin.readline().startswith("#!")
+
+            launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]
+        # ---
+        return launchers
+
     def set_recipe_dir(self, path: str):
         self._custom_recipe_dir = path
 
