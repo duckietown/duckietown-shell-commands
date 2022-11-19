@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 from types import SimpleNamespace
 from typing import Optional
@@ -16,7 +15,6 @@ except ImportError:
 # NOTE: this is to avoid breaking the user workspace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from pydock import DockerClient
 from utils.dtproject_utils import DTProject
 
 
@@ -56,6 +54,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Whether to skip building VSCode for this project, reuse last build instead",
+        )
+        parser.add_argument(
+            "--build-only",
+            default=False,
+            action="store_true",
+            help="Whether to build VSCode for this project without running it",
         )
         parser.add_argument(
             "--recipe",
@@ -98,7 +102,6 @@ class DTCommand(DTCommandAbs):
 
         # variables
         registry_to_use = get_registry_to_use()
-        debug = dtslogger.level <= logging.DEBUG
         build_args = []
 
         # show info about project
@@ -129,8 +132,13 @@ class DTCommand(DTCommandAbs):
             parsed.distro = get_distro_version(shell)
         build_args.append(("DISTRO", parsed.distro))
 
+        # avoid weird silence
+        if parsed.build_only and project.vscode_dockerfile is None:
+            dtslogger.error("No Dockerfile.vscode found.")
+            return False
+
         # some projects carry a Dockerfile.vscode and require a custom VSCode image
-        if project.vscode_dockerfile is not None and not parsed.plain:
+        if (project.vscode_dockerfile is not None) and (not parsed.plain):
             # make an image name for VSCode
             vscode_image_tag: str = f"{project.safe_version_name}-vscode"
             vscode_image_name: str = project.image(
@@ -158,11 +166,17 @@ class DTCommand(DTCommandAbs):
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
             else:
-                dtslogger.info(f"Skipping build for VSCode, reusing last available build")
+                if not parsed.build_only:
+                    dtslogger.info(f"Skipping build for VSCode, reusing last available build")
         else:
             # use plain VSCode
             tag: str = f"{parsed.distro}-{arch}"
             vscode_image_name: str = f"{registry_to_use}/duckietown/dt-vscode:{tag}"
+
+        # build only stops here
+        if parsed.build_only:
+            return True
+
         # we know which VSCode to use
         dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
 
@@ -175,6 +189,7 @@ class DTCommand(DTCommandAbs):
         )
         dtslogger.debug(f"Calling 'vscode/run' with arguments: {str(vscode_namespace)}")
         shell.include.vscode.run.command(shell, [], parsed=vscode_namespace)
+        return True
 
     @staticmethod
     def complete(shell, word, line):

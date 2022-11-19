@@ -126,6 +126,9 @@ TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] =
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
+    "template-exercise-recipe": {
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+    },
     "template-exercise": {
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
     },
@@ -340,14 +343,51 @@ class DTProject:
             version: Optional[str] = None,
             loop: bool = False,
             docs: bool = False,
+            extra: Optional[str] = None
     ) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
+        extra = f"-{extra}" if extra else ""
         if version is None:
             version = self.safe_version_name
+        return f"{registry}/{owner}/{self.name}:{version}{extra}{loop}{docs}-{arch}"
 
-        return f"{registry}/{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+    def image_vscode(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vscode"
+        )
+
+    def image_vnc(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vnc"
+        )
 
     def image_release(
             self,
