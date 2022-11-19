@@ -263,6 +263,14 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
+            "--keep",
+            action="store_true",
+            default=False,
+            help="Do not auto-remove agent container once done. Produces garbage but it is "
+                 "very useful for debugging.",
+        )
+
+        parser.add_argument(
             "--challenge",
             help="Run in the environment of this challenge.",
         )
@@ -959,7 +967,6 @@ class DTCommand(DTCommandAbs):
                 agent_container_name=agent_container_name,
                 agent_volumes=agent_bind,
                 parsed=parsed,
-                working_dir=parsed.workdir,
                 agent_base_image=agent_image,
                 agent_network=agent_network,
                 agent_client=agent_client,
@@ -1095,7 +1102,6 @@ def launch_agent(
         agent_container_name: str,
         agent_volumes: Dict[str, dict],
         parsed: argparse.Namespace,
-        working_dir: str,
         agent_base_image: str,
         agent_network,
         agent_client: DockerClient,
@@ -1127,7 +1133,6 @@ def launch_agent(
     # get local and remote paths to launchers
     local_launch, destination_launch = recipe.launch_paths(root)
     if agent_is_remote or os.path.exists(local_launch):
-        print(local_launch)
         agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
 
     # define the location of the /data/config to give to the agent
@@ -1156,7 +1161,7 @@ def launch_agent(
         "name": agent_container_name,
         "volumes": agent_volumes,
         "environment": agent_env,
-        "auto_remove": True,
+        "auto_remove": not parsed.keep,
         "detach": True,
         "tty": True,
         "group_add": group_add,
