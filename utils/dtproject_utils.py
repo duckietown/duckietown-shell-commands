@@ -8,7 +8,7 @@ import subprocess
 import traceback
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Callable
 
 import docker
 import requests
@@ -86,7 +86,7 @@ ARCH_TO_PLATFORM_VARIANT = {
     "amd64": ""
 }
 
-TEMPLATE_TO_SRC = {
+TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -110,7 +110,7 @@ TEMPLATE_TO_SRC = {
     },
 }
 
-TEMPLATE_TO_LAUNCHFILE = {
+TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
@@ -125,6 +125,9 @@ TEMPLATE_TO_LAUNCHFILE = {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    "template-exercise-recipe": {
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
     },
     "template-exercise": {
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
@@ -284,6 +287,40 @@ class DTProject:
         # this project does not have a Dockerfile.vnc
         return None
 
+    @property
+    def launchers(self) -> List[str]:
+        # read project template version
+        try:
+            project_template_ver = int(self.type_version)
+        except ValueError:
+            project_template_ver = -1
+        # search for launchers (template v2+)
+        if project_template_ver < 2:
+            raise NotImplementedError("Only projects with template type v2+ support launchers.")
+        # we return launchers from both recipe and meat
+        paths: List[str] = [self.path]
+        if self.needs_recipe:
+            paths.append(self.recipe.path)
+        # find launchers
+        launchers = []
+        for root in paths:
+            launchers_dir = os.path.join(root, "launchers")
+            if not os.path.exists(launchers_dir):
+                continue
+            files = [
+                os.path.join(launchers_dir, f)
+                for f in os.listdir(launchers_dir)
+                if os.path.isfile(os.path.join(launchers_dir, f))
+            ]
+
+            def _has_shebang(f):
+                with open(f, "rt") as fin:
+                    return fin.readline().startswith("#!")
+
+            launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]
+        # ---
+        return launchers
+
     def set_recipe_dir(self, path: str):
         self._custom_recipe_dir = path
 
@@ -340,14 +377,51 @@ class DTProject:
             version: Optional[str] = None,
             loop: bool = False,
             docs: bool = False,
+            extra: Optional[str] = None
     ) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
+        extra = f"-{extra}" if extra else ""
         if version is None:
             version = self.safe_version_name
+        return f"{registry}/{owner}/{self.name}:{version}{extra}{loop}{docs}-{arch}"
 
-        return f"{registry}/{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+    def image_vscode(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vscode"
+        )
+
+    def image_vnc(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vnc"
+        )
 
     def image_release(
             self,
@@ -485,19 +559,20 @@ class DTProject:
         # ---
         return locals, destinations
 
-    def launch_paths(self):
+    def launch_paths(self, root: Optional[str] = None) -> Tuple[str, str]:
         # make sure we support this project version
-        if (
-                self.type not in TEMPLATE_TO_LAUNCHFILE
-                or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
-        ):
+        if self.type not in TEMPLATE_TO_LAUNCHFILE or \
+                self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]:
             raise ValueError(
-                "Template {:s} v{:s} for project {:s} is not supported".format(
-                    self.type, self.type_version, self.path
-                )
+                f"Template {self.type} v{self.type_version} for project {self.path} not supported"
             )
         # ---
-        return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        src, dst = TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        src = os.path.join(root, src)
+        # ---
+        return src, dst
 
     def image_metadata(
             self,

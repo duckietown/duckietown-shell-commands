@@ -7,6 +7,7 @@ import grp
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -15,6 +16,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from enum import Enum
+from types import SimpleNamespace
 from typing import Callable, cast, Dict, List, Optional, Iterable
 
 import requests
@@ -36,7 +38,7 @@ from utils.docker_utils import (
 )
 from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
-from utils.misc_utils import sanitize_hostname
+from utils.misc_utils import sanitize_hostname, indent_block
 from utils.networking_utils import get_duckiebot_ip
 from utils.yaml_utils import load_yaml
 
@@ -100,26 +102,37 @@ class ImageRunSpec:
     ports: List[str]
 
 
+
+# TODO: register container stopping with `atexit`
+# TODO: use `atexit` to cleanup tmp directory
+
+
 @dataclasses.dataclass
 class ProjectSettings:
     # agent base image
     # TODO: do we still need this?
     agent_base: str
+
     # directory that contains the code the user needs to see
     # TODO: do we still need this?
     ws_dir: str
+
     # directory that we should mount to put logs in
     # TODO: do we still need this?
     log_dir: Optional[str] = None
+
     # whether the project uses ROS
     # TODO: do we still need this?
     ros: Optional[bool] = True
+
     # TODO: not sure what this is
     # TODO: do we still need this?
     step: Optional[str] = None
+
     # challenge to submit to
     # TODO: do we still need this?
     challenge: Optional[str] = None
+
     # files to exclude when rsync-ing
     # TODO: do we still need this?
     rsync_exclude: List[str] = dataclasses.field(default_factory=list)
@@ -250,6 +263,14 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
+            "--keep",
+            action="store_true",
+            default=False,
+            help="Do not auto-remove agent container once done. Produces garbage but it is "
+                 "very useful for debugging.",
+        )
+
+        parser.add_argument(
             "--challenge",
             help="Run in the environment of this challenge.",
         )
@@ -281,12 +302,6 @@ class DTCommand(DTCommandAbs):
         # get information about the host user
         uid = os.getuid()
         username = getpass.getuser()
-
-        # Show dtproject info
-        parsed.workdir = os.path.abspath(parsed.workdir)
-        dtslogger.info("Project workspace: {}".format(parsed.workdir))
-        shell.include.devel.info.command(shell, args)
-        project = DTProject(parsed.workdir)
 
         # make sense of the '--logs' options
         for line in parsed.logs:
@@ -344,11 +359,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Bringing up exercise '{exercise_name}'...")
 
         # TODO: what is this for?
-        # TODO: rename this to `assets/environment`?
         # environment directory is in the recipe
-        environment_dir = os.path.join(recipe.path, "assets", "setup")
+        environment_dir = os.path.join(recipe.path, "assets", "environment")
         if not os.path.exists(environment_dir):
-            msg = "Recipe must contain a 'assets/setup' directory"
+            msg = "Recipe must contain a 'assets/environment' directory"
             raise InvalidUserInput(msg)
 
         # # identify agent base image
@@ -438,7 +452,7 @@ class DTCommand(DTCommandAbs):
         # image names
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
         bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
-        vnc_image = docker_image(VNC_IMAGE, parsed.registry)
+        vnc_image = project.image(registry=parsed.registry, arch=arch, owner=username, extra="vnc")
 
         # define container and network names
         prefix = f"ex-{exercise_name}"
@@ -535,7 +549,7 @@ class DTCommand(DTCommandAbs):
         # make temporary directories
         # TODO: use python's temporary directory
         now: str = datetime.datetime.now().strftime("%d%b%y_%H_%M_%S")
-        tmpdir = os.path.join("/tmp", username, prog, now)
+        tmpdir = os.path.join("/tmp", username, re.sub(r"[^\w]", "_", prog), now)
         os.makedirs(tmpdir, exist_ok=False)
 
         # - fifos directory
@@ -814,28 +828,21 @@ class DTCommand(DTCommandAbs):
             # add container to monitor to the list (the order matters)
             containers_to_monitor.append(ros_container)
 
+            # build VNC
+            dtslogger.info(f"Running VNC...")
+            vnc_namespace: SimpleNamespace = SimpleNamespace(
+                workdir=project.path,
+                username=username,
+                recipe=recipe.path,
+                # TODO: test this
+                # impersonate=uid,
+                build_only=True,
+                quiet=True,
+            )
+            dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
+            shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
+
             # run VNC
-
-            # TODO: use 'code/desktop/build' to build VSCode for the project
-
-            # # if we have a lab_dir - then let's see if the image exists locally otherwise try to build
-            # # otherwise just use the base image
-            # labdir_name = settings.get("lab_dir", None)
-            # if labdir_name is None:
-            #     dtslogger.info("No lab dir - running base VNC image")
-            #     vnc_image = VNC_IMAGE
-            #     vnc_image = add_registry(vnc_image)
-            # else:
-            #     vnc_image = f"{getpass.getuser()}/exercise-{exercise_name}-lab:latest"
-            #     try:
-            #         local_client_images = local_client.images.get(vnc_image)
-            #     except Exception as e:
-            #         dtslogger.error(
-            #             f"Failed to find <Image: '{vnc_image}:latest'> in local images."
-            #             "You must run dts exercises build first to build your lab image to run "
-            #             "notebooks"
-            #         )
-
             dtslogger.info(f"Running VNC...")
             # base environment is the ROS environment
             vnc_env = copy.deepcopy(ros_env)
@@ -933,22 +940,43 @@ class DTCommand(DTCommandAbs):
         if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
             agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
 
+        # build agent (if needed)
+        # TODO: check if there is an image with name 'image_name', build one if not
+
+
+        # TODO: adapt this to 'code/build'
+        # # build VNC
+        # dtslogger.info(f"Running VNC...")
+        # vnc_namespace: SimpleNamespace = SimpleNamespace(
+        #     workdir=project.path,
+        #     username=username,
+        #     recipe=recipe.path,
+        #     # TODO: test this
+        #     # impersonate=uid,
+        #     build_only=True,
+        #     quiet=True,
+        # )
+        # dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
+        # shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
+        # TODO: adapt this to 'code/build'
+
+        # noinspection PyBroadException
         try:
             launch_agent(
+                project=project,
                 agent_container_name=agent_container_name,
                 agent_volumes=agent_bind,
                 parsed=parsed,
-                working_dir=parsed.workdir,
-                exercise_name=exercise_name,
                 agent_base_image=agent_image,
                 agent_network=agent_network,
                 agent_client=agent_client,
                 duckiebot=duckiebot,
-                settings=settings,
                 agent_env=agent_env,
+                tmpdir=tmpdir
             )
-        except Exception as e:
-            dtslogger.error(f"Attached container terminated {e}")
+        except Exception:
+            dtslogger.error(f"Attached container terminated:\n"
+                            f"{indent_block(traceback.format_exc())}\n")
         finally:
             clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
 
@@ -1070,40 +1098,57 @@ class ContainersMonitor(threading.Thread):
 
 
 def launch_agent(
+        project: DTProject,
         agent_container_name: str,
-        agent_volumes,
-        parsed,
-        working_dir: str,
-        exercise_name: str,
+        agent_volumes: Dict[str, dict],
+        parsed: argparse.Namespace,
         agent_base_image: str,
         agent_network,
         agent_client: DockerClient,
         duckiebot: str,
-        settings: ProjectSettings,
         agent_env: Dict[str, str],
+        tmpdir: str
 ):
-    # Let's launch the ros template
     dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
+    # get project's recipe (note, it could be the project itself)
+    recipe: DTProject = project.recipe if project.needs_recipe else project
 
-    ws_dir = "/" + settings.ws_dir
+    # agent is local
+    agent_is_local: bool = parsed.simulation or parsed.local
+    agent_is_remote: bool = not agent_is_local
 
-    if parsed.simulation or parsed.local:
-        agent_volumes[working_dir + "/assets"] = {"bind": "/data/settings", "mode": "rw"}
-        agent_volumes[working_dir + "/launchers"] = {"bind": "/code/launchers", "mode": "rw"}
-        agent_volumes[working_dir + ws_dir] = {"bind": f"/code{ws_dir}", "mode": "rw"}
-    else:
-        agent_volumes[f"/data/settings"] = {"bind": "/data/settings", "mode": "rw"}
-        agent_volumes[f"/code/{exercise_name}/launchers"] = {"bind": "/code/launchers",
-                                                             "mode": "rw"}
-        agent_volumes[f"/code/{exercise_name}{ws_dir}"] = {
-            "bind": f"/code{ws_dir}",
-            "mode": "rw",
-        }
+    # - mount code (from project (aka meat))
+    # when we run remotely, use /code/<project> as root
+    root = project.path if agent_is_local else f"/code/{project.name}"
+    # get local and remote paths to code
+    local_srcs, destination_srcs = project.code_paths(root)
+    # compile mountpoints
+    for local_src, destination_src in zip(local_srcs, destination_srcs):
+        if agent_is_remote or os.path.exists(local_src):
+            agent_volumes[local_src] = {"bind": destination_src, "mode": "rw"}
 
+    # - mount launchers (from recipe)
+    # when we run remotely, use /launch/<project> as root
+    root = recipe.path if agent_is_local else f"/launch/{recipe.name}"
+    # get local and remote paths to launchers
+    local_launch, destination_launch = recipe.launch_paths(root)
+    if agent_is_remote or os.path.exists(local_launch):
+        agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+
+    # define the location of the /data/config to give to the agent
+    data = os.path.join(recipe.path, "assets", "agent", "data") if agent_is_local else "/data"
+
+    # get the calibrations from the robot with the REST API
     if parsed.local and not parsed.simulation:
-        # get the calibrations from the robot with the REST API
-        get_calibration_files(working_dir + "/assets", parsed.duckiebot)
+        data = os.path.join(tmpdir, "agent", "data")
+        os.makedirs(data)
+        # copy /data/config from the robot to a temporary location
+        get_calibration_files(data, parsed.duckiebot)
 
+    # add agent's configuration
+    agent_volumes[os.path.join(data, "config")] = {"bind": "/data/config", "mode": "rw"}
+
+    # add user to groups if on linux
     on_mac = "Darwin" in platform.system()
     if on_mac:
         group_add = []
@@ -1116,7 +1161,7 @@ def launch_agent(
         "name": agent_container_name,
         "volumes": agent_volumes,
         "environment": agent_env,
-        "auto_remove": True,
+        "auto_remove": not parsed.keep,
         "detach": True,
         "tty": True,
         "group_add": group_add,
@@ -1146,8 +1191,8 @@ def launch_agent(
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
 
-    attach_cmd = "docker %s attach %s" % (
-        "" if parsed.local else f"-H {duckiebot}.local",
+    attach_cmd = "docker %sattach %s" % (
+        "" if parsed.local else f"-H {duckiebot}.local ",
         agent_container_name,
     )
     start_command_in_subprocess(attach_cmd)
@@ -1237,14 +1282,14 @@ def get_calibration_files(destination_dir, duckiebot):
     dtslogger.info("Getting all calibration files")
 
     calib_files = [
-        "calibrations/camera_intrinsic/{duckiebot:s}.yaml",
-        "calibrations/camera_extrinsic/{duckiebot:s}.yaml",
-        "calibrations/kinematics/{duckiebot:s}.yaml",
+        "config/calibrations/camera_intrinsic/{duckiebot:s}.yaml",
+        "config/calibrations/camera_extrinsic/{duckiebot:s}.yaml",
+        "config/calibrations/kinematics/{duckiebot:s}.yaml",
     ]
 
     for calib_file in calib_files:
         calib_file = calib_file.format(duckiebot=duckiebot)
-        url = "http://{:s}.local/files/data/settings/{:s}".format(duckiebot, calib_file)
+        url = "http://{:s}.local/files/data/{:s}".format(duckiebot, calib_file)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
@@ -1272,8 +1317,8 @@ def get_calibration_files(destination_dir, duckiebot):
                 fd.write(chunk)
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[
-    str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str], token: str) -> \
+        Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"

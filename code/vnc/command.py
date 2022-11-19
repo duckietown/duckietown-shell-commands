@@ -20,7 +20,7 @@ from utils.dtproject_utils import DTProject
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Runs an instance of VSCode to work on a project'
+    help = 'Builds an instance of VNC to work on a project'
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -30,13 +30,13 @@ class DTCommand(DTCommandAbs):
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the project to open the editor on"
+            help="Directory containing the project to build the desktop for"
         )
         # parser.add_argument(
         #     "--pull",
         #     default=False,
         #     action="store_true",
-        #     help="Whether to pull the latest VSCode image",
+        #     help="Whether to pull the latest VNC image",
         # )
         parser.add_argument(
             "-u",
@@ -47,13 +47,13 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--distro",
             default=None,
-            help="Custom distribution to use VSCode from",
+            help="Custom distribution to use VNC from",
         )
         parser.add_argument(
             "--no-build",
             default=False,
             action="store_true",
-            help="Whether to skip building VSCode for this project, reuse last build instead",
+            help="Whether to skip building VNC for this project, reuse last build instead",
         )
         parser.add_argument(
             "--build-only",
@@ -70,13 +70,13 @@ class DTCommand(DTCommandAbs):
             "--plain",
             default=False,
             action="store_true",
-            help="Whether to skip building VSCode for this project, use plain VSCode instead",
+            help="Whether to skip building VNC for this project, use plain VNC instead"
         )
         parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
-            help="Username or UID of the user to impersonate inside VSCode"
+            help="Username or UID of the user to impersonate inside VNC"
         )
         parser.add_argument(
             "-v",
@@ -84,6 +84,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Be verbose"
+        )
+        parser.add_argument(
+            "--quiet",
+            default=False,
+            action="store_true",
+            help="Be quiet"
         )
 
         # get pre-parsed or parse arguments
@@ -106,8 +112,9 @@ class DTCommand(DTCommandAbs):
 
         # show info about project
         parsed.workdir = os.path.abspath(parsed.workdir)
-        dtslogger.info("Project workspace: {}".format(parsed.workdir))
-        shell.include.devel.info.command(shell, args)
+        if not parsed.quiet:
+            dtslogger.info("Project workspace: {}".format(parsed.workdir))
+            shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
         # pick the right architecture
@@ -125,7 +132,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         recipe: Optional[DTProject] = project.recipe
 
-        # custom VSCode distro
+        # custom VNC distro
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
@@ -133,29 +140,29 @@ class DTCommand(DTCommandAbs):
         build_args.append(("DISTRO", parsed.distro))
 
         # avoid weird silence
-        if parsed.build_only and project.vscode_dockerfile is None:
-            dtslogger.error("No Dockerfile.vscode found.")
-            return False
+        if parsed.build_only and project.vnc_dockerfile is None:
+            dtslogger.error("No Dockerfile.vnc found.")
+            return
 
-        # some projects carry a Dockerfile.vscode and require a custom VSCode image
-        if (project.vscode_dockerfile is not None) and (not parsed.plain):
-            # make an image name for VSCode
-            vscode_image_tag: str = f"{project.safe_version_name}-vscode"
-            vscode_image_name: str = project.image(
+        # some projects carry a Dockerfile.vnc and require a custom VNC image
+        if (project.vnc_dockerfile is not None) and (not parsed.plain):
+            # make an image name for VNC
+            vnc_image_tag: str = f"{project.safe_version_name}-vnc"
+            vnc_image_name: str = project.image(
                 arch=arch,
                 owner=parsed.username,
                 registry=registry_to_use,
-                version=vscode_image_tag
+                version=vnc_image_tag
             )
 
-            # build vscode (unless skipped)
+            # build vnc (unless skipped)
             if not parsed.no_build:
-                dtslogger.info(f"Building VSCode image for project '{project.name}'...")
+                dtslogger.info(f"Building VNC image for project '{project.name}'...")
                 buildx_namespace: SimpleNamespace = SimpleNamespace(
                     workdir=parsed.workdir,
                     username=parsed.username,
-                    tag=vscode_image_tag,
-                    file=project.vscode_dockerfile,
+                    tag=vnc_image_tag,
+                    file=project.vnc_dockerfile,
                     recipe=recipe.path if recipe else None,
                     build_arg=build_args,
                     verbose=parsed.verbose,
@@ -164,32 +171,34 @@ class DTCommand(DTCommandAbs):
                 dtslogger.debug(f"Calling command 'devel/buildx' "
                                 f"with arguments: {str(buildx_namespace)}")
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
-                dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
+                dtslogger.info(f"VNC for project '{project.name}' successfully built!")
             else:
                 if not parsed.build_only:
-                    dtslogger.info(f"Skipping build for VSCode, reusing last available build")
+                    dtslogger.info(f"Skipping build for VNC, reusing last available build")
         else:
-            # use plain VSCode
+            # use plain VNC
             tag: str = f"{parsed.distro}-{arch}"
-            vscode_image_name: str = f"{registry_to_use}/duckietown/dt-vscode:{tag}"
+            vnc_image_name: str = f"{registry_to_use}/duckietown/dt-vnc:{tag}"
 
         # build only stops here
         if parsed.build_only:
             return True
 
-        # we know which VSCode to use
-        dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
+        # we know which VNC to use
+        dtslogger.debug(f"Using VNC image '{vnc_image_name}'")
 
-        # run VSCode
-        vscode_namespace = SimpleNamespace(
-            workdir=[parsed.workdir],
-            image=vscode_image_name,
-            impersonate=parsed.impersonate,
-            verbose=parsed.verbose,
-        )
-        dtslogger.debug(f"Calling 'vscode/run' with arguments: {str(vscode_namespace)}")
-        shell.include.vscode.run.command(shell, [], parsed=vscode_namespace)
-        return True
+        raise NotImplementedError("dts/vnc/run is not implemented.")
+
+        # # run VNC
+        # vnc_namespace = SimpleNamespace(
+        #     workdir=[parsed.workdir],
+        #     image=vnc_image_name,
+        #     impersonate=parsed.impersonate,
+        #     verbose=parsed.verbose,
+        # )
+        # dtslogger.debug(f"Calling 'vnc/run' with arguments: {str(vnc_namespace)}")
+        # shell.include.vnc.run.command(shell, [], parsed=vnc_namespace)
+        # return True
 
     @staticmethod
     def complete(shell, word, line):

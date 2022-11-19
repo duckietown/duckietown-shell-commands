@@ -68,7 +68,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -77,7 +80,10 @@ class DTCommand(DTCommandAbs):
             help="Target architecture(s) for the image to build",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -86,7 +92,10 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -126,7 +135,10 @@ class DTCommand(DTCommandAbs):
             help="Additional build contexts to pass to Docker buildx",
         )
         parser.add_argument(
-            "--push", default=False, action="store_true", help="Whether to push the resulting image"
+            "--push",
+            default=False,
+            action="store_true",
+            help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--manifest",
@@ -166,7 +178,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image." "Use when the base image is also a development version",
+            help="Docker tag for the base image. Use when the base image is a development version",
         )
         parser.add_argument(
             "--ci",
@@ -182,23 +194,51 @@ class DTCommand(DTCommandAbs):
             help="Forces CI to build on a specific architecture node",
         )
         parser.add_argument(
-            "--cloud", default=False, action="store_true", help="Build the image on the cloud"
+            "--cloud",
+            default=False,
+            action="store_true",
+            help="Build the image on the cloud"
         )
         parser.add_argument(
-            "--stamp", default=False, action="store_true", help="Stamp image with the build time"
+            "--stamp",
+            default=False,
+            action="store_true",
+            help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
+            "-D",
+            "--destination",
+            default=None,
+            help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs", default=False, action="store_true", help="Build the code documentation as well"
+            "--docs",
+            default=False,
+            action="store_true",
+            help="Build the code documentation as well"
         )
         parser.add_argument(
-            "--ncpus", default=None, type=int, help="Value to pass as build-arg `NCPUS` to docker build."
+            "--quiet",
+            default=False,
+            action="store_true",
+            help="Be less verbose"
         )
-        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
+            "--ncpus",
+            default=None,
+            type=int,
+            help="Value to pass as build-arg `NCPUS` to docker build."
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            default=False,
+            action="store_true",
+            help="Be verbose")
+        parser.add_argument(
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
         )
 
         # get pre-parsed or parse arguments
@@ -210,7 +250,8 @@ class DTCommand(DTCommandAbs):
                 multi.execute()
                 return
         if not parsed:
-            parsed, remaining = parser.parse_known_args(args=args)  # FIXME: this ignores other arguments
+            # FIXME: this ignores other arguments
+            parsed, remaining = parser.parse_known_args(args=args)
 
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
@@ -223,12 +264,13 @@ class DTCommand(DTCommandAbs):
         # ---
 
         # variables
-        docker_build_args = {}
-        labels = {}
-        cache_from = None
-        stime = time.time()
-        registry_to_use = get_registry_to_use()
-        debug = dtslogger.level <= logging.DEBUG
+        docker_build_args: dict = {}
+        labels: dict = {}
+        cache_from: Optional[str] = None
+        stime: float = time.time()
+        registry_to_use: str = get_registry_to_use(parsed.quiet)
+        pip_index_url_to_use: str = get_pip_index_url()
+        debug: bool = dtslogger.level <= logging.DEBUG
 
         # conflicting arguments
         if parsed.push and parsed.loop:
@@ -236,11 +278,14 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
             exit(9)
 
-        # show info about project
+        # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
-        dtslogger.info("Project workspace: {}".format(parsed.workdir))
-        shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # show info about project
+        if not parsed.quiet:
+            dtslogger.info("Project workspace: {}".format(parsed.workdir))
+            shell.include.devel.info.command(shell, args)
 
         # recipe
         if parsed.recipe is not None:
@@ -258,10 +303,12 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
 
+        # read project template version
         try:
             project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
+
         # check if the git HEAD is detached
         if project.is_detached():
             dtslogger.error(
@@ -269,6 +316,7 @@ class DTCommand(DTCommandAbs):
                 "before continuing. Aborting."
             )
             exit(8)
+
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
@@ -321,7 +369,7 @@ class DTCommand(DTCommandAbs):
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
                 dtslogger.error(
-                    f"No cloud machines found for target architecture {parsed.arch}. " f"Aborting..."
+                    f"No cloud machines found for target architecture {parsed.arch}. Aborting..."
                 )
                 exit(3)
             # update machine parameter
@@ -346,12 +394,14 @@ class DTCommand(DTCommandAbs):
             # update destination parameter
             if not parsed.destination:
                 parsed.destination = DEFAULT_MACHINE
+
         # add code labels
         project_head_version = project.head_version if project.is_clean() else "ND"
         project_closest_version = project.closest_version
         labels[dtlabel("code.distro")] = project.distro
         labels[dtlabel("code.version.head")] = project_head_version
         labels[dtlabel("code.version.closest")] = project_closest_version
+
         # git-based project
         if "git" in project.adapters:
             labels[dtlabel("code.vcs")] = "git"
@@ -363,9 +413,11 @@ class DTCommand(DTCommandAbs):
             labels[dtlabel("code.repository")] = "ND"
             labels[dtlabel("code.branch")] = "ND"
             labels[dtlabel("code.url")] = "ND"
+
         # add template labels
         labels[dtlabel("template.name")] = project.type
         labels[dtlabel("template.version")] = project.type_version
+
         # check if the index is clean
         if project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
@@ -408,15 +460,17 @@ class DTCommand(DTCommandAbs):
         client = get_client(parsed.machine)
 
         # build-arg NCPUS
-        docker_build_args["NCPUS"] = (
-            str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
-        )
+        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) \
+            if parsed.ncpus is None else str(parsed.ncpus)
+        docker_build_args["NCPUS"] = ncpu
+        dtslogger.debug(f"NCPU set to {ncpu}.")
 
         # get info about docker endpoint
-        dtslogger.info("Retrieving info about Docker endpoint...")
-        epoint = docker.info().dict()
-        epoint["mem_total"] = human_size(epoint["mem_total"])
-        print(DOCKER_INFO.format(**epoint))
+        if not parsed.quiet:
+            dtslogger.info("Retrieving info about Docker endpoint...")
+            epoint = docker.info().dict()
+            epoint["mem_total"] = human_size(epoint["mem_total"])
+            print(DOCKER_INFO.format(**epoint))
 
         # login client
         copy_docker_env_into_configuration(shell.shell_config)
@@ -480,8 +534,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
 
         # custom pip registry
-        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
-        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+        docker_build_args["PIP_INDEX_URL"] = pip_index_url_to_use
+        docker_build_args[ENV_REGISTRY] = registry_to_use
 
         # custom build arguments
         for key, value in parsed.build_arg:
@@ -558,7 +612,7 @@ class DTCommand(DTCommandAbs):
                 time_label = dtlabel("time")
                 sha_label = dtlabel("code.sha")
                 dtslogger.debug(
-                    "Remote image labels:\n%s\n" % json.dumps(image_labels, indent=4, sort_keys=True)
+                    f"Remote image labels:\n{json.dumps(image_labels, indent=4, sort_keys=True)}\n"
                 )
                 if time_label in image_labels and sha_label in image_labels:
                     remote_time = image_labels[time_label]
@@ -567,6 +621,7 @@ class DTCommand(DTCommandAbs):
                         dtslogger.debug("Identical image found. Reusing cache.")
                         # local and remote SHA match, reuse time
                         build_time = remote_time
+
         # default build_time
         build_time = build_time or datetime.datetime.utcnow().isoformat()
         dtslogger.debug(f"Image timestamp: {build_time}")
@@ -627,8 +682,14 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug("Build arguments:\n%s\n" % json.dumps(buildargs, sort_keys=True, indent=4))
 
         # build image
+        dtslogger.info("Packaging project...")
         buildlog = []
-        build = docker.buildx.build(path=parsed.workdir, progress="plain", stream_logs=True, **buildargs)
+        build = docker.buildx.build(
+            path=parsed.workdir,
+            progress="plain",
+            stream_logs=True,
+            **buildargs
+        )
         try:
             for line in build:
                 if not line:
@@ -647,6 +708,7 @@ class DTCommand(DTCommandAbs):
 
         # get resulting image
         dimage = client.images.get(image)
+        dtslogger.info("Project packaged successfully!")
 
         # update manifest
         dmanifest: Optional[Manifest] = None
@@ -683,35 +745,45 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Building documentation...")
             shell.include.devel.docs.build.command(shell, args + docs_args)
 
-        # get image history
-        historylog = [(layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()]
+        # print out image analysis
+        if not parsed.quiet:
+            # get image history
+            historylog = [
+                (layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()
+            ]
 
-        # round up extra info
-        extra_info = []
-        # - launchers info
-        if len(launchers) > 0:
-            extra_info.append("Image launchers:")
-            for launcher in sorted(launchers):
-                extra_info.append(" - {:s}".format(launcher))
-            extra_info.append(EXTRA_INFO_SEPARATOR)
-        # - timing
-        extra_info.append("Time: {}".format(human_time(time.time() - stime)))
-        # - documentation
-        extra_info.append(
-            "Documentation: {}".format(
-                colored("Built", "green") if parsed.docs else colored("Skipped", "yellow")
+            # round up extra info
+            extra_info = []
+            # - launchers info
+            if len(launchers) > 0:
+                extra_info.append("Image launchers:")
+                for launcher in sorted(launchers):
+                    extra_info.append(" - {:s}".format(launcher))
+                extra_info.append(EXTRA_INFO_SEPARATOR)
+            # - timing
+            extra_info.append("Time: {}".format(human_time(time.time() - stime)))
+            # - documentation
+            extra_info.append(
+                "Documentation: {}".format(
+                    colored("Built", "green") if parsed.docs else colored("Skipped", "yellow")
+                )
             )
-        )
-        # - manifest
-        if parsed.manifest:
-            extra_info.append(f"Manifest: {manifest}")
-            for m in dmanifest.manifests:
-                extra_info.append(f" - {str(m.platform.as_string())}")
-        # compile extra info
-        extra_info = "\n".join(extra_info)
+            # - manifest
+            if parsed.manifest:
+                extra_info.append(f"Manifest: {manifest}")
+                for m in dmanifest.manifests:
+                    extra_info.append(f" - {str(m.platform.as_string())}")
+            # compile extra info
+            extra_info = "\n".join(extra_info)
 
-        # run docker image analysis
-        ImageAnalyzer.process(buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci)
+            # run docker image analysis
+            ImageAnalyzer.process(
+                buildlog,
+                historylog,
+                codens=100,
+                extra_info=extra_info,
+                nocolor=parsed.ci
+            )
 
         # perform metadata push (if needed)
         if parsed.ci:
@@ -723,7 +795,12 @@ class DTCommand(DTCommandAbs):
             ]
             for tag_data in tags_data:
                 with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                    metadata = project.ci_metadata(
+                        client,
+                        arch=parsed.arch,
+                        owner=DEFAULT_OWNER,
+                        **tag_data
+                    )
                     # add build metadata
                     metadata["build"] = {
                         "args": copy.deepcopy(buildargs),

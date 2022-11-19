@@ -8,10 +8,9 @@ from typing import Optional, List
 from pydock import DockerClient
 
 from utils.exceptions import ShellNeedsUpdate
-
-# NOTE: this is to avoid breaking the user workspace
 from utils.misc_utils import sanitize_hostname
 
+# NOTE: this is to avoid breaking the user workspace
 try:
     import pydock
 except ImportError:
@@ -69,6 +68,12 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "-L",
+            "--launcher",
+            default="submission",
+            help="The launcher to use as entrypoint to the submission container",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -114,15 +119,15 @@ class DTCommand(DTCommandAbs):
             username=parsed.username,
             pull=parsed.pull,
             recipe=parsed.recipe,
-            verbose=parsed.verbose
+            launcher=parsed.launcher,
+            verbose=parsed.verbose,
+            quiet=True
         )
-        dtslogger.info(f"Packaging submission...")
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
         success: bool = shell.include.code.build.command(shell, [], parsed=build_namespace)
         if not success:
             dtslogger.error("Failed to build the agent image for submission. Aborting.")
             exit(1)
-        dtslogger.info(f"Submission packaged successfully!")
 
         # create docker client
         host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
@@ -137,27 +142,23 @@ class DTCommand(DTCommandAbs):
         image: pydock.Image = docker.image.inspect(src_name)
 
         # tag the image for aido_submission
-        dst_repository = AGENT_SUBMISSION_REPOSITORY
-        dst_datetime = tag_from_date(datetime.datetime.now())
-        dst_name = f"{registry_to_use}/{parsed.username}/{dst_repository}:{dst_datetime}"
-        dtslogger.info(f"Tagging submission image as '{dst_name}'")
-        image.tag(dst_name)
+        repository: str = AGENT_SUBMISSION_REPOSITORY
+        dtime: str = tag_from_date(datetime.datetime.now())
+        agent_image_name: str = f"{registry_to_use}/{parsed.username}/{repository}"
+        agent_image_full: str = f"{agent_image_name}:{dtime}"
+        dtslogger.info(f"Tagging submission image as '{agent_image_full}'")
+        image.tag(agent_image_full)
 
         # push image
-        dtslogger.info(f"Pushing submission image '{dst_name}'...")
-        docker.image.push(dst_name)
+        dtslogger.info(f"Pushing submission image '{agent_image_full}'...")
+        docker.image.push(agent_image_full)
         image.reload()
         assert len(image.repo_digests) > 0
         dtslogger.info(f"Image pushed successfully!")
 
         # tag the image for aido_submission
-        digest_sha = sha_from_digest(image)
-        submission_tag = f"{dst_repository}:{dst_datetime}@{digest_sha}"
-        submission_image_name = project.manifest(
-            owner=parsed.username,
-            registry=registry_to_use,
-            version=submission_tag
-        )
+        digest_sha = sha_from_digest(image, agent_image_name)
+        submission_image_name = f"{agent_image_full}@{digest_sha}"
         dtslogger.debug(f"Submission image name is: {submission_image_name}")
 
         # submit
@@ -193,7 +194,10 @@ def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
     return s
 
 
-def sha_from_digest(image: pydock.Image) -> str:
+def sha_from_digest(image: pydock.Image, image_name: str) -> str:
     image.reload()
-    src_digest = image.repo_digests[0]
-    return src_digest[src_digest.index("@") + 1:]
+    digest: Optional[str] = None
+    for d in image.repo_digests:
+        if d.startswith(image_name):
+            digest = d
+    return digest[digest.index("@") + 1:]
