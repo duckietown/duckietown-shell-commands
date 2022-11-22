@@ -73,6 +73,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to skip building VSCode for this project, use plain VSCode instead",
         )
         parser.add_argument(
+            "--keep",
+            default=False,
+            action="store_true",
+            help="Whether to keep the VSCode once done (useful for debugging)",
+        )
+        parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
@@ -186,6 +192,7 @@ class DTCommand(DTCommandAbs):
             image=vscode_image_name,
             impersonate=parsed.impersonate,
             verbose=parsed.verbose,
+            keep=parsed.keep,
         )
         dtslogger.debug(f"Calling 'vscode/run' with arguments: {str(vscode_namespace)}")
         shell.include.vscode.run.command(shell, [], parsed=vscode_namespace)
