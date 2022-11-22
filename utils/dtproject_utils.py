@@ -1,12 +1,14 @@
 import copy
+import glob
 import json
 import os
 import random
 import re
 import subprocess
 import traceback
+from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, List, Dict, Tuple, Callable
 
 import docker
 import requests
@@ -15,12 +17,20 @@ from docker.errors import APIError, ImageNotFound
 
 from dt_shell import UserError
 from utils.docker_utils import sanitize_docker_baseurl
+from utils.exceptions import RecipeProjectNotFound
+from utils.recipe_utils import get_recipe_project_dir, update_recipe, clone_recipe
 
 REQUIRED_METADATA_KEYS = {
     "*": ["TYPE_VERSION"],
     "1": ["TYPE", "VERSION"],
     "2": ["TYPE", "VERSION"],
     "3": ["TYPE", "VERSION"],
+}
+
+REQUIRED_METADATA_PER_TYPE_KEYS = {
+    "template-exercise": {
+        "3": ["NAME", "RECIPE_REPOSITORY", "RECIPE_BRANCH", "RECIPE_LOCATION"],
+    },
 }
 
 CANONICAL_ARCH = {
@@ -76,7 +86,7 @@ ARCH_TO_PLATFORM_VARIANT = {
     "amd64": ""
 }
 
-TEMPLATE_TO_SRC = {
+TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -92,10 +102,15 @@ TEMPLATE_TO_SRC = {
         "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
         "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo))},
+    "template-exercise-recipe": {
+        "3": lambda repo: ("packages", "/code/catkin_ws/src/{:s}/packages".format(repo))
+    },
+    "template-exercise": {
+        "3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))
+    },
 }
 
-TEMPLATE_TO_LAUNCHFILE = {
+TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
@@ -111,7 +126,12 @@ TEMPLATE_TO_LAUNCHFILE = {
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
-    "template-exercise": {"1": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
+    "template-exercise-recipe": {
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+    },
+    "template-exercise": {
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO", "3": "DISTRO"}
@@ -124,6 +144,7 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
+
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -136,6 +157,7 @@ class DTProject:
         self._type_version = self._project_info["TYPE_VERSION"]
         self._version = self._project_info["VERSION"]
         self._adapters.append("dtproject")
+        self._custom_recipe_dir: Optional[str] = None
         # use `git` adapter if available
         if os.path.isdir(os.path.join(self._path, ".git")):
             repo_info = self._get_repo_info(self._path)
@@ -160,6 +182,10 @@ class DTProject:
     @property
     def name(self):
         return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
+
+    @property
+    def metadata(self) -> Dict[str, str]:
+        return copy.deepcopy(self._project_info)
 
     @property
     def type(self):
@@ -190,6 +216,10 @@ class DTProject:
         return self._repository.branch if self._repository else "latest"
 
     @property
+    def safe_version_name(self) -> str:
+        return re.sub(r"[^\w\-.]", "-", self.version_name)
+
+    @property
     def url(self):
         return self._repository.repository_page if self._repository else None
 
@@ -200,6 +230,125 @@ class DTProject:
     @property
     def adapters(self):
         return copy.copy(self._adapters)
+
+    @property
+    def needs_recipe(self) -> bool:
+        return self.type == "template-exercise"
+
+    @property
+    def recipe_dir(self) -> Optional[str]:
+        if not self.needs_recipe:
+            return None
+        return self._custom_recipe_dir if self._custom_recipe_dir else get_recipe_project_dir(
+            self.metadata["RECIPE_REPOSITORY"],
+            self.metadata["RECIPE_BRANCH"],
+            self.metadata["RECIPE_LOCATION"]
+        )
+
+    @property
+    def recipe(self) -> Optional['DTProject']:
+        # load recipe project
+        return DTProject(self.recipe_dir) if self.needs_recipe else None
+
+    @property
+    def dockerfile(self) -> str:
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.dockerfile
+        # this project carries its own Dockerfile
+        return os.path.join(self.path, "Dockerfile")
+
+    @property
+    def vscode_dockerfile(self) -> Optional[str]:
+        # this project's vscode Dockerfile
+        vscode_dockerfile: str = os.path.join(self.path, "Dockerfile.vscode")
+        if os.path.exists(vscode_dockerfile):
+            return vscode_dockerfile
+        # it might be in the recipe (if any)
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.vscode_dockerfile
+        # this project does not have a Dockerfile.vscode
+        return None
+
+    @property
+    def vnc_dockerfile(self) -> Optional[str]:
+        # this project's vnc Dockerfile
+        vnc_dockerfile: str = os.path.join(self.path, "Dockerfile.vnc")
+        if os.path.exists(vnc_dockerfile):
+            return vnc_dockerfile
+        # it might be in the recipe (if any)
+        if self.needs_recipe:
+            # this project needs a recipe to build
+            recipe: DTProject = self.recipe
+            return recipe.vnc_dockerfile
+        # this project does not have a Dockerfile.vnc
+        return None
+
+    @property
+    def launchers(self) -> List[str]:
+        # read project template version
+        try:
+            project_template_ver = int(self.type_version)
+        except ValueError:
+            project_template_ver = -1
+        # search for launchers (template v2+)
+        if project_template_ver < 2:
+            raise NotImplementedError("Only projects with template type v2+ support launchers.")
+        # we return launchers from both recipe and meat
+        paths: List[str] = [self.path]
+        if self.needs_recipe:
+            paths.append(self.recipe.path)
+        # find launchers
+        launchers = []
+        for root in paths:
+            launchers_dir = os.path.join(root, "launchers")
+            if not os.path.exists(launchers_dir):
+                continue
+            files = [
+                os.path.join(launchers_dir, f)
+                for f in os.listdir(launchers_dir)
+                if os.path.isfile(os.path.join(launchers_dir, f))
+            ]
+
+            def _has_shebang(f):
+                with open(f, "rt") as fin:
+                    return fin.readline().startswith("#!")
+
+            launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]
+        # ---
+        return launchers
+
+    def set_recipe_dir(self, path: str):
+        self._custom_recipe_dir = path
+
+    def ensure_recipe_exists(self):
+        if not self.needs_recipe:
+            return
+        # clone the project specified recipe (if necessary)
+        if not os.path.exists(self.recipe_dir):
+            cloned: bool = clone_recipe(
+                self.metadata["RECIPE_REPOSITORY"],
+                self.metadata["RECIPE_BRANCH"],
+                self.metadata["RECIPE_LOCATION"]
+            )
+            if not cloned:
+                raise RecipeProjectNotFound(f"Recipe repository could not be downloaded.")
+        # make sure the recipe exists
+        if not os.path.exists(self.recipe_dir):
+            raise RecipeProjectNotFound(f"Recipe not found at '{self.recipe_dir}'")
+
+    def update_cached_recipe(self) -> bool:
+        """Update recipe if not using custom given recipe"""
+        if self.needs_recipe and not self._custom_recipe_dir:
+            return update_recipe(
+                self.metadata["RECIPE_REPOSITORY"],
+                self.metadata["RECIPE_BRANCH"],
+                self.metadata["RECIPE_LOCATION"]
+            )  # raises: UserError if the recipe has not been cloned
+        return False
 
     def is_release(self):
         if not self.is_clean():
@@ -220,30 +369,67 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(
-        self,
-        *,
-        arch: str,
-        registry: str,
-        owner: str,
-        version: Optional[str] = None,
-        loop: bool = False,
-        docs: bool = False,
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            loop: bool = False,
+            docs: bool = False,
+            extra: Optional[str] = None
     ) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
         docs = "-docs" if docs else ""
+        extra = f"-{extra}" if extra else ""
         if version is None:
-            version = re.sub(r"[^\w\-.]", "-", self.version_name)
+            version = self.safe_version_name
+        return f"{registry}/{owner}/{self.name}:{version}{extra}{loop}{docs}-{arch}"
 
-        return f"{registry}/{owner}/{self.name}:{version}{loop}{docs}-{arch}"
+    def image_vscode(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vscode"
+        )
+
+    def image_vnc(
+            self,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
+            docs: bool = False,
+    ) -> str:
+        return self.image(
+            arch=arch,
+            registry=registry,
+            owner=owner,
+            version=version,
+            docs=docs,
+            extra="vnc"
+        )
 
     def image_release(
-        self,
-        *,
-        arch: str,
-        owner: str,
-        registry: str,
-        docs: bool = False,
+            self,
+            *,
+            arch: str,
+            owner: str,
+            registry: str,
+            docs: bool = False,
     ) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
@@ -253,11 +439,11 @@ class DTProject:
         return f"{registry}/{owner}/{self.name}:{version}{docs}-{arch}"
 
     def manifest(
-        self,
-        *,
-        registry: str,
-        owner: str,
-        version: Optional[str] = None,
+            self,
+            *,
+            registry: str,
+            owner: str,
+            version: Optional[str] = None,
     ) -> str:
         if version is None:
             version = re.sub(r"[^\w\-.]", "-", self.version_name)
@@ -265,13 +451,13 @@ class DTProject:
         return f"{registry}/{owner}/{self.name}:{version}"
 
     def ci_metadata(
-        self,
-        endpoint,
-        *,
-        arch: str,
-        registry: str,
-        owner: str,
-        version: str
+            self,
+            endpoint,
+            *,
+            arch: str,
+            registry: str,
+            owner: str,
+            version: str
     ):
         image_tag = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
@@ -279,7 +465,8 @@ class DTProject:
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version, registry=registry)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version,
+                                      registry=registry)
 
         # remove useless data
         del inspect["ContainerConfig"]
@@ -340,7 +527,7 @@ class DTProject:
             raise KeyError(f"Configuration with name '{name}' not found.")
         return configurations[name]
 
-    def code_paths(self):
+    def code_paths(self, root: Optional[str] = None) -> Tuple[List[str], List[str]]:
         # make sure we support this project version
         if self.type not in TEMPLATE_TO_SRC or self.type_version not in TEMPLATE_TO_SRC[self.type]:
             raise ValueError(
@@ -349,29 +536,51 @@ class DTProject:
                 )
             )
         # ---
-        return TEMPLATE_TO_SRC[self.type][self.type_version](self.name)
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        # local and destination are fixed given project type and version
+        local, destination = TEMPLATE_TO_SRC[self.type][self.type_version](self.name)
+        # 'local' can be a pattern
+        if local.endswith("*"):
+            # resolve 'local' with respect to the project path
+            local_abs: str = os.path.join(self.path, local)
+            # resolve pattern
+            locals = glob.glob(local_abs)
+            # we only support mounting directories
+            locals = [loc for loc in locals if os.path.isdir(loc)]
+            # replace 'self.path' prefix with 'root'
+            locals = [os.path.join(root, os.path.relpath(loc, self.path)) for loc in locals]
+            # destinations take the stem of the source
+            destinations = [os.path.join(destination, Path(loc).stem) for loc in locals]
+        else:
+            # by default, there is only one local and one destination
+            locals: List[str] = [os.path.join(root, local)]
+            destinations: List[str] = [destination]
+        # ---
+        return locals, destinations
 
-    def launch_paths(self):
+    def launch_paths(self, root: Optional[str] = None) -> Tuple[str, str]:
         # make sure we support this project version
-        if (
-            self.type not in TEMPLATE_TO_LAUNCHFILE
-            or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
-        ):
+        if self.type not in TEMPLATE_TO_LAUNCHFILE or \
+                self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]:
             raise ValueError(
-                "Template {:s} v{:s} for project {:s} is not supported".format(
-                    self.type, self.type_version, self.path
-                )
+                f"Template {self.type} v{self.type_version} for project {self.path} not supported"
             )
         # ---
-        return TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        src, dst = TEMPLATE_TO_LAUNCHFILE[self.type][self.type_version](self.name)
+        src = os.path.join(root, src)
+        # ---
+        return src, dst
 
     def image_metadata(
-        self,
-        endpoint,
-        arch: str,
-        owner: str,
-        registry: str,
-        version: str
+            self,
+            endpoint,
+            arch: str,
+            owner: str,
+            registry: str,
+            version: str
     ):
         client = _docker_client(endpoint)
         image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
@@ -379,16 +588,17 @@ class DTProject:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
-            raise Exception(f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
+            raise Exception(
+                f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
 
     def image_labels(
-        self,
-        endpoint,
-        *,
-        arch: str,
-        owner: str,
-        registry: str,
-        version: str
+            self,
+            endpoint,
+            *,
+            arch: str,
+            owner: str,
+            registry: str,
+            version: str
     ):
         client = _docker_client(endpoint)
         image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
@@ -409,24 +619,32 @@ class DTProject:
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
-            msg = f"The path '{metafile}' does not appear to be a Duckietown project. "
+            msg = f"The path '{path}' does not appear to be a Duckietown project. "
             msg += "\nThe metadata file '.dtproject' is missing."
             raise UserError(msg)
         # load '.dtproject'
         with open(metafile, "rt") as metastream:
-            metadata = metastream.readlines()
+            lines: List[str] = metastream.readlines()
         # empty metadata?
-        if not metadata:
-            msg = "The metadata file '.dtproject' is empty."
+        if not lines:
+            msg = f"The metadata file '{metafile}' is empty."
             raise UserError(msg)
+        # strip lines
+        lines = [
+            line.strip() for line in lines
+        ]
+        # remove empty lines and comments
+        lines = [
+            line for line in lines if len(line) > 0 and not line.startswith("#")
+        ]
         # parse metadata
         metadata = {
-            p[0].strip().upper(): p[1].strip() for p in [line.split("=") for line in metadata if line.strip()]
+            key.strip().upper(): val.strip() for key, val in [line.split("=") for line in lines]
         }
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
-                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
                 raise UserError(msg)
         # validate version
         version = metadata["TYPE_VERSION"]
@@ -436,7 +654,13 @@ class DTProject:
         # validate metadata
         for key in REQUIRED_METADATA_KEYS[version]:
             if key not in metadata:
-                msg = f"The metadata file '.dtproject' does not contain the key '{key}'."
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
+                raise UserError(msg)
+        # validate metadata keys specific to project type and version
+        type = metadata["TYPE"]
+        for key in REQUIRED_METADATA_PER_TYPE_KEYS.get(type, {}).get(version, []):
+            if key not in metadata:
+                msg = f"The metadata file '{metafile}' does not contain the key '{key}'."
                 raise UserError(msg)
         # metadata is valid
         metadata["PATH"] = path
@@ -463,7 +687,8 @@ class DTProject:
         head_tag = head_tag[0] if head_tag else "ND"
         closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
         closest_tag = closest_tag[-1] if closest_tag else "ND"
-        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[0]
+        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[
+            0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
         if origin_url.endswith("/"):
@@ -551,7 +776,8 @@ def _remote_url_to_https(remote_url):
 
 def _run_cmd(cmd):
     cmd = " ".join(cmd)
-    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n") if line]
+    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n")
+            if line]
 
 
 def _parse_configurations(config_file: str) -> dict:

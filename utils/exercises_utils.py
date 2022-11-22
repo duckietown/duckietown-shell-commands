@@ -1,11 +1,3 @@
-BASELINE_IMAGES = {
-    "template_ros": "duckietown/challenge-aido_lf-template-ros:daffy",
-    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:daffy",
-    "template_pytorch": "duckietown/challenge-aido_lf-template-pytorch:daffy",
-    "template_random": "duckietown/challenge-aido_lf-template-random:daffy",
-    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:daffy",
-}
-
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +6,15 @@ from typing import Optional
 from dt_shell import dtslogger, UserError
 
 from .yaml_utils import load_yaml
+
+
+BASELINE_IMAGES = {
+    "template_ros": "duckietown/challenge-aido_lf-template-ros:daffy",
+    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:daffy",
+    "template_pytorch": "duckietown/challenge-aido_lf-template-pytorch:daffy",
+    "template_random": "duckietown/challenge-aido_lf-template-random:daffy",
+    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:daffy",
+}
 
 
 @dataclass
@@ -38,7 +39,8 @@ def get_exercise_config(d=None) -> ExerciseConfig:
     cfile_name = "config.yaml"
     cfile = os.path.join(working_dir, cfile_name)
     if not os.path.exists(cfile):
-        msg = f"You must run this command inside an exercise directory " f"containing a `{cfile_name}` file."
+        msg = f"You must run this command inside an exercise directory "\
+              f"containing a `{cfile_name}` file."
         raise UserError(msg)
     config = load_yaml(cfile)
 

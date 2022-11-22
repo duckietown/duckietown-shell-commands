@@ -26,9 +26,9 @@ usage = """
     This is a helper for the exercises. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercise` commands, use `dts duckiebot exercise -h`.
+    To know more on the `exercises` commands, use `dts duckiebot exercises -h`.
 
-        $ dts exercise build 
+        $ dts exercises build 
 
 """
 

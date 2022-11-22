@@ -20,8 +20,16 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog="dts challenges")
 
         parser.add_argument(
+            "-C",
+            "--workdir",
+            default=None,
+            type=str,
+            help="Working directory to run the command from"
+        )
+
+        parser.add_argument(
             "--image",
-            default="${%s}/duckietown/duckietown-challenges-cli:daffy-amd64" % ENV_REGISTRY,
+            default="${%s}/duckietown/duckietown-challenges-cli:daffy" % ENV_REGISTRY,
             help="Which image to use",
         )
 
@@ -31,23 +39,29 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--no-pull", action="store_true", default=False, help="")
         parser.add_argument("--remote-build", action="store_true", default=False, help="")
 
-        # parser.add_argument('cmd', nargs='*')
-        # find the first non- "-" entry
-        parse_here = []
-        parse_later = []
+        parser.add_argument(
+            "action",
+            type=str,
+            nargs=1,
+            help="Action to perform"
+        )
 
-        for i, arg in enumerate(args):
-            if not arg.startswith("-"):
-                parse_later = args[i:]
-                break
-            else:
-                parse_here.append(arg)
+        # parse everything to find the action
+        parsed, _ = parser.parse_known_args(args=args)
+        action: str = parsed.action[0]
+        # parse everything `challenges [here] <action> ...`
+        parsed, _ = parser.parse_known_args(args=args[:args.index(action) + 1])
+        rest = args[args.index(action):]
 
-        parsed, rest = parser.parse_known_args(args=parse_here)
-        rest += parse_later
+        if parsed.workdir is not None:
+            if not os.path.isdir(parsed.workdir):
+                dtslogger.error(f"Path '{parsed.workdir}' does not exist or it is not a directory")
+                exit(1)
+            # move over to the custom workdir
+            os.chdir(parsed.workdir)
 
-        if rest and (rest[0] == "config"):
-            return command_config(shell, rest[1:])
+        if action == "config":
+            return command_config(shell, rest)
 
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
         dt1_token = shell.get_dt1_token()

@@ -4,13 +4,25 @@ import json
 import logging
 import os
 import signal
+import time
 import uuid
+from pwd import getpwnam
 from typing import Optional
+
+import requests
+from urllib3.exceptions import InsecureRequestWarning
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
+from utils.exceptions import ShellNeedsUpdate
 
-import pydock
+# NOTE: this is to avoid breaking the user workspace
+try:
+    import pydock
+except ImportError:
+    raise ShellNeedsUpdate("5.2.21")
+# NOTE: this is to avoid breaking the user workspace
+
 from pydock import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import (
@@ -22,10 +34,11 @@ from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname
 
 VSCODE_PORT = 8088
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 class DTCommand(DTCommandAbs):
-    help = "Builds the current project"
+    help = "Runs a containerized instance of VSCode"
 
     requested_stop: bool = False
 
@@ -57,6 +70,12 @@ class DTCommand(DTCommandAbs):
             default=0,
             type=int,
             help="Port to bind to. A random port will be assigned by default"
+        )
+        parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Username or UID of the user to impersonate inside VSCode"
         )
         parser.add_argument(
             "-v",
@@ -94,6 +113,12 @@ class DTCommand(DTCommandAbs):
             parsed, remaining = parser.parse_known_args(args=args)
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
+        else:
+            # combine given args with default values
+            default_parsed = parser.parse_args(args=["workdir"])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
 
         # variables
@@ -154,16 +179,35 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pulling image '{image}'...")
             docker.image.pull(image, quiet=False)
 
+        # impersonate
+        identity: int = os.getuid()
+        if parsed.impersonate is not None:
+            try:
+                # try interpreting parsed.impersonate as UID
+                identity = int(parsed.impersonate)
+                dtslogger.info(f"Impersonating user with UID {identity}")
+            except ValueError:
+                try:
+                    # try interpreting parsed.impersonate as username
+                    identity = getpwnam(parsed.impersonate).pw_uid
+                    dtslogger.info(f"Impersonating '{parsed.impersonate}' with UID {identity}")
+                except KeyError:
+                    dtslogger.error(f"Cannot impersonate '{parsed.impersonate}', user not found")
+                    return
+
         # launch container
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
         container_name: str = f"vscode-{workspace_name}-{container_id}"
-        workdir = f"/code/user_ws/{workspace_name}"
+        workdir = f"/code/{workspace_name}"
         dtslogger.info(f"Running image '{image}'...")
         args = {
             "image": image,
             "detach": True,
-            "remove": True,
+            "remove": False,
+            "envs": {
+                "HOST_UID": identity,
+            },
             "volumes": [
                 # needed by the container to figure out the GID of `docker` on the host
                 ("/etc/group", "/host/etc/group", "ro"),
@@ -180,14 +224,47 @@ class DTCommand(DTCommandAbs):
                         f"{json.dumps(args, indent=4, sort_keys=True)}\n")
         container = docker.run(**args)
 
+        # register signal
+        def _stop_container(*_):
+            dtslogger.info("Stopping VSCode...")
+            DTCommand.requested_stop = True
+            container.kill()
+            dtslogger.info("Done")
+
+        signal.signal(signal.SIGINT, _stop_container)
+
         # find port exposed by the OS
         port: str = container.network_settings.ports[f"{VSCODE_PORT}/tcp"][0]["HostPort"]
+        url: str = f"https://localhost:{port}"
+
+        # wait for VSCode to get up
+        max_wait: int = 30
+        wait: int = 2
+        found: bool = False
+        dtslogger.info(f"Waiting for VSCode (up to {max_wait} seconds)...")
+        for t in range(0, max_wait, wait):
+            # noinspection PyBroadException
+            try:
+                requests.get(url, verify=False)
+            except Exception:
+                time.sleep(wait)
+                continue
+            found = True
+        if not found:
+            dtslogger.error(f"VSCode failed to come up in {max_wait} seconds. Aborting...")
+            # noinspection PyBroadException
+            try:
+                container.kill()
+            except Exception:
+                pass
+            finally:
+                return
 
         # print URL to VSCode
         dtslogger.info(
             "\nYou can open VSCode in your browser by visiting the URL:\n"
             "\n"
-            f"\t> https://localhost:{port}\n"
+            f"\t> {url}\n"
             f"\n"
             f"VSCode might take a few seconds to be ready...\n"
             f"--------------------------------------------------------"
@@ -199,15 +276,6 @@ class DTCommand(DTCommandAbs):
                            f"The container name is {container_name}.")
         else:
             dtslogger.info("Use Ctrl-C in this terminal to stop VSCode.")
-
-            # register signal
-            def _stop_container(*_):
-                dtslogger.info("Stopping VSCode...")
-                DTCommand.requested_stop = True
-                container.kill()
-                dtslogger.info("Done")
-
-            signal.signal(signal.SIGINT, _stop_container)
 
             # wait for the container to stop
             try:

@@ -48,7 +48,7 @@ usage = """
 
     To know more on the `exercises` commands, use `dts exercises test -h`.
 
-        $ dts exercise test --duckiebot_name [DUCKIEBOT_NAME]
+        $ dts exercises test --duckiebot_name [DUCKIEBOT_NAME]
 
 """
 
