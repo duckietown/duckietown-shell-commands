@@ -164,6 +164,7 @@ class DTCommand(DTCommandAbs):
                     file=project.vscode_dockerfile,
                     recipe=recipe.path if recipe else None,
                     build_arg=build_args,
+                    pull=True,
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
