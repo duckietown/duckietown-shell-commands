@@ -4,6 +4,7 @@ import os
 import platform
 import subprocess
 from datetime import datetime
+import docker
 
 import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -258,6 +259,7 @@ class DTCommand(DTCommandAbs):
 
         if parsed.nvidia:
             params["runtime"] = "nvidia"
+            params["device_requests"] = [docker.types.DeviceRequest(count=-1, capabilities=[["gpu"]])]
 
         # custom wkdir
         if parsed.wkdir is not None:
