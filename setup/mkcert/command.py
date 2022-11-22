@@ -76,10 +76,17 @@ class DTCommand(DTCommandAbs):
             assert exists(ca_cert)
             assert exists(ca_key)
             # look for missing libraries
+            # - linux
             if "libnss3-tools" in out:
                 dtslogger.error("The system library 'libnss3-tools' is missing, please, "
                                   "install it using the following command and the retry:\n\n"
                                   "\t$ sudo apt install libnss3-tools\n\n")
+                exit(1)
+            # - mac osx
+            if "brew install nss" in out:
+                dtslogger.error("The system library 'nss' is missing, please, "
+                                "install it using the following command and the retry:\n\n"
+                                "\t$ brew install nss\n\n")
                 exit(1)
             print(out)
             # make sure the CA was installed
