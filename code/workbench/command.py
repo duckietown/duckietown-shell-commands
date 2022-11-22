@@ -178,6 +178,8 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-s",
             "--simulation",
+            "--sim",
+            "--simulator",
             action="store_true",
             default=False,
             help="Should we run it in the simulator instead of the real robot?",
