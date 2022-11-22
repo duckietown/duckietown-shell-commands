@@ -94,6 +94,13 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Container name",
         )
         parser.add_argument(
+            "--nvidia",
+            action="store_true",
+            default=False,
+            help="should we use the NVIDIA runtime?",
+        )
+
+        parser.add_argument(
             "--uid",
             type=int,
             default=None,
@@ -248,6 +255,9 @@ class DTCommand(DTCommandAbs):
         # custom UID
         if parsed.uid is not None:
             params["user"] = f"{parsed.uid}"
+
+        if parsed.nvidia:
+            params["runtime"] = "nvidia"
 
         # custom wkdir
         if parsed.wkdir is not None:
