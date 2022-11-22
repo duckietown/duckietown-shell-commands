@@ -78,6 +78,12 @@ class DTCommand(DTCommandAbs):
             help="Username or UID of the user to impersonate inside VSCode"
         )
         parser.add_argument(
+            "--keep",
+            default=False,
+            action="store_true",
+            help="Whether to keep the VSCode once done (useful for debugging)",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             default=False,
@@ -204,13 +210,13 @@ class DTCommand(DTCommandAbs):
         args = {
             "image": image,
             "detach": True,
-            "remove": False,
+            "remove": not parsed.keep,
             "envs": {
                 "HOST_UID": identity,
             },
             "volumes": [
                 # needed by the container to figure out the GID of `docker` on the host
-                ("/etc/group", "/host/etc/group", "ro"),
+                # ("/etc/group", "/host/etc/group", "ro"),
                 # needed by VSCode to run in a safe context, nothing works in VSCode via HTTP
                 (ssl_dir, "/ssl", "ro"),
                 # this is the actual workspace
