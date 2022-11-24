@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import logging
 import os
 from types import SimpleNamespace
@@ -32,14 +31,17 @@ AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
 
 
 class DTCommand(DTCommandAbs):
-    help = "Submits a project to a Duckietown challenge"
+    help = "Evaluates a project against a Duckietown challenge"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to submit"
         )
         parser.add_argument(
             "-a",
@@ -54,7 +56,10 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username to use",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--recipe",
@@ -67,7 +72,13 @@ class DTCommand(DTCommandAbs):
             default="submission",
             help="The launcher to use as entrypoint to the submission container",
         )
-        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            default=False,
+            action="store_true",
+            help="Be verbose"
+        )
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -104,6 +115,9 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+
+        # make sure the recipe (if any) is downloaded
+        project.ensure_recipe_exists() if project.needs_recipe else None
 
         # make sure a token was set
         try:
@@ -158,66 +172,25 @@ class DTCommand(DTCommandAbs):
         src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
         image: pydock.Image = docker.image.inspect(src_name)
 
-        # tag the image for aido_submission
-        repository: str = AGENT_SUBMISSION_REPOSITORY
-        dtime: str = tag_from_date(datetime.datetime.now())
-        agent_image_name: str = f"{registry_to_push}/{parsed.username}/{repository}"
-        agent_image_full: str = f"{agent_image_name}:{dtime}"
-        dtslogger.info(f"Tagging submission image as '{agent_image_full}'")
-        image.tag(agent_image_full)
-
-        # push image
-        dtslogger.info(f"Pushing submission image '{agent_image_full}'...")
-        docker.image.push(agent_image_full)
-        image.reload()
-        assert len(image.repo_digests) > 0
-        dtslogger.info(f"Image pushed successfully!")
-
-        # tag the image for aido_submission
-        digest_sha = sha_from_digest(image, agent_image_name)
-        submission_image_name = f"{agent_image_full}@{digest_sha}"
-        dtslogger.debug(f"Submission image name is: {submission_image_name}")
-
-        # submit
+        # evaluate
         submission_config_fpath = project.recipe.path if project.needs_recipe else project.path
         submission_yaml_fpath = os.path.join(submission_config_fpath, "submission.yaml")
         if not os.path.isfile(submission_yaml_fpath):
             dtslogger.error(f"File '{submission_yaml_fpath}' not found! Aborting.")
             exit(1)
-        submit_args: List[str] = [
+        evaluate_args: List[str] = [
             "--workdir",
             submission_config_fpath,
-            "submit",
+            "evaluate",
             "--config",
             "./submission.yaml",
             "--image",
-            submission_image_name,
+            image.repo_tags[0],
         ]
-        dtslogger.info("Submitting...")
-        dtslogger.debug(f"Callind 'challenges/submit' using args: {submit_args}")
-        shell.include.challenges.command(shell, submit_args)
+        dtslogger.info("Evaluating...")
+        dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")
+        shell.include.challenges.command(shell, evaluate_args)
 
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
-    if d is None:
-        d = datetime.datetime.now()
-    # YYYY-MM-DDTHH:MM:SS[.mmmmmm][+HH:MM].
-    s = d.isoformat()
-    s = s.replace(":", "_")
-    s = s.replace("T", "_")
-    s = s.replace("-", "_")
-    s = s[: s.index(".")]
-    return s
-
-
-def sha_from_digest(image: pydock.Image, image_name: str) -> str:
-    image.reload()
-    digest: Optional[str] = None
-    for d in image.repo_digests:
-        if d.startswith(image_name):
-            digest = d
-    return digest[digest.index("@") + 1 :]
