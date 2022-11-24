@@ -113,7 +113,11 @@ class DTCommand(DTCommandAbs):
             "-vv", "--verbose", dest="verbose", action="store_true", default=False, help="Run in verbose mode"
         )
         parser.add_argument(
-            "--no-upload", dest="no_upload", action="store_true", default=False, help="Do not upload the statistics to the Duckietown server."
+            "--no-upload",
+            dest="no_upload",
+            action="store_true",
+            default=False,
+            help="Do not upload the statistics to the Duckietown server.",
         )
         parsed, _ = parser.parse_known_args(args=args)
         # ---
@@ -192,7 +196,7 @@ class DTCommand(DTCommandAbs):
         cli_args += ["--group", parsed.group]
         cli_args += ["--subgroup", parsed.subgroup]
         cli_args += ["--duration", str(parsed.duration)]
-        
+
         if parsed.no_upload:
             cli_args += ["--no-upload"]
         if parsed.debug:

@@ -41,7 +41,7 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-BLOCK_SIZE = 1024 ** 2
+BLOCK_SIZE = 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
@@ -733,7 +733,7 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
 
 
 def _get_devices() -> List[SimpleNamespace]:
-    units = {"K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+    units = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
     lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
     out = []
     for line in lsblk.split("\n"):

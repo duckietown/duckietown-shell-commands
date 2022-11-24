@@ -3,7 +3,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Brief description of the command'     # please redefine this help message
+    help = "Brief description of the command"  # please redefine this help message
     # name = <read-only> a string with the name of the command
     # level = <read-only> integer indicating the level of this command. Follows directory hierarchy
     # commands = <read-only> a dictionary of subcommands
@@ -17,11 +17,8 @@ class DTCommand(DTCommandAbs):
         #
         # PUT YOUR CODE HERE
         print(
-            'You called the "%s" command, level %d, with arguments %r' % (
-                DTCommand.name,
-                DTCommand.level,
-                args
-            )
+            'You called the "%s" command, level %d, with arguments %r'
+            % (DTCommand.name, DTCommand.level, args)
         )
 
     @staticmethod
@@ -35,4 +32,4 @@ class DTCommand(DTCommandAbs):
         #   return  a list of strings. Each string is a suggestion for the user
         #
         # PUT YOUR CODE HERE
-        return ['suggestion_1', 'suggestion_2']
+        return ["suggestion_1", "suggestion_2"]

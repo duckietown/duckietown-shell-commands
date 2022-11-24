@@ -18,8 +18,7 @@ except ImportError:
 # NOTE: this is to avoid breaking the user workspace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_registry_to_use, sanitize_docker_baseurl, \
-    get_endpoint_architecture
+from utils.docker_utils import get_registry_to_use, sanitize_docker_baseurl, get_endpoint_architecture
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -33,10 +32,7 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to submit"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
         )
         parser.add_argument(
             "-a",
@@ -51,10 +47,7 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username to use",
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -73,13 +66,7 @@ class DTCommand(DTCommandAbs):
             default="submission",
             help="The launcher to use as entrypoint to the submission container",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -121,7 +108,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
-            quiet=True
+            quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
         success: bool = shell.include.code.build.command(shell, [], parsed=build_namespace)
@@ -134,11 +121,7 @@ class DTCommand(DTCommandAbs):
         docker = DockerClient(host=host, debug=debug)
 
         # get built image
-        src_name = project.image(
-            arch=parsed.arch,
-            owner=parsed.username,
-            registry=registry_to_use
-        )
+        src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
         image: pydock.Image = docker.image.inspect(src_name)
 
         # tag the image for aido_submission
@@ -168,10 +151,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(f"File '{submission_yaml_fpath}' not found! Aborting.")
             exit(1)
         submit_args: List[str] = [
-            "--workdir", submission_config_fpath,
+            "--workdir",
+            submission_config_fpath,
             "submit",
-            "--config", "./submission.yaml",
-            "--image", submission_image_name
+            "--config",
+            "./submission.yaml",
+            "--image",
+            submission_image_name,
         ]
         dtslogger.info("Submitting...")
         dtslogger.debug(f"Callind 'challenges/submit' using args: {submit_args}")
@@ -200,4 +186,4 @@ def sha_from_digest(image: pydock.Image, image_name: str) -> str:
     for d in image.repo_digests:
         if d.startswith(image_name):
             digest = d
-    return digest[digest.index("@") + 1:]
+    return digest[digest.index("@") + 1 :]

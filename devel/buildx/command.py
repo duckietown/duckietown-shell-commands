@@ -68,10 +68,7 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to build"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
         )
         parser.add_argument(
             "-a",
@@ -80,10 +77,7 @@ class DTCommand(DTCommandAbs):
             help="Target architecture(s) for the image to build",
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--pull",
@@ -92,10 +86,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use the Docker cache"
+            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -135,10 +126,7 @@ class DTCommand(DTCommandAbs):
             help="Additional build contexts to pass to Docker buildx",
         )
         parser.add_argument(
-            "--push",
-            default=False,
-            action="store_true",
-            help="Whether to push the resulting image"
+            "--push", default=False, action="store_true", help="Whether to push the resulting image"
         )
         parser.add_argument(
             "--manifest",
@@ -194,51 +182,24 @@ class DTCommand(DTCommandAbs):
             help="Forces CI to build on a specific architecture node",
         )
         parser.add_argument(
-            "--cloud",
-            default=False,
-            action="store_true",
-            help="Build the image on the cloud"
+            "--cloud", default=False, action="store_true", help="Build the image on the cloud"
         )
         parser.add_argument(
-            "--stamp",
-            default=False,
-            action="store_true",
-            help="Stamp image with the build time"
+            "--stamp", default=False, action="store_true", help="Stamp image with the build time"
         )
         parser.add_argument(
-            "-D",
-            "--destination",
-            default=None,
-            help="Docker socket or hostname where to deliver the image"
+            "-D", "--destination", default=None, help="Docker socket or hostname where to deliver the image"
         )
         parser.add_argument(
-            "--docs",
-            default=False,
-            action="store_true",
-            help="Build the code documentation as well"
+            "--docs", default=False, action="store_true", help="Build the code documentation as well"
         )
+        parser.add_argument("--quiet", default=False, action="store_true", help="Be less verbose")
         parser.add_argument(
-            "--quiet",
-            default=False,
-            action="store_true",
-            help="Be less verbose"
+            "--ncpus", default=None, type=int, help="Value to pass as build-arg `NCPUS` to docker build."
         )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
-            "--ncpus",
-            default=None,
-            type=int,
-            help="Value to pass as build-arg `NCPUS` to docker build."
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose")
-        parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         # get pre-parsed or parse arguments
@@ -368,9 +329,7 @@ class DTCommand(DTCommandAbs):
                 exit(4)
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
-                dtslogger.error(
-                    f"No cloud machines found for target architecture {parsed.arch}. Aborting..."
-                )
+                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
                 exit(3)
             # update machine parameter
             parsed.machine = get_cloud_builder(parsed.arch)
@@ -460,8 +419,7 @@ class DTCommand(DTCommandAbs):
         client = get_client(parsed.machine)
 
         # build-arg NCPUS
-        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) \
-            if parsed.ncpus is None else str(parsed.ncpus)
+        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         docker_build_args["NCPUS"] = ncpu
         dtslogger.debug(f"NCPU set to {ncpu}.")
 
@@ -684,12 +642,7 @@ class DTCommand(DTCommandAbs):
         # build image
         dtslogger.info("Packaging project...")
         buildlog = []
-        build = docker.buildx.build(
-            path=parsed.workdir,
-            progress="plain",
-            stream_logs=True,
-            **buildargs
-        )
+        build = docker.buildx.build(path=parsed.workdir, progress="plain", stream_logs=True, **buildargs)
         try:
             for line in build:
                 if not line:
@@ -748,9 +701,7 @@ class DTCommand(DTCommandAbs):
         # print out image analysis
         if not parsed.quiet:
             # get image history
-            historylog = [
-                (layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()
-            ]
+            historylog = [(layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()]
 
             # round up extra info
             extra_info = []
@@ -777,13 +728,7 @@ class DTCommand(DTCommandAbs):
             extra_info = "\n".join(extra_info)
 
             # run docker image analysis
-            ImageAnalyzer.process(
-                buildlog,
-                historylog,
-                codens=100,
-                extra_info=extra_info,
-                nocolor=parsed.ci
-            )
+            ImageAnalyzer.process(buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci)
 
         # perform metadata push (if needed)
         if parsed.ci:
@@ -795,12 +740,7 @@ class DTCommand(DTCommandAbs):
             ]
             for tag_data in tags_data:
                 with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(
-                        client,
-                        arch=parsed.arch,
-                        owner=DEFAULT_OWNER,
-                        **tag_data
-                    )
+                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
                     # add build metadata
                     metadata["build"] = {
                         "args": copy.deepcopy(buildargs),

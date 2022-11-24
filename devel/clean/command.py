@@ -34,9 +34,7 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname where to clean the image",
         )
         parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parsed, _ = parser.parse_known_args(args=args)
@@ -69,19 +67,13 @@ class DTCommand(DTCommandAbs):
 
         # create defaults
         images = [
-            project.image(
-                arch=parsed.arch,
-                registry=registry_to_use,
-                owner=DEFAULT_OWNER,
-                version=version
-            )]
+            project.image(arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version)
+        ]
         # clean release version
         if project.is_release():
-            images.append(project.image_release(
-                arch=parsed.arch,
-                registry=registry_to_use,
-                owner=DEFAULT_OWNER
-            ))
+            images.append(
+                project.image_release(arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER)
+            )
         # remove images
         for image in images:
             img = _run_cmd(["docker", "-H=%s" % parsed.machine, "images", "-q", image], get_output=True)

@@ -20,7 +20,7 @@ from utils.dtproject_utils import DTProject
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Runs an instance of VSCode to work on a project'
+    help = "Runs an instance of VSCode to work on a project"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -30,7 +30,7 @@ class DTCommand(DTCommandAbs):
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the project to open the editor on"
+            help="Directory containing the project to open the editor on",
         )
         # parser.add_argument(
         #     "--pull",
@@ -82,15 +82,9 @@ class DTCommand(DTCommandAbs):
             "--impersonate",
             default=None,
             type=str,
-            help="Username or UID of the user to impersonate inside VSCode"
+            help="Username or UID of the user to impersonate inside VSCode",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
 
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -148,10 +142,7 @@ class DTCommand(DTCommandAbs):
             # make an image name for VSCode
             vscode_image_tag: str = f"{project.safe_version_name}-vscode"
             vscode_image_name: str = project.image(
-                arch=arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-                version=vscode_image_tag
+                arch=arch, owner=parsed.username, registry=registry_to_use, version=vscode_image_tag
             )
 
             # build vscode (unless skipped)
@@ -168,8 +159,7 @@ class DTCommand(DTCommandAbs):
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
-                dtslogger.debug(f"Calling command 'devel/buildx' "
-                                f"with arguments: {str(buildx_namespace)}")
+                dtslogger.debug(f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}")
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
             else:

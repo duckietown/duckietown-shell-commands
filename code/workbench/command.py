@@ -34,7 +34,8 @@ from utils.docker_utils import (
     get_remote_client,
     pull_if_not_exist,
     pull_image,
-    remove_if_running, get_endpoint_architecture_from_client_OLD,
+    remove_if_running,
+    get_endpoint_architecture_from_client_OLD,
 )
 from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
@@ -102,7 +103,6 @@ class ImageRunSpec:
     ports: List[str]
 
 
-
 # TODO: register container stopping with `atexit`
 # TODO: use `atexit` to cleanup tmp directory
 
@@ -139,9 +139,7 @@ class ProjectSettings:
 
     def __str__(self):
         fields: Iterable[dataclasses.Field] = dataclasses.fields(ProjectSettings)
-        return "\n\t" + \
-               "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + \
-               "\n"
+        return "\n\t" + "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
 
 
 ALLOWED_LEVELS = [e.value for e in Levels]
@@ -161,10 +159,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to bring up"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to bring up"
         )
 
         parser.add_argument(
@@ -201,7 +196,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Should we run the agent locally (i.e. on this machine)? Important Note: "
-                 + "this is not expected to work on MacOSX",
+            + "this is not expected to work on MacOSX",
         )
 
         parser.add_argument(
@@ -211,11 +206,7 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull",
-            dest="pull",
-            action="store_true",
-            default=False,
-            help="Should we pull all of the images"
+            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
         loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in LOG_LEVELS.items())
@@ -269,7 +260,7 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
             help="Do not auto-remove agent container once done. Produces garbage but it is "
-                 "very useful for debugging.",
+            "very useful for debugging.",
         )
 
         parser.add_argument(
@@ -429,26 +420,18 @@ class DTCommand(DTCommandAbs):
             if token is None:
                 raise UserError("Please set token using the command 'dts tok set'")
             # get container specs from the challenges server
-            images = get_challenge_images(
-                challenge=settings.challenge,
-                step=settings.step,
-                token=token
-            )
+            images = get_challenge_images(challenge=settings.challenge, step=settings.step, token=token)
             sim_spec = images["simulator"]
             expman_spec = images["evaluator"]
         else:
             # load container specs from the environment configuration
             sim_env = load_yaml(os.path.join(environment_dir, "sim_env.yaml"))
             sim_spec = ImageRunSpec(
-                docker_image(SIMULATOR_IMAGE, parsed.registry),
-                environment=sim_env,
-                ports=[]
+                docker_image(SIMULATOR_IMAGE, parsed.registry), environment=sim_env, ports=[]
             )
             expman_env = load_yaml(os.path.join(environment_dir, "exp_manager_env.yaml"))
             expman_spec = ImageRunSpec(
-                docker_image(EXPERIMENT_MANAGER_IMAGE, parsed.registry),
-                environment=expman_env,
-                ports=[]
+                docker_image(EXPERIMENT_MANAGER_IMAGE, parsed.registry), environment=expman_env, ports=[]
             )
 
         # image names
@@ -544,8 +527,9 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Agent network '{agent_network_name}' created successfully!")
         except Exception:
             error: str = traceback.format_exc()
-            dtslogger.error("An error occurred while creating the agent network. "
-                            f"The error reads: {error}")
+            dtslogger.error(
+                "An error occurred while creating the agent network. " f"The error reads: {error}"
+            )
             return
 
         # make temporary directories
@@ -626,10 +610,7 @@ class DTCommand(DTCommandAbs):
                 "propagation": "rshared",
             },
             # TODO: this seems wrong, temporary stuff should die with the container
-            "/tmp": {
-                "bind": "/tmp",
-                "mode": "rw"
-            },
+            "/tmp": {"bind": "/tmp", "mode": "rw"},
             **fifos_bind0,
         }
 
@@ -690,8 +671,10 @@ class DTCommand(DTCommandAbs):
                 "detach": True,
             }
             # ---
-            dtslogger.debug(f"Running simulator container '{sim_container_name}' "
-                            f"with configuration: {json.dumps(sim_params, indent=4)}")
+            dtslogger.debug(
+                f"Running simulator container '{sim_container_name}' "
+                f"with configuration: {json.dumps(sim_params, indent=4)}"
+            )
             # pull image if not available
             pull_if_not_exist(agent_client, sim_params["image"])
             # run simulator container
@@ -699,9 +682,7 @@ class DTCommand(DTCommandAbs):
             # attach to the logs
             if LOG_LEVELS[ContainerNames.NAME_SIMULATOR] != Levels.LEVEL_NONE:
                 threading.Thread(
-                    target=continuously_monitor,
-                    args=(agent_client, sim_container_name),
-                    daemon=True
+                    target=continuously_monitor, args=(agent_client, sim_container_name), daemon=True
                 ).start()
 
             # - launch experiment manager
@@ -742,8 +723,10 @@ class DTCommand(DTCommandAbs):
                 "user": uid,
             }
             # ---
-            dtslogger.debug(f"Running experiment manager container '{expman_container_name}' "
-                            f"with configuration: {json.dumps(expman_params, indent=4)}")
+            dtslogger.debug(
+                f"Running experiment manager container '{expman_container_name}' "
+                f"with configuration: {json.dumps(expman_params, indent=4)}"
+            )
 
             dtslogger.info(f"\nSim interface will be running at http://localhost:{PORT_MANAGER}/")
             # pull image if not available
@@ -753,9 +736,7 @@ class DTCommand(DTCommandAbs):
             # attach to the logs
             if LOG_LEVELS[ContainerNames.NAME_MANAGER] != Levels.LEVEL_NONE:
                 threading.Thread(
-                    target=continuously_monitor,
-                    args=(agent_client, expman_container_name),
-                    daemon=True
+                    target=continuously_monitor, args=(agent_client, expman_container_name), daemon=True
                 ).start()
 
             # add containers to monitor to the list (the order matters)
@@ -781,9 +762,7 @@ class DTCommand(DTCommandAbs):
             # attach to the logs
             if LOG_LEVELS[ContainerNames.NAME_BRIDGE] != Levels.LEVEL_NONE:
                 threading.Thread(
-                    target=continuously_monitor,
-                    args=(agent_client, bridge_container_name),
-                    daemon=True
+                    target=continuously_monitor, args=(agent_client, bridge_container_name), daemon=True
                 ).start()
 
         if settings.ros:
@@ -814,15 +793,15 @@ class DTCommand(DTCommandAbs):
             if parsed.local:
                 # local run, attach the ROS core container to the local agent network
                 ros_params["network"] = agent_network.name
-                ros_params["ports"] = {
-                    f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)
-                }
+                ros_params["ports"] = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
             else:
                 # running on duckiebot, make ROS core container visible on the host network
                 ros_params["network_mode"] = "host"
             # ---
-            dtslogger.debug(f"Running ROS core container '{ros_container_name}' "
-                            f"with configuration: {json.dumps(ros_params, indent=4)}")
+            dtslogger.debug(
+                f"Running ROS core container '{ros_container_name}' "
+                f"with configuration: {json.dumps(ros_params, indent=4)}"
+            )
             # pull image if not available
             pull_if_not_exist(agent_client, ros_params["image"])
             # run ros container
@@ -897,8 +876,10 @@ class DTCommand(DTCommandAbs):
                 if not running_on_mac:
                     vnc_params["network_mode"] = "host"
             # ---
-            dtslogger.debug(f"Running VNC container '{vnc_container_name}' "
-                            f"with configuration: {json.dumps(vnc_params, indent=4)}")
+            dtslogger.debug(
+                f"Running VNC container '{vnc_container_name}' "
+                f"with configuration: {json.dumps(vnc_params, indent=4)}"
+            )
             # run vnc container (always runs on local client)
             vnc_container = local_client.containers.run(**vnc_params)
             # add container to monitor to the list (the order matters)
@@ -908,9 +889,7 @@ class DTCommand(DTCommandAbs):
             # attach to the logs
             if LOG_LEVELS[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
                 threading.Thread(
-                    target=continuously_monitor,
-                    args=(local_client, vnc_container_name),
-                    daemon=True
+                    target=continuously_monitor, args=(local_client, vnc_container_name), daemon=True
                 ).start()
 
         # Setup functions for monitor and cleanup
@@ -920,10 +899,7 @@ class DTCommand(DTCommandAbs):
             if container.status == "running":
                 container.kill(signal.SIGINT)
 
-        containers_monitor = launch_container_monitor(
-            containers_to_monitor,
-            stop_attached_container
-        )
+        containers_monitor = launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
         signal.signal(
@@ -944,7 +920,6 @@ class DTCommand(DTCommandAbs):
 
         # build agent (if needed)
         # TODO: check if there is an image with name 'image_name', build one if not
-
 
         # TODO: adapt this to 'code/build'
         # # build VNC
@@ -974,11 +949,10 @@ class DTCommand(DTCommandAbs):
                 agent_client=agent_client,
                 duckiebot=duckiebot,
                 agent_env=agent_env,
-                tmpdir=tmpdir
+                tmpdir=tmpdir,
             )
         except Exception:
-            dtslogger.error(f"Attached container terminated:\n"
-                            f"{indent_block(traceback.format_exc())}\n")
+            dtslogger.error(f"Attached container terminated:\n" f"{indent_block(traceback.format_exc())}\n")
         finally:
             clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
 
@@ -986,9 +960,9 @@ class DTCommand(DTCommandAbs):
 
 
 def clean_shutdown(
-        containers_monitor: "ContainersMonitor",
-        containers: List[Container],
-        stop_attached_container: Callable[[], None],
+    containers_monitor: "ContainersMonitor",
+    containers: List[Container],
+    stop_attached_container: Callable[[], None],
 ):
     dtslogger.info("Stopping container monitor...")
     containers_monitor.shutdown()
@@ -1021,7 +995,7 @@ def clean_shutdown(
 
 
 def launch_container_monitor(
-        containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]
+    containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]
 ) -> "ContainersMonitor":
     """
     Start a daemon thread that will exit when the application exits.
@@ -1035,9 +1009,7 @@ def launch_container_monitor(
 
 
 class ContainersMonitor(threading.Thread):
-
-    def __init__(self, containers_to_monitor: List[Container],
-                 stop_attached_container: Callable[[], None]):
+    def __init__(self, containers_to_monitor: List[Container], stop_attached_container: Callable[[], None]):
         super().__init__(daemon=True)
         self._containers_to_monitor = containers_to_monitor
         self._stop_attached_container = stop_attached_container
@@ -1100,16 +1072,16 @@ class ContainersMonitor(threading.Thread):
 
 
 def launch_agent(
-        project: DTProject,
-        agent_container_name: str,
-        agent_volumes: Dict[str, dict],
-        parsed: argparse.Namespace,
-        agent_base_image: str,
-        agent_network,
-        agent_client: DockerClient,
-        duckiebot: str,
-        agent_env: Dict[str, str],
-        tmpdir: str
+    project: DTProject,
+    agent_container_name: str,
+    agent_volumes: Dict[str, dict],
+    parsed: argparse.Namespace,
+    agent_base_image: str,
+    agent_network,
+    agent_client: DockerClient,
+    duckiebot: str,
+    agent_env: Dict[str, str],
+    tmpdir: str,
 ):
     dtslogger.info(f"Running the {agent_container_name} from {agent_base_image}")
     # get project's recipe (note, it could be the project itself)
@@ -1180,8 +1152,10 @@ def launch_agent(
         agent_params["stdin_open"] = True
 
     # ---
-    dtslogger.debug(f"Running agent container '{agent_container_name}' "
-                    f"with configuration: {json.dumps(agent_params, indent=4)}")
+    dtslogger.debug(
+        f"Running agent container '{agent_container_name}' "
+        f"with configuration: {json.dumps(agent_params, indent=4)}"
+    )
 
     if not on_mac:
         # noinspection PyTypeChecker
@@ -1203,14 +1177,14 @@ def launch_agent(
 
 
 def launch_bridge(
-        bridge_container_name,
-        environment_dir,
-        duckiebot,
-        fifos_bind,
-        bridge_image,
-        parsed,
-        running_on_mac,
-        agent_client,
+    bridge_container_name,
+    environment_dir,
+    duckiebot,
+    fifos_bind,
+    bridge_image,
+    parsed,
+    running_on_mac,
+    agent_client,
 ):
     # let's launch the duckiebot fifos bridge, note that this one runs in a different
     # ROS environment, the one on the robot
@@ -1310,17 +1284,14 @@ def get_calibration_files(destination_dir, duckiebot):
         # Also save them to specific robot name for local evaluation
         destination_file = os.path.join(dirname, f"{duckiebot}.yaml")
         dtslogger.debug(
-            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(
-                duckiebot, calib_file, destination_file
-            )
+            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(duckiebot, calib_file, destination_file)
         )
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token: str) -> \
-        Dict[str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"

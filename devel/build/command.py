@@ -367,8 +367,9 @@ class DTCommand(DTCommandAbs):
                     try:
                         return fin.readline().startswith("#!")
                     except UnicodeDecodeError as _e:
-                        dtslogger.error(f"Launcher file '{f}' contains invalid symbols "
-                                        f"at {_e.start}:{_e.end}.")
+                        dtslogger.error(
+                            f"Launcher file '{f}' contains invalid symbols " f"at {_e.start}:{_e.end}."
+                        )
                         return False
 
             launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]

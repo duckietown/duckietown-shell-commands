@@ -4,14 +4,12 @@ from dt_shell import DTCommandAbs, dtslogger
 
 
 class NoOpCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell, args):
         pass
 
 
 class FailedToLoadCommand(NoOpCommand):
-
     @staticmethod
     def command(shell, args):
         dtslogger.warning("This command was not loaded")

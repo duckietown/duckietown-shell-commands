@@ -20,7 +20,7 @@ from utils.dtproject_utils import DTProject
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Builds an instance of VNC to work on a project'
+    help = "Builds an instance of VNC to work on a project"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -30,7 +30,7 @@ class DTCommand(DTCommandAbs):
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the project to build the desktop for"
+            help="Directory containing the project to build the desktop for",
         )
         # parser.add_argument(
         #     "--pull",
@@ -70,27 +70,16 @@ class DTCommand(DTCommandAbs):
             "--plain",
             default=False,
             action="store_true",
-            help="Whether to skip building VNC for this project, use plain VNC instead"
+            help="Whether to skip building VNC for this project, use plain VNC instead",
         )
         parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
-            help="Username or UID of the user to impersonate inside VNC"
+            help="Username or UID of the user to impersonate inside VNC",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
-        parser.add_argument(
-            "--quiet",
-            default=False,
-            action="store_true",
-            help="Be quiet"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+        parser.add_argument("--quiet", default=False, action="store_true", help="Be quiet")
 
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -149,10 +138,7 @@ class DTCommand(DTCommandAbs):
             # make an image name for VNC
             vnc_image_tag: str = f"{project.safe_version_name}-vnc"
             vnc_image_name: str = project.image(
-                arch=arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-                version=vnc_image_tag
+                arch=arch, owner=parsed.username, registry=registry_to_use, version=vnc_image_tag
             )
 
             # build vnc (unless skipped)
@@ -168,8 +154,7 @@ class DTCommand(DTCommandAbs):
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
-                dtslogger.debug(f"Calling command 'devel/buildx' "
-                                f"with arguments: {str(buildx_namespace)}")
+                dtslogger.debug(f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}")
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VNC for project '{project.name}' successfully built!")
             else:

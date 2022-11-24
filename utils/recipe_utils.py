@@ -123,8 +123,7 @@ def update_recipe(repository: str, branch: str, location: str) -> bool:
         th = {2: "nd", 3: "rd", 4: "th"}
         for trial in range(3):
             try:
-                run_cmd(["git", "-C", recipe_dir,
-                         "pull", "--recurse-submodules", "origin", branch])
+                run_cmd(["git", "-C", recipe_dir, "pull", "--recurse-submodules", "origin", branch])
                 dtslogger.debug(f"Updated recipe in '{recipe_dir}'.")
                 dtslogger.info(f"Recipe successfully updated!")
             except RuntimeError as e:
