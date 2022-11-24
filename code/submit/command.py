@@ -57,12 +57,6 @@ class DTCommand(DTCommandAbs):
             "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
-            "--pull",
-            default=False,
-            action="store_true",
-            help="Whether to pull the latest base image used by the Dockerfile",
-        )
-        parser.add_argument(
             "--recipe",
             default=None,
             help="Path to use if specifying a custom recipe",
@@ -136,10 +130,10 @@ class DTCommand(DTCommandAbs):
         build_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
             username=parsed.username,
-            pull=parsed.pull,
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
+            pull=True,
             quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
