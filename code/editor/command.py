@@ -123,6 +123,8 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
+        else:
+            project.ensure_recipe_exists()
         recipe: Optional[DTProject] = project.recipe
 
         # custom VSCode distro

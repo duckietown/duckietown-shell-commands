@@ -40,6 +40,11 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "--registry",
+            default=None,
+            help="Docker registry to use",
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             default=None,
@@ -84,7 +89,8 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
-        project.ensure_recipe_exists()
+        else:
+            project.ensure_recipe_exists()
 
         # Try to update the project recipe
         if project.update_cached_recipe():
@@ -108,6 +114,7 @@ class DTCommand(DTCommandAbs):
             pull=parsed.pull,
             push=parsed.push,
             recipe=parsed.recipe,
+            registry=parsed.registry,
             verbose=parsed.verbose,
             quiet=parsed.quiet,
             build_arg=build_arg,

@@ -5,8 +5,12 @@ import os
 from types import SimpleNamespace
 from typing import Optional, List
 
+from dt_shell.config import read_shell_config, ShellConfig
 from pydock import DockerClient
 
+from utils.challenges_utils import \
+    get_registry_from_challenges_server, \
+    get_challenges_server_to_use
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 
@@ -18,7 +22,10 @@ except ImportError:
 # NOTE: this is to avoid breaking the user workspace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import get_registry_to_use, sanitize_docker_baseurl, get_endpoint_architecture
+from utils.docker_utils import \
+    sanitize_docker_baseurl, \
+    get_endpoint_architecture, \
+    get_registry_to_use
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -43,7 +50,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-u",
             "--username",
-            default=os.getlogin(),
+            default=None,
             help="The docker registry username to use",
         )
         parser.add_argument(
@@ -82,7 +89,9 @@ class DTCommand(DTCommandAbs):
             parsed = default_parsed
 
         # variables
-        registry_to_use = get_registry_to_use()
+        registry_to_use: str = get_registry_to_use()
+        server_to_use: str = get_challenges_server_to_use()
+        registry_to_push: str = get_registry_from_challenges_server(server_to_use)
         debug = dtslogger.level <= logging.DEBUG
 
         # Show dtproject info
@@ -90,6 +99,29 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
+
+        # make sure the recipe (if any) is downloaded
+        project.ensure_recipe_exists() if project.needs_recipe else None
+
+        # make sure a token was set
+        try:
+            shell.get_dt1_token()
+        except Exception as e:
+            dtslogger.error(str(e))
+            exit(1)
+
+        # make sure we have the credentials to push to this registry
+        shell_cfg: ShellConfig = read_shell_config()
+        if registry_to_push not in shell_cfg.docker_credentials:
+            dtslogger.error(f"You have no credentials set for registry '{registry_to_push}', "
+                            f"please use the command 'dts challenges config' fisrt")
+            exit(1)
+        registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
+        del registry_creds["secret"]
+
+        # reuse username from credentials if none is given
+        if parsed.username is None:
+            parsed.username = registry_creds["username"]
 
         # sanitize hostname
         if parsed.machine is not None:
@@ -127,7 +159,7 @@ class DTCommand(DTCommandAbs):
         # tag the image for aido_submission
         repository: str = AGENT_SUBMISSION_REPOSITORY
         dtime: str = tag_from_date(datetime.datetime.now())
-        agent_image_name: str = f"{registry_to_use}/{parsed.username}/{repository}"
+        agent_image_name: str = f"{registry_to_push}/{parsed.username}/{repository}"
         agent_image_full: str = f"{agent_image_name}:{dtime}"
         dtslogger.info(f"Tagging submission image as '{agent_image_full}'")
         image.tag(agent_image_full)

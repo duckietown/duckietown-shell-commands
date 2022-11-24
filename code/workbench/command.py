@@ -328,7 +328,8 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
-        project.ensure_recipe_exists()
+        else:
+            project.ensure_recipe_exists()
 
         # get the exercise recipe
         recipe: DTProject = project.recipe

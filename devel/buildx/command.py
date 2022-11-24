@@ -86,6 +86,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest base image used by the Dockerfile",
         )
         parser.add_argument(
+            "--pull-for-cache",
+            default=False,
+            action="store_true",
+            help="Whether to pull the image we are about to build to facilitate cache",
+        )
+        parser.add_argument(
             "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
         )
         parser.add_argument(
@@ -151,6 +157,11 @@ class DTCommand(DTCommandAbs):
             "--username",
             default="duckietown",
             help="The docker registry username to tag the image with",
+        )
+        parser.add_argument(
+            "--registry",
+            default=None,
+            help="Docker registry to use",
         )
         parser.add_argument(
             "--file",
@@ -229,7 +240,7 @@ class DTCommand(DTCommandAbs):
         labels: dict = {}
         cache_from: Optional[str] = None
         stime: float = time.time()
-        registry_to_use: str = get_registry_to_use(parsed.quiet)
+        registry_to_use: str = parsed.registry or get_registry_to_use(parsed.quiet)
         pip_index_url_to_use: str = get_pip_index_url()
         debug: bool = dtslogger.level <= logging.DEBUG
 
@@ -286,11 +297,18 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token: str = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
         else:
-            token: Optional[str] = shell.get_dt1_token()
+            token: Optional[str] = None
+            try:
+                token = shell.get_dt1_token()
+            except Exception:
+                dtslogger.warning("No Duckietown tokens were set using 'dts tok set', some "
+                                  "functionalities might not be available.")
+                pass
 
         # CI builds
         if parsed.ci:
             parsed.pull = True
+            parsed.pull_for_cache = True
             parsed.cloud = True
             parsed.push = True
             parsed.rm = True
@@ -329,7 +347,7 @@ class DTCommand(DTCommandAbs):
                 exit(4)
             # route the build to the native node
             if parsed.arch not in CLOUD_BUILDERS:
-                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
+                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}.")
                 exit(3)
             # update machine parameter
             parsed.machine = get_cloud_builder(parsed.arch)
@@ -419,7 +437,8 @@ class DTCommand(DTCommandAbs):
         client = get_client(parsed.machine)
 
         # build-arg NCPUS
-        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
+        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) \
+            if parsed.ncpus is None else str(parsed.ncpus)
         docker_build_args["NCPUS"] = ncpu
         dtslogger.debug(f"NCPU set to {ncpu}.")
 
@@ -519,7 +538,7 @@ class DTCommand(DTCommandAbs):
                 is_present = False
             # ---
             if not is_present:
-                if parsed.pull:
+                if parsed.pull_for_cache:
                     # try to pull the same image so Docker can use it as cache source
                     dtslogger.info(f'Pulling image "{image}" to use as cache...')
                     try:
