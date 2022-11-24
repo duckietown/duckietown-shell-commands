@@ -186,6 +186,7 @@ class DTCommand(DTCommandAbs):
             "./submission.yaml",
             "--image",
             image.repo_tags[0],
+            "--no-pull"
         ]
         dtslogger.info("Evaluating...")
         dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")
