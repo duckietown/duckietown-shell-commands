@@ -4,7 +4,6 @@ import dataclasses
 import datetime
 import getpass
 import grp
-import inspect
 import json
 import os
 import platform
@@ -135,8 +134,9 @@ class SettingsFile:
     rsync_exclude: List[str] = dataclasses.field(default_factory=list)
 
     def __str__(self):
-        fields: Iterable[dataclasses.Field] = dataclasses.fields(ProjectSettings)
-        return "\n\t" + "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
+        fields: Iterable[dataclasses.Field] = dataclasses.fields(SettingsFile)
+        return "\n\t" + \
+               "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
 
 
 ALLOWED_LEVELS = [e.value for e in Levels]
@@ -156,7 +156,10 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to bring up"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to bring up"
         )
 
         parser.add_argument(
@@ -203,7 +206,11 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
+            "--pull",
+            dest="pull",
+            action="store_true",
+            default=False,
+            help="Should we pull all of the images"
         )
 
         loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in LOG_LEVELS.items())

@@ -44,6 +44,12 @@ class DTCommand(DTCommandAbs):
             help="Directory containing the project to submit"
         )
         parser.add_argument(
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname where to build the image"
+        )
+        parser.add_argument(
             "-a",
             "--arch",
             default=None,
@@ -54,12 +60,6 @@ class DTCommand(DTCommandAbs):
             "--username",
             default=None,
             help="The docker registry username to use",
-        )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--recipe",

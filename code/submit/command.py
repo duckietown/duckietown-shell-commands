@@ -42,6 +42,12 @@ class DTCommand(DTCommandAbs):
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
         )
         parser.add_argument(
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname to use"
+        )
+        parser.add_argument(
             "-a",
             "--arch",
             default=None,
@@ -52,9 +58,6 @@ class DTCommand(DTCommandAbs):
             "--username",
             default=None,
             help="The docker registry username to use",
-        )
-        parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "--recipe",
@@ -137,6 +140,7 @@ class DTCommand(DTCommandAbs):
         # Build the project using 'code build' functionality
         build_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
+            machine=parsed.machine,
             username=parsed.username,
             recipe=parsed.recipe,
             launcher=parsed.launcher,
@@ -194,7 +198,7 @@ class DTCommand(DTCommandAbs):
             submission_image_name,
         ]
         dtslogger.info("Submitting...")
-        dtslogger.debug(f"Callind 'challenges/submit' using args: {submit_args}")
+        dtslogger.debug(f"Calling 'challenges/submit' using args: {submit_args}")
         shell.include.challenges.command(shell, submit_args)
 
     @staticmethod

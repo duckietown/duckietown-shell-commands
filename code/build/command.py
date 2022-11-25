@@ -17,6 +17,12 @@ class DTCommand(DTCommandAbs):
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to be built"
         )
         parser.add_argument(
+            "-H",
+            "--machine",
+            default=None,
+            help="Docker socket or hostname to use"
+        )
+        parser.add_argument(
             "-u",
             "--username",
             default=os.getlogin(),
@@ -54,7 +60,7 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image." "Use when the base image is also a development version",
+            help="Docker tag for the base image. Use when the base image is also a development version",
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument("--quiet", default=False, action="store_true", help="Be verbose")
@@ -109,6 +115,7 @@ class DTCommand(DTCommandAbs):
         # Build the project using 'devel buildx' functionality
         buildx_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
+            machine=parsed.machine,
             username=parsed.username,
             file=project.dockerfile,
             pull=parsed.pull,
