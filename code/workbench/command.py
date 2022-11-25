@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 import getpass
 import grp
+import inspect
 import json
 import os
 import platform
@@ -108,7 +109,7 @@ class ImageRunSpec:
 
 
 @dataclasses.dataclass
-class ProjectSettings:
+class SettingsFile:
     # agent base image
     # TODO: do we still need this?
     agent_base: str
@@ -129,16 +130,12 @@ class ProjectSettings:
     # TODO: do we still need this?
     step: Optional[str] = None
 
-    # challenge to submit to
-    # TODO: do we still need this?
-    challenge: Optional[str] = None
-
     # files to exclude when rsync-ing
     # TODO: do we still need this?
     rsync_exclude: List[str] = dataclasses.field(default_factory=list)
 
     def __str__(self):
-        fields: Iterable[dataclasses.Field] = dataclasses.fields(ProjectSettings)
+        fields: Iterable[dataclasses.Field] = dataclasses.fields(SettingsFile)
         return "\n\t" + \
                "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + \
                "\n"
@@ -343,22 +340,25 @@ class DTCommand(DTCommandAbs):
         recipe: DTProject = project.recipe
 
         # settings file is in the recipe
-        settings_file = os.path.join(recipe.path, "settings.yaml")
+        settings_file: str = os.path.join(recipe.path, "settings.yaml")
         if not os.path.exists(settings_file):
             msg = "Recipe must contain a 'settings.yaml' file"
-            raise InvalidUserInput(msg)
-        settings: ProjectSettings = ProjectSettings(**load_yaml(settings_file))
+            dtslogger.error(msg)
+            exit(1)
+        settings: SettingsFile = SettingsFile(**load_yaml(settings_file))
 
         # custom settings
-        settings.challenge = parsed.challenge or settings.challenge
+        challenge: str = parsed.challenge or get_challenge_from_submission_file(recipe)
         settings.step = parsed.step or settings.step
         settings.log_dir = parsed.log_dir or settings.log_dir
         dtslogger.info(f"Settings:\n{settings}")
 
         # variables
         exercise_name = project.name
-        use_challenge = settings.challenge is not None
+        use_challenge = challenge is not None
         dtslogger.info(f"Bringing up exercise '{exercise_name}'...")
+        if use_challenge:
+            dtslogger.info(f"Using rules and scenarios from challenge '{challenge}'")
 
         # TODO: what is this for?
         # environment directory is in the recipe
@@ -430,7 +430,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("Please set token using the command 'dts tok set'")
             # get container specs from the challenges server
             images = get_challenge_images(
-                challenge=settings.challenge,
+                challenge=challenge,
                 step=settings.step,
                 token=token
             )
@@ -1317,6 +1317,18 @@ def get_calibration_files(destination_dir, duckiebot):
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
                 fd.write(chunk)
+
+
+def get_challenge_from_submission_file(recipe: DTProject) -> str:
+    # submission file is in the recipe
+    submission_file: str = os.path.join(recipe.path, "submission.yaml")
+    if not os.path.exists(submission_file):
+        msg = "Recipe must contain a 'submission.yaml' file"
+        dtslogger.error(msg)
+        exit(1)
+    submission: dict = load_yaml(submission_file)
+    assert len(submission["challenge"]) > 0
+    return submission["challenge"][0]
 
 
 def get_challenge_images(challenge: str, step: Optional[str], token: str) -> \
