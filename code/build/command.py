@@ -14,10 +14,7 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to be built"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to be built"
         )
         parser.add_argument(
             "-u",
@@ -43,6 +40,11 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "--registry",
+            default=None,
+            help="Docker registry to use",
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             default=None,
@@ -52,22 +54,10 @@ class DTCommand(DTCommandAbs):
             "-b",
             "--base-tag",
             default=None,
-            help="Docker tag for the base image."
-                 "Use when the base image is also a development version",
+            help="Docker tag for the base image." "Use when the base image is also a development version",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
-        parser.add_argument(
-            "--quiet",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+        parser.add_argument("--quiet", default=False, action="store_true", help="Be verbose")
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -99,7 +89,8 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
-        project.ensure_recipe_exists()
+        else:
+            project.ensure_recipe_exists()
 
         # Try to update the project recipe
         if project.update_cached_recipe():
@@ -123,9 +114,10 @@ class DTCommand(DTCommandAbs):
             pull=parsed.pull,
             push=parsed.push,
             recipe=parsed.recipe,
+            registry=parsed.registry,
             verbose=parsed.verbose,
             quiet=parsed.quiet,
-            build_arg=build_arg
+            build_arg=build_arg,
         )
         dtslogger.debug(f"Building with 'devel/buildx' using args: {buildx_namespace}")
         return shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)

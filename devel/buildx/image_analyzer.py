@@ -5,8 +5,8 @@ from typing import Optional, Dict
 
 import termcolor as tc
 
-LAYER_SIZE_YELLOW = 20 * 1024 ** 2  # 20 MB
-LAYER_SIZE_RED = 75 * 1024 ** 2  # 75 MB
+LAYER_SIZE_YELLOW = 20 * 1024**2  # 20 MB
+LAYER_SIZE_RED = 75 * 1024**2  # 75 MB
 SEPARATORS_LENGTH = 84
 SEPARATORS_LENGTH_HALF = 25
 
@@ -95,8 +95,9 @@ class ImageAnalyzer(object):
         steps_ranges = steps_idx + [len(lines)]
 
         # sanitize history log
-        historylog = [(lid[7:19] if lid.startswith("sha256:") else lid, size, _) for (lid, size, _)
-                      in historylog]
+        historylog = [
+            (lid[7:19] if lid.startswith("sha256:") else lid, size, _) for (lid, size, _) in historylog
+        ]
 
         # create map {step_id: Layer}
         buildsteps: Dict[int, BuildStep] = {}
@@ -140,7 +141,7 @@ class ImageAnalyzer(object):
                         command=layercmd,
                         size=layersize,
                         id=layerid if "missing" not in layerid else None,
-                        index=j
+                        index=j,
                     )
                     break
                 else:
@@ -224,8 +225,7 @@ class ImageAnalyzer(object):
         print("Final image name: %s" % ("\n" + " " * 18).join(image_names))
         print("Base image size: %s" % size_fmt(base_image_size))
         print("Final image size: %s" % size_fmt(final_image_size))
-        print("Your image added %s to the base image." % size_fmt(
-            final_image_size - base_image_size))
+        print("Your image added %s to the base image." % size_fmt(final_image_size - base_image_size))
         print(EXTRA_INFO_SEPARATOR)
         print("Layers total: {:d}".format(tot_layers))
         print(" - Built: {:d}".format(tot_layers - cached_layers))
@@ -236,7 +236,6 @@ class ImageAnalyzer(object):
         print("=" * SEPARATORS_LENGTH)
         print()
         print(
-            tc.colored("IMPORTANT", "white",
-                       "on_blue") + ": Always ask yourself, can I do better than that?"
+            tc.colored("IMPORTANT", "white", "on_blue") + ": Always ask yourself, can I do better than that?"
         )
         print()

@@ -14,16 +14,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=None,
-            help="Directory containing the project to work on"
+            "-C", "--workdir", default=None, help="Directory containing the project to work on"
         )
         parser.add_argument(
-            "-t",
-            "--template",
-            default=None,
-            help="Template to use (default = project's template)"
+            "-t", "--template", default=None, help="Template to use (default = project's template)"
         )
         parser.add_argument(
             "-v",
@@ -32,12 +26,7 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="Version of the template to use (default = project's template version)",
         )
-        parser.add_argument(
-            "--apply",
-            default=False,
-            action="store_true",
-            help="Whether to apply the diff"
-        )
+        parser.add_argument("--apply", default=False, action="store_true", help="Whether to apply the diff")
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()

@@ -20,8 +20,8 @@ def get_recipes_dir() -> str:
 
 
 def get_recipe_repo_dir(repository: str, branch: str) -> str:
-    recipes_dir: str = get_recipes_dir()
-    return os.path.join(recipes_dir, repository, branch)
+    return os.environ["DTSHELL_RECIPES"] if "DTSHELL_RECIPES" in os.environ else \
+        os.path.join(get_recipes_dir(), repository, branch)
 
 
 def get_recipe_project_dir(repository: str, branch: str, location: str) -> str:
@@ -123,8 +123,7 @@ def update_recipe(repository: str, branch: str, location: str) -> bool:
         th = {2: "nd", 3: "rd", 4: "th"}
         for trial in range(3):
             try:
-                run_cmd(["git", "-C", recipe_dir,
-                         "pull", "--recurse-submodules", "origin", branch])
+                run_cmd(["git", "-C", recipe_dir, "pull", "--recurse-submodules", "origin", branch])
                 dtslogger.debug(f"Updated recipe in '{recipe_dir}'.")
                 dtslogger.info(f"Recipe successfully updated!")
             except RuntimeError as e:

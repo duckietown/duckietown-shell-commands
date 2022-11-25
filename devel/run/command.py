@@ -154,9 +154,7 @@ class DTCommand(DTCommandAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parser.add_argument("docker_args", nargs="*", default=[])
@@ -282,8 +280,7 @@ class DTCommand(DTCommandAbs):
         if parsed.mount and project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
             dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to force "
-                "the execution of the command."
+                "If you know what you are doing, use --force (-f) to force " "the execution of the command."
             )
             if not parsed.force:
                 exit(1)
@@ -294,7 +291,7 @@ class DTCommand(DTCommandAbs):
             loop=parsed.loop,
             registry=registry_to_use,
             owner=parsed.username,
-            version=version
+            version=version,
         )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")

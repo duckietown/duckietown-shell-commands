@@ -1,15 +1,10 @@
 import dt_shell
 from dt_shell import UserError
 
-__all__ = [
-    "ShellNeedsUpdate",
-    "InvalidUserInput",
-    "RecipeProjectNotFound"
-]
+__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound"]
 
 
 class ShellNeedsUpdate(Exception):
-
     def __init__(self, needed: str):
         self._version_needed: str = needed
         self._current_version: str = dt_shell.__version__
