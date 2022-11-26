@@ -52,6 +52,8 @@ class DTCommand(DTCommandAbs):
             os.chdir(parsed.workdir)
 
         if action == "config":
+            rest = list(rest)
+            rest.remove("config")
             return command_config(shell, rest)
 
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
