@@ -96,9 +96,7 @@ class DTCommand(DTCommandAbs):
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
-            parsed, remaining = parser.parse_known_args(args=args)
-            if remaining:
-                dtslogger.warning(f"I do not know about these arguments: {remaining}")
+            parsed = parser.parse_args(args=args)
         else:
             # combine given args with default values
             default_parsed = parser.parse_args(args=[])
