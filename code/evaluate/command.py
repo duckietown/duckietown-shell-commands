@@ -12,6 +12,7 @@ from utils.challenges_utils import \
     get_challenges_server_to_use
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
+from utils.yaml_utils import load_yaml
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -67,6 +68,13 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "-c",
+            "--challenge",
+            type=str,
+            default=None,
+            help="Challenge to evaluate against"
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             default="submission",
@@ -99,13 +107,13 @@ class DTCommand(DTCommandAbs):
         registry_to_push: str = get_registry_from_challenges_server(server_to_use)
         debug = dtslogger.level <= logging.DEBUG
 
-        # Show dtproject info
+        # show dtproject info
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # Make sure the project recipe is present
+        # recipe
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -116,8 +124,55 @@ class DTCommand(DTCommandAbs):
         else:
             project.ensure_recipe_exists()
 
-        # make sure the recipe (if any) is downloaded
-        project.ensure_recipe_exists() if project.needs_recipe else None
+        # get challenge to evaluate against
+        submission_yaml = os.path.join(project.path, "submission.yaml")
+        if not os.path.isfile(submission_yaml):
+            if not project.needs_recipe:
+                dtslogger.error(f"File '{submission_yaml}' not found.")
+                exit(1)
+            # look for submission.yaml inside the recipe
+            submission_yaml = os.path.join(project.recipe.path, "submission.yaml")
+            if not os.path.isfile(submission_yaml):
+                dtslogger.error(f"File 'submission.yaml' not found. We searched both this project "
+                                f"and its recipe.")
+                exit(1)
+        submission: dict = load_yaml(submission_yaml)
+        challenges: List[str] = submission.get("challenge", [])
+
+        # make sure there is at least one challenge we can evaluate against
+        if not challenges:
+            dtslogger.error(f"The list of challenges in '{submission_yaml}' is empty.")
+            exit(1)
+
+        # we must know which challenge to evaluate against
+        if parsed.challenge is not None:
+            # make sure the chosen challenge is in the list of supported challenges
+            if parsed.challenge not in challenges:
+                dtslogger.error(f"Challenge '{parsed.challenge}' not supported by this submission. "
+                                f"Supported challenges are: \n\n\t" + "\n\t".join(challenges) + "\n")
+                exit(1)
+            dtslogger.info(f"User chose to evaluate against challenge '{parsed.challenge}'...")
+        else:
+            # complain if an explicit choice is needed
+            if len(challenges) > 1:
+                dtslogger.error("This submission is supported by the following challenges, indicate "
+                                "which one to evaluate against with '--challenge <CHALLENGE_NAME>':" +
+                                "\n\n\t" + "\n\t".join(challenges) + "\n")
+                exit(1)
+            # auto-pick if only one is available
+            parsed.challenge = challenges[0]
+        dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
+
+        # make sure the project recipe is present
+        if parsed.recipe is not None:
+            if project.needs_recipe:
+                recipe_dir: str = os.path.abspath(parsed.recipe)
+                dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
+                project.set_recipe_dir(recipe_dir)
+            else:
+                raise UserError("This project does not support recipes")
+        else:
+            project.ensure_recipe_exists()
 
         # make sure a token was set
         try:
@@ -186,6 +241,8 @@ class DTCommand(DTCommandAbs):
             "./submission.yaml",
             "--image",
             image.repo_tags[0],
+            "--challenge",
+            parsed.challenge,
             "--no-pull"
         ]
         dtslogger.info("Evaluating...")
