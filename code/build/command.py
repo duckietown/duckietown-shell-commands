@@ -3,6 +3,8 @@ import os
 from types import SimpleNamespace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
+
+from utils.docker_utils import get_endpoint_architecture
 from utils.dtproject_utils import DTProject
 
 
@@ -23,6 +25,12 @@ class DTCommand(DTCommandAbs):
             help="Docker socket or hostname to use"
         )
         parser.add_argument(
+            "-a",
+            "--arch",
+            default=None,
+            help="Target architecture for the image to build",
+        )
+        parser.add_argument(
             "-u",
             "--username",
             default=os.getlogin(),
@@ -33,6 +41,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Whether to pull the latest base image used by the Dockerfile",
+        )
+        parser.add_argument(
+            "--cloud",
+            default=False,
+            action="store_true",
+            help="Whether to use the Duckietown Cloud Compute (DCC) servers (advanced use only)",
         )
         parser.add_argument(
             "--push",
@@ -82,12 +96,12 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
 
-        # show dtproject info
-        if not parsed.quiet:
-            dtslogger.info("Project workspace: {}".format(parsed.workdir))
-            shell.include.devel.info.command(shell, args)
+        # pick the right architecture if not set
+        if parsed.arch is None:
+            parsed.arch = get_endpoint_architecture(parsed.machine)
+            dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
-        # Make sure the project recipe is present
+        # make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -116,10 +130,12 @@ class DTCommand(DTCommandAbs):
         buildx_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
             machine=parsed.machine,
+            arch=parsed.arch,
             username=parsed.username,
             file=project.dockerfile,
             pull=parsed.pull,
             push=parsed.push,
+            cloud=parsed.cloud,
             recipe=parsed.recipe,
             registry=parsed.registry,
             verbose=parsed.verbose,
