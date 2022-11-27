@@ -80,6 +80,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to skip building VSCode for this project, use plain VSCode instead",
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Whether to skip updating the base VSCode image from the registry",
+        )
+        parser.add_argument(
             "--keep",
             default=False,
             action="store_true",
@@ -181,7 +187,7 @@ class DTCommand(DTCommandAbs):
                         file=project.vscode_dockerfile,
                         recipe=recipe.path if recipe else None,
                         build_arg=build_args,
-                        pull=True,
+                        pull=not parsed.no_pull,
                         verbose=parsed.verbose,
                         quiet=not parsed.verbose,
                     )
