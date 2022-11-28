@@ -5,6 +5,8 @@ from typing import Optional, Dict
 
 import termcolor as tc
 
+__version__ = "1.1.0"
+
 LAYER_SIZE_YELLOW = 20 * 1024**2  # 20 MB
 LAYER_SIZE_RED = 75 * 1024**2  # 75 MB
 SEPARATORS_LENGTH = 84
@@ -36,7 +38,7 @@ class ImageAnalyzer(object):
         print()
         print("=" * 30)
         print(tc.colored("Docker Build Analyzer", "white", "on_blue"))
-        print("Maintainer: Andrea F. Daniele (afdaniele@ttic.edu)")
+        print(f"Version: {__version__}")
         print("=" * 30)
         print()
 
