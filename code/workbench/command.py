@@ -152,7 +152,7 @@ LOG_LEVELS: Dict[ContainerNames, Levels] = {
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        prog = "dts code up"
+        prog = "dts code workbench"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
@@ -527,7 +527,13 @@ class DTCommand(DTCommandAbs):
             for image in local_images:
                 pull_if_not_exist(local_client, image)
             for image in agent_images:
-                pull_if_not_exist(agent_client, image)
+                try:
+                    pull_if_not_exist(agent_client, image)
+                except NotFound:
+                    if image == agent_image:
+                        dtslogger.error("Run 'dts code build' to build your agent before running "
+                                        "the workbench.")
+                        exit(1)
 
         # create a docker network to deploy the containers in
         # noinspection PyBroadException
@@ -819,88 +825,106 @@ class DTCommand(DTCommandAbs):
             # add container to monitor to the list (the order matters)
             containers_to_monitor.append(ros_container)
 
-            # build VNC
-            dtslogger.info(f"Running VNC...")
-            vnc_namespace: SimpleNamespace = SimpleNamespace(
-                workdir=project.path,
-                username=username,
-                recipe=recipe.path,
-                # TODO: test this
-                # impersonate=uid,
-                build_only=True,
-                quiet=True,
-            )
-            dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
-            shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
+        # build VNC
+        dtslogger.info(f"Running VNC...")
+        vnc_namespace: SimpleNamespace = SimpleNamespace(
+            workdir=project.path,
+            username=username,
+            recipe=recipe.path,
+            # TODO: test this
+            # impersonate=uid,
+            build_only=True,
+            quiet=True,
+        )
+        dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
+        shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
 
-            # run VNC
-            dtslogger.info(f"Running VNC...")
-            # base environment is the ROS environment
-            vnc_env = copy.deepcopy(ros_env)
-            # when we run the agent locally, set the agent's info explicitly
-            if not parsed.local:
-                vnc_env["VEHICLE_NAME"] = duckiebot
-                vnc_env["ROS_MASTER"] = duckiebot
-                vnc_env["HOSTNAME"] = duckiebot
+        # run VNC
+        dtslogger.info(f"Running VNC...")
+        # base environment is the ROS environment
+        vnc_env = copy.deepcopy(ros_env)
+        # when we run the agent locally, set the agent's info explicitly
+        if not parsed.local:
+            vnc_env["VEHICLE_NAME"] = duckiebot
+            vnc_env["ROS_MASTER"] = duckiebot
+            vnc_env["HOSTNAME"] = duckiebot
 
-            # TODO: these launchers should be in the assets directory of the recipe
-            # vnc_volumes = {
-            #     os.path.join(working_dir, "launchers"): {
-            #         "bind": "/code/launchers",
-            #         "mode": "ro",
-            #     }
-            # }
+        # TODO: these launchers should be in the assets directory of the recipe
+        # vnc_volumes = {
+        #     os.path.join(working_dir, "launchers"): {
+        #         "bind": "/code/launchers",
+        #         "mode": "ro",
+        #     }
+        # }
 
-            # VNC container configuration
-            vnc_params = {
-                "image": vnc_image,
-                "name": vnc_container_name,
-                "command": "dt-launcher-vnc",
-                "environment": vnc_env,
-                "volumes": {},
-                "auto_remove": auto_remove,
-                "privileged": True,
-                "stream": True,
-                "detach": True,
-                "tty": True,
+        # VNC container configuration
+        vnc_params = {
+            "image": vnc_image,
+            "name": vnc_container_name,
+            "command": "dt-launcher-vnc",
+            "environment": vnc_env,
+            "volumes": {},
+            "auto_remove": auto_remove,
+            "privileged": True,
+            "stream": True,
+            "detach": True,
+            "tty": True,
+        }
+        # mount logs directory
+        if settings.log_dir:
+            local_logs_dir: str = os.path.join(parsed.workdir, settings.log_dir)
+            vnc_params["volumes"][local_logs_dir] = {
+                "bind": ROBOT_LOGS_DIR,
+                "mode": "rw",
             }
-            # mount logs directory
-            if settings.log_dir:
-                local_logs_dir: str = os.path.join(parsed.workdir, settings.log_dir)
-                vnc_params["volumes"][local_logs_dir] = {
-                    "bind": ROBOT_LOGS_DIR,
-                    "mode": "rw",
-                }
-            # when running on Linux, we need to expose avahi for mDNS to work
+        # when running on Linux, we need to expose avahi for mDNS to work
+        if not running_on_mac:
+            vnc_params["volumes"]["/var/run/avahi-daemon/socket"] = {
+                "bind": "/var/run/avahi-daemon/socket",
+                "mode": "rw",
+            }
+        # when running locally, we attach VNC to the agent's network
+        if parsed.local:
+            vnc_params["network"] = agent_network.name
+            vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
+        else:
+            # when running on the robot, let (local) VNC reach the host network to use ROS
             if not running_on_mac:
-                vnc_params["volumes"]["/var/run/avahi-daemon/socket"] = {
-                    "bind": "/var/run/avahi-daemon/socket",
-                    "mode": "rw",
-                }
-            # when running locally, we attach VNC to the agent's network
-            if parsed.local:
-                vnc_params["network"] = agent_network.name
-                vnc_params["ports"] = {"8087/tcp": ("0.0.0.0", PORT_VNC)}
-            else:
-                # when running on the robot, let (local) VNC reach the host network to use ROS
-                if not running_on_mac:
-                    vnc_params["network_mode"] = "host"
-            # ---
-            dtslogger.debug(
-                f"Running VNC container '{vnc_container_name}' "
-                f"with configuration: {json.dumps(vnc_params, indent=4)}"
+                vnc_params["network_mode"] = "host"
+        # ---
+        dtslogger.debug(
+            f"Running VNC container '{vnc_container_name}' "
+            f"with configuration: {json.dumps(vnc_params, indent=4)}"
+        )
+        # run vnc container (always runs on local client)
+        vnc_container = local_client.containers.run(**vnc_params)
+        # add container to monitor to the list (the order matters)
+        containers_to_monitor.append(vnc_container)
+
+        # find the port the OS assigned to the container, then print it in 6 seconds
+        vnc_container.reload()
+        port: str = vnc_container.attrs['NetworkSettings']['Ports']['8087/tcp'][0]['HostPort']
+
+        def print_nvc_port_later():
+            time.sleep(6)
+            space: str = " " * 4
+            pspace: str = " " * (4 + (4 - len(port)))
+            dtslogger.info(
+                f"\n\n\n\n"
+                f"================================================================\n"
+                f"|                                                              |\n"
+                f"|{space}VNC running at http://localhost:{port}{pspace}                  |\n"
+                f"|                                                              |\n"
+                f"================================================================\n\n\n"
             )
-            # run vnc container (always runs on local client)
-            vnc_container = local_client.containers.run(**vnc_params)
-            # add container to monitor to the list (the order matters)
-            containers_to_monitor.append(vnc_container)
-            # TODO: the port should be automatically assigned by the OS and we should read it here
-            dtslogger.info(f"\n\tVNC running at http://localhost:{PORT_VNC}/\n")
-            # attach to the logs
-            if LOG_LEVELS[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
-                threading.Thread(
-                    target=continuously_monitor, args=(local_client, vnc_container_name), daemon=True
-                ).start()
+
+        threading.Thread(target=print_nvc_port_later).start()
+
+        # attach to the logs
+        if LOG_LEVELS[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
+            threading.Thread(
+                target=continuously_monitor, args=(local_client, vnc_container_name), daemon=True
+            ).start()
 
         # Setup functions for monitor and cleanup
         def stop_attached_container():
