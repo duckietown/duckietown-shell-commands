@@ -65,6 +65,12 @@ class DTCommand(DTCommandAbs):
             help="Path to use if specifying a custom recipe",
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             default="submission",
@@ -143,7 +149,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
-            pull=True,
+            pull=not parsed.no_pull,
             quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
