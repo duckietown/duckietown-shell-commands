@@ -135,8 +135,7 @@ class SettingsFile:
 
     def __str__(self):
         fields: Iterable[dataclasses.Field] = dataclasses.fields(SettingsFile)
-        return "\n\t" + \
-               "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
+        return "\n\t" + "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
 
 
 ALLOWED_LEVELS = [e.value for e in Levels]
@@ -156,10 +155,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to bring up"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to bring up"
         )
 
         parser.add_argument(
@@ -206,11 +202,7 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull",
-            dest="pull",
-            action="store_true",
-            default=False,
-            help="Should we pull all of the images"
+            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
         loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in LOG_LEVELS.items())
@@ -426,11 +418,7 @@ class DTCommand(DTCommandAbs):
             if token is None:
                 raise UserError("Please set token using the command 'dts tok set'")
             # get container specs from the challenges server
-            images = get_challenge_images(
-                challenge=challenge,
-                step=settings.step,
-                token=token
-            )
+            images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
             sim_spec = images["simulator"]
             expman_spec = images["evaluator"]
         else:
@@ -531,8 +519,9 @@ class DTCommand(DTCommandAbs):
                     pull_if_not_exist(agent_client, image)
                 except NotFound:
                     if image == agent_image:
-                        dtslogger.error("Run 'dts code build' to build your agent before running "
-                                        "the workbench.")
+                        dtslogger.error(
+                            "Run 'dts code build' to build your agent before running " "the workbench."
+                        )
                         exit(1)
 
         # create a docker network to deploy the containers in
@@ -903,7 +892,7 @@ class DTCommand(DTCommandAbs):
 
         # find the port the OS assigned to the container, then print it in 6 seconds
         vnc_container.reload()
-        port: str = vnc_container.attrs['NetworkSettings']['Ports']['8087/tcp'][0]['HostPort']
+        port: str = vnc_container.attrs["NetworkSettings"]["Ports"]["8087/tcp"][0]["HostPort"]
 
         def print_nvc_port_later():
             time.sleep(6)
@@ -1337,8 +1326,7 @@ def get_challenge_from_submission_file(recipe: DTProject) -> str:
     return submission["challenge"][0]
 
 
-def get_challenge_images(challenge: str, step: Optional[str], token: str) -> \
-        Dict[str, ImageRunSpec]:
+def get_challenge_images(challenge: str, step: Optional[str], token: str) -> Dict[str, ImageRunSpec]:
     default = "https://challenges.duckietown.org/v4"
     server = os.environ.get("DTSERVER", default)
     url = f"{server}/api/challenges/{challenge}/description"

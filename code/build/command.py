@@ -16,12 +16,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to be built"
         )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname to use"
-        )
+        parser.add_argument("-H", "--machine", default=None, help="Docker socket or hostname to use")
         parser.add_argument(
             "-u",
             "--username",

@@ -301,8 +301,10 @@ class DTCommand(DTCommandAbs):
             try:
                 token = shell.get_dt1_token()
             except Exception:
-                dtslogger.warning("No Duckietown tokens were set using 'dts tok set', some "
-                                  "functionalities might not be available.")
+                dtslogger.warning(
+                    "No Duckietown tokens were set using 'dts tok set', some "
+                    "functionalities might not be available."
+                )
                 pass
 
         # CI builds
@@ -437,8 +439,7 @@ class DTCommand(DTCommandAbs):
         client = get_client(parsed.machine)
 
         # build-arg NCPUS
-        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) \
-            if parsed.ncpus is None else str(parsed.ncpus)
+        ncpu: str = str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         docker_build_args["NCPUS"] = ncpu
         dtslogger.debug(f"NCPU set to {ncpu}.")
 
