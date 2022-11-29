@@ -9,7 +9,7 @@ from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
     raise ShellNeedsUpdate("5.2.21")
 # NOTE: this is to avoid breaking the user workspace

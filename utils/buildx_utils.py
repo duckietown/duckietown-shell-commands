@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 from dt_shell import UserError
 
-from pydock import DockerClient
+from dockertown import DockerClient
 
 from .misc_utils import parse_version
 

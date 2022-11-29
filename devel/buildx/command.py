@@ -15,7 +15,7 @@ from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
     raise ShellNeedsUpdate("5.2.21")
 # NOTE: this is to avoid breaking the user workspace
@@ -23,7 +23,7 @@ except ImportError:
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from duckietown_docker_utils import ENV_REGISTRY
-from pydock import DockerClient
+from dockertown import DockerClient
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
 from utils.cli_utils import ask_confirmation
@@ -54,8 +54,8 @@ from utils.misc_utils import human_size, human_time, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
-from pydock.components.buildx.imagetools.models import Manifest
-from pydock.exceptions import NoSuchManifest
+from dockertown.components.buildx.imagetools.models import Manifest
+from dockertown.exceptions import NoSuchManifest
 from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
@@ -433,7 +433,7 @@ class DTCommand(DTCommandAbs):
         # ensure buildx version
         ensure_buildx_version(docker, "0.8.0+")
 
-        # TODO: this should be removed, use pydock only
+        # TODO: this should be removed, use dockertown only
         client = get_client(parsed.machine)
 
         # build-arg NCPUS

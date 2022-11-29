@@ -632,16 +632,16 @@ def remove_escapes(s):
 
 
 try:
-    import pydock
+    import dockertown
 
-    _pydock_available: bool = True
+    _dockertown_available: bool = True
 except ImportError:
     dtslogger.warning("Some functionalities are disabled until you update your shell to v5.2.21+")
-    _pydock_available: bool = False
+    _dockertown_available: bool = False
 
 
-if _pydock_available:
-    from pydock import DockerClient
+if _dockertown_available:
+    from dockertown import DockerClient
 
     def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
         """Raises CouldNotLogin"""
@@ -682,7 +682,7 @@ if _pydock_available:
         dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
         # noinspection PyBroadException
         try:
-            # TODO: add silent=True to pydock/dockertown
+            # TODO: add silent=True to dockertown/dockertown
             client.login(server=registry, username=username, password=password)
         except BaseException:
             if raise_on_error:

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Optional, List
 
 from dt_shell.config import read_shell_config, ShellConfig
-from pydock import DockerClient
+from dockertown import DockerClient
 
 from utils.challenges_utils import \
     get_registry_from_challenges_server, \
@@ -16,7 +16,7 @@ from utils.misc_utils import sanitize_hostname
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
     raise ShellNeedsUpdate("5.2.21")
 # NOTE: this is to avoid breaking the user workspace
@@ -164,7 +164,7 @@ class DTCommand(DTCommandAbs):
 
         # get built image
         src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
-        image: pydock.Image = docker.image.inspect(src_name)
+        image: dockertown.Image = docker.image.inspect(src_name)
 
         # tag the image for aido_submission
         repository: str = AGENT_SUBMISSION_REPOSITORY
@@ -222,7 +222,7 @@ def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
     return s
 
 
-def sha_from_digest(image: pydock.Image, image_name: str) -> str:
+def sha_from_digest(image: dockertown.Image, image_name: str) -> str:
     image.reload()
     digest: Optional[str] = None
     for d in image.repo_digests:

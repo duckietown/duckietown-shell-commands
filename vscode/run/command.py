@@ -18,12 +18,12 @@ from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
     raise ShellNeedsUpdate("5.2.21")
 # NOTE: this is to avoid breaking the user workspace
 
-from pydock import DockerClient
+from dockertown import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import DEFAULT_REGISTRY, get_endpoint_architecture, sanitize_docker_baseurl
 from utils.duckietown_utils import get_distro_version
@@ -269,7 +269,7 @@ class DTCommand(DTCommandAbs):
             # wait for the container to stop
             try:
                 docker.wait(container)
-            except pydock.exceptions.DockerException as e:
+            except dockertown.exceptions.DockerException as e:
                 if not DTCommand.requested_stop:
                     raise e
 
