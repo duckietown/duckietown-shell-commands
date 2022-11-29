@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from typing import Optional, List
 
 from dt_shell.config import read_shell_config, ShellConfig
-from dockertown import DockerClient
 
 from utils.challenges_utils import \
     get_registry_from_challenges_server, \
@@ -18,9 +17,10 @@ from utils.misc_utils import sanitize_hostname
 try:
     import dockertown
 except ImportError:
-    raise ShellNeedsUpdate("5.2.21")
+    raise ShellNeedsUpdate("5.4.0+")
 # NOTE: this is to avoid breaking the user workspace
 
+from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from utils.docker_utils import \
     sanitize_docker_baseurl, \

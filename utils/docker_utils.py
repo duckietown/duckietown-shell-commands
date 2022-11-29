@@ -636,7 +636,7 @@ try:
 
     _dockertown_available: bool = True
 except ImportError:
-    dtslogger.warning("Some functionalities are disabled until you update your shell to v5.2.21+")
+    dtslogger.warning("Some functionalities are disabled until you update your shell to v5.4.0+")
     _dockertown_available: bool = False
 
 

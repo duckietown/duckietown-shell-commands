@@ -17,7 +17,7 @@ from utils.exceptions import ShellNeedsUpdate
 try:
     import dockertown
 except ImportError:
-    raise ShellNeedsUpdate("5.2.21")
+    raise ShellNeedsUpdate("5.4.0+")
 # NOTE: this is to avoid breaking the user workspace
 
 from docker.errors import ImageNotFound
