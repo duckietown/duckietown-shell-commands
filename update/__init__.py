@@ -81,7 +81,7 @@ def update_billboard():
 
 
 # TODO: disabled to avoid exploding charges on AWS S3 due to high number of requests
-# Thread(target=update_billboard, daemon=True).start()
+Thread(target=update_billboard, daemon=True).start()
 # TODO: disabled to avoid exploding charges on AWS S3 due to high number of requests
 
 
