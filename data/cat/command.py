@@ -11,16 +11,16 @@ VALID_SPACES = ["user", "public", "private"]
 
 
 class DTCommand(DTCommandAbs):
-    help = "Downloads a file from the Duckietown Cloud Storage space"
+    help = "Prints the content of an object from the Duckietown Cloud Storage space"
 
     usage = f"""
 Usage:
 
-    dts data get --space <space> <object> <file>
+    dts data cat --space <space> <object>
 
 OR
 
-    dts data get [<space>:]<object> <file>
+    dts data cat [<space>:]<object>
 
 Where <space> can be one of {str(VALID_SPACES)}.
 """
@@ -34,13 +34,9 @@ Where <space> can be one of {str(VALID_SPACES)}.
             "--space",
             default=None,
             choices=VALID_SPACES,
-            help="Storage space the object should be downloaded from",
+            help="Storage space the object should be fetched from",
         )
-        parser.add_argument(
-            "-f", "--force", default=False, action="store_true", help="Overwrites local file if it exists"
-        )
-        parser.add_argument("object", nargs=1, help="Destination path of the object")
-        parser.add_argument("file", nargs=1, help="File to download")
+        parser.add_argument("object", nargs=1, help="Object to read")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -51,7 +47,6 @@ Where <space> can be one of {str(VALID_SPACES)}.
             parsed = DTCommand._parse_args(args)
         # ---
         parsed.object = parsed.object[0]
-        parsed.file = parsed.file[0]
         # check arguments
         # use the format [space]:[object] as a short for
         #      --space [space] [object]
@@ -84,12 +79,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
         parsed.object = object_path
         if space:
             parsed.space = space
-        # make sure that the input file does not exist
-        if os.path.isfile(parsed.file) and not parsed.force:
-            dtslogger.error(f"File '{parsed.file}' already exists! Must be forced.")
-            exit(5)
-        # sanitize file path
-        parsed.file = os.path.abspath(parsed.file)
+
         # get the token if it is set
         token = None
         # noinspection PyBroadException
@@ -97,36 +87,14 @@ Where <space> can be one of {str(VALID_SPACES)}.
             token = shell.get_dt1_token()
         except Exception:
             pass
+
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)
-        # prepare progress bar
-        pbar = ProgressBar()
-
-        def check_status(h):
-            if h.status == TransferStatus.STOPPED:
-                print()
-                dtslogger.info("Stopping download...")
-                handler.abort(block=True)
-                dtslogger.info("Download stopped!")
-                exit(6)
-            if h.status == TransferStatus.ERROR:
-                dtslogger.error(h.reason)
-                exit(7)
-
-        def cb(h):
-            speed = human_size(h.progress.speed)
-            header = f"Downloading [{speed}/s] "
-            header = header + " " * max(0, 28 - len(header))
-            pbar.set_header(header)
-            pbar.update(h.progress.percentage)
-            # check status
-            check_status(h)
 
         # download file
-        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object} -> {parsed.file}")
-        handler = storage.download(parsed.object, parsed.file)
-        handler.register_callback(cb)
+        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object}")
+        handler = storage.download(parsed.object)
 
         # capture SIGINT and abort
         signal.signal(signal.SIGINT, lambda *_: handler.abort())
@@ -134,8 +102,11 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # wait for the download to finish
         handler.join()
 
-        # check status
-        check_status(handler)
-
         # if we got here, the download is completed
         dtslogger.info("Download complete!")
+
+        # print content out
+        handler.buffer.seek(0)
+        print(">>> content >>>")
+        print(handler.buffer.read().decode("utf-8"), end="")
+        print("<<< content <<<")
