@@ -24,10 +24,10 @@ class DTCommand(DTCommandAbs):
             help="The docker registry username to use",
         )
         parser.add_argument(
-            "--pull",
+            "--no-pull",
             default=False,
             action="store_true",
-            help="Whether to pull the latest base image used by the Dockerfile",
+            help="Whether to skip updating the base image from the registry",
         )
         parser.add_argument(
             "--push",
@@ -111,7 +111,7 @@ class DTCommand(DTCommandAbs):
             machine=parsed.machine,
             username=parsed.username,
             file=project.dockerfile,
-            pull=parsed.pull,
+            pull=not parsed.no_pull,
             push=parsed.push,
             recipe=parsed.recipe,
             registry=parsed.registry,
