@@ -142,6 +142,9 @@ run_on_every_boot() {
     # setup /etc/hosts
     setup_etc_hosts
 
+    # set i2c bus clock rate to 400kHz
+    echo 400000 > /sys/bus/i2c/devices/i2c-1/bus_clk_rate
+
     # run customizable any-boot script
     dt-init-any-boot
 
