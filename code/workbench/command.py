@@ -1228,7 +1228,7 @@ def launch_bridge(
         "HOSTNAME": f"{duckiebot}",
         "VEHICLE_NAME": f"{duckiebot}",
         "ROS_MASTER_URI": f"http://{duckiebot}.local:{ROBOT_ROS_PORT}",
-        **load_yaml(environment_dir + "duckiebot_bridge_env.yaml"),
+        **load_yaml(environment_dir + "/duckiebot_bridge_env.yaml"),
     }
     bridge_volumes = fifos_bind
     if not running_on_mac or not parsed.local:
