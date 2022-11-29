@@ -7,9 +7,7 @@ from typing import Optional, List
 
 from dt_shell.config import read_shell_config, ShellConfig
 
-from utils.challenges_utils import \
-    get_registry_from_challenges_server, \
-    get_challenges_server_to_use
+from utils.challenges_utils import get_registry_from_challenges_server, get_challenges_server_to_use
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 
@@ -22,10 +20,7 @@ except ImportError:
 
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.docker_utils import \
-    sanitize_docker_baseurl, \
-    get_endpoint_architecture, \
-    get_registry_to_use
+from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -41,12 +36,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
         )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname to use"
-        )
+        parser.add_argument("-H", "--machine", default=None, help="Docker socket or hostname to use")
         parser.add_argument(
             "-a",
             "--arch",
@@ -122,8 +112,10 @@ class DTCommand(DTCommandAbs):
         # make sure we have the credentials to push to this registry
         shell_cfg: ShellConfig = read_shell_config()
         if registry_to_push not in shell_cfg.docker_credentials:
-            dtslogger.error(f"You have no credentials set for registry '{registry_to_push}', "
-                            f"please use the command 'dts challenges config' fisrt")
+            dtslogger.error(
+                f"You have no credentials set for registry '{registry_to_push}', "
+                f"please use the command 'dts challenges config' fisrt"
+            )
             exit(1)
         registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
         del registry_creds["secret"]

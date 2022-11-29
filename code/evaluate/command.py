@@ -6,9 +6,7 @@ from typing import Optional, List
 
 from dt_shell.config import read_shell_config, ShellConfig
 
-from utils.challenges_utils import \
-    get_registry_from_challenges_server, \
-    get_challenges_server_to_use
+from utils.challenges_utils import get_registry_from_challenges_server, get_challenges_server_to_use
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.yaml_utils import load_yaml
@@ -22,10 +20,7 @@ except ImportError:
 
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.docker_utils import \
-    sanitize_docker_baseurl, \
-    get_endpoint_architecture, \
-    get_registry_to_use
+from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -39,16 +34,10 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to submit"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
         parser.add_argument(
             "-a",
@@ -73,26 +62,14 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
         )
-        parser.add_argument(
-            "-c",
-            "--challenge",
-            type=str,
-            default=None,
-            help="Challenge to evaluate against"
-        )
+        parser.add_argument("-c", "--challenge", type=str, default=None, help="Challenge to evaluate against")
         parser.add_argument(
             "-L",
             "--launcher",
             default="submission",
             help="The launcher to use as entrypoint to the submission container",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -137,8 +114,9 @@ class DTCommand(DTCommandAbs):
             # look for submission.yaml inside the recipe
             submission_yaml = os.path.join(project.recipe.path, "submission.yaml")
             if not os.path.isfile(submission_yaml):
-                dtslogger.error(f"File 'submission.yaml' not found. We searched both this project "
-                                f"and its recipe.")
+                dtslogger.error(
+                    f"File 'submission.yaml' not found. We searched both this project " f"and its recipe."
+                )
                 exit(1)
         submission: dict = load_yaml(submission_yaml)
         challenges: List[str] = submission.get("challenge", [])
@@ -152,16 +130,22 @@ class DTCommand(DTCommandAbs):
         if parsed.challenge is not None:
             # make sure the chosen challenge is in the list of supported challenges
             if parsed.challenge not in challenges:
-                dtslogger.error(f"Challenge '{parsed.challenge}' not supported by this submission. "
-                                f"Supported challenges are: \n\n\t" + "\n\t".join(challenges) + "\n")
+                dtslogger.error(
+                    f"Challenge '{parsed.challenge}' not supported by this submission. "
+                    f"Supported challenges are: \n\n\t" + "\n\t".join(challenges) + "\n"
+                )
                 exit(1)
             dtslogger.info(f"User chose to evaluate against challenge '{parsed.challenge}'...")
         else:
             # complain if an explicit choice is needed
             if len(challenges) > 1:
-                dtslogger.error("This submission is supported by the following challenges, indicate "
-                                "which one to evaluate against with '--challenge <CHALLENGE_NAME>':" +
-                                "\n\n\t" + "\n\t".join(challenges) + "\n")
+                dtslogger.error(
+                    "This submission is supported by the following challenges, indicate "
+                    "which one to evaluate against with '--challenge <CHALLENGE_NAME>':"
+                    + "\n\n\t"
+                    + "\n\t".join(challenges)
+                    + "\n"
+                )
                 exit(1)
             # auto-pick if only one is available
             parsed.challenge = challenges[0]
@@ -188,8 +172,10 @@ class DTCommand(DTCommandAbs):
         # make sure we have the credentials to push to this registry
         shell_cfg: ShellConfig = read_shell_config()
         if registry_to_push not in shell_cfg.docker_credentials:
-            dtslogger.error(f"You have no credentials set for registry '{registry_to_push}', "
-                            f"please use the command 'dts challenges config' fisrt")
+            dtslogger.error(
+                f"You have no credentials set for registry '{registry_to_push}', "
+                f"please use the command 'dts challenges config' fisrt"
+            )
             exit(1)
         registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
         del registry_creds["secret"]
@@ -247,7 +233,7 @@ class DTCommand(DTCommandAbs):
             image.repo_tags[0],
             "--challenge",
             parsed.challenge,
-            "--no-pull"
+            "--no-pull",
         ]
         dtslogger.info("Evaluating...")
         dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")

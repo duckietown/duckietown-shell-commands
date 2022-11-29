@@ -20,8 +20,11 @@ def get_recipes_dir() -> str:
 
 
 def get_recipe_repo_dir(repository: str, branch: str) -> str:
-    return os.environ["DTSHELL_RECIPES"] if "DTSHELL_RECIPES" in os.environ else \
-        os.path.join(get_recipes_dir(), repository, branch)
+    return (
+        os.environ["DTSHELL_RECIPES"]
+        if "DTSHELL_RECIPES" in os.environ
+        else os.path.join(get_recipes_dir(), repository, branch)
+    )
 
 
 def get_recipe_project_dir(repository: str, branch: str, location: str) -> str:
