@@ -20,7 +20,8 @@ except ImportError:
 
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
+from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use, \
+    DEFAULT_REGISTRY
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -216,8 +217,12 @@ def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
 
 def sha_from_digest(image: dockertown.Image, image_name: str) -> str:
     image.reload()
+    # remove default registry from the image name, it is not added to the digest by docker
+    if image_name.startswith(DEFAULT_REGISTRY):
+        image_name = image_name[len(DEFAULT_REGISTRY):]
+    # get digests
     digest: Optional[str] = None
     for d in image.repo_digests:
         if d.startswith(image_name):
             digest = d
-    return digest[digest.index("@") + 1 :]
+    return digest[digest.index("@") + 1:]
