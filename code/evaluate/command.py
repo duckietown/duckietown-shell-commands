@@ -62,6 +62,12 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
         )
+        parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Duckietown UID of the user to impersonate",
+        )
         parser.add_argument("-c", "--challenge", type=str, default=None, help="Challenge to evaluate against")
         parser.add_argument(
             "-L",
@@ -225,6 +231,10 @@ class DTCommand(DTCommandAbs):
             parsed.challenge,
             "--no-pull",
         ]
+        # impersonate
+        if parsed.impersonate:
+            evaluate_args += ["--impersonate", parsed.impersonate]
+        # ---
         dtslogger.info("Evaluating...")
         dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")
         shell.include.challenges.command(shell, evaluate_args)

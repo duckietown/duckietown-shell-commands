@@ -62,6 +62,12 @@ class DTCommand(DTCommandAbs):
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
         )
         parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Duckietown UID of the user to impersonate",
+        )
+        parser.add_argument(
             "-L",
             "--launcher",
             default="submission",
@@ -195,6 +201,10 @@ class DTCommand(DTCommandAbs):
             "--image",
             submission_image_name,
         ]
+        # impersonate
+        if parsed.impersonate:
+            submit_args += ["--impersonate", parsed.impersonate]
+        # ---
         dtslogger.info("Submitting...")
         dtslogger.debug(f"Calling 'challenges/submit' using args: {submit_args}")
         shell.include.challenges.command(shell, submit_args)
