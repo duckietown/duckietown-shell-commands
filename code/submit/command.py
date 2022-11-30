@@ -219,7 +219,7 @@ def sha_from_digest(image: dockertown.Image, image_name: str) -> str:
     image.reload()
     # remove default registry from the image name, it is not added to the digest by docker
     if image_name.startswith(DEFAULT_REGISTRY):
-        image_name = image_name[len(DEFAULT_REGISTRY):]
+        image_name = image_name[len(DEFAULT_REGISTRY):].strip("/")
     # get digests
     digest: Optional[str] = None
     for d in image.repo_digests:
