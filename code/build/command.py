@@ -75,11 +75,6 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
 
-        # show dtproject info
-        if not parsed.quiet:
-            dtslogger.info("Project workspace: {}".format(parsed.workdir))
-            shell.include.devel.info.command(shell, args)
-
         # Make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:

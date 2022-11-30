@@ -260,6 +260,13 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
+            "--sync",
+            action="store_true",
+            default=False,
+            help="RSync code between this computer and the agent",
+        )
+
+        parser.add_argument(
             "--challenge",
             help="Run in the environment of this challenge.",
         )
@@ -369,6 +376,9 @@ class DTCommand(DTCommandAbs):
         # get the local docker client
         local_client = check_docker_environment()
 
+        # get local architecture
+        local_arch: str = get_endpoint_architecture_from_client_OLD(local_client)
+
         # check user inputs
         # - we run either in simulation or we need a duckiebot name
         duckiebot = parsed.duckiebot
@@ -389,20 +399,41 @@ class DTCommand(DTCommandAbs):
             duckiebot_client = get_remote_client(duckiebot_ip)
             duckiebot_hostname = sanitize_hostname(duckiebot)
 
+        # agent is local
+        agent_is_local: bool = parsed.simulation or parsed.local
+
+        # build agent
+        dtslogger.info(f"Building Agent...")
+        # Build the project using 'code build' functionality
+        build_namespace: SimpleNamespace = SimpleNamespace(
+            workdir=project.path,
+            machine=None if agent_is_local else duckiebot_hostname,
+            username=username,
+            recipe=recipe.path,
+            quiet=True
+        )
+        dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
+        success: bool = shell.include.code.build.command(shell, [], parsed=build_namespace)
+        if not success:
+            dtslogger.error("Failed to build the agent image. Aborting.")
+            exit(1)
+
         # sync code with the robot if we are running on a physical robot
         agent_client = local_client
         if not parsed.local:
-            # let's set some things up to run on the Duckiebot
-            check_program_dependency("rsync")
-            remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
-            dtslogger.info(f"Syncing your local folder with {duckiebot}")
-            rsync_cmd = "rsync -a "
-            for d in settings.rsync_exclude:
-                rsync_cmd += f"--exclude {project.path}/{d} "
-                rsync_cmd += f"--exclude {recipe.path}/{d} "
-            rsync_cmd += f"{project.path}/* {recipe.path}/* {remote_base_path}"
-            dtslogger.info(f"rsync command: {rsync_cmd}")
-            _run_cmd(rsync_cmd, shell=True)
+            if parsed.sync:
+                # let's set some things up to run on the Duckiebot
+                check_program_dependency("rsync")
+                remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
+                dtslogger.info(f"Syncing your local folder with {duckiebot}")
+                rsync_cmd = "rsync -a "
+                for d in settings.rsync_exclude:
+                    rsync_cmd += f"--exclude {project.path}/{d} "
+                # TODO: no need to sync the recipe, just the meat
+                rsync_cmd += f"{project.path}/* {remote_base_path}"
+                dtslogger.info(f"rsync command: {rsync_cmd}")
+                _run_cmd(rsync_cmd, shell=True)
+            # the agent runs on the duckiebot client
             agent_client = duckiebot_client
 
         # get agent's architecture and image name
@@ -435,7 +466,7 @@ class DTCommand(DTCommandAbs):
         # image names
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
         bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
-        vnc_image = project.image(registry=parsed.registry, arch=arch, owner=username, extra="vnc")
+        vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
 
         # define container and network names
         prefix = f"ex-{exercise_name}"
@@ -516,6 +547,7 @@ class DTCommand(DTCommandAbs):
                 pull_if_not_exist(local_client, image)
             for image in agent_images:
                 try:
+                    dtslogger.debug(f"pull_if_not_exist(agent_client, '{image}')")
                     pull_if_not_exist(agent_client, image)
                 except NotFound:
                     if image == agent_image:
@@ -815,7 +847,7 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(ros_container)
 
         # build VNC
-        dtslogger.info(f"Running VNC...")
+        dtslogger.info(f"Building VNC...")
         vnc_namespace: SimpleNamespace = SimpleNamespace(
             workdir=project.path,
             username=username,
@@ -874,8 +906,8 @@ class DTCommand(DTCommandAbs):
             }
         # when running locally, we attach VNC to the agent's network
         if parsed.local:
-            vnc_params["network"] = agent_network.name
             vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
+            vnc_params["network"] = agent_network.name
         else:
             # when running on the robot, let (local) VNC reach the host network to use ROS
             if not running_on_mac:
@@ -889,25 +921,6 @@ class DTCommand(DTCommandAbs):
         vnc_container = local_client.containers.run(**vnc_params)
         # add container to monitor to the list (the order matters)
         containers_to_monitor.append(vnc_container)
-
-        # find the port the OS assigned to the container, then print it in 6 seconds
-        vnc_container.reload()
-        port: str = vnc_container.attrs["NetworkSettings"]["Ports"]["8087/tcp"][0]["HostPort"]
-
-        def print_nvc_port_later():
-            time.sleep(6)
-            space: str = " " * 4
-            pspace: str = " " * (4 + (4 - len(port)))
-            dtslogger.info(
-                f"\n\n\n\n"
-                f"================================================================\n"
-                f"|                                                              |\n"
-                f"|{space}VNC running at http://localhost:{port}{pspace}                  |\n"
-                f"|                                                              |\n"
-                f"================================================================\n\n\n"
-            )
-
-        threading.Thread(target=print_nvc_port_later).start()
 
         # attach to the logs
         if LOG_LEVELS[ContainerNames.NAME_VNC] != Levels.LEVEL_NONE:
@@ -931,6 +944,41 @@ class DTCommand(DTCommandAbs):
                 containers_monitor, containers_to_monitor, stop_attached_container
             ),
         )
+
+        # find the port the OS assigned to the container, then print it in 5 seconds
+        if not agent_is_local:
+            port = str(PORT_VNC)
+        else:
+            stime = time.time()
+            while True:
+                dtslogger.info("Waiting for VNC...")
+                vnc_container.reload()
+                ports: Dict[str, List[dict]] = vnc_container.attrs["NetworkSettings"]["Ports"]
+                if time.time() - stime > 10:
+                    dtslogger.error("VNC failed to gain a port within 10 seconds. Aborting.")
+                    clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
+                    return False
+                if "8087/tcp" not in ports:
+                    dtslogger.debug(f"VNC ports: {str(ports)}")
+                    time.sleep(0.5)
+                    continue
+                port: str = ports["8087/tcp"][0]["HostPort"]
+                break
+
+        def print_nvc_port_later():
+            time.sleep(5)
+            space: str = " " * 4
+            pspace: str = " " * (4 + (4 - len(port)))
+            dtslogger.info(
+                f"\n\n\n\n"
+                f"================================================================\n"
+                f"|                                                              |\n"
+                f"|{space}VNC running at http://localhost:{port}{pspace}                  |\n"
+                f"|                                                              |\n"
+                f"================================================================\n\n\n"
+            )
+
+        threading.Thread(target=print_nvc_port_later).start()
 
         dtslogger.info("Starting attached container")
 
@@ -1115,22 +1163,24 @@ def launch_agent(
     agent_is_remote: bool = not agent_is_local
 
     # - mount code (from project (aka meat))
-    # when we run remotely, use /code/<project> as root
-    root = project.path if agent_is_local else f"/code/{project.name}"
-    # get local and remote paths to code
-    local_srcs, destination_srcs = project.code_paths(root)
-    # compile mountpoints
-    for local_src, destination_src in zip(local_srcs, destination_srcs):
-        if agent_is_remote or os.path.exists(local_src):
-            agent_volumes[local_src] = {"bind": destination_src, "mode": "rw"}
+    if parsed.sync:
+        # when we run remotely, use /code/<project> as root
+        root = project.path if agent_is_local else f"/code/{project.name}"
+        # get local and remote paths to code
+        local_srcs, destination_srcs = project.code_paths(root)
+        # compile mountpoints
+        for local_src, destination_src in zip(local_srcs, destination_srcs):
+            if agent_is_remote or os.path.exists(local_src):
+                agent_volumes[local_src] = {"bind": destination_src, "mode": "rw"}
 
     # - mount launchers (from recipe)
-    # when we run remotely, use /launch/<project> as root
-    root = recipe.path if agent_is_local else f"/launch/{recipe.name}"
-    # get local and remote paths to launchers
-    local_launch, destination_launch = recipe.launch_paths(root)
-    if agent_is_remote or os.path.exists(local_launch):
-        agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+    if parsed.sync:
+        # when we run remotely, use /launch/<project> as root
+        root = recipe.path if agent_is_local else f"/launch/{recipe.name}"
+        # get local and remote paths to launchers
+        local_launch, destination_launch = recipe.launch_paths(root)
+        if agent_is_remote or os.path.exists(local_launch):
+            agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
 
     if not parsed.simulation:
         # define the location of the /data/config to give to the agent

@@ -141,7 +141,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
-            pull=not parsed.no_pull,
+            no_pull=parsed.no_pull,
             quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
