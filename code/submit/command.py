@@ -102,6 +102,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
 
         # make sure a token was set
         try:

@@ -85,10 +85,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
-
-        # Try to update the project recipe
-        if project.update_cached_recipe():
-            dtslogger.info("Recipe updated!")
+            project.ensure_recipe_updated()
 
         # collect build arguments (if any)
         build_arg = []

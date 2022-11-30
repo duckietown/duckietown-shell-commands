@@ -317,6 +317,9 @@ class DTProject:
         if not os.path.exists(self.recipe_dir):
             raise RecipeProjectNotFound(f"Recipe not found at '{self.recipe_dir}'")
 
+    def ensure_recipe_updated(self) -> bool:
+        return self.update_cached_recipe()
+
     def update_cached_recipe(self) -> bool:
         """Update recipe if not using custom given recipe"""
         if self.needs_recipe and not self._custom_recipe_dir:

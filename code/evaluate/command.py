@@ -94,7 +94,7 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # recipe
+        # make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -104,6 +104,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
 
         # get challenge to evaluate against
         submission_yaml = os.path.join(project.path, "submission.yaml")
@@ -150,17 +151,6 @@ class DTCommand(DTCommandAbs):
             # auto-pick if only one is available
             parsed.challenge = challenges[0]
         dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
-
-        # make sure the project recipe is present
-        if parsed.recipe is not None:
-            if project.needs_recipe:
-                recipe_dir: str = os.path.abspath(parsed.recipe)
-                dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
-                project.set_recipe_dir(recipe_dir)
-            else:
-                raise UserError("This project does not support recipes")
-        else:
-            project.ensure_recipe_exists()
 
         # make sure a token was set
         try:

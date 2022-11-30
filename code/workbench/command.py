@@ -255,7 +255,7 @@ class DTCommand(DTCommandAbs):
             "--keep",
             action="store_true",
             default=False,
-            help="Do not auto-remove agent container once done. Produces garbage but it is "
+            help="Do not auto-remove containers once done. Produces garbage containers but it is "
             "very useful for debugging.",
         )
 
@@ -296,6 +296,7 @@ class DTCommand(DTCommandAbs):
         # get information about the host user
         uid = os.getuid()
         username = getpass.getuser()
+        auto_remove = not parsed.keep
 
         # make sense of the '--logs' options
         for line in parsed.logs:
@@ -331,6 +332,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
 
         # get the exercise recipe
         recipe: DTProject = project.recipe
@@ -679,9 +681,6 @@ class DTCommand(DTCommandAbs):
         containers_to_monitor = []
 
         # launch containers
-        # TODO: move this up
-        auto_remove = False
-
         # - simualator / experiment manager
         if parsed.simulation:
 
@@ -938,32 +937,27 @@ class DTCommand(DTCommandAbs):
         containers_monitor = launch_container_monitor(containers_to_monitor, stop_attached_container)
 
         # We will catch CTRL+C and cleanup containers
-        signal.signal(
-            signal.SIGINT,
-            lambda signum, frame: clean_shutdown(
-                containers_monitor, containers_to_monitor, stop_attached_container
-            ),
-        )
+
+        user_terminated: bool = False
+
+        def handler(_, __):
+            nonlocal user_terminated
+            user_terminated = True
+            clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
+
+        signal.signal(signal.SIGINT, handler)
 
         # find the port the OS assigned to the container, then print it in 5 seconds
         if not agent_is_local:
             port = str(PORT_VNC)
         else:
-            stime = time.time()
-            while True:
-                dtslogger.info("Waiting for VNC...")
-                vnc_container.reload()
-                ports: Dict[str, List[dict]] = vnc_container.attrs["NetworkSettings"]["Ports"]
-                if time.time() - stime > 10:
-                    dtslogger.error("VNC failed to gain a port within 10 seconds. Aborting.")
-                    clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
-                    return False
-                if "8087/tcp" not in ports:
-                    dtslogger.debug(f"VNC ports: {str(ports)}")
-                    time.sleep(0.5)
-                    continue
-                port: str = ports["8087/tcp"][0]["HostPort"]
-                break
+            vnc_container.reload()
+            ports: Dict[str, List[dict]] = vnc_container.attrs["NetworkSettings"]["Ports"]
+            if "8087/tcp" not in ports:
+                dtslogger.error(f"VNC ports mismatch: {str(ports)}")
+                clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
+                return False
+            port: str = ports["8087/tcp"][0]["HostPort"]
 
         def print_nvc_port_later():
             time.sleep(5)
@@ -1023,7 +1017,8 @@ class DTCommand(DTCommandAbs):
                 tmpdir=tmpdir,
             )
         except Exception:
-            dtslogger.error(f"Attached container terminated:\n" f"{indent_block(traceback.format_exc())}\n")
+            if not user_terminated:
+                dtslogger.error(f"Attached container terminated:\n" f"{indent_block(traceback.format_exc())}\n")
         finally:
             clean_shutdown(containers_monitor, containers_to_monitor, stop_attached_container)
 
