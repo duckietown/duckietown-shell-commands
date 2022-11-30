@@ -112,6 +112,7 @@ APT_PACKAGES_TO_INSTALL = [
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
+    "rsyslog"
 ]
 
 
@@ -523,13 +524,14 @@ class DTCommand(DTCommandAbs):
                     raise ValueError(f"Disk device {root_partition_disk} not found")
                 # mount `root` partition
                 sd_card.mount_partition(ROOT_PARTITION)
+                # dev partition from the host is mounted to _dev
+                _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
                     _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
                     _transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
                     # mount /dev from the host
-                    _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
                     # configure the kernel for QEMU
                     run_cmd(
@@ -595,6 +597,9 @@ class DTCommand(DTCommandAbs):
                     # unomunt bind /dev
                     run_cmd(["sudo", "umount", _dev])
                 except Exception as e:
+                    # unomunt bind /dev
+                    run_cmd(["sudo", "umount", _dev])
+                    # unmount partition
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
                 # unmount ROOT_PARTITION
@@ -773,7 +778,7 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
@@ -903,6 +908,7 @@ class DTCommand(DTCommandAbs):
                     file=[out_file_path("zip")],
                     object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
                     space="public",
+                    token=shell.get_dt1_token()
                 ),
             )
             dtslogger.info("Done!")

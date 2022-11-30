@@ -9,11 +9,12 @@ import shutil
 import subprocess
 import sys
 import time
+from typing import Callable
 from typing import List
 
 import yaml
-
 from disk_image.create.constants import (
+    DEFAULT_DOCKER_REGISTRY,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
     DOCKER_IMAGE_TEMPLATE,
