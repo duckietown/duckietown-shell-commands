@@ -52,7 +52,7 @@ def start_command_in_subprocess(run_cmd, env=None, shell=True, nostdout=False, n
                 raise Exception(msg)
 
 
-def ask_confirmation(message, default="y", question="Do you confirm?", choices=None):
+def ask_confirmation(message, default="n", question="Do you confirm?", choices=None):
     binary_question = False
     if choices is None:
         choices = {"y": "Yes", "n": "No"}
