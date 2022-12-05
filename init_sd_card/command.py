@@ -653,8 +653,12 @@ def step_setup(shell, parsed, data):
 
 
 def _validate_hostname(hostname):
-    if not re.match("^[a-zA-Z0-9]+$", hostname):
-        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].")
+    # The proper regex for RFC 952 should be:
+    # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
+    # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
+    if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
+        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
+                        "It should not start with a digit")
         return False
     return True
 
