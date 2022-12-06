@@ -911,6 +911,21 @@ class DTCommand(DTCommandAbs):
             # when running on the robot, let (local) VNC reach the host network to use ROS
             if not running_on_mac:
                 vnc_params["network_mode"] = "host"
+
+        # - mount code (from project (aka meat))
+        # get local and remote paths to code
+        local_srcs, destination_srcs = project.code_paths()
+        # compile mountpoints
+        for local_src, destination_src in zip(local_srcs, destination_srcs):
+            vnc_params["volumes"][local_src] = {"bind": destination_src, "mode": "rw"}
+
+        # - mount assets (from project (aka meat))
+        # get local and remote paths to code
+        local_srcs, destination_srcs = project.assets_paths()
+        # compile mountpoints
+        for local_src, destination_src in zip(local_srcs, destination_srcs):
+            vnc_params["volumes"][local_src] = {"bind": destination_src, "mode": "rw"}
+
         # ---
         dtslogger.debug(
             f"Running VNC container '{vnc_container_name}' "
