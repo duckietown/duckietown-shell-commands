@@ -102,7 +102,6 @@ Where <space> can be one of {str(VALID_SPACES)}.
             filtered_objects = objects
         else:
             for obj in objects:
-                print(obj, obj.count("/", len(parsed.prefix.rstrip("/"))), parsed.depth)
                 if obj.count("/", len(parsed.prefix.rstrip("/"))) > parsed.depth:
                     continue
                 filtered_objects.append(obj)
