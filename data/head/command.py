@@ -1,7 +1,8 @@
 import argparse
-import signal
+import yaml
 
 from dt_shell import DTCommandAbs, dtslogger
+from utils.misc_utils import indent_block
 
 from dt_data_api import DataClient
 
@@ -9,16 +10,16 @@ VALID_SPACES = ["user", "public", "private"]
 
 
 class DTCommand(DTCommandAbs):
-    help = "Prints the content of an object from the Duckietown Cloud Storage space"
+    help = "Prints the metadata of an object from the Duckietown Cloud Storage space"
 
     usage = f"""
 Usage:
 
-    dts data cat --space <space> <object>
+    dts data head --space <space> <object>
 
 OR
 
-    dts data cat [<space>:]<object>
+    dts data head [<space>:]<object>
 
 Where <space> can be one of {str(VALID_SPACES)}.
 """
@@ -34,7 +35,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
             choices=VALID_SPACES,
             help="Storage space the object should be fetched from",
         )
-        parser.add_argument("object", nargs=1, help="Object to read")
+        parser.add_argument("object", nargs=1, help="Object to read the metadata for")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -91,20 +92,10 @@ Where <space> can be one of {str(VALID_SPACES)}.
         storage = client.storage(parsed.space)
 
         # download file
-        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object}")
-        handler = storage.download(parsed.object)
-
-        # capture SIGINT and abort
-        signal.signal(signal.SIGINT, lambda *_: handler.abort())
-
-        # wait for the download to finish
-        handler.join()
+        dtslogger.info(f"Inspecting [{parsed.space}]:{parsed.object}")
+        metadata = storage.head(parsed.object)
 
         # if we got here, the download is completed
-        dtslogger.info("Download complete!")
-
-        # print content out
-        handler.buffer.seek(0)
-        print(">>> content >>>")
-        print(handler.buffer.read().decode("utf-8"), end="")
-        print("<<< content <<<")
+        json_str: str = yaml.dump(metadata, indent=4, sort_keys=True)
+        dtslogger.info("Metadata:\n\n")
+        print(indent_block(json_str), "\n")
