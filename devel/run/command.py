@@ -12,7 +12,8 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
 )
-from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
+from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject, CLOUD_BUILDERS, \
+    get_cloud_builder
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -97,6 +98,9 @@ class DTCommand(DTCommandAbs):
             "Pass a comma-separated list of paths to mount multiple projects",
         )
         parser.add_argument(
+            "--cloud", default=False, action="store_true", help="Run the image on the cloud"
+        )
+        parser.add_argument(
             "-u",
             "--username",
             default="duckietown",
@@ -173,17 +177,42 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
-        # sanitize hostname
-        if parsed.machine is not None:
-            parsed.machine = sanitize_hostname(parsed.machine)
+
+        # cloud run
+        if parsed.cloud:
+            if parsed.arch is None:
+                dtslogger.error(
+                    "When running on the cloud, you need to explicitly specify "
+                    "a target architecture. Aborting..."
+                )
+                exit(1)
+            if parsed.machine is not None:
+                dtslogger.error(
+                    "The parameter --machine (-H) cannot be set together with "
+                    + "--cloud. Aborting..."
+                )
+                exit(1)
+            # route the run to the native node
+            if parsed.arch not in CLOUD_BUILDERS:
+                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
+                exit(1)
+            # update machine parameter
+            parsed.machine = get_cloud_builder(parsed.arch)
         else:
-            parsed.machine = DEFAULT_MACHINE
+            # local builder is the default
+            if parsed.machine is not None:
+                # sanitize hostname
+                parsed.machine = sanitize_hostname(parsed.machine)
+            else:
+                parsed.machine = DEFAULT_MACHINE
+
         # x-docker runtime
         if parsed.use_x_docker:
             command_dir = os.path.dirname(os.path.abspath(__file__))
             parsed.runtime = os.path.join(command_dir, "x-docker")
+
         # check runtime
-        if shutil.which(parsed.runtime) is None:
+        if not parsed.cloud and shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
