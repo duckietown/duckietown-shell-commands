@@ -1077,15 +1077,23 @@ def clean_shutdown(
     dtslogger.info("Container monitor stopped.")
     # ---
     dtslogger.info("Cleaning containers...")
-    for container in containers:
-        dtslogger.info(f"Stopping container {container.name}")
+    workers: List[threading.Thread] = []
+
+    def _stop_container(c: Container):
         try:
-            container.stop()
+            c.stop()
         except NotFound:
             # all is well
             pass
         except APIError as e:
             dtslogger.info(f"Container {container.name} already stopped ({str(e)})")
+
+    for container in containers:
+        dtslogger.info(f"Stopping container {container.name}")
+        t: threading.Thread = threading.Thread(target=_stop_container, args=(container,))
+        t.start()
+        workers.append(t)
+
     for container in containers:
         dtslogger.info(f"Waiting for container {container.name} to stop...")
         try:
@@ -1225,6 +1233,14 @@ def launch_agent(
         local_launch, destination_launch = recipe.launch_paths(root)
         if agent_is_remote or os.path.exists(local_launch):
             agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+
+    # - mount assets (from project (aka meat))
+    if agent_is_local:
+        # get local and remote paths to assets
+        local_srcs, destination_srcs = project.assets_paths()
+        # compile mountpoints
+        for local_src, destination_src in zip(local_srcs, destination_srcs):
+            agent_volumes[local_src] = {"bind": destination_src, "mode": "rw"}
 
     if not parsed.simulation:
         # define the location of the /data/config to give to the agent
