@@ -23,6 +23,7 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
+from docker.types import DeviceRequest
 from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 
@@ -280,6 +281,13 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--step",
             help="Run this step of the challenge",
+        )
+
+        parser.add_argument(
+            "--nvidia",
+            action="store_true",
+            default=False,
+            help="Use the NVIDIA runtime (experimental).",
         )
 
         # Get pre-parsed or parse arguments
@@ -709,7 +717,7 @@ class DTCommand(DTCommandAbs):
             # ---
             dtslogger.debug(
                 f"Running simulator container '{sim_container_name}' "
-                f"with configuration: {json.dumps(sim_params, indent=4)}"
+                f"with configuration:\n{json.dumps(sim_params, indent=4)}"
             )
             # pull image if not available
             pull_if_not_exist(agent_client, sim_params["image"])
@@ -761,7 +769,7 @@ class DTCommand(DTCommandAbs):
             # ---
             dtslogger.debug(
                 f"Running experiment manager container '{expman_container_name}' "
-                f"with configuration: {json.dumps(expman_params, indent=4)}"
+                f"with configuration:\n{json.dumps(expman_params, indent=4)}"
             )
 
             dtslogger.info(f"\nSim interface will be running at http://localhost:{PORT_MANAGER}/")
@@ -836,7 +844,7 @@ class DTCommand(DTCommandAbs):
             # ---
             dtslogger.debug(
                 f"Running ROS core container '{ros_container_name}' "
-                f"with configuration: {json.dumps(ros_params, indent=4)}"
+                f"with configuration:\n{json.dumps(ros_params, indent=4)}"
             )
             # pull image if not available
             pull_if_not_exist(agent_client, ros_params["image"])
@@ -929,7 +937,7 @@ class DTCommand(DTCommandAbs):
         # ---
         dtslogger.debug(
             f"Running VNC container '{vnc_container_name}' "
-            f"with configuration: {json.dumps(vnc_params, indent=4)}"
+            f"with configuration:\n{json.dumps(vnc_params, indent=4)}"
         )
         # run vnc container (always runs on local client)
         vnc_container = local_client.containers.run(**vnc_params)
@@ -993,7 +1001,15 @@ class DTCommand(DTCommandAbs):
 
         agent_env = load_yaml(os.path.join(environment_dir, "agent_env.yaml"))
         if settings.ros:
-            agent_env = {**ros_env, **agent_env}
+            agent_env = {
+                **ros_env,
+                **agent_env,
+            }
+            if duckiebot is not None:
+                agent_env.update({
+                    "VEHICLE_NAME": duckiebot,
+                    "HOSTNAME": duckiebot,
+                })
 
         if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
             agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
@@ -1019,7 +1035,7 @@ class DTCommand(DTCommandAbs):
 
         # noinspection PyBroadException
         try:
-            launch_agent(
+            agent_container = launch_agent(
                 project=project,
                 agent_container_name=agent_container_name,
                 agent_volumes=agent_bind,
@@ -1031,6 +1047,15 @@ class DTCommand(DTCommandAbs):
                 agent_env=agent_env,
                 tmpdir=tmpdir,
             )
+
+            containers_monitor.add(agent_container)
+
+            attach_cmd = "docker %sattach %s" % (
+                "" if parsed.local else f"-H {duckiebot}.local ",
+                agent_container_name,
+            )
+            start_command_in_subprocess(attach_cmd)
+
         except Exception:
             if not user_terminated:
                 dtslogger.error(f"Attached container terminated:\n" f"{indent_block(traceback.format_exc())}\n")
@@ -1095,9 +1120,14 @@ class ContainersMonitor(threading.Thread):
         self._containers_to_monitor = containers_to_monitor
         self._stop_attached_container = stop_attached_container
         self._is_shutdown = False
+        self._lock = threading.Semaphore()
 
     def shutdown(self):
         self._is_shutdown = True
+
+    def add(self, container: Container):
+        with self._lock:
+            self._containers_to_monitor.append(container)
 
     def run(self):
         """
@@ -1112,8 +1142,12 @@ class ContainersMonitor(threading.Thread):
                 continue
             # ---
             errors = []
-            dtslogger.debug(f"{len(self._containers_to_monitor)} container to monitor")
-            for container in self._containers_to_monitor:
+
+            with self._lock:
+                containers = list(self._containers_to_monitor)
+
+            dtslogger.debug(f"{len(containers)} containers to monitor")
+            for container in containers:
                 try:
                     container.reload()
                 except (APIError, TimeoutError) as e:
@@ -1226,6 +1260,10 @@ def launch_agent(
         "command": [f"dt-launcher-{parsed.launcher}"],
     }
 
+    # disable swappiness
+    if agent_is_remote:
+        agent_params["mem_swappiness"] = 100
+
     if parsed.local:
         agent_params["network"] = agent_network.name
     else:
@@ -1235,10 +1273,14 @@ def launch_agent(
         agent_params["command"] = "/bin/bash"
         agent_params["stdin_open"] = True
 
+    if parsed.nvidia:
+        agent_params["runtime"] = "nvidia"
+        agent_params["device_requests"] = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+
     # ---
     dtslogger.debug(
         f"Running agent container '{agent_container_name}' "
-        f"with configuration: {json.dumps(agent_params, indent=4)}"
+        f"with configuration:\n{json.dumps(agent_params, indent=4)}"
     )
 
     if not on_mac:
@@ -1250,12 +1292,6 @@ def launch_agent(
 
     pull_if_not_exist(agent_client, agent_params["image"])
     agent_container = agent_client.containers.run(**agent_params)
-
-    attach_cmd = "docker %sattach %s" % (
-        "" if parsed.local else f"-H {duckiebot}.local ",
-        agent_container_name,
-    )
-    start_command_in_subprocess(attach_cmd)
 
     return agent_container
 
@@ -1275,8 +1311,8 @@ def launch_bridge(
 
     dtslogger.info(f"Running {bridge_container_name} from {bridge_image}")
     bridge_env = {
-        "HOSTNAME": f"{duckiebot}",
-        "VEHICLE_NAME": f"{duckiebot}",
+        "HOSTNAME": duckiebot,
+        "VEHICLE_NAME": duckiebot,
         "ROS_MASTER_URI": f"http://{duckiebot}.local:{ROBOT_ROS_PORT}",
         **load_yaml(environment_dir + "/duckiebot_bridge_env.yaml"),
     }
