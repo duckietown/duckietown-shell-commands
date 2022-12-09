@@ -11,7 +11,7 @@ from dt_shell.utils import run_cmd
 
 RECIPE_STAGE_NAME = "recipe"
 MEAT_STAGE_NAME = "meat"
-CHECK_RECIPE_UPDATE_MINS = 0.25
+CHECK_RECIPE_UPDATE_MINS = 5
 
 
 def get_recipes_dir() -> str:
