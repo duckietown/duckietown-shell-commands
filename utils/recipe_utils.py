@@ -100,8 +100,11 @@ def recipe_needs_update(repository: str, branch: str, location: str) -> bool:
         except Exception as e:
             dtslogger.error(str(e))
             return False
+
         # check if we need to update
         need_update = local_sha != remote_sha
+        # touch flag to reset update check time
+        touch_update_check_flag(recipe_dir)
 
     return need_update
 
@@ -110,6 +113,12 @@ def save_update_check_flag(recipe_dir: str, sha: str) -> None:
     commands_update_check_flag = os.path.join(recipe_dir, ".updates-check")
     with open(commands_update_check_flag, "w") as fp:
         json.dump({"remote": sha}, fp)
+
+
+def touch_update_check_flag(recipe_dir: str) -> None:
+    commands_update_check_flag = os.path.join(recipe_dir, ".updates-check")
+    with open(commands_update_check_flag, "a"):
+        os.utime(commands_update_check_flag, None)
 
 
 def update_recipe(repository: str, branch: str, location: str) -> bool:
