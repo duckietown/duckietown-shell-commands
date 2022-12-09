@@ -115,7 +115,7 @@ def save_update_check_flag(recipe_dir: str, sha: str) -> None:
         json.dump({"remote": sha}, fp)
 
 
-def touch_update_check_flag(recipe_dir) -> None:
+def touch_update_check_flag(recipe_dir: str) -> None:
     commands_update_check_flag = os.path.join(recipe_dir, ".updates-check")
     with open(commands_update_check_flag, "a"):
         os.utime(commands_update_check_flag, None)
