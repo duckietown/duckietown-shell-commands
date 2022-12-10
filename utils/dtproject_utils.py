@@ -67,6 +67,18 @@ ARCH_TO_PLATFORM_ARCH = {"arm32v7": "arm", "arm64v8": "arm64", "amd64": "amd64"}
 ARCH_TO_PLATFORM_VARIANT = {"arm32v7": "v7", "arm64v8": "", "amd64": ""}
 
 TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/{:s}/".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -89,6 +101,18 @@ TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
 }
 
 TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
