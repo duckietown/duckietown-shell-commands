@@ -23,7 +23,6 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from docker.types import DeviceRequest
 from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 
@@ -52,7 +51,7 @@ usage = """
 
     To know more on the `exercises` commands, use `dts exercises test -h`.
 
-        $ dts exercise test --duckiebot [DUCKIEBOT_NAME]
+        $ dts code workbench --duckiebot [DUCKIEBOT_NAME]
 
 """
 
@@ -300,6 +299,15 @@ class DTCommand(DTCommandAbs):
             for k, v in parsed.__dict__.items():
                 setattr(default_parsed, k, v)
             parsed = default_parsed
+
+        # make sure we support --nvidia
+        if parsed.nvidia:
+            try:
+                from docker.types import DeviceRequest
+            except ImportError:
+                dtslogger.error("You need to update the Docker SDK for Python to be able to use the flag "
+                                "--nvidia. You can do so with the command:\n\n\tpip3 install -U docker\n")
+                exit(1)
 
         # get information about the host user
         uid = os.getuid()
@@ -1290,6 +1298,7 @@ def launch_agent(
         agent_params["stdin_open"] = True
 
     if parsed.nvidia:
+        from docker.types import DeviceRequest
         agent_params["runtime"] = "nvidia"
         agent_params["device_requests"] = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
 
