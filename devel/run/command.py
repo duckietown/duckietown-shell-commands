@@ -158,7 +158,10 @@ class DTCommand(DTCommandAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
+            "-t",
+            "--tag",
+            default=None,
+            help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parser.add_argument("docker_args", nargs="*", default=[])
@@ -299,8 +302,8 @@ class DTCommand(DTCommandAbs):
                 # compile mountpoints
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
                     mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
-                # (experimental): when we run remotely, use /launch/<project> as root
-                root = f"/launch/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
+                # (experimental): when we run remotely, use /code/<project> as root
+                root = f"/code/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
                 # get local and remote paths to launchers
                 local_launch, destination_launch = proj.launch_paths(root)
                 # compile mountpoints
