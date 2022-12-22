@@ -12,7 +12,5 @@ class DTCommand(DTCommandAbs):
         if shell.local_commands_info.leave_alone:
             dtslogger.warn("Will not update the commands because the path was set explicitly.")
         else:
-            if shell.update_commands():
-                dtslogger.info("Duckietown Shell commands updated.")
-            else:
-                dtslogger.error("Update was not successful.")
+            shell.update_commands()
+
