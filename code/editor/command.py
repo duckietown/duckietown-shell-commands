@@ -16,6 +16,7 @@ except ImportError:
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from utils.dtproject_utils import DTProject
+from utils.misc_utils import get_user_login
 
 
 class DTCommand(DTCommandAbs):
@@ -41,7 +42,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-u",
             "--username",
-            default=os.getlogin(),
+            default=get_user_login(),
             help="The docker registry username to use",
         )
         parser.add_argument(
