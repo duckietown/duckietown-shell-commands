@@ -1,4 +1,5 @@
 import ipaddress
+import os
 import subprocess
 from re import sub
 from shutil import which
@@ -61,3 +62,13 @@ def parse_version(v: str) -> tuple:
 def indent_block(s: str, indent: int = 4) -> str:
     space: str = " " * indent
     return space + f"\n{space}".join(s.splitlines())
+
+
+def get_user_login() -> str:
+    try:
+        user = os.getlogin()
+    # fall back on getpass for terminals not registering with utmp
+    except FileNotFoundError:
+        import getpass
+        user = getpass.getuser()
+    return user
