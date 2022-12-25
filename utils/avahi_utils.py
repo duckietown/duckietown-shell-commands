@@ -25,7 +25,7 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
     while workspace.data is None:
         time.sleep(0.5)
         if (timeout > 0) and (time.time() - stime > timeout):
-            msg = f"No devices matched the search criteria (service={target_service}, hostname={target_hostname})."
+            msg = f"No devices matched the search criteria (service={target_service}, hostname={target_hostname}).\n1. check capital letters of taget host"
             zeroconf.close()
             raise TimeoutError(msg)
     zeroconf.close()
