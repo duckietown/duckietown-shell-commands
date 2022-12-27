@@ -710,7 +710,6 @@ class DTCommand(DTCommandAbs):
             docker.buildx.imagetools.create(tag=manifest, source=manifest_images)
             # get manifest
             dmanifest = docker.manifest.inspect(manifest)
-            dtslogger.debug(f"Manifest '{manifest}' created successfully!")
 
         # build code docs
         if parsed.docs:
@@ -749,7 +748,7 @@ class DTCommand(DTCommandAbs):
             extra_info = "\n".join(extra_info)
 
             # run docker image analysis
-            ImageAnalyzer.process(buildlog, historylog, extra_info=extra_info, nocolor=parsed.ci)
+            ImageAnalyzer.process(buildlog, historylog, codens=100, extra_info=extra_info, nocolor=parsed.ci)
 
         # perform metadata push (if needed)
         if parsed.ci:

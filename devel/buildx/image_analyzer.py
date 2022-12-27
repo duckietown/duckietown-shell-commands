@@ -53,7 +53,7 @@ class ImageAnalyzer(object):
         return f"%.{precision}f%s%s".format(num, "Yi", suffix)
 
     @staticmethod
-    def process(buildlog, historylog, extra_info=None, nocolor=False):
+    def process(buildlog, historylog, codens=0, extra_info=None, nocolor=False):
         lines = buildlog
         size_fmt = ImageAnalyzer.size_fmt
 
@@ -77,7 +77,7 @@ class ImageAnalyzer(object):
 
         # check if the build process succeded
         if not lines[-1].startswith("DONE"):
-            raise ValueError(f"Expected 'DONE' as last build output line, got '{lines[-1]}' instead.")
+            exit(codens + 2)
 
         # find image tags
         image_names = []
