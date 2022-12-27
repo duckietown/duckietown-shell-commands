@@ -119,6 +119,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
         recipe: Optional[DTProject] = project.recipe
 
         # custom VNC distro

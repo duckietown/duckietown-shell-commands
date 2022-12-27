@@ -102,7 +102,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.yes:
             granted = ask_confirmation("This cannot be undone")
             if not granted:
-                dtslogger.info("Sounds good. Have fun!")
+                dtslogger.error("User aborted.")
                 return
         # do clean
         for container in containers:

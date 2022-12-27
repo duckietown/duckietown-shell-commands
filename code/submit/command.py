@@ -20,7 +20,8 @@ except ImportError:
 
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
+from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use, \
+    DEFAULT_REGISTRY
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
@@ -59,6 +60,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
+        )
+        parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Duckietown UID of the user to impersonate",
         )
         parser.add_argument(
             "-L",
@@ -101,6 +108,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
 
         # make sure a token was set
         try:
@@ -141,7 +149,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
-            pull=not parsed.no_pull,
+            no_pull=parsed.no_pull,
             quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
@@ -193,6 +201,10 @@ class DTCommand(DTCommandAbs):
             "--image",
             submission_image_name,
         ]
+        # impersonate
+        if parsed.impersonate:
+            submit_args += ["--impersonate", parsed.impersonate]
+        # ---
         dtslogger.info("Submitting...")
         dtslogger.debug(f"Calling 'challenges/submit' using args: {submit_args}")
         shell.include.challenges.command(shell, submit_args)
@@ -216,8 +228,12 @@ def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
 
 def sha_from_digest(image: dockertown.Image, image_name: str) -> str:
     image.reload()
+    # remove default registry from the image name, it is not added to the digest by docker
+    if image_name.startswith(DEFAULT_REGISTRY):
+        image_name = image_name[len(DEFAULT_REGISTRY):].strip("/")
+    # get digests
     digest: Optional[str] = None
     for d in image.repo_digests:
         if d.startswith(image_name):
             digest = d
-    return digest[digest.index("@") + 1 :]
+    return digest[digest.index("@") + 1:]

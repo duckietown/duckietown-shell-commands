@@ -62,6 +62,12 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
         )
+        parser.add_argument(
+            "--impersonate",
+            default=None,
+            type=str,
+            help="Duckietown UID of the user to impersonate",
+        )
         parser.add_argument("-c", "--challenge", type=str, default=None, help="Challenge to evaluate against")
         parser.add_argument(
             "-L",
@@ -94,7 +100,7 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # recipe
+        # make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -104,6 +110,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError("This project does not support recipes")
         else:
             project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
 
         # get challenge to evaluate against
         submission_yaml = os.path.join(project.path, "submission.yaml")
@@ -151,17 +158,6 @@ class DTCommand(DTCommandAbs):
             parsed.challenge = challenges[0]
         dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
 
-        # make sure the project recipe is present
-        if parsed.recipe is not None:
-            if project.needs_recipe:
-                recipe_dir: str = os.path.abspath(parsed.recipe)
-                dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
-                project.set_recipe_dir(recipe_dir)
-            else:
-                raise UserError("This project does not support recipes")
-        else:
-            project.ensure_recipe_exists()
-
         # make sure a token was set
         try:
             shell.get_dt1_token()
@@ -200,7 +196,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
-            pull=not parsed.no_pull,
+            no_pull=parsed.no_pull,
             quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
@@ -235,6 +231,10 @@ class DTCommand(DTCommandAbs):
             parsed.challenge,
             "--no-pull",
         ]
+        # impersonate
+        if parsed.impersonate:
+            evaluate_args += ["--impersonate", parsed.impersonate]
+        # ---
         dtslogger.info("Evaluating...")
         dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")
         shell.include.challenges.command(shell, evaluate_args)

@@ -67,6 +67,18 @@ ARCH_TO_PLATFORM_ARCH = {"arm32v7": "arm", "arm64v8": "arm64", "amd64": "amd64"}
 ARCH_TO_PLATFORM_VARIANT = {"arm32v7": "v7", "arm64v8": "", "amd64": ""}
 
 TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/{:s}/".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -89,6 +101,18 @@ TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
 }
 
 TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
@@ -106,6 +130,15 @@ TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] =
     },
     "template-exercise-recipe": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
     "template-exercise": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
+}
+
+TEMPLATE_TO_ASSETS: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    "template-exercise-recipe": {
+        "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
+    },
+    "template-exercise": {
+        "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
+    },
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO", "3": "DISTRO"}
@@ -316,6 +349,9 @@ class DTProject:
         # make sure the recipe exists
         if not os.path.exists(self.recipe_dir):
             raise RecipeProjectNotFound(f"Recipe not found at '{self.recipe_dir}'")
+
+    def ensure_recipe_updated(self) -> bool:
+        return self.update_cached_recipe()
 
     def update_cached_recipe(self) -> bool:
         """Update recipe if not using custom given recipe"""
@@ -531,6 +567,38 @@ class DTProject:
         src = os.path.join(root, src)
         # ---
         return src, dst
+
+    def assets_paths(self, root: Optional[str] = None) -> Tuple[List[str], List[str]]:
+        # make sure we support this project version
+        if self.type not in TEMPLATE_TO_ASSETS or self.type_version not in TEMPLATE_TO_ASSETS[self.type]:
+            raise ValueError(
+                "Template {:s} v{:s} for project {:s} is not supported".format(
+                    self.type, self.type_version, self.path
+                )
+            )
+        # ---
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        # local and destination are fixed given project type and version
+        local, destination = TEMPLATE_TO_ASSETS[self.type][self.type_version](self.name)
+        # 'local' can be a pattern
+        if local.endswith("*"):
+            # resolve 'local' with respect to the project path
+            local_abs: str = os.path.join(self.path, local)
+            # resolve pattern
+            locals = glob.glob(local_abs)
+            # we only support mounting directories
+            locals = [loc for loc in locals if os.path.isdir(loc)]
+            # replace 'self.path' prefix with 'root'
+            locals = [os.path.join(root, os.path.relpath(loc, self.path)) for loc in locals]
+            # destinations take the stem of the source
+            destinations = [os.path.join(destination, Path(loc).stem) for loc in locals]
+        else:
+            # by default, there is only one local and one destination
+            locals: List[str] = [os.path.join(root, local)]
+            destinations: List[str] = [destination]
+        # ---
+        return locals, destinations
 
     def image_metadata(self, endpoint, arch: str, owner: str, registry: str, version: str):
         client = _docker_client(endpoint)
