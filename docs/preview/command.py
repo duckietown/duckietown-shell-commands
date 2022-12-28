@@ -7,10 +7,6 @@ import webbrowser
 from glob import glob
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.env_checks import check_docker_environment
-
-from utils.docker_utils import replace_important_env_vars
-
 
 class DTCommand(DTCommandAbs):
     help = "Opens compiled docs"
