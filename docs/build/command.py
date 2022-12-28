@@ -3,7 +3,6 @@ import getpass
 import os
 import subprocess
 import sys
-import copy
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
