@@ -27,7 +27,7 @@ def resolve_hostname(hostname: str) -> str:
     protocol = ""
     if "://" in hostname:
         idx = hostname.index("://")
-        protocol, hostname = hostname[0:idx+len("://")], hostname[idx+len("://"):]
+        protocol, hostname = hostname[0 : idx + len("://")], hostname[idx + len("://") :]
     # separate port (if any)
     port = ""
     if ":" in hostname:

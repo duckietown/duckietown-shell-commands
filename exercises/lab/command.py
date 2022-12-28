@@ -55,6 +55,15 @@ class DTCommand(DTCommandAbs):
             help="Should we also start the no VNC browser?",
         )
 
+        parser.add_argument(
+            "--nvidia",
+            "-n",
+            dest="nvidia",
+            action="store_true",
+            default=False,
+            help="Should we use the nvidia runtime?",
+        )
+
         parsed = parser.parse_args(args)
 
         config = get_exercise_config()
@@ -200,6 +209,7 @@ class DTCommand(DTCommandAbs):
                     "LOCAL",
                     f"NotebookApp.notebook_dir={os.path.join(JUPYTER_WS, wsdir_name)}",
                     f"NotebookApp.ip=0.0.0.0",
+                    "--nvidia" if parsed.nvidia else "",
                 ],
             )
 

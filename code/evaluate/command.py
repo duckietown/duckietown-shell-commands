@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import logging
 import os
 from types import SimpleNamespace
@@ -10,6 +9,7 @@ from dt_shell.config import read_shell_config, ShellConfig
 from utils.challenges_utils import get_registry_from_challenges_server, get_challenges_server_to_use
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
+from utils.yaml_utils import load_yaml
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -20,15 +20,14 @@ except ImportError:
 
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use, \
-    DEFAULT_REGISTRY
+from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
 from utils.dtproject_utils import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
 
 
 class DTCommand(DTCommandAbs):
-    help = "Submits a project to a Duckietown challenge"
+    help = "Evaluates a project against a Duckietown challenge"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -37,7 +36,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to submit"
         )
-        parser.add_argument("-H", "--machine", default=None, help="Docker socket or hostname to use")
+        parser.add_argument(
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
+        )
         parser.add_argument(
             "-a",
             "--arch",
@@ -67,6 +68,7 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="Duckietown UID of the user to impersonate",
         )
+        parser.add_argument("-c", "--challenge", type=str, default=None, help="Challenge to evaluate against")
         parser.add_argument(
             "-L",
             "--launcher",
@@ -92,13 +94,13 @@ class DTCommand(DTCommandAbs):
         registry_to_push: str = get_registry_from_challenges_server(server_to_use)
         debug = dtslogger.level <= logging.DEBUG
 
-        # Show dtproject info
+        # show dtproject info
         parsed.workdir = os.path.abspath(parsed.workdir)
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
         shell.include.devel.info.command(shell, args)
         project = DTProject(parsed.workdir)
 
-        # Make sure the project recipe is present
+        # make sure the project recipe is present
         if parsed.recipe is not None:
             if project.needs_recipe:
                 recipe_dir: str = os.path.abspath(parsed.recipe)
@@ -109,6 +111,52 @@ class DTCommand(DTCommandAbs):
         else:
             project.ensure_recipe_exists()
             project.ensure_recipe_updated()
+
+        # get challenge to evaluate against
+        submission_yaml = os.path.join(project.path, "submission.yaml")
+        if not os.path.isfile(submission_yaml):
+            if not project.needs_recipe:
+                dtslogger.error(f"File '{submission_yaml}' not found.")
+                exit(1)
+            # look for submission.yaml inside the recipe
+            submission_yaml = os.path.join(project.recipe.path, "submission.yaml")
+            if not os.path.isfile(submission_yaml):
+                dtslogger.error(
+                    f"File 'submission.yaml' not found. We searched both this project " f"and its recipe."
+                )
+                exit(1)
+        submission: dict = load_yaml(submission_yaml)
+        challenges: List[str] = submission.get("challenge", [])
+
+        # make sure there is at least one challenge we can evaluate against
+        if not challenges:
+            dtslogger.error(f"The list of challenges in '{submission_yaml}' is empty.")
+            exit(1)
+
+        # we must know which challenge to evaluate against
+        if parsed.challenge is not None:
+            # make sure the chosen challenge is in the list of supported challenges
+            if parsed.challenge not in challenges:
+                dtslogger.error(
+                    f"Challenge '{parsed.challenge}' not supported by this submission. "
+                    f"Supported challenges are: \n\n\t" + "\n\t".join(challenges) + "\n"
+                )
+                exit(1)
+            dtslogger.info(f"User chose to evaluate against challenge '{parsed.challenge}'...")
+        else:
+            # complain if an explicit choice is needed
+            if len(challenges) > 1:
+                dtslogger.error(
+                    "This submission is supported by the following challenges, indicate "
+                    "which one to evaluate against with '--challenge <CHALLENGE_NAME>':"
+                    + "\n\n\t"
+                    + "\n\t".join(challenges)
+                    + "\n"
+                )
+                exit(1)
+            # auto-pick if only one is available
+            parsed.challenge = challenges[0]
+        dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
 
         # make sure a token was set
         try:
@@ -144,7 +192,6 @@ class DTCommand(DTCommandAbs):
         # Build the project using 'code build' functionality
         build_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
-            machine=parsed.machine,
             username=parsed.username,
             recipe=parsed.recipe,
             launcher=parsed.launcher,
@@ -166,74 +213,32 @@ class DTCommand(DTCommandAbs):
         src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
         image: dockertown.Image = docker.image.inspect(src_name)
 
-        # tag the image for aido_submission
-        repository: str = AGENT_SUBMISSION_REPOSITORY
-        dtime: str = tag_from_date(datetime.datetime.now())
-        agent_image_name: str = f"{registry_to_push}/{parsed.username}/{repository}"
-        agent_image_full: str = f"{agent_image_name}:{dtime}"
-        dtslogger.info(f"Tagging submission image as '{agent_image_full}'")
-        image.tag(agent_image_full)
-
-        # push image
-        dtslogger.info(f"Pushing submission image '{agent_image_full}'...")
-        docker.image.push(agent_image_full)
-        image.reload()
-        assert len(image.repo_digests) > 0
-        dtslogger.info(f"Image pushed successfully!")
-
-        # tag the image for aido_submission
-        digest_sha = sha_from_digest(image, agent_image_name)
-        submission_image_name = f"{agent_image_full}@{digest_sha}"
-        dtslogger.debug(f"Submission image name is: {submission_image_name}")
-
-        # submit
+        # evaluate
         submission_config_fpath = project.recipe.path if project.needs_recipe else project.path
         submission_yaml_fpath = os.path.join(submission_config_fpath, "submission.yaml")
         if not os.path.isfile(submission_yaml_fpath):
             dtslogger.error(f"File '{submission_yaml_fpath}' not found! Aborting.")
             exit(1)
-        submit_args: List[str] = [
+        evaluate_args: List[str] = [
             "--workdir",
             submission_config_fpath,
-            "submit",
+            "evaluate",
             "--config",
             "./submission.yaml",
             "--image",
-            submission_image_name,
+            image.repo_tags[0],
+            "--challenge",
+            parsed.challenge,
+            "--no-pull",
         ]
         # impersonate
         if parsed.impersonate:
-            submit_args += ["--impersonate", parsed.impersonate]
+            evaluate_args += ["--impersonate", parsed.impersonate]
         # ---
-        dtslogger.info("Submitting...")
-        dtslogger.debug(f"Calling 'challenges/submit' using args: {submit_args}")
-        shell.include.challenges.command(shell, submit_args)
+        dtslogger.info("Evaluating...")
+        dtslogger.debug(f"Callind 'challenges/evaluate' using args: {evaluate_args}")
+        shell.include.challenges.command(shell, evaluate_args)
 
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-def tag_from_date(d: Optional[datetime.datetime] = None) -> str:
-    if d is None:
-        d = datetime.datetime.now()
-    # YYYY-MM-DDTHH:MM:SS[.mmmmmm][+HH:MM].
-    s = d.isoformat()
-    s = s.replace(":", "_")
-    s = s.replace("T", "_")
-    s = s.replace("-", "_")
-    s = s[: s.index(".")]
-    return s
-
-
-def sha_from_digest(image: dockertown.Image, image_name: str) -> str:
-    image.reload()
-    # remove default registry from the image name, it is not added to the digest by docker
-    if image_name.startswith(DEFAULT_REGISTRY):
-        image_name = image_name[len(DEFAULT_REGISTRY):].strip("/")
-    # get digests
-    digest: Optional[str] = None
-    for d in image.repo_digests:
-        if d.startswith(image_name):
-            digest = d
-    return digest[digest.index("@") + 1:]

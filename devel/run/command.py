@@ -12,7 +12,8 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
 )
-from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject
+from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject, CLOUD_BUILDERS, \
+    get_cloud_builder
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -97,6 +98,9 @@ class DTCommand(DTCommandAbs):
             "Pass a comma-separated list of paths to mount multiple projects",
         )
         parser.add_argument(
+            "--cloud", default=False, action="store_true", help="Run the image on the cloud"
+        )
+        parser.add_argument(
             "-u",
             "--username",
             default="duckietown",
@@ -154,6 +158,7 @@ class DTCommand(DTCommandAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
+            "-t",
             "--tag",
             default=None,
             help="Overrides 'version' (usually taken to be branch name)"
@@ -175,17 +180,42 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
-        # sanitize hostname
-        if parsed.machine is not None:
-            parsed.machine = sanitize_hostname(parsed.machine)
+
+        # cloud run
+        if parsed.cloud:
+            if parsed.arch is None:
+                dtslogger.error(
+                    "When running on the cloud, you need to explicitly specify "
+                    "a target architecture. Aborting..."
+                )
+                exit(1)
+            if parsed.machine is not None:
+                dtslogger.error(
+                    "The parameter --machine (-H) cannot be set together with "
+                    + "--cloud. Aborting..."
+                )
+                exit(1)
+            # route the run to the native node
+            if parsed.arch not in CLOUD_BUILDERS:
+                dtslogger.error(f"No cloud machines found for target architecture {parsed.arch}. Aborting...")
+                exit(1)
+            # update machine parameter
+            parsed.machine = get_cloud_builder(parsed.arch)
         else:
-            parsed.machine = DEFAULT_MACHINE
+            # local builder is the default
+            if parsed.machine is not None:
+                # sanitize hostname
+                parsed.machine = sanitize_hostname(parsed.machine)
+            else:
+                parsed.machine = DEFAULT_MACHINE
+
         # x-docker runtime
         if parsed.use_x_docker:
             command_dir = os.path.dirname(os.path.abspath(__file__))
             parsed.runtime = os.path.join(command_dir, "x-docker")
+
         # check runtime
-        if shutil.which(parsed.runtime) is None:
+        if not parsed.cloud and shutil.which(parsed.runtime) is None:
             raise ValueError('Docker runtime binary "{}" not found!'.format(parsed.runtime))
         # ---
         dtslogger.info("Project workspace: {}".format(parsed.workdir))
@@ -272,8 +302,8 @@ class DTCommand(DTCommandAbs):
                 # compile mountpoints
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
                     mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
-                # (experimental): when we run remotely, use /launch/<project> as root
-                root = f"/launch/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
+                # (experimental): when we run remotely, use /code/<project> as root
+                root = f"/code/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
                 # get local and remote paths to launchers
                 local_launch, destination_launch = proj.launch_paths(root)
                 # compile mountpoints
@@ -282,8 +312,7 @@ class DTCommand(DTCommandAbs):
         if parsed.mount and project.is_dirty():
             dtslogger.warning("Your index is not clean (some files are not committed).")
             dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to force "
-                "the execution of the command."
+                "If you know what you are doing, use --force (-f) to force " "the execution of the command."
             )
             if not parsed.force:
                 exit(1)
@@ -294,7 +323,7 @@ class DTCommand(DTCommandAbs):
             loop=parsed.loop,
             registry=registry_to_use,
             owner=parsed.username,
-            version=version
+            version=version,
         )
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")

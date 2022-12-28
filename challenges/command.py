@@ -20,11 +20,7 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog="dts challenges")
 
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=None,
-            type=str,
-            help="Working directory to run the command from"
+            "-C", "--workdir", default=None, type=str, help="Working directory to run the command from"
         )
 
         parser.add_argument(
@@ -39,19 +35,14 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--no-pull", action="store_true", default=False, help="")
         parser.add_argument("--remote-build", action="store_true", default=False, help="")
 
-        parser.add_argument(
-            "action",
-            type=str,
-            nargs=1,
-            help="Action to perform"
-        )
+        parser.add_argument("action", type=str, nargs=1, help="Action to perform")
 
         # parse everything to find the action
         parsed, _ = parser.parse_known_args(args=args)
         action: str = parsed.action[0]
         # parse everything `challenges [here] <action> ...`
-        parsed, _ = parser.parse_known_args(args=args[:args.index(action) + 1])
-        rest = args[args.index(action):]
+        parsed, _ = parser.parse_known_args(args=args[: args.index(action) + 1])
+        rest = args[args.index(action) :]
 
         if parsed.workdir is not None:
             if not os.path.isdir(parsed.workdir):
@@ -61,6 +52,8 @@ class DTCommand(DTCommandAbs):
             os.chdir(parsed.workdir)
 
         if action == "config":
+            rest = list(rest)
+            rest.remove("config")
             return command_config(shell, rest)
 
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))

@@ -48,11 +48,7 @@ CANONICAL_ARCH = {
     "aarch64": "arm64v8",
 }
 
-BUILD_COMPATIBILITY_MAP = {
-    "arm32v7": ["arm32v7"],
-    "arm64v8": ["arm32v7", "arm64v8"],
-    "amd64": ["amd64"]
-}
+BUILD_COMPATIBILITY_MAP = {"arm32v7": ["arm32v7"], "arm64v8": ["arm32v7", "arm64v8"], "amd64": ["amd64"]}
 
 DOCKER_LABEL_DOMAIN = "org.duckietown.label"
 
@@ -62,31 +58,27 @@ CLOUD_BUILDERS = {
     "amd64": ["172.27.0.101:2376"],
 }
 
-ARCH_TO_PLATFORM = {
-    "arm32v7": "linux/arm/v7",
-    "arm64v8": "linux/arm64",
-    "amd64": "linux/amd64"
-}
+ARCH_TO_PLATFORM = {"arm32v7": "linux/arm/v7", "arm64v8": "linux/arm64", "amd64": "linux/amd64"}
 
-ARCH_TO_PLATFORM_OS = {
-    "arm32v7": "linux",
-    "arm64v8": "linux",
-    "amd64": "linux"
-}
+ARCH_TO_PLATFORM_OS = {"arm32v7": "linux", "arm64v8": "linux", "amd64": "linux"}
 
-ARCH_TO_PLATFORM_ARCH = {
-    "arm32v7": "arm",
-    "arm64v8": "arm64",
-    "amd64": "amd64"
-}
+ARCH_TO_PLATFORM_ARCH = {"arm32v7": "arm", "arm64v8": "arm64", "amd64": "amd64"}
 
-ARCH_TO_PLATFORM_VARIANT = {
-    "arm32v7": "v7",
-    "arm64v8": "",
-    "amd64": ""
-}
+ARCH_TO_PLATFORM_VARIANT = {"arm32v7": "v7", "arm64v8": "", "amd64": ""}
 
 TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/{:s}/".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+        "3": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
@@ -105,12 +97,22 @@ TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-exercise-recipe": {
         "3": lambda repo: ("packages", "/code/catkin_ws/src/{:s}/packages".format(repo))
     },
-    "template-exercise": {
-        "3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))
-    },
+    "template-exercise": {"3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))},
 }
 
 TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
+    # NOTE: these are not templates, they only serve the project matching their names
+    "dt-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    "dt-ros-commons": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    # NOTE: these are templates and are shared by multiple projects
     "template-basic": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
@@ -126,11 +128,16 @@ TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] =
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
+    "template-exercise-recipe": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
+    "template-exercise": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
+}
+
+TEMPLATE_TO_ASSETS: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-exercise-recipe": {
-        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+        "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
     },
     "template-exercise": {
-        "3": lambda repo: ("launchers", "/launch/{:s}".format(repo))
+        "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
     },
 }
 
@@ -144,7 +151,6 @@ DOCKER_HUB_API_URL = {
 
 
 class DTProject:
-
     def __init__(self, path: str):
         self._adapters = []
         self._repository = None
@@ -239,14 +245,18 @@ class DTProject:
     def recipe_dir(self) -> Optional[str]:
         if not self.needs_recipe:
             return None
-        return self._custom_recipe_dir if self._custom_recipe_dir else get_recipe_project_dir(
-            self.metadata["RECIPE_REPOSITORY"],
-            self.metadata["RECIPE_BRANCH"],
-            self.metadata["RECIPE_LOCATION"]
+        return (
+            self._custom_recipe_dir
+            if self._custom_recipe_dir
+            else get_recipe_project_dir(
+                self.metadata["RECIPE_REPOSITORY"],
+                self.metadata["RECIPE_BRANCH"],
+                self.metadata["RECIPE_LOCATION"],
+            )
         )
 
     @property
-    def recipe(self) -> Optional['DTProject']:
+    def recipe(self) -> Optional["DTProject"]:
         # load recipe project
         return DTProject(self.recipe_dir) if self.needs_recipe else None
 
@@ -332,7 +342,7 @@ class DTProject:
             cloned: bool = clone_recipe(
                 self.metadata["RECIPE_REPOSITORY"],
                 self.metadata["RECIPE_BRANCH"],
-                self.metadata["RECIPE_LOCATION"]
+                self.metadata["RECIPE_LOCATION"],
             )
             if not cloned:
                 raise RecipeProjectNotFound(f"Recipe repository could not be downloaded.")
@@ -340,13 +350,16 @@ class DTProject:
         if not os.path.exists(self.recipe_dir):
             raise RecipeProjectNotFound(f"Recipe not found at '{self.recipe_dir}'")
 
+    def ensure_recipe_updated(self) -> bool:
+        return self.update_cached_recipe()
+
     def update_cached_recipe(self) -> bool:
         """Update recipe if not using custom given recipe"""
         if self.needs_recipe and not self._custom_recipe_dir:
             return update_recipe(
                 self.metadata["RECIPE_REPOSITORY"],
                 self.metadata["RECIPE_BRANCH"],
-                self.metadata["RECIPE_LOCATION"]
+                self.metadata["RECIPE_LOCATION"],
             )  # raises: UserError if the recipe has not been cloned
         return False
 
@@ -369,15 +382,15 @@ class DTProject:
         return self._repository.detached if self._repository else False
 
     def image(
-            self,
-            *,
-            arch: str,
-            registry: str,
-            owner: str,
-            version: Optional[str] = None,
-            loop: bool = False,
-            docs: bool = False,
-            extra: Optional[str] = None
+        self,
+        *,
+        arch: str,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
+        loop: bool = False,
+        docs: bool = False,
+        extra: Optional[str] = None,
     ) -> str:
         assert_canonical_arch(arch)
         loop = "-LOOP" if loop else ""
@@ -388,48 +401,36 @@ class DTProject:
         return f"{registry}/{owner}/{self.name}:{version}{extra}{loop}{docs}-{arch}"
 
     def image_vscode(
-            self,
-            *,
-            arch: str,
-            registry: str,
-            owner: str,
-            version: Optional[str] = None,
-            docs: bool = False,
+        self,
+        *,
+        arch: str,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
+        docs: bool = False,
     ) -> str:
         return self.image(
-            arch=arch,
-            registry=registry,
-            owner=owner,
-            version=version,
-            docs=docs,
-            extra="vscode"
+            arch=arch, registry=registry, owner=owner, version=version, docs=docs, extra="vscode"
         )
 
     def image_vnc(
-            self,
-            *,
-            arch: str,
-            registry: str,
-            owner: str,
-            version: Optional[str] = None,
-            docs: bool = False,
+        self,
+        *,
+        arch: str,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
+        docs: bool = False,
     ) -> str:
-        return self.image(
-            arch=arch,
-            registry=registry,
-            owner=owner,
-            version=version,
-            docs=docs,
-            extra="vnc"
-        )
+        return self.image(arch=arch, registry=registry, owner=owner, version=version, docs=docs, extra="vnc")
 
     def image_release(
-            self,
-            *,
-            arch: str,
-            owner: str,
-            registry: str,
-            docs: bool = False,
+        self,
+        *,
+        arch: str,
+        owner: str,
+        registry: str,
+        docs: bool = False,
     ) -> str:
         if not self.is_release():
             raise ValueError("The project repository is not in a release state")
@@ -439,34 +440,25 @@ class DTProject:
         return f"{registry}/{owner}/{self.name}:{version}{docs}-{arch}"
 
     def manifest(
-            self,
-            *,
-            registry: str,
-            owner: str,
-            version: Optional[str] = None,
+        self,
+        *,
+        registry: str,
+        owner: str,
+        version: Optional[str] = None,
     ) -> str:
         if version is None:
             version = re.sub(r"[^\w\-.]", "-", self.version_name)
 
         return f"{registry}/{owner}/{self.name}:{version}"
 
-    def ci_metadata(
-            self,
-            endpoint,
-            *,
-            arch: str,
-            registry: str,
-            owner: str,
-            version: str
-    ):
+    def ci_metadata(self, endpoint, *, arch: str, registry: str, owner: str, version: str):
         image_tag = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             configurations = self.configurations()
         except NotImplementedError:
             configurations = {}
         # do docker inspect
-        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version,
-                                      registry=registry)
+        inspect = self.image_metadata(endpoint, arch=arch, owner=owner, version=version, registry=registry)
 
         # remove useless data
         del inspect["ContainerConfig"]
@@ -561,8 +553,10 @@ class DTProject:
 
     def launch_paths(self, root: Optional[str] = None) -> Tuple[str, str]:
         # make sure we support this project version
-        if self.type not in TEMPLATE_TO_LAUNCHFILE or \
-                self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]:
+        if (
+            self.type not in TEMPLATE_TO_LAUNCHFILE
+            or self.type_version not in TEMPLATE_TO_LAUNCHFILE[self.type]
+        ):
             raise ValueError(
                 f"Template {self.type} v{self.type_version} for project {self.path} not supported"
             )
@@ -574,32 +568,48 @@ class DTProject:
         # ---
         return src, dst
 
-    def image_metadata(
-            self,
-            endpoint,
-            arch: str,
-            owner: str,
-            registry: str,
-            version: str
-    ):
+    def assets_paths(self, root: Optional[str] = None) -> Tuple[List[str], List[str]]:
+        # make sure we support this project version
+        if self.type not in TEMPLATE_TO_ASSETS or self.type_version not in TEMPLATE_TO_ASSETS[self.type]:
+            raise ValueError(
+                "Template {:s} v{:s} for project {:s} is not supported".format(
+                    self.type, self.type_version, self.path
+                )
+            )
+        # ---
+        # root is either a custom given root (remote mounting) or the project path
+        root: str = os.path.abspath(root or self.path).rstrip("/")
+        # local and destination are fixed given project type and version
+        local, destination = TEMPLATE_TO_ASSETS[self.type][self.type_version](self.name)
+        # 'local' can be a pattern
+        if local.endswith("*"):
+            # resolve 'local' with respect to the project path
+            local_abs: str = os.path.join(self.path, local)
+            # resolve pattern
+            locals = glob.glob(local_abs)
+            # we only support mounting directories
+            locals = [loc for loc in locals if os.path.isdir(loc)]
+            # replace 'self.path' prefix with 'root'
+            locals = [os.path.join(root, os.path.relpath(loc, self.path)) for loc in locals]
+            # destinations take the stem of the source
+            destinations = [os.path.join(destination, Path(loc).stem) for loc in locals]
+        else:
+            # by default, there is only one local and one destination
+            locals: List[str] = [os.path.join(root, local)]
+            destinations: List[str] = [destination]
+        # ---
+        return locals, destinations
+
+    def image_metadata(self, endpoint, arch: str, owner: str, registry: str, version: str):
         client = _docker_client(endpoint)
         image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
             image = client.images.get(image_name)
             return image.attrs
         except (APIError, ImageNotFound):
-            raise Exception(
-                f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
+            raise Exception(f"Cannot get image metadata for {image_name!r}: \n {traceback.format_exc()}")
 
-    def image_labels(
-            self,
-            endpoint,
-            *,
-            arch: str,
-            owner: str,
-            registry: str,
-            version: str
-    ):
+    def image_labels(self, endpoint, *, arch: str, owner: str, registry: str, version: str):
         client = _docker_client(endpoint)
         image_name = self.image(arch=arch, owner=owner, version=version, registry=registry)
         try:
@@ -615,7 +625,11 @@ class DTProject:
         return self.inspect_remote_image(image, tag)
 
     @staticmethod
-    def _get_project_info(path):
+    def _get_project_info(path: str):
+        if not os.path.exists(path):
+            msg = f"The project path {path!r} does not exist."
+            raise UserError(msg)
+
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):
@@ -630,17 +644,11 @@ class DTProject:
             msg = f"The metadata file '{metafile}' is empty."
             raise UserError(msg)
         # strip lines
-        lines = [
-            line.strip() for line in lines
-        ]
+        lines = [line.strip() for line in lines]
         # remove empty lines and comments
-        lines = [
-            line for line in lines if len(line) > 0 and not line.startswith("#")
-        ]
+        lines = [line for line in lines if len(line) > 0 and not line.startswith("#")]
         # parse metadata
-        metadata = {
-            key.strip().upper(): val.strip() for key, val in [line.split("=") for line in lines]
-        }
+        metadata = {key.strip().upper(): val.strip() for key, val in [line.split("=") for line in lines]}
         # look for version-agnostic keys
         for key in REQUIRED_METADATA_KEYS["*"]:
             if key not in metadata:
@@ -687,8 +695,7 @@ class DTProject:
         head_tag = head_tag[0] if head_tag else "ND"
         closest_tag = _run_cmd(["git", "-C", f'"{path}"', "tag"])
         closest_tag = closest_tag[-1] if closest_tag else "ND"
-        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[
-            0]
+        origin_url = _run_cmd(["git", "-C", f'"{path}"', "config", "--get", "remote.origin.url"])[0]
         if origin_url.endswith(".git"):
             origin_url = origin_url[:-4]
         if origin_url.endswith("/"):
@@ -776,8 +783,7 @@ def _remote_url_to_https(remote_url):
 
 def _run_cmd(cmd):
     cmd = " ".join(cmd)
-    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n")
-            if line]
+    return [line for line in subprocess.check_output(cmd, shell=True).decode("utf-8").split("\n") if line]
 
 
 def _parse_configurations(config_file: str) -> dict:

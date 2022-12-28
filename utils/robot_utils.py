@@ -20,7 +20,7 @@ def log_event_on_robot(hostname: str, type: str, data: Optional[dict] = None, st
     if stamp is None:
         stamp = time.time()
     # events store timestamps in nanoseconds
-    stamp = int(stamp * (10 ** 9))
+    stamp = int(stamp * (10**9))
     # sanitize 'data'
     if data is None:
         data = {}

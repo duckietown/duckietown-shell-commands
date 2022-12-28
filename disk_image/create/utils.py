@@ -9,11 +9,12 @@ import shutil
 import subprocess
 import sys
 import time
+from typing import Callable
 from typing import List
 
 import yaml
-
 from disk_image.create.constants import (
+    DEFAULT_DOCKER_REGISTRY,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
     DOCKER_IMAGE_TEMPLATE,
@@ -87,7 +88,7 @@ class VirtualSDCard:
             output = subprocess.check_output(cmd).decode("utf-8")
             devices = json.loads(output)
             for dev in devices["loopdevices"]:
-                if not ("(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] == self._disk_file):
+                if "(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] != self._disk_file:
                     continue
                 if not quiet:
                     dtslogger.info(f"Unmounting {self._disk_file} from {dev['name']}...")
@@ -216,13 +217,13 @@ def check_cli_tools(*args):
         check_program_dependency(cli_tool)
 
 
-def pull_docker_image(client, image):
+def pull_docker_image(client, image, platform=None):
     repository, tag = image.split(":")
     pbar = ProgressBar()
     total_layers = set()
     completed_layers = set()
-    dtslogger.info(f"Pulling image {image}...")
-    for step in client.api.pull(repository, tag, stream=True, decode=True):
+    dtslogger.info(f"Pulling image {image} (platform={platform or 'auto'})...")
+    for step in client.api.pull(repository, tag, stream=True, decode=True, platform=platform):
         if "status" not in step or "id" not in step:
             continue
         total_layers.add(step["id"])
@@ -274,7 +275,7 @@ def find_placeholders_on_disk(disk_image):
         shell=True,
     ).splitlines()
     # parse matches
-    matches = map(lambda m: m.split(" ")[::-1], matches)
+    matches = map(lambda m: m.split(" ", maxsplit=1)[::-1], matches)
     matches = list(map(lambda m: (m[0], int(m[1])), matches))
     # fix offset for strings attached to content from contiguous page
     placeholders = {}
@@ -372,6 +373,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
             version=distro,
             tag=module["tag"] if "tag" in module else None,
             arch=kwargs.get("arch", DEFAULT_DEVICE_ARCH),
+            registry=kwargs.get("registry", DEFAULT_DOCKER_REGISTRY),
         )
         for module in MODULES_TO_LOAD
     }
@@ -379,21 +381,34 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
     content = yaml.load(open(local_path, "rt"), yaml.SafeLoader)
     for srv_name, srv_info in content["services"].items():
         srv_image = srv_info["image"]
-        p1, p2, *_ = srv_image.split("/") + [None]
-        owners = [p1] if p2 else ["", "library/"]
-        image_full = p2 or p1
+        # break into [registry], [owner], image
+        p1, p2, p3, *_ = srv_image.split("/") + [None, None]
+        # get registry (or use default)
+        registries = [
+            p1.replace("${REGISTRY}", kwargs.get("registry", DEFAULT_DOCKER_REGISTRY))
+        ] if p3 else ["", f"{DEFAULT_DOCKER_REGISTRY}/"]
+        # get owner (or use default)
+        owners = [p2] if p3 else ([p1] if p2 else ["", "library/"])
+        # break the image name into repository and tag
+        image_full = p3 or p2 or p1
         image, tag, *_ = image_full.split(":") + [None]
+        # replace ARCH in tag (if any)
         if isinstance(tag, str):
             tag = tag.replace("${ARCH}", kwargs.get("arch", DEFAULT_DEVICE_ARCH))
-        images = [f"{image}:{tag}"] if tag else ["", ":latest"]
-        candidates = set(map(lambda p: "/".join(p), itertools.product(owners, images)))
+        # prepare repo candidates
+        repos = [f"{image}:{tag}"] if tag else [f"{image}", f"{image}:latest"]
+        # combine (registries, owners, repo:tag) into full candidates
+        candidates = set(map(lambda p: "/".join(p), itertools.product(registries, owners, repos)))
+        # make sure we have at least one loaded module to satisfy this service's image
         if len(candidates.intersection(modules)) > 0:
             continue
         # no images found
+        modules_list = '\n\t'.join(modules)
         msg = (
             f"The 'duckietown' stack '{remote_path}' requires the "
             f"Docker image '{srv_image}' for the service '{srv_name}' but "
-            f"no candidates were found in the list of modules to load."
+            f"no candidates were found in the list of modules to load. "
+            f"List of modules to load is:\n\t{modules_list}"
         )
         dtslogger.error(msg)
         raise ValueError(msg)
@@ -417,10 +432,10 @@ def list_files(path: str, extension: str = "*") -> List[str]:
     return files
 
 
-def replace_in_file(old: str, new: str, where: str):
-    with sudo_open(where, "rb") as fin:
+def replace_in_file(old: str, new: str, where: str, openfcn: Callable = sudo_open):
+    with openfcn(where, "rb") as fin:
         txt = fin.read()
-    with sudo_open(where, "wb") as fout:
+    with openfcn(where, "wb") as fout:
         fout.write(txt.replace(old.encode("utf-8"), new.encode("utf-8")))
 
 

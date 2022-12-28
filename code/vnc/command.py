@@ -9,18 +9,19 @@ from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
-    raise ShellNeedsUpdate("5.2.21")
+    raise ShellNeedsUpdate("5.4.0+")
 # NOTE: this is to avoid breaking the user workspace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from utils.dtproject_utils import DTProject
+from utils.misc_utils import get_user_login
 
 
 class DTCommand(DTCommandAbs):
 
-    help = 'Builds an instance of VNC to work on a project'
+    help = "Builds an instance of VNC to work on a project"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -30,7 +31,7 @@ class DTCommand(DTCommandAbs):
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the project to build the desktop for"
+            help="Directory containing the project to build the desktop for",
         )
         # parser.add_argument(
         #     "--pull",
@@ -41,7 +42,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-u",
             "--username",
-            default=os.getlogin(),
+            default=get_user_login(),
             help="The docker registry username to use",
         )
         parser.add_argument(
@@ -70,34 +71,21 @@ class DTCommand(DTCommandAbs):
             "--plain",
             default=False,
             action="store_true",
-            help="Whether to skip building VNC for this project, use plain VNC instead"
+            help="Whether to skip building VNC for this project, use plain VNC instead",
         )
         parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
-            help="Username or UID of the user to impersonate inside VNC"
+            help="Username or UID of the user to impersonate inside VNC",
         )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Be verbose"
-        )
-        parser.add_argument(
-            "--quiet",
-            default=False,
-            action="store_true",
-            help="Be quiet"
-        )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+        parser.add_argument("--quiet", default=False, action="store_true", help="Be quiet")
 
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
-            parsed, remaining = parser.parse_known_args(args=args)
-            if remaining:
-                dtslogger.warning(f"I do not know about these arguments: {remaining}")
+            parsed = parser.parse_args(args=args)
         else:
             # combine given args with default values
             default_parsed = parser.parse_args(args=[])
@@ -130,6 +118,9 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
+        else:
+            project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
         recipe: Optional[DTProject] = project.recipe
 
         # custom VNC distro
@@ -149,10 +140,7 @@ class DTCommand(DTCommandAbs):
             # make an image name for VNC
             vnc_image_tag: str = f"{project.safe_version_name}-vnc"
             vnc_image_name: str = project.image(
-                arch=arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-                version=vnc_image_tag
+                arch=arch, owner=parsed.username, registry=registry_to_use, version=vnc_image_tag
             )
 
             # build vnc (unless skipped)
@@ -168,8 +156,7 @@ class DTCommand(DTCommandAbs):
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
-                dtslogger.debug(f"Calling command 'devel/buildx' "
-                                f"with arguments: {str(buildx_namespace)}")
+                dtslogger.debug(f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}")
                 shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VNC for project '{project.name}' successfully built!")
             else:

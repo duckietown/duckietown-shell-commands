@@ -18,18 +18,14 @@ from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
-    import pydock
+    import dockertown
 except ImportError:
-    raise ShellNeedsUpdate("5.2.21")
+    raise ShellNeedsUpdate("5.4.0+")
 # NOTE: this is to avoid breaking the user workspace
 
-from pydock import DockerClient
+from dockertown import DockerClient
 from utils.buildx_utils import DOCKER_INFO
-from utils.docker_utils import (
-    DEFAULT_REGISTRY,
-    get_endpoint_architecture,
-    sanitize_docker_baseurl
-)
+from utils.docker_utils import DEFAULT_REGISTRY, get_endpoint_architecture, sanitize_docker_baseurl
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname
 
@@ -47,13 +43,11 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to run the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image"
         )
         parser.add_argument(
-            "-d", "--detach",
+            "-d",
+            "--detach",
             default=False,
             action="store_true",
             help="Detach from container and let it run in the background",
@@ -69,21 +63,21 @@ class DTCommand(DTCommandAbs):
             "--port",
             default=0,
             type=int,
-            help="Port to bind to. A random port will be assigned by default"
+            help="Port to bind to. A random port will be assigned by default",
         )
         parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
-            help="Username or UID of the user to impersonate inside VSCode"
+            help="Username or UID of the user to impersonate inside VSCode",
         )
         parser.add_argument(
-            "-v",
-            "--verbose",
+            "--keep",
             default=False,
             action="store_true",
-            help="Be verbose"
+            help="Whether to keep the VSCode once done (useful for debugging)",
         )
+        parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         parser.add_argument(
             "-a",
             "--arch",
@@ -93,18 +87,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--tag",
             default=None,
-            help="Overrides 'tag' of the VSCode image to run (by default the shell distro is used)"
+            help="Overrides 'tag' of the VSCode image to run (by default the shell distro is used)",
         )
+        parser.add_argument("--image", default=None, help="VSCode image to run")
         parser.add_argument(
-            "--image",
-            default=None,
-            help="VSCode image to run"
-        )
-        parser.add_argument(
-            "workdir",
-            default=os.getcwd(),
-            help="Directory containing the workspace to open",
-            nargs=1
+            "workdir", default=os.getcwd(), help="Directory containing the workspace to open", nargs=1
         )
 
         # get pre-parsed or parse arguments
@@ -146,9 +133,11 @@ class DTCommand(DTCommandAbs):
 
         # SSL keys are required
         if len(glob.glob(os.path.join(ssl_dir, "*.pem"))) != 2:
-            dtslogger.error("An SSL key pair needs to be generated first. Run the following "
-                            "command to create one:\n\n"
-                            "\t$ dts setup mkcert\n\n")
+            dtslogger.error(
+                "An SSL key pair needs to be generated first. Run the following "
+                "command to create one:\n\n"
+                "\t$ dts setup mkcert\n\n"
+            )
             return
 
         # sanitize hostname
@@ -204,13 +193,13 @@ class DTCommand(DTCommandAbs):
         args = {
             "image": image,
             "detach": True,
-            "remove": False,
+            "remove": not parsed.keep,
             "envs": {
                 "HOST_UID": identity,
             },
             "volumes": [
                 # needed by the container to figure out the GID of `docker` on the host
-                ("/etc/group", "/host/etc/group", "ro"),
+                # ("/etc/group", "/host/etc/group", "ro"),
                 # needed by VSCode to run in a safe context, nothing works in VSCode via HTTP
                 (ssl_dir, "/ssl", "ro"),
                 # this is the actual workspace
@@ -218,10 +207,11 @@ class DTCommand(DTCommandAbs):
             ],
             "publish": [(f"127.0.0.1:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
-            "workdir": workdir
+            "workdir": workdir,
         }
-        dtslogger.debug(f"Calling docker.run with arguments:\n"
-                        f"{json.dumps(args, indent=4, sort_keys=True)}\n")
+        dtslogger.debug(
+            f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
+        )
         container = docker.run(**args)
 
         # register signal
@@ -272,15 +262,14 @@ class DTCommand(DTCommandAbs):
 
         # attach
         if parsed.detach:
-            dtslogger.info(f"VSCode will run in the background. "
-                           f"The container name is {container_name}.")
+            dtslogger.info(f"VSCode will run in the background. " f"The container name is {container_name}.")
         else:
             dtslogger.info("Use Ctrl-C in this terminal to stop VSCode.")
 
             # wait for the container to stop
             try:
                 docker.wait(container)
-            except pydock.exceptions.DockerException as e:
+            except dockertown.exceptions.DockerException as e:
                 if not DTCommand.requested_stop:
                     raise e
 

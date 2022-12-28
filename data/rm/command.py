@@ -1,26 +1,24 @@
 import argparse
-import os
-import signal
 
-from dt_data_api import DataClient, TransferStatus
 from dt_shell import DTCommandAbs, dtslogger
-from utils.misc_utils import human_size
-from utils.progress_bar import ProgressBar
+
+from dt_data_api import DataClient
+from utils.cli_utils import ask_confirmation
 
 VALID_SPACES = ["user", "public", "private"]
 
 
 class DTCommand(DTCommandAbs):
-    help = "Downloads a file from the Duckietown Cloud Storage space"
+    help = "Removes a file from the Duckietown Cloud Storage space"
 
     usage = f"""
 Usage:
 
-    dts data get --space <space> <object> <file>
+    dts data rm --space <space> <object>
 
 OR
 
-    dts data get [<space>:]<object> <file>
+    dts data rm [<space>:]<object>
 
 Where <space> can be one of {str(VALID_SPACES)}.
 """
@@ -34,13 +32,12 @@ Where <space> can be one of {str(VALID_SPACES)}.
             "--space",
             default=None,
             choices=VALID_SPACES,
-            help="Storage space the object should be downloaded from",
+            help="Storage space the object should be removed from",
         )
         parser.add_argument(
-            "-f", "--force", default=False, action="store_true", help="Overwrites local file if it exists"
+            "-y", "--yes", default=False, action="store_true", help="Do not ask for confirmation"
         )
-        parser.add_argument("object", nargs=1, help="Destination path of the object")
-        parser.add_argument("file", nargs=1, help="File to download")
+        parser.add_argument("object", nargs=1, help="Path of the object to remove")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -51,7 +48,6 @@ Where <space> can be one of {str(VALID_SPACES)}.
             parsed = DTCommand._parse_args(args)
         # ---
         parsed.object = parsed.object[0]
-        parsed.file = parsed.file[0]
         # check arguments
         # use the format [space]:[object] as a short for
         #      --space [space] [object]
@@ -84,12 +80,6 @@ Where <space> can be one of {str(VALID_SPACES)}.
         parsed.object = object_path
         if space:
             parsed.space = space
-        # make sure that the input file does not exist
-        if os.path.isfile(parsed.file) and not parsed.force:
-            dtslogger.error(f"File '{parsed.file}' already exists! Must be forced.")
-            exit(5)
-        # sanitize file path
-        parsed.file = os.path.abspath(parsed.file)
         # get the token if it is set
         token = None
         # noinspection PyBroadException
@@ -100,42 +90,28 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)
-        # prepare progress bar
-        pbar = ProgressBar()
 
-        def check_status(h):
-            if h.status == TransferStatus.STOPPED:
-                print()
-                dtslogger.info("Stopping download...")
-                handler.abort(block=True)
-                dtslogger.info("Download stopped!")
-                exit(6)
-            if h.status == TransferStatus.ERROR:
-                dtslogger.error(h.reason)
-                exit(7)
+        # make sure the object exists
+        try:
+            storage.head(parsed.object)
+        except FileNotFoundError:
+            dtslogger.error(f"Object [{parsed.space}]:{parsed.object} not found.")
+            return False
 
-        def cb(h):
-            speed = human_size(h.progress.speed)
-            header = f"Downloading [{speed}/s] "
-            header = header + " " * max(0, 28 - len(header))
-            pbar.set_header(header)
-            pbar.update(h.progress.percentage)
-            # check status
-            check_status(h)
+        # ask for confirmation
+        if not parsed.yes:
+            confirmed = ask_confirmation("This operation cannot be undone", default="n")
+            if not confirmed:
+                dtslogger.info("I will not touch anything then, your object is safe.")
+                return True
 
-        # download file
-        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object} -> {parsed.file}")
-        handler = storage.download(parsed.object, parsed.file)
-        handler.register_callback(cb)
+        # remove object
+        dtslogger.info(f"Deleting [{parsed.space}]:{parsed.object}")
+        success = storage.delete(parsed.object)
 
-        # capture SIGINT and abort
-        signal.signal(signal.SIGINT, lambda *_: handler.abort())
-
-        # wait for the download to finish
-        handler.join()
-
-        # check status
-        check_status(handler)
-
-        # if we got here, the download is completed
-        dtslogger.info("Download complete!")
+        if success:
+            dtslogger.info(f"Object [{parsed.space}]:{parsed.object} deleted!")
+            return True
+        else:
+            dtslogger.error(f"An error occurred while deleting the object [{parsed.space}]:{parsed.object}")
+            return False

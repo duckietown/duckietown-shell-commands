@@ -22,7 +22,7 @@ LOCAL_DOMAIN = "localhost"
 
 
 class DTCommand(DTCommandAbs):
-    help = 'Creates a local certificate authority and registers it against the OS trust stores'
+    help = "Creates a local certificate authority and registers it against the OS trust stores"
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -32,7 +32,7 @@ class DTCommand(DTCommandAbs):
             "--uninstall",
             default=False,
             action="store_true",
-            help="Uninstall local Certificate Authority from trust stores"
+            help="Uninstall local Certificate Authority from trust stores",
         )
         parsed = parser.parse_args(args=args)
         # define location for SSL certificate and key
@@ -47,8 +47,10 @@ class DTCommand(DTCommandAbs):
 
         # uninstall
         if parsed.uninstall:
-            dtslogger.info(f"Uninstalling Certificate Authority, you might be prompted to "
-                           f"insert your sudo password...")
+            dtslogger.info(
+                f"Uninstalling Certificate Authority, you might be prompted to "
+                f"insert your sudo password..."
+            )
             cmd: List[str] = DTCommand._mkcert_command("-uninstall")
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             subprocess.check_call(cmd, env=env)
@@ -65,8 +67,10 @@ class DTCommand(DTCommandAbs):
 
         # - make certificate authority and install
         if not ca_exists:
-            dtslogger.info("Creating and installing a new local Certificate Authority, "
-                           "you might be prompted to insert your sudo password...")
+            dtslogger.info(
+                "Creating and installing a new local Certificate Authority, "
+                "you might be prompted to insert your sudo password..."
+            )
             cmd: List[str] = DTCommand._mkcert_command("-install")
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             out = subprocess.check_output(cmd, env=env, stderr=STDOUT).decode("utf-8")
@@ -76,10 +80,21 @@ class DTCommand(DTCommandAbs):
             assert exists(ca_cert)
             assert exists(ca_key)
             # look for missing libraries
+            # - linux
             if "libnss3-tools" in out:
-                dtslogger.error("The system library 'libnss3-tools' is missing, please, "
-                                  "install it using the following command and the retry:\n\n"
-                                  "\t$ sudo apt install libnss3-tools\n\n")
+                dtslogger.error(
+                    "The system library 'libnss3-tools' is missing, please, "
+                    "install it using the following command and the retry:\n\n"
+                    "\t$ sudo apt install libnss3-tools\n\n"
+                )
+                exit(1)
+            # - mac osx
+            if "brew install nss" in out:
+                dtslogger.error(
+                    "The system library 'nss' is missing, please, "
+                    "install it using the following command and the retry:\n\n"
+                    "\t$ brew install nss\n\n"
+                )
                 exit(1)
             print(out)
             # make sure the CA was installed
@@ -128,18 +143,16 @@ class DTCommand(DTCommandAbs):
             raise ValueError(f"System '{system}' not supported")
         if machine not in CANONICAL_ARCH:
             raise ValueError(f"Architecture not supported '{machine}'")
-        arch = {
-            "amd64": "amd64",
-            "arm32v7": "arm",
-            "arm64v8": "arm64"
-        }[CANONICAL_ARCH[machine]]
+        arch = {"amd64": "amd64", "arm32v7": "arm", "arm64v8": "arm64"}[CANONICAL_ARCH[machine]]
         ext = {
             "darwin": "",
             "linux": "",
             "windows": ".exe",
         }[system]
-        return f"https://github.com/FiloSottile/mkcert/releases/download/" \
-               f"v{MKCERT_VERSION}/mkcert-v{MKCERT_VERSION}-{system}-{arch}{ext}"
+        return (
+            f"https://github.com/FiloSottile/mkcert/releases/download/"
+            f"v{MKCERT_VERSION}/mkcert-v{MKCERT_VERSION}-{system}-{arch}{ext}"
+        )
 
     @staticmethod
     def _install_mkcert():

@@ -1,16 +1,10 @@
 import ipaddress
+import os
 import subprocess
 from re import sub
 from shutil import which
 
-__all__ = [
-    "human_time",
-    "human_size",
-    "sanitize_hostname",
-    "sudo_open",
-    "parse_version",
-    "indent_block"
-]
+__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block"]
 
 
 def human_time(time_secs, compact=False):
@@ -62,9 +56,19 @@ def sudo_open(path, mode, *_, **__):
 
 
 def parse_version(v: str) -> tuple:
-    return tuple(map(int, (sub('[^0-9]', '', v).split("."))))
+    return tuple(map(int, (sub("[^0-9]", "", v).split("."))))
 
 
 def indent_block(s: str, indent: int = 4) -> str:
     space: str = " " * indent
     return space + f"\n{space}".join(s.splitlines())
+
+
+def get_user_login() -> str:
+    try:
+        user = os.getlogin()
+    # fall back on getpass for terminals not registering with utmp
+    except FileNotFoundError:
+        import getpass
+        user = getpass.getuser()
+    return user
