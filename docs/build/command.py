@@ -3,6 +3,7 @@ import getpass
 import os
 import subprocess
 import sys
+import copy
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
@@ -18,6 +19,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--image", default="${%s}/duckietown/docs-build:daffy" % ENV_REGISTRY, help="Which image to use"
         )
+
+        parser.add_argument('--preview', default=False, action='store_true',
+                            help="Opens the compiled page when complete")
 
         parsed = parser.parse_args(args=args)
 
@@ -84,6 +88,9 @@ class DTCommand(DTCommandAbs):
 
         p.communicate()
         dtslogger.info("\n\nCompleted.")
+
+        if parsed.preview:
+            shell.include.docs.preview.command(shell, [])
 
 
 def system_cmd_result(pwd, cmd):
