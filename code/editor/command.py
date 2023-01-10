@@ -50,6 +50,12 @@ class DTCommand(DTCommandAbs):
             help="Custom distribution to use VSCode from",
         )
         parser.add_argument(
+            "--bind",
+            default="127.0.0.1",
+            type=str,
+            help="Address to bind to",
+        )
+        parser.add_argument(
             "--no-build",
             default=False,
             action="store_true",
@@ -216,6 +222,7 @@ class DTCommand(DTCommandAbs):
         vscode_namespace = SimpleNamespace(
             workdir=[parsed.workdir],
             image=vscode_image_name,
+            bind=parsed.bind,
             impersonate=parsed.impersonate,
             verbose=parsed.verbose,
             keep=parsed.keep,
