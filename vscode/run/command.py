@@ -59,6 +59,12 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the latest version of the VSCode image available",
         )
         parser.add_argument(
+            "--bind",
+            default="127.0.0.1",
+            type=str,
+            help="Address to bind to",
+        )
+        parser.add_argument(
             "-p",
             "--port",
             default=0,
@@ -205,7 +211,7 @@ class DTCommand(DTCommandAbs):
                 # this is the actual workspace
                 (parsed.workdir, workdir, "rw"),
             ],
-            "publish": [(f"127.0.0.1:{parsed.port}", VSCODE_PORT, "tcp")],
+            "publish": [(f"{parsed.bind}:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
             "workdir": workdir,
         }
