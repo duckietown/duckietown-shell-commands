@@ -85,7 +85,7 @@ class DTCommand(DTCommandAbs):
         # book-specific parameters
         SSH_HOSTNAME = f"ssh-{parsed.destination}"
         BOOK_NAME = project.name
-        BRANCH_NAME = project.version_name
+        BOOK_BRANCH_NAME = project.version_name
 
         # create docker client
         docker = dockertown.DockerClient(debug=debug)
@@ -144,7 +144,7 @@ class DTCommand(DTCommandAbs):
                     "SSH_HOSTNAME": SSH_HOSTNAME,
                     "SSH_USERNAME": SSH_USERNAME,
                     "BOOK_NAME": BOOK_NAME,
-                    "BRANCH_NAME": BRANCH_NAME,
+                    "BOOK_BRANCH_NAME": BOOK_BRANCH_NAME,
                 },
                 "stream": True
             }

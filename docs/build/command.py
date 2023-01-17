@@ -249,6 +249,10 @@ def build_v2(shell: DTShell, args):
         "image": jb_image_name,
         "remove": True,
         "user": f"{os.getuid()}:{os.getuid()}",
+        "envs": {
+            "BOOK_BRANCH_NAME": project.version_name,
+            "DEBUG": "1" if debug else "0"
+        },
         "volumes": volumes,
         "name": container_name,
         "stream": True
