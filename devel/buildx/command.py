@@ -212,6 +212,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
+        parser.add_argument(
+            "--no-login", default=False, action="store_true", help="Do not login against the registry"
+        )
 
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -450,9 +453,10 @@ class DTCommand(DTCommandAbs):
             epoint["mem_total"] = human_size(epoint["mem_total"])
             print(DOCKER_INFO.format(**epoint))
 
-        # login client
-        copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+        # login client (unless skipped)
+        if not parsed.no_login:
+            copy_docker_env_into_configuration(shell.shell_config)
+            login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
 
         # pick the right architecture if not set
         if parsed.arch is None:
