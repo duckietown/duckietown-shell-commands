@@ -107,6 +107,12 @@ def build_v2(shell: DTShell, args):
         help="Whether to skip building the environment for this project, use plain JB instead",
     )
     parser.add_argument(
+        "--ci",
+        default=False,
+        action="store_true",
+        help="Configure the build for CI",
+    )
+    parser.add_argument(
         "--no-pull",
         default=False,
         action="store_true",
@@ -223,13 +229,14 @@ def build_v2(shell: DTShell, args):
         volumes.append((pdf_dir, "/out/pdf", "rw"))
 
     # build cache
-    build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
-    try:
-        os.makedirs(build_cache, exist_ok=True)
-    except Exception:
-        pass
-    if os.path.exists(build_cache):
-        volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
+    if not parsed.ci:
+        build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
+        try:
+            os.makedirs(build_cache, exist_ok=True)
+        except Exception:
+            pass
+        if os.path.exists(build_cache):
+            volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
 
     # log reader from container
     def consume_container_logs(_logs):
