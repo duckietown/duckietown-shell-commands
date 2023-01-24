@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 from types import SimpleNamespace
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
