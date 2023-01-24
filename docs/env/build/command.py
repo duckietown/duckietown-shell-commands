@@ -76,7 +76,7 @@ class DTCommand(DTCommandAbs):
 
         # pick the right architecture
         dtslogger.info("Retrieving info about Docker endpoint...")
-        arch: str = get_endpoint_architecture()
+        arch: str = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         # custom distro
