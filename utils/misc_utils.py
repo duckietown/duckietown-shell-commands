@@ -4,7 +4,8 @@ import subprocess
 from re import sub
 from shutil import which
 
-__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block"]
+__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
+           "get_user_login"]
 
 
 def human_time(time_secs, compact=False):
@@ -35,8 +36,11 @@ def human_size(value, suffix="B", precision=2):
 
 
 def sanitize_hostname(hostname):
+    if "://" in hostname:
+        return hostname
     try:
-        ipaddress.ip_address(hostname)
+        ip = hostname.split(":")[0]
+        ipaddress.ip_address(ip)
         return hostname
     except ValueError:
         return f"{hostname}.local" if not hostname.endswith(".local") else hostname
