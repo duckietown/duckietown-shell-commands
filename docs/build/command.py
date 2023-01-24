@@ -198,7 +198,7 @@ def build_v2(shell: DTShell, args):
 
     # pick the right architecture
     dtslogger.info("Retrieving info about Docker endpoint...")
-    arch: str = get_endpoint_architecture()
+    arch: str = get_endpoint_architecture(parsed.machine)
     dtslogger.info(f"Target architecture automatically set to {arch}.")
 
     # find (or build) the book environment image to run
