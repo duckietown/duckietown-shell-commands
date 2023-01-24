@@ -124,6 +124,7 @@ class DTCommand(DTCommandAbs):
                     file=[local_rsa],
                     object=[DCSS_RSA_SECRET_LOCATION.format(dns=SSH_HOSTNAME)],
                     space=DCSS_RSA_SECRET_SPACE,
+                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
                 ),
             )
             # setup key permissions
