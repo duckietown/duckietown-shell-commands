@@ -96,6 +96,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         # use plain JupyterBook
+        parsed.distro = parsed.distro or project.distro
         tag: str = f"{parsed.distro}-{arch}"
         jb_image_name: str = f"{registry_to_use}/duckietown/dt-jupyter-book:{tag}"
         dtslogger.debug(f"Using JupyterBook image '{jb_image_name}'")
