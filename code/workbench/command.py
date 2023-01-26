@@ -46,11 +46,12 @@ from utils.yaml_utils import load_yaml
 usage = """
 
 ## Basic usage
-    This is an helper for the exercises.
-    You must run this command inside an exercise folder.
+    This is a helper command to run the workbench portion of a Duckietown Learning Experience (LX).
+    You must run this command inside an LX directory.
 
-    To know more on the `exercises` commands, use `dts exercises test -h`.
+    To learn more about the Duckietown `code` commands and workflow, use `dts code -h`.
 
+        $ dts code workbench --sim
         $ dts code workbench --duckiebot [DUCKIEBOT_NAME]
 
 """
@@ -182,7 +183,7 @@ class DTCommand(DTCommandAbs):
             dest="stop",
             action="store_true",
             default=False,
-            help="just stop all the containers",
+            help="Just stop all the containers",
         )
 
         parser.add_argument(
@@ -203,6 +204,13 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument(
             "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
+        )
+
+        parser.add_argument(
+            "--bind",
+            type=str,
+            default="127.0.0.1",
+            help="Address to bind to (VNC)",
         )
 
         loglevels_friendly = " ".join(f"{k.value}:{v}" for k, v in LOG_LEVELS.items())
@@ -865,6 +873,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Building VNC...")
         vnc_namespace: SimpleNamespace = SimpleNamespace(
             workdir=project.path,
+            bind=parsed.bind,
             username=username,
             recipe=recipe.path,
             # TODO: test this
@@ -921,8 +930,12 @@ class DTCommand(DTCommandAbs):
             }
         # when running locally, we attach VNC to the agent's network
         if parsed.local:
-            vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
             vnc_params["network"] = agent_network.name
+            # when using --bind, specify the address
+            if parsed.bind:
+                vnc_params["ports"] = {"8087/tcp": (f"{parsed.bind}", 0)}
+            else:
+                vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
         else:
             # when running on the robot, let (local) VNC reach the host network to use ROS
             if not running_on_mac:
@@ -990,7 +1003,7 @@ class DTCommand(DTCommandAbs):
                 return False
             port: str = ports["8087/tcp"][0]["HostPort"]
 
-        def print_nvc_port_later():
+        def print_nvc_port_later(address="localhost"):
             time.sleep(5)
             space: str = " " * 4
             pspace: str = " " * (4 + (4 - len(port)))
@@ -998,12 +1011,12 @@ class DTCommand(DTCommandAbs):
                 f"\n\n\n\n"
                 f"================================================================\n"
                 f"|                                                              |\n"
-                f"|{space}VNC running at http://localhost:{port}{pspace}                  |\n"
+                f"|{space}VNC running at http://{address}:{port}{pspace}                  |\n"
                 f"|                                                              |\n"
                 f"================================================================\n\n\n"
             )
 
-        threading.Thread(target=print_nvc_port_later).start()
+        threading.Thread(target=print_nvc_port_later, args=(parsed.bind,)).start()
 
         dtslogger.info("Starting attached container")
 
