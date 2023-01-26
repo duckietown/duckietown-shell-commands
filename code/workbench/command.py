@@ -933,7 +933,7 @@ class DTCommand(DTCommandAbs):
             vnc_params["network"] = agent_network.name
             # when using --bind, specify the address
             if parsed.bind:
-                vnc_params["ports"] = {"8087/tcp": (f"{parsed.bind}", 0)}
+                vnc_params["ports"] = {"8087/tcp": (parsed.bind, 0)}
             else:
                 vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
         else:
