@@ -102,6 +102,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         # use plain JupyterBook
+        parsed.distro = parsed.distro or project.distro
         tag: str = f"{parsed.distro}-{arch}"
         jb_image_name: str = f"{registry_to_use}/duckietown/dt-jupyter-book:{tag}"
         dtslogger.debug(f"Using JupyterBook image '{jb_image_name}'")
@@ -130,6 +131,7 @@ class DTCommand(DTCommandAbs):
                     file=[local_rsa],
                     object=[DCSS_RSA_SECRET_LOCATION.format(dns=SSH_HOSTNAME)],
                     space=DCSS_RSA_SECRET_SPACE,
+                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
                 ),
             )
             # setup key permissions
