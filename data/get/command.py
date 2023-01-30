@@ -97,7 +97,13 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
         # get the token if it is set
-        token = parsed.token
+        token = None
+        try:
+            token = parsed.token
+        except AttributeError:
+            # if parsed is supplied when shell.include.data.get.command(...)
+            pass
+
         if token is None:
             # noinspection PyBroadException
             try:
