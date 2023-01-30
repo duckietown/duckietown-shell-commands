@@ -52,9 +52,16 @@ Where <space> can be one of {str(VALID_SPACES)}.
 
     @staticmethod
     def command(shell, args, **kwargs):
+        # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        if not parsed:
+            parsed = DTCommand._parse_args(args=args)
+        else:
+            # combine given args with default values
+            default_parsed = DTCommand._parse_args(args=[])
+            for k, v in parsed.__dict__.items():
+                setattr(default_parsed, k, v)
+            parsed = default_parsed
         # ---
         parsed.object = parsed.object[0]
         parsed.file = parsed.file[0]
