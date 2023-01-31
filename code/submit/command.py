@@ -126,15 +126,19 @@ class DTCommand(DTCommandAbs):
             )
             exit(1)
         registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
-        del registry_creds["secret"]
-
-        # reuse username from credentials if none is given
-        if parsed.username is None:
-            parsed.username = registry_creds["username"]
+        registry_username = registry_creds["username"]
 
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
+
+        # create docker client
+        host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
+        docker = DockerClient(host=host, debug=debug)
+
+        # reuse username from credentials if none is given
+        if parsed.username is None:
+            parsed.username = registry_username
 
         # pick the right architecture if not set
         if parsed.arch is None:
@@ -157,10 +161,6 @@ class DTCommand(DTCommandAbs):
         if not success:
             dtslogger.error("Failed to build the agent image for submission. Aborting.")
             exit(1)
-
-        # create docker client
-        host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
-        docker = DockerClient(host=host, debug=debug)
 
         # get built image
         src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
