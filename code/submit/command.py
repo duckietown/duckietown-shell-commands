@@ -174,6 +174,15 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Tagging submission image as '{agent_image_full}'")
         image.tag(agent_image_full)
 
+        # login to the registry
+        dtslogger.info(f"Logging in to {registry_to_use} as '{registry_username}'")
+        docker.login(
+            server=registry_to_use,
+            username=registry_username,
+            password=registry_creds["secret"],
+        )
+        del registry_creds["secret"]
+
         # push image
         dtslogger.info(f"Pushing submission image '{agent_image_full}'...")
         docker.image.push(agent_image_full)
