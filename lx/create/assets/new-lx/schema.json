@@ -68,7 +68,7 @@
         "dependencies",
         {
             "type": "submit",
-            "title": "Save"
+            "title": "Generate LX"
         }
     ],
     "value": {

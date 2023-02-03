@@ -2,6 +2,7 @@ import json
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime
+from typing import List
 
 import requests
 from dt_shell import dtslogger, DTShell
@@ -20,6 +21,23 @@ class CommitInfo:
 class UpdateResult:
     commit: CommitInfo
     uptodate: bool
+
+
+def clone_repository(shell: DTShell, repo: str, branch: str):
+    # TODO: Update usage in recipe utils
+    pass
+
+
+def get_branches(user: str, repo: str) -> List:
+    url = f"https://api.github.com/repos/{user}/{repo}/branches"
+    response = requests.get(url)
+    if response.status_code >= 400:
+        msg = f"Cannot get branch list from github API ({response.status_code}) "
+        raise Exception(msg)
+    res = response.json()
+
+    branches = [branch["name"] for branch in res]
+    return branches
 
 
 def get_last_commit(user: str, repo: str, branch: str) -> CommitInfo:
