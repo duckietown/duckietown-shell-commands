@@ -15,6 +15,7 @@ import getpass
 from datetime import datetime
 
 from utils.cli_utils import ask_confirmation
+from utils.docker_utils import DEFAULT_REGISTRY
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_time
 
@@ -761,6 +762,13 @@ class DTCommand(DTCommandAbs):
                                     % (DEVICE_ARCH, destination)
                                 )
                                 replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
+                                # add registry as default value in the stack file
+                                dtslogger.debug(
+                                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
+                                    % (DEFAULT_REGISTRY, destination)
+                                )
+                                replace_in_file("{REGISTRY}",
+                                                "{REGISTRY:-%s}" % DEFAULT_REGISTRY, destination)
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
