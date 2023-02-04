@@ -183,11 +183,6 @@ def column_to_text_and_color(column, hostname, services):
             text, color, bg_color = "Ready", "white", "green"
         if hostname in services["DT::BOOTING"]:
             text, color, bg_color = "Booting", "white", "yellow"
-    #  -> Dashboard
-    if column == "Dashboard":
-        text, color, bg_color = "Down", "white", "grey"
-        if hostname in services["DT::DASHBOARD"]:
-            text, color, bg_color = "Up", "white", "green"
     #  -> Internet
     if column == "Internet":
         text, color, bg_color = "No", "white", "grey"
