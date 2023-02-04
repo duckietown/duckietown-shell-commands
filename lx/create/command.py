@@ -9,7 +9,7 @@ from utils.json_schema_form_utils import open_form
 
 
 class DTCommand(DTCommandAbs):
-    help = "Builds a Duckietown project into an image"
+    help = "Creates a new Learning Experience"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -23,7 +23,7 @@ class DTCommand(DTCommandAbs):
             schema=schema,
             title="Create new Learning Experience",
             subtitle="Populate the fields below to create a new Learning Experience",
-            icon=os.path.join(assets_dir, "icon.png"),
+            icon_fpath=os.path.join(assets_dir, "icon.png"),
         )
 
         # TODO: do something else with these
