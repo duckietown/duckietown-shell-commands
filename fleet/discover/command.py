@@ -33,7 +33,6 @@ class DiscoverListener:
         "DT::BOOTING",
         "DT::ROBOT_TYPE",
         "DT::ROBOT_CONFIGURATION",
-        "DT::DASHBOARD",
     ]
 
     def __init__(self, args):
@@ -103,7 +102,8 @@ class DiscoverListener:
             "Status",  # Booting [yellow], Ready [green]
             # TODO: Internet check is kind of unstable at this time, disabling it
             # "Internet",  # No [grey], Yes [green]
-            "Dashboard",  # Down [grey], Up [green]
+            # TODO: People get confused when this is down but the dashboard is up, disabling
+            # "Dashboard",  # Down [grey], Up [green]
             # TODO: Busy is not used at this time, disabling it
             # "Busy",  # No [grey], Yes [green]
         ]
