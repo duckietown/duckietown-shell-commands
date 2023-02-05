@@ -4,6 +4,7 @@
             "title": "LX Repository Branch",
             "description": "Which branch of the Duckietown LX repository you would like to publish to",
             "type": "string",
+            "enum": [],
             "required": true
         },
         "version": {
@@ -16,7 +17,9 @@
         }
     },
     "form": [
-        "branch",
+        {
+            "key": "branch"
+        },
         "version",
         {
             "type": "submit",
