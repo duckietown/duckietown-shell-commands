@@ -87,6 +87,12 @@ class DTCommand(DTCommandAbs):
         BOOK_NAME = project.name
         BOOK_BRANCH_NAME = project.version_name
 
+        # custom distro
+        if parsed.distro:
+            dtslogger.info(f"Using custom distro '{parsed.distro}'")
+        else:
+            parsed.distro = get_distro_version(shell)
+
         # create docker client
         docker = dockertown.DockerClient(debug=debug)
 
