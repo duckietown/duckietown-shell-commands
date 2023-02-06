@@ -1,0 +1,28 @@
+VERSION=0.0.0
+TYPE=development-lx
+TYPE_VERSION=3
+
+# name of the exercise
+NAME=<EXERCISE_NAME_HERE>
+
+# --- repository locations ---
+
+# recipe
+# - fully qualified name of the recipe repository, e.g., 'duckietown/duckietown-lx-recipes'
+RECIPE_REPOSITORY=<RECIPE_REPOSITORY_HERE>
+
+# - branch of RECIPE_REPOSITORY containing the recipe
+RECIPE_BRANCH=<RECIPE_BRANCH_HERE>
+
+# - location of the recipe inside the RECIPE_REPOSITORY/RECIPE_BRANCH above
+RECIPE_LOCATION=<RECIPE_LOCATION_HERE>
+
+# meat (see recipe section above for instructions)
+MEAT_REPOSITORY=<RECIPE_REPOSITORY_HERE>
+MEAT_BRANCH=<RECIPE_BRANCH_HERE>
+MEAT_LOCATION=<RECIPE_LOCATION_HERE>
+
+# solution (see recipe section above for instructions)
+SOLUTION_REPOSITORY=<RECIPE_REPOSITORY_HERE>
+SOLUTION_BRANCH=<RECIPE_BRANCH_HERE>
+SOLUTION_LOCATION=<RECIPE_LOCATION_HERE>
