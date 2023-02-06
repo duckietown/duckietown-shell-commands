@@ -3,8 +3,9 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List
-
+import os
 import requests
+
 from dt_shell import dtslogger, DTShell
 from dt_shell.utils import run_cmd
 
@@ -24,10 +25,14 @@ class UpdateResult:
     uptodate: bool
 
 
-def clone_repository(repo: str, branch: str, destination: str):
+def clone_repository(repo: str, branch: str, destination: str) -> str:
+    """Returns: Path to cloned repository"""
     remote_url: str = f"https://github.com/{repo}"
     try:
-        run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, destination])
+        print(repo, branch, destination)
+        project_path: str = os.path.join(destination, repo, branch)
+        run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, project_path])
+        return destination
     except Exception as e:
         # Excepts as InvalidRemote
         dtslogger.error(f"Unable to clone the repo '{repo}'. {str(e)}.")
