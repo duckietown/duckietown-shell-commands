@@ -8,6 +8,8 @@ from dt_shell import version_check
 from dt_shell.constants import DTShellConstants
 from dt_shell.utils import run_cmd
 
+from utils.git_utils import clone_repository
+
 
 RECIPE_STAGE_NAME = "recipe"
 MEAT_STAGE_NAME = "meat"
@@ -53,7 +55,7 @@ def clone_recipe(repository: str, branch: str, location: str) -> bool:
         dtslogger.info(f"Downloading recipes...")
         dtslogger.debug(f"Downloading recipes into '{repo_dir}' ...")
         remote_url: str = f"https://github.com/{repository}"
-        run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, repo_dir])
+        clone_repository(repository, branch, repo_dir)
         dtslogger.info(f"Recipes downloaded!")
         return True
     except Exception as e:

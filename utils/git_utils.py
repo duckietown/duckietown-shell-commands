@@ -6,6 +6,7 @@ from typing import List
 
 import requests
 from dt_shell import dtslogger, DTShell
+from dt_shell.utils import run_cmd
 
 from utils.duckietown_utils import get_distro_version
 
@@ -23,9 +24,15 @@ class UpdateResult:
     uptodate: bool
 
 
-def clone_repository(shell: DTShell, repo: str, branch: str):
-    # TODO: Update usage in recipe utils
-    pass
+def clone_repository(repo: str, branch: str, destination: str):
+    remote_url: str = f"https://github.com/{repo}"
+    try:
+        run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, destination])
+        dtslogger.info(f"Recipes downloaded!")
+    except Exception as e:
+        # Excepts as InvalidRemote
+        dtslogger.error(f"Unable to clone the repo '{repo}'. {str(e)}.")
+        return False
 
 
 def get_branches(user: str, repo: str) -> List:
