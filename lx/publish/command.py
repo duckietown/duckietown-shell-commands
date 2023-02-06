@@ -22,7 +22,7 @@ class DTCommand(DTCommandAbs):
             "-C",
             "--workdir",
             default=os.getcwd(),
-            help="Directory containing the book to publish"
+            help="Directory containing the LX project to publish"
         )
 
         # Get pre-parsed or parse arguments

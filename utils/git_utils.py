@@ -28,7 +28,6 @@ def clone_repository(repo: str, branch: str, destination: str):
     remote_url: str = f"https://github.com/{repo}"
     try:
         run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, destination])
-        dtslogger.info(f"Recipes downloaded!")
     except Exception as e:
         # Excepts as InvalidRemote
         dtslogger.error(f"Unable to clone the repo '{repo}'. {str(e)}.")
