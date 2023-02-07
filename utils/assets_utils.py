@@ -32,7 +32,7 @@ def load_dtproject(name: str, version: str) -> List:
 
 
 def load_template(name: str, version: str) -> dict:
-    fpath: str = os.path.join(ASSETS_DIR, "templates", name, version, "templates.json")
+    fpath: str = os.path.join(ASSETS_DIR, "templates", name, version, "template.json")
     if not os.path.exists(fpath):
         raise FileNotFoundError(fpath)
     with open(fpath, "rt") as fin:

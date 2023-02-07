@@ -1,14 +1,14 @@
 import argparse
 import json
 import os
-import tempfile
+import pathlib
 from typing import Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.dtproject_utils import DTProject
 from utils.git_utils import get_branches
-from utils.json_schema_form_utils import open_form_from_schema
+from utils.json_schema_form_utils import open_form
 
 
 class DTCommand(DTCommandAbs):
@@ -38,18 +38,26 @@ class DTCommand(DTCommandAbs):
                             f"'template-exercise' project directory to publish with 'dts lx publish'.")
             return False
 
-        # Get the form data
+        #TODO: Get updated form defaults
+
         form_values: Optional[dict] = open_form_from_schema(
             shell,
             "lx-publish",
             "v3",
             title="Publish your Learning Experience",
             subtitle="Populate the fields below to publish your Learning Experience",
-            completion_message="Uploading your LX ...\n You can now close this page and return to the terminal."
+            completion_message="Uploading LX ...\n You can now close this page and return to the terminal."
         )
 
-        # TODO: Pushing an ind. dir to the repo is non-trivial with the api. Do we need this?
-        dtslogger.info(str(values))
+        dtslogger.debug(str(form_values))
+
+        # TODO: Confirm that all lx directories exist and are the correct project type
+
+        # TODO: Create a .temp dir and clone the lx destination repositories into it
+
+        # TODO: Update the repo dirs and push
+
+        # TODO: Clean up and msg success
 
     @staticmethod
     def complete(shell, word, line):
