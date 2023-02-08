@@ -1,11 +1,14 @@
 import ipaddress
+import json
 import os
 import subprocess
 from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login"]
+           "get_user_login", "pretty_json"]
+
+from typing import Any
 
 
 def human_time(time_secs, compact=False):
@@ -66,6 +69,10 @@ def parse_version(v: str) -> tuple:
 def indent_block(s: str, indent: int = 4) -> str:
     space: str = " " * indent
     return space + f"\n{space}".join(s.splitlines())
+
+
+def pretty_json(data: Any, indent: int = 0) -> str:
+    return indent_block(json.dumps(data, sort_keys=True, indent=4), indent=indent)
 
 
 def get_user_login() -> str:
