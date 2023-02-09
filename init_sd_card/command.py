@@ -87,7 +87,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_nano_2gb": {
             # - stable
-            "1.2.1": "1.1",
+            "1.2.2": "1.1",
             # - experimental
             "-----": "1.1"
         },
