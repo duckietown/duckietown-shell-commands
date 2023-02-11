@@ -219,7 +219,8 @@ class DTProject:
 
     @property
     def version_name(self):
-        return self._repository.branch if self._repository else "latest"
+        return (self._repository.branch if self._repository.branch != "HEAD" else self.head_version) \
+            if self._repository else "latest"
 
     @property
     def safe_version_name(self) -> str:
