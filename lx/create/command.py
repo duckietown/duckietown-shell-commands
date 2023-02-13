@@ -45,19 +45,27 @@ class DTCommand(DTCommandAbs):
 
         # Load in the template configuration and multi-use form data
         template_config: dict = load_template("lx", "v3")
-        template_version: str = template_config["template-version"]
+        version: str = template_config["template-version"]
         lx_repo: str = template_config["lx-template-repo"]
         recipe_repo: str = template_config["lx-recipe-template-repo"]
         project_name: str = form_values["name"]
         safe_project_name: str = re.sub(r'[^\w\s\d@]', "", project_name.replace(" ", "-")).lower()
 
-        # TODO: Create the project with development-lx .dtproject and update the workdir
+        # Create the project with development-lx .dtproject and update the workdir
+        project_dir: str = os.path.join(parsed.workdir, safe_project_name)
+        if not os.path.exists(project_dir):
+            os.makedirs(project_dir)
+        # Fill and save the .dtproject file
+        dtproject_template = load_dtproject("lx", "v3")
+        dtproject_template.substitute(mapping)
+        with open(".dtproject", "w") as dtproject_file:
+            dtproject_file.write(dtproject_template)
 
         # Clone lx-template and lx-recipe-template into the workdir
         dtslogger.info("Generating custom LX and recipe ...")
-        lx_path: str = clone_unlinked_repo(lx_repo, template_version, parsed.workdir, "lx")
-        recipe_path: str = clone_unlinked_repo(recipe_repo, template_version, parsed.workdir, "recipe")
-        solution_path: str = clone_unlinked_repo(lx_repo, template_version, parsed.workdir, "solution")
+        lx_path: str = clone_unlinked_repo(lx_repo, version, project_dir, safe_project_name+"lx")
+        recipe_path: str = clone_unlinked_repo(recipe_repo, version, project_dir, safe_project_name+"recipe")
+        solution_path: str = clone_unlinked_repo(lx_repo, version, project_dir, safe_project_name+"solution")
 
         dtslogger.info("Created LX and recipe directories.")
         dtslogger.info("Customizing the LX ...")

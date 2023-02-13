@@ -1,14 +1,12 @@
 import argparse
-import json
 import os
-import pathlib
+import tempfile
 from typing import Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.dtproject_utils import DTProject
-from utils.git_utils import get_branches
-from utils.json_schema_form_utils import open_form
+from utils.json_schema_form_utils import open_form_from_schema
 
 
 class DTCommand(DTCommandAbs):
@@ -23,6 +21,13 @@ class DTCommand(DTCommandAbs):
             "--workdir",
             default=os.getcwd(),
             help="Directory containing the LX project to publish"
+        )
+
+        parser.add_argument(
+            "-n",
+            "--dry-run",
+            default=os.getcwd(),
+            help="Verify that your project is ready to push without actually sending the files"
         )
 
         # Get pre-parsed or parse arguments
@@ -49,11 +54,14 @@ class DTCommand(DTCommandAbs):
             completion_message="Uploading LX ...\n You can now close this page and return to the terminal."
         )
 
-        dtslogger.debug(str(form_values))
+        dtslogger.debug(f"Form values received: '{str(form_values)}'")
 
         # TODO: Confirm that all lx directories exist and are the correct project type
 
-        # TODO: Create a .temp dir and clone the lx destination repositories into it
+
+        # Create a .temp dir and clone the lx destination repositories into it
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pass # Clone the templates
 
         # TODO: Update the repo dirs and push
 
