@@ -62,6 +62,12 @@ class DTCommand(DTCommandAbs):
             help="Skip pulling the base image from the registry (useful when you have a local BASE image)",
         )
         parser.add_argument(
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Ignore the Docker cache"
+        )
+        parser.add_argument(
             "--impersonate",
             default=None,
             type=str,
@@ -153,6 +159,7 @@ class DTCommand(DTCommandAbs):
             recipe=parsed.recipe,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
+            no_cache=parsed.no_cache,
             no_pull=parsed.no_pull,
             quiet=True,
         )

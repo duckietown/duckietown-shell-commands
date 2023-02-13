@@ -92,7 +92,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to pull the image we are about to build to facilitate cache",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use the Docker cache"
+            "--no-cache", default=False, action="store_true", help="Skip the Docker cache"
         )
         parser.add_argument(
             "--force-cache",
@@ -635,6 +635,7 @@ class DTCommand(DTCommandAbs):
             "build_args": docker_build_args,
             "build_contexts": docker_build_contexts,
             "labels": labels,
+            "cache": not parsed.no_cache,
             "pull": parsed.pull,
             "push": parsed.push,
             "tags": [image],
