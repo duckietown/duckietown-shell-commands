@@ -1,5 +1,24 @@
 {
   "lx-template-repo": "duckietown/template-lx",
-  "lx-recipe-template-repo": "duckietown/template-lx-recipe",
-  "template-version": "v3"
+  "recipe-template-repo": "duckietown/template-lx-recipe",
+  "template-version": "v3",
+  "lx-dev-dtproject": {
+    "VERSION": "0.0.0",
+    "TYPE": "lx-development",
+    "TYPE_VERSION": "3"
+  },
+  "lx-dtproject": {
+    "EXERCISE_NAME_HERE": "${safe_name}"
+  },
+  "dockerfile": {
+    "EXERCISE_NAME_HERE": "${safe_name}",
+    "DESCRIPTION_HERE": "${description}",
+    "YOUR_FULL_NAME": "${maintainer}",
+    "YOUR_EMAIL_ADDRESS": "${email}",
+    "BASE_IMAGE": "${base}"
+  },
+  "dependencies": {
+    "APT_PACKAGES": "${apt}",
+    "PYTHON_PACKAGES": "${py3}"
+  }
 }

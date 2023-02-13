@@ -8,6 +8,7 @@ import requests
 from shutil import rmtree
 
 from dt_shell import dtslogger, DTShell
+from dt_shell.exceptions import UserError
 from dt_shell.utils import run_cmd
 
 from utils.duckietown_utils import get_distro_version
@@ -36,7 +37,6 @@ def clone_repository(repo: str, branch: str, destination: str) -> str:
     except Exception as e:
         # Excepts as InvalidRemote
         dtslogger.error(f"Unable to clone the repo '{repo}'. {str(e)}.")
-        return False
 
 
 def clone_unlinked_repo(repo: str, branch: str, destination: str, name: str = None) -> str:
@@ -46,13 +46,15 @@ def clone_unlinked_repo(repo: str, branch: str, destination: str, name: str = No
         rmtree(os.path.join(project_path, ".git"))
     except Exception as e:
         dtslogger.error(f"Unable to remove .git file: {e}.")
-        return False
 
     # Rename if provided
     if name:
         mv_dir = os.path.join("/".join(project_path.split("/")[:-1]), name)
         dtslogger.debug(f"Moving '{project_path}' to '{mv_dir}' ...")
-        os.rename(project_path, mv_dir)
+        try:
+            os.rename(project_path, mv_dir)
+        except OSError as e:
+            raise UserError(f"The '{repo}' repo already exists in '{mv_dir}'.")
         return mv_dir
 
     return project_path

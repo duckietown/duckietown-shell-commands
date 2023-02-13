@@ -26,6 +26,8 @@ def get_schema_html_filepath(name: str, version: str, component: str) -> Optiona
 
 def load_dtproject(name: str, version: str) -> List:
     fpath: str = os.path.join(ASSETS_DIR, "dtprojects", name, version, ".dtproject")
+    if not os.path.exists(fpath):
+        raise FileNotFoundError(fpath)
     with open(fpath, "rt") as metastream:
         lines: List[str] = metastream.readlines()
         return lines

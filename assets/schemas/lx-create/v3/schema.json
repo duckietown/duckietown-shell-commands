@@ -52,6 +52,21 @@
                     }
                 }
             }
+        },
+        "maintainer": {
+            "title": "Maintainer Name",
+            "description": "Your name and email will be listed as the maintainer in the project files",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": true
+        },
+        "email": {
+            "title": "Maintainer Email",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": true
         }
     },
     "form": [
@@ -65,6 +80,8 @@
                 "challenge-aido_lf-baseline-duckietown-ml": "Machine Learning Baseline (challenge-aido_lf-baseline-duckietown-ml)"
             }
         },
+        "maintainer",
+        "email",
         "dependencies",
         {
             "type": "submit",
