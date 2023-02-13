@@ -203,7 +203,17 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull", dest="pull", action="store_true", default=False, help="Should we pull all of the images"
+            "--pull",
+            action="store_true",
+            default=False,
+            help="Should we pull all of the images"
+        )
+
+        parser.add_argument(
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Ignore the Docker cache"
         )
 
         parser.add_argument(
@@ -435,6 +445,7 @@ class DTCommand(DTCommandAbs):
             workdir=project.path,
             machine=None if agent_is_local else duckiebot_hostname,
             username=username,
+            no_cache=parsed.no_cache,
             recipe=recipe.path,
             quiet=True
         )
