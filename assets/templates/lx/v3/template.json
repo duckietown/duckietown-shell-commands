@@ -5,13 +5,14 @@
   "lx-dev-dtproject": {
     "VERSION": "0.0.0",
     "TYPE": "lx-development",
-    "TYPE_VERSION": "3"
+    "TYPE_VERSION": "3",
+    "LX_NAME": "${safe_name}"
   },
   "lx-dtproject": {
-    "EXERCISE_NAME_HERE": "${safe_name}"
+    "LX_NAME_HERE": "${safe_name}"
   },
   "dockerfile": {
-    "EXERCISE_NAME_HERE": "${safe_name}",
+    "LX_NAME_HERE": "${safe_name}",
     "DESCRIPTION_HERE": "${description}",
     "YOUR_FULL_NAME": "${maintainer}",
     "YOUR_EMAIL_ADDRESS": "${email}",
@@ -20,5 +21,14 @@
   "dependencies": {
     "APT_PACKAGES": "${apt}",
     "PYTHON_PACKAGES": "${py3}"
+  },
+  "readme": {
+    "LX_TITLE_HERE": "${name}",
+    "DESCRIPTION_HERE": "${description}"
+  },
+  "publish": {
+    "RECIPE_REPOSITORY_HERE": "${recipe_repo}",
+    "RECIPE_BRANCH_HERE": "${recipe_branch}",
+    "RECIPE_LOCATION_HERE": "${safe_name}-recipe"
   }
 }

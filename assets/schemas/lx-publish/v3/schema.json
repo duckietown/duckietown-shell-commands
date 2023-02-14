@@ -2,7 +2,7 @@
     "schema": {
         "lx_repo": {
             "title": "LX Repository",
-            "description": "Which repository you would like to publish the LX to",
+            "description": "Which repository you would like to publish the LX to in the format username/repo_name. NOTE: you will need a personal access token from git to publish to any private repos - see the LX Development Book for more details.",
             "type": "string",
             "required": true
         },
@@ -14,7 +14,7 @@
         },
         "recipe_repo": {
             "title": "Recipe Repository",
-            "description": "Which repository you would like to publish the LX recipe to in the format <username>/<repo_name>",
+            "description": "Which repository you would like to publish the LX recipe to in the format username/repo_name",
             "type": "string",
             "required": true
         },
@@ -26,7 +26,7 @@
         },
         "solution_repo": {
             "title": "Solution Repository",
-            "description": "Which repository you would like to publish the LX solution to",
+            "description": "Which repository you would like to publish the LX solution to in the format username/repo_name",
             "type": "string",
             "required": true
         },

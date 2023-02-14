@@ -60,6 +60,18 @@ def clone_unlinked_repo(repo: str, branch: str, destination: str, name: str = No
     return project_path
 
 
+def push_repository(git_dir: str, branch: str, commit_msg: str):
+    current_dir = os.getcwd()
+    try:
+        os.chdir(git_dir)
+        run_cmd(["git", "add", "."])
+        run_cmd(["git", "commit", "-m", commit_msg])
+        run_cmd(["git", "push", "origin", branch, "-f"])
+        os.chdir(current_dir)
+    except Exception as e:
+        dtslogger.error(f"Unable to push from '{git_dir}'. {str(e)}.")
+
+
 def get_branches(user: str, repo: str) -> List:
     url = f"https://api.github.com/repos/{user}/{repo}/branches"
     response = requests.get(url)

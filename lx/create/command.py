@@ -49,7 +49,6 @@ class DTCommand(DTCommandAbs):
         # The template placeholder values should match the form schema names
         config_raw: dict = load_template("lx", "v3")
         config = fill_template_json(config_raw, svalues)
-        print("AFTER", config)
         version: str = config["template-version"]
 
         # Create the project and update the workdir
@@ -64,31 +63,48 @@ class DTCommand(DTCommandAbs):
             dtproject_file.writelines(temp_filled)
 
         # Clone lx-template and lx-recipe-template into the workdir renamed and stripped of .git
-        dtslogger.info("Generating custom LX and recipe ...")
+        dtslogger.info("Creating LX and recipe directories ...")
         lx_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, safe_name+"-lx")
         recipe_path: str = clone_unlinked_repo(config["recipe-template-repo"], version, create_dir, safe_name+"-recipe")
         solution_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, safe_name+"-solution")
 
-        dtslogger.info("Created LX and recipe directories.")
-        dtslogger.info("Customizing the LX ...")
-
         # Update the template files with merged configuration and user values
         # Not included in first config: challenge definitions
+        dtslogger.info("Customizing the LX ...")
         file_updates: dict = {
             os.path.join(lx_path, ".dtproject"): config['lx-dtproject'],  # .dtproject files
             os.path.join(solution_path, ".dtproject"): config['lx-dtproject'],
             os.path.join(recipe_path, "Dockerfile"): config['dockerfile'],  # Dockerfiles
             os.path.join(recipe_path, "Dockerfile.vnc"): config['dockerfile'],
-            os.path.join(recipe_path, "Dockerfile.vscode"): config['dockerfile'],  # Dependencies
-            os.path.join(recipe_path, "dependencies-apt.txt"): config["dependencies"],
-            os.path.join(recipe_path, "dependencies-py3.txt"): config["dependencies"]
-        }  # TODO: Add README, fix apt map
-        dtslogger.debug(f"Making the following template updates: {str(file_updates)} ...")
+            os.path.join(recipe_path, "Dockerfile.vscode"): config['dockerfile'],
+            os.path.join(recipe_path, "dependencies-apt.txt"): config["dependencies"],  # Dependencies
+            os.path.join(recipe_path, "dependencies-py3.txt"): config["dependencies"],  # READMEs
+            os.path.join(lx_path, "README.md"): config["readme"],
+            os.path.join(solution_path, "README.md"): config["readme"],
+            os.path.join(recipe_path, "README.md"): config["readme"]
+        }
+        dtslogger.debug(f"Updating the following template files: {str(file_updates.keys())} ...")
 
-        for file_path, values in file_updates.items():
-            fill_template_file(file_path, values)
+        for file_path, fill_values in file_updates.items():
+            fill_template_file(file_path, fill_values)
 
-        dtslogger.info(f"Your LX was created in {create_dir}. For next steps, see the LX Developer Manual.")
+        # Message success
+        success: str = f"Your LX: '{svalues['name']}' was created in '{create_dir}'."
+        bar: str = "=" * len(success)
+        spc: str = " " * len(success)
+        dtslogger.info(
+            f"\n\n"
+            f"====================={bar}=============================\n"
+            f"|                    {spc}                            |\n"
+            f"|    {success}                                            |\n"
+            f"|                    {spc}                            |\n"           
+            f"|    For next steps, see the LX Developer Manual.{spc}|\n"  # TODO: Link book when live
+            f"|                    {spc}                            |\n"
+            f"====================={bar}=============================\n\n"
+        )
+
+        dtslogger.info(f"To verify your template, run `dts code build --recipe ../{safe_name+'-recipe'}` in the "
+                       f"'{safe_name+'-lx'}' directory. \n")
 
     @staticmethod
     def complete(shell, word, line):

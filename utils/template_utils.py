@@ -4,6 +4,10 @@ import re
 from string import Template
 from typing import List
 
+from dt_shell import dtslogger
+from dt_shell.exceptions import UserError
+
+from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
 
 
@@ -59,6 +63,27 @@ def fill_template_file(template_fpath: str, value_map: dict, dest_fpath: str = N
 
 def fill_template_json(json_values: dict, user_value_map: dict) -> dict:
     """Fills a dict template loaded from json with updated values using Template format"""
-    string_values: str = json.dumps(json_values)
-    filled_string: str = Template(string_values).safe_substitute(user_value_map)
-    return json.loads(filled_string)
+    # Convert any value_map lists to writeable strings before filling
+    for k, raw in user_value_map.items():
+        if type(raw) is list:
+            user_value_map[k] = "\n".join(raw)
+
+    # Flatten the template and fill with user values
+    def fill_items(flat: dict):
+        for key, val in flat.items():
+            if isinstance(val, dict):
+                fill_items(val)
+            else:
+                flat[key] = Template(val).safe_substitute(user_value_map)
+    fill_items(json_values)
+    return json_values
+
+
+def check_dtproject_exists(project_path: str, dtproject_type: str) -> bool:
+    """Enable verifying a template project"""
+    if os.path.exists(project_path) and os.path.isdir(project_path):
+        project: DTProject = DTProject(project_path)
+        if project.type == dtproject_type:
+            return True
+    else:
+        raise UserError(f"There is no DTProject of type '{dtproject_type}' in '{project_path}'")
