@@ -29,7 +29,7 @@ class UpdateResult:
 
 def clone_repository(repo: str, branch: str, destination: str) -> str:
     """Returns: Path to cloned repository"""
-    remote_url: str = f"https://github.com/{repo}"
+    remote_url: str = f"git@github.com:{repo}.git"
     try:
         project_path: str = os.path.join(destination, repo.split("/")[1])
         run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, project_path])
@@ -58,6 +58,17 @@ def clone_unlinked_repo(repo: str, branch: str, destination: str, name: str = No
         return mv_dir
 
     return project_path
+
+
+def merge_dirs_with_patch(from_dir: str, to_dir: str, patch_path: str = None):
+    # Ensure the target directory exists
+    target: str = os.path.join(to_dir, from_dir.split("/")[-1])
+    if not os.path.exists(target):
+        os.makedirs(target)
+
+    # Create and apply the patch
+    patch: str = os.path.join(patch_path, ".patch") if patch_path else ".patch"
+    # TODO: Add back working patch commands
 
 
 def push_repository(git_dir: str, branch: str, commit_msg: str):

@@ -49,6 +49,7 @@ class DTCommand(DTCommandAbs):
         recipe_dir: str = os.path.join(parsed.workdir, project.name+"-recipe")
         solution_dir: str = os.path.join(parsed.workdir, project.name+"-solution")
 
+        # Get the form data
         svalues: Optional[dict] = open_form_from_schema(
             shell,
             "lx-publish",
@@ -65,7 +66,7 @@ class DTCommand(DTCommandAbs):
         config_raw: dict = load_template("lx", "v3")
         config = fill_template_json(config_raw["publish"], svalues)
 
-        # Verify the project structure - # TODO: currently enforcing created names, is this necessary?
+        # Verify the project structure
         check_dtproject_exists(parsed.workdir, "lx-development")
         check_dtproject_exists(lx_dir, "template-exercise")
         check_dtproject_exists(recipe_dir, "template-exercise-recipe")
@@ -78,16 +79,24 @@ class DTCommand(DTCommandAbs):
         with tempfile.TemporaryDirectory() as temp_dir:
             lx_dest: str = clone_repository(svalues["lx_repo"], svalues["lx_branch"], temp_dir)
             recipe_dest: str = clone_repository(svalues["recipe_repo"], svalues["recipe_branch"], temp_dir)
-            sol_dest: str = clone_repository(svalues["solution_repo"], svalues["solution_branch"], temp_dir)
+            solution_dest: str = clone_repository(svalues["solution_repo"], svalues["solution_branch"], temp_dir)
 
-            # TODO: Update to git diff and apply patch file
-            msg: str = svalues["version"] if "version" in svalues.keys() else "Automated commit from dts publish"
-            shutil.copytree(lx_dir, lx_dest, dirs_exist_ok=True)
+            msg: str = svalues["version"] if "version" in svalues else "Automated commit from dts publish"
+            # TODO: Update to git patch solution and remove below
+            target = os.path.join(lx_dest, project.name + "-lx")
+            if not os.path.exists(target): os.makedirs(target)
+            shutil.copytree(lx_dir, target, dirs_exist_ok=True)
             push_repository(lx_dest, svalues["lx_branch"], msg)
-            shutil.copytree(recipe_dir, recipe_dest, dirs_exist_ok=True)
+
+            target = os.path.join(recipe_dest, project.name + "-recipe")
+            if not os.path.exists(target): os.makedirs(target)
+            shutil.copytree(recipe_dir, target, dirs_exist_ok=True)
             push_repository(recipe_dest, svalues["recipe_branch"], msg)
-            shutil.copytree("solution_dir", "solution_dest", dirs_exist_ok=True)
-            push_repository("solution_dest", svalues["solution_branch"], msg)
+
+            target = os.path.join(solution_dest, project.name + "-solution")
+            if not os.path.exists(target): os.makedirs(target)
+            shutil.copytree(solution_dir, target, dirs_exist_ok=True)
+            push_repository(solution_dest, svalues["solution_branch"], msg)
 
         # Message success
         dtslogger.info(

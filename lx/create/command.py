@@ -43,6 +43,8 @@ class DTCommand(DTCommandAbs):
         safe_name: str = re.sub(r'[^\w\s@]', "", svalues["name"]).replace(" ", "-").lower()
         # Clean some form values
         svalues["safe_name"] = safe_name  # file safe alternate name - ex. Robot Time! -> robot-time
+        svalues.setdefault("apt", "\n")
+        svalues.setdefault("py3", "\n")
         dtslogger.debug(f"Form values received: '{str(svalues)}'")
 
         # Load in the template configuration and update with user form values
