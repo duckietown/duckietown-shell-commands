@@ -48,7 +48,7 @@ SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
-SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
+SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 ROOT_PARTITIONS = ["root", "APP"]
 
@@ -87,7 +87,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_nano_2gb": {
             # - stable
-            "1.2.1": "1.1",
+            "1.2.2": "1.1",
             # - experimental
             "-----": "1.1"
         },
@@ -176,6 +176,12 @@ class DTCommand(DTCommandAbs):
             help="Use (experimental) gui",
         )
         parser.add_argument(
+            "--verify",
+            default=False,
+            action="store_true",
+            help="Verify written data",
+        )
+        parser.add_argument(
             "--experimental",
             default=False,
             action="store_true",
@@ -207,6 +213,12 @@ class DTCommand(DTCommandAbs):
         steps = parsed.steps.split(",")
         no_steps = parsed.no_steps.split(",")
         steps = [s for s in steps if s not in no_steps]
+
+        # verify
+        if parsed.verify:
+            if "verify" in no_steps:
+                raise ValueError("You cannot use --verify together with --no-steps verify")
+            steps += ["verify"]
 
         # GUI
         if gui:
@@ -308,13 +320,6 @@ class DTCommand(DTCommandAbs):
         base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental)
         # compile files destinations
         in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
-        # prepare data
-        data = {
-            "robot_configuration": parsed.robot_configuration,
-            "disk_zip": in_file("zip"),
-            "disk_img": in_file("img"),
-            "disk_metadata": in_file("json"),
-        }
         # notify about licenses
         if "license" not in steps:
             board, _ = get_robot_hardware(parsed.robot_configuration)
@@ -333,6 +338,14 @@ class DTCommand(DTCommandAbs):
                 "   - Duckietown Privacy Policy:\t\t"
                 "https://www.duckietown.org/about/privacy",
             )
+        # prepare data
+        data = {
+            "robot_configuration": parsed.robot_configuration,
+            "disk_zip": in_file("zip"),
+            "disk_img": in_file("img"),
+            "disk_metadata": in_file("json"),
+            "steps": steps
+        }
         # perform steps
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
@@ -612,7 +625,7 @@ def step_setup(shell, parsed, data):
         "sanitize_files": None,
         "stats": json.dumps(
             {
-                "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
+                "steps": {step: bool(step in data["steps"]) for step in SUPPORTED_STEPS},
                 "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
                 "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
                 "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(

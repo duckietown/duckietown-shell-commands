@@ -15,7 +15,6 @@ Without arguments the script performs the steps:
     license
     download
     flash
-    verify
     setup
 
 You can use --steps to run only some of those:
@@ -24,7 +23,7 @@ You can use --steps to run only some of those:
 
 You can use --no-steps to exclude some steps:
 
-    dts init_sd_card --no-steps verify
+    dts init_sd_card --no-steps download
 
 
 """
