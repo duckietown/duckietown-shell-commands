@@ -1,10 +1,3 @@
-BASELINE_IMAGES = {
-    "template_ros": "duckietown/challenge-aido_lf-template-ros:ente",
-    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:ente",
-    "template_random": "duckietown/challenge-aido_lf-template-random:ente",
-    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:ente"
-}
-
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +6,15 @@ from typing import Optional
 from dt_shell import dtslogger, UserError
 
 from .yaml_utils import load_yaml
+
+
+BASELINE_IMAGES = {
+    "template_ros": "duckietown/challenge-aido_lf-template-ros:ente",
+    "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:ente",
+    "template_pytorch": "duckietown/challenge-aido_lf-template-pytorch:ente",
+    "template_random": "duckietown/challenge-aido_lf-template-random:ente",
+    "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:ente",
+}
 
 
 @dataclass

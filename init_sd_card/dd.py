@@ -21,7 +21,7 @@ import misc_utils
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="Input device or file")
 parser.add_argument("-o", "--output", required=True, help="Output device or file")
-parser.add_argument("-b", "--block-size", default=1024 ** 2, type=int, help="Block size")
+parser.add_argument("-b", "--block-size", default=1024**2, type=int, help="Block size")
 # parse arguments
 parsed = parser.parse_args()
 

@@ -35,9 +35,16 @@ if [ "${APPLY_DIFF}" != "1" ]; then
         ':!assets' \
         ':!code' \
         ':!html' \
+        ':!docs' \
+        ':!launchers' \
         ':!packages' \
+        ':!dependencies*' \
+        ':!configurations.yaml' \
+        ':!.dtproject' \
         ':!.github' \
-        ':!README.md'
+        ':!.bumpversion.cfg' \
+        ':!README.md' \
+        ':!LICENSE.pdf'
 fi
 
 # run git diff
@@ -55,9 +62,16 @@ if [ "${APPLY_DIFF}" = "1" ]; then
           ':!assets' \
           ':!code' \
           ':!html' \
+          ':!docs' \
+          ':!launchers' \
           ':!packages' \
+          ':!dependencies*' \
+          ':!configurations.yaml' \
+          ':!.dtproject' \
           ':!.github' \
+          ':!.bumpversion.cfg' \
           ':!README.md' \
+          ':!LICENSE.pdf' \
     | git \
       -C "${CODE_DIR}" \
       apply

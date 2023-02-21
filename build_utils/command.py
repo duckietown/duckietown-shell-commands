@@ -22,7 +22,7 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument(
             "--image",
-            default="${%s}/duckietown/duckietown-challenges-cli:ente-amd64" % ENV_REGISTRY,
+            default="${%s}/duckietown/duckietown-challenges-cli:ente" % ENV_REGISTRY,
             help="Which image to use",
         )
 

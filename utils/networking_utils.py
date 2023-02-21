@@ -1,5 +1,6 @@
 import os
 import re
+import socket
 
 
 def get_ip_from_ping(alias):
@@ -19,3 +20,19 @@ def get_duckiebot_ip(duckiebot_name):
         duckiebot_ip = get_ip_from_ping(duckiebot_name)
 
     return duckiebot_ip
+
+
+def resolve_hostname(hostname: str) -> str:
+    # separate protocol (if any)
+    protocol = ""
+    if "://" in hostname:
+        idx = hostname.index("://")
+        protocol, hostname = hostname[0 : idx + len("://")], hostname[idx + len("://") :]
+    # separate port (if any)
+    port = ""
+    if ":" in hostname:
+        idx = hostname.index(":")
+        hostname, port = hostname[0:idx], hostname[idx:]
+    # perform name resolution
+    ip = socket.gethostbyname(hostname)
+    return protocol + ip + port

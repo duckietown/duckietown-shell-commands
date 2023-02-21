@@ -41,7 +41,7 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
 TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
-BLOCK_SIZE = 1024 ** 2
+BLOCK_SIZE = 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
@@ -56,7 +56,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
-        "jetson_nano_4gb": {"stable": "1.2.2", "experimental": "1.2.2"},
+        "jetson_nano_4gb": {"stable": "1.2.2", "experimental": "1.2.3"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -75,7 +75,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             "1.2.1": "1.1",
         },
         "raspberry_pi_64": {"2.0.0": "1.1"},
-        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1"},
+        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1", "1.2.3": "1.1"},
         "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -653,8 +653,12 @@ def step_setup(shell, parsed, data):
 
 
 def _validate_hostname(hostname):
-    if not re.match("^[a-zA-Z0-9]+$", hostname):
-        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,A-Z,0-9].")
+    # The proper regex for RFC 952 should be:
+    # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
+    # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
+    if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
+        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
+                        "It should not start with a digit")
         return False
     return True
 
@@ -733,7 +737,7 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
 
 
 def _get_devices() -> List[SimpleNamespace]:
-    units = {"K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+    units = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
     lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
     out = []
     for line in lsblk.split("\n"):

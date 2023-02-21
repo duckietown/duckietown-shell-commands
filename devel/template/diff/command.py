@@ -44,6 +44,9 @@ class DTCommand(DTCommandAbs):
         template = project.type
         if parsed.template is not None:
             template = parsed.template
+        if template == "none":
+            dtslogger.info("No templates to compare against.")
+            return
         # prepend `duckietown/` if a user is not given
         if "/" not in template:
             template = f"duckietown/{template}"
@@ -67,6 +70,8 @@ class DTCommand(DTCommandAbs):
             "TEMPLATE_VERSION": template_version,
             "APPLY_DIFF": str(int(parsed.apply)),
         }
+        if parsed.apply:
+            dtslogger.info("Applying diff...")
         p = subprocess.Popen(script_path, env=env, shell=True)
         p.communicate()
 

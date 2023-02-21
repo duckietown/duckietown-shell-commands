@@ -13,7 +13,7 @@ from utils.docker_utils import (
     build_logs_to_string,
     get_endpoint_architecture,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
 )
 from utils.dtproject_utils import DTProject
 
@@ -128,7 +128,7 @@ class DTCommand(DTCommandAbs):
         # Get a docker client
         dclient = docker.from_env()
 
-        login_client(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
+        login_client_OLD(dclient, shell.shell_config, registry_to_use, raise_on_error=False)
 
         # build and run the docs container
         dtslogger.info("Building the documentation environment...")
@@ -174,7 +174,10 @@ class DTCommand(DTCommandAbs):
         logs = container.attach(stdout=True, stderr=True, stream=True, logs=True)
         for log_line in logs:
             print(log_line.decode("utf-8"), end="")
-        container.wait()
+        retcode = container.wait()
+        if retcode != 0:
+            dtslogger.error("The documentation build failed. Aborting.")
+            exit(1)
 
         # copy the results back to the host
         bits, stat = container.get_archive(path=f"/{project.name}")

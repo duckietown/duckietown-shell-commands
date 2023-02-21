@@ -232,8 +232,6 @@ class DTCommand(DTCommandAbs):
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            attach_cmd = "docker -H %s attach %s" % (
-                duckiebot_hostname,
-                container_name,
-            )
+            opt_remote_host = "" if parsed.local else f"-H {duckiebot_hostname}"
+            attach_cmd = f"docker {opt_remote_host} attach {container_name}"
             start_command_in_subprocess(attach_cmd)

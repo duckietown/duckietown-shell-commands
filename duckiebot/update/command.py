@@ -7,7 +7,7 @@ from utils.docker_utils import (
     get_client,
     get_endpoint_architecture,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
     pull_image,
 )
 from utils.duckietown_utils import get_distro_version
@@ -55,7 +55,7 @@ class DTCommand(DTCommandAbs):
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client(hostname)
-        login_client(client, shell.shell_config, registry_to_use, raise_on_error=False)
+        login_client_OLD(client, shell.shell_config, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update

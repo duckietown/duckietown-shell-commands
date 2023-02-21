@@ -1,8 +1,11 @@
 import ipaddress
+import os
 import subprocess
+from re import sub
 from shutil import which
 
-__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open"]
+__all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
+           "get_user_login"]
 
 
 def human_time(time_secs, compact=False):
@@ -33,8 +36,11 @@ def human_size(value, suffix="B", precision=2):
 
 
 def sanitize_hostname(hostname):
+    if "://" in hostname:
+        return hostname
     try:
-        ipaddress.ip_address(hostname)
+        ip = hostname.split(":")[0]
+        ipaddress.ip_address(ip)
         return hostname
     except ValueError:
         return f"{hostname}.local" if not hostname.endswith(".local") else hostname
@@ -51,6 +57,25 @@ def sudo_open(path, mode, *_, **__):
     # ---
     proc = subprocess.Popen(["sudo", tool, path], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     return proc.stdout if mode == "r" else proc.stdin
+
+
+def parse_version(v: str) -> tuple:
+    return tuple(map(int, (sub("[^0-9]", "", v).split("."))))
+
+
+def indent_block(s: str, indent: int = 4) -> str:
+    space: str = " " * indent
+    return space + f"\n{space}".join(s.splitlines())
+
+
+def get_user_login() -> str:
+    try:
+        user = os.getlogin()
+    # fall back on getpass for terminals not registering with utmp
+    except FileNotFoundError:
+        import getpass
+        user = getpass.getuser()
+    return user
 
 
 def versiontuple(version: str):

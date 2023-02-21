@@ -24,7 +24,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
     pull_image,
 )
 from utils.dtproject_utils import (
@@ -35,6 +35,10 @@ from utils.dtproject_utils import (
     dtlabel,
     DTProject,
     get_cloud_builder,
+    ARCH_TO_PLATFORM,
+    ARCH_TO_PLATFORM_OS,
+    ARCH_TO_PLATFORM_ARCH,
+    ARCH_TO_PLATFORM_VARIANT,
 )
 from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname
@@ -331,7 +335,7 @@ class DTCommand(DTCommandAbs):
         print(DOCKER_INFO.format(**epoint))
 
         copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
         # pick the right architecture if not set
         if parsed.arch is None:
             parsed.arch = get_endpoint_architecture(parsed.machine)
@@ -358,9 +362,15 @@ class DTCommand(DTCommandAbs):
                 else []
             )
 
-            def _has_shebang(f):
+            def _has_shebang(f) -> bool:
                 with open(f, "rt") as fin:
-                    return fin.readline().startswith("#!")
+                    try:
+                        return fin.readline().startswith("#!")
+                    except UnicodeDecodeError as _e:
+                        dtslogger.error(
+                            f"Launcher file '{f}' contains invalid symbols " f"at {_e.start}:{_e.end}."
+                        )
+                        return False
 
             launchers = [Path(f).stem for f in files if os.access(f, os.X_OK) or _has_shebang(f)]
             # add launchers to image labels
@@ -408,9 +418,14 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn(msg)
 
         # custom Pip registry
-
         docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
         docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+
+        # backward compatibility for non-BuildKit docker build
+        docker_build_args["TARGETPLATFORM"] = ARCH_TO_PLATFORM[parsed.arch]
+        docker_build_args["TARGETOS"] = ARCH_TO_PLATFORM_OS[parsed.arch]
+        docker_build_args["TARGETARCH"] = ARCH_TO_PLATFORM_ARCH[parsed.arch]
+        docker_build_args["TARGETVARIANT"] = ARCH_TO_PLATFORM_VARIANT[parsed.arch]
 
         # custom build arguments
         for key, value in parsed.build_arg:

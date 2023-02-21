@@ -2,20 +2,23 @@ import os
 import platform
 import re
 import subprocess
+import traceback
 from os.path import expanduser
-from typing import Tuple
+from typing import Tuple, Optional
 
-import docker
-from docker import DockerClient
+# TODO: move away from dockerpy
+import docker as dockerOLD
+from docker import DockerClient as DockerClientOLD
 from docker.errors import NotFound
-
-from dt_shell import dtslogger
+from dt_shell import dtslogger, UserError
 from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
-from utils.cli_utils import start_command_in_subprocess
-from utils.networking_utils import get_duckiebot_ip
-from utils.progress_bar import ProgressBar
+
+from .cli_utils import start_command_in_subprocess
+from .misc_utils import parse_version
+from .networking_utils import get_duckiebot_ip, resolve_hostname
+from .progress_bar import ProgressBar
 
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
@@ -40,9 +43,9 @@ Docker Endpoint:
 """
 
 
-def get_registry_to_use() -> str:
+def get_registry_to_use(quiet: bool = False) -> str:
     docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
-    if docker_registry != DEFAULT_REGISTRY:
+    if docker_registry != DEFAULT_REGISTRY and not quiet:
         dtslogger.warning(f"Using custom {ENV_REGISTRY}='{docker_registry}'.")
     return docker_registry
 
@@ -73,7 +76,6 @@ def get_endpoint_ncpus(epoint=None):
     epoint_ncpus = 1
     try:
         epoint_ncpus = client.info()["NCPU"]
-        dtslogger.debug(f"NCPU set to {epoint_ncpus}.")
     except BaseException:
         dtslogger.warning(
             f"Failed to retrieve the number of CPUs on the Docker endpoint. "
@@ -82,14 +84,9 @@ def get_endpoint_ncpus(epoint=None):
     return epoint_ncpus
 
 
-def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
-    from utils.dtproject_utils import CANONICAL_ARCH
+def get_endpoint_architecture_from_client_OLD(client: DockerClientOLD) -> str:
+    from .dtproject_utils import CANONICAL_ARCH
 
-    client = (
-        docker.from_env()
-        if hostname is None
-        else docker.DockerClient(base_url=sanitize_docker_baseurl(hostname, port))
-    )
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
@@ -97,24 +94,40 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT):
     return CANONICAL_ARCH[epoint_arch]
 
 
-def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT):
+def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT) -> str:
+    client = (
+        dockerOLD.from_env()
+        if hostname is None
+        else DockerClientOLD(base_url=sanitize_docker_baseurl(hostname, port))
+    )
+    return get_endpoint_architecture_from_client_OLD(client)
+
+
+def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optional[str]:
+    if baseurl is None:
+        return None
     if baseurl.startswith("unix:"):
         return baseurl
     elif baseurl.startswith("tcp://"):
-        return baseurl
+        return resolve_hostname(baseurl)
     else:
-        return f"tcp://{baseurl}:{port}"
+        url = resolve_hostname(baseurl)
+        if not url.startswith("tcp://"):
+            url = f"tcp://{url}"
+        if url.count(":") == 1:
+            url = f"{url}:{port}"
+        return url
 
 
 def get_client(endpoint=None):
     if endpoint is None:
-        client = docker.from_env(timeout=DEFAULT_API_TIMEOUT)
+        client = dockerOLD.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
         client = (
             endpoint
-            if isinstance(endpoint, docker.DockerClient)
-            else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
+            if isinstance(endpoint, DockerClientOLD)
+            else DockerClientOLD(base_url=sanitize_docker_baseurl(endpoint), timeout=DEFAULT_API_TIMEOUT)
         )
 
     # FIXME: AFD to review
@@ -122,15 +135,15 @@ def get_client(endpoint=None):
     # AC: not the place to do it - note that we also would need to login to multiple registries in some cases
     # (try to) login
     # try:
-    #     _login_client(client, registry=registry)
+    #     _login_client_OLD(client, registry=registry)
     # except BaseException:
     #     dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     # # ---
     return client
 
 
-def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) -> DockerClient:
-    client = docker.DockerClient(base_url=f"tcp://{duckiebot_ip}:{port}")
+def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) -> DockerClientOLD:
+    client = DockerClientOLD(base_url=f"tcp://{duckiebot_ip}:{port}")
     # FIXME: AFD to review
     try:
         env_username, env_password = get_docker_auth_from_env()
@@ -139,14 +152,16 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
     else:
         registry = DEFAULT_REGISTRY
         try:
-            _login_client(client, registry, env_username, env_password, raise_on_error=False)
+            _login_client_OLD(client, registry, env_username, env_password, raise_on_error=False)
         except BaseException:
             dtslogger.warning(f"An error occurred while trying to login to Docker registry {registry!r}.")
     return client
 
 
-def copy_docker_env_into_configuration(shell_config: ShellConfig):
-    registry = get_registry_to_use()
+def copy_docker_env_into_configuration(
+    shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
+):
+    registry = registry or get_registry_to_use(quiet)
     try:
         env_username, env_password = get_docker_auth_from_env()
     except AuthNotFound:
@@ -159,7 +174,7 @@ class CouldNotLogin(Exception):
     pass
 
 
-def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str, raise_on_error: bool):
     """Raises CouldNotLogin"""
     if registry not in shell_config.docker_credentials:
         msg = f"Cannot find {registry!r} in available config credentials.\n"
@@ -182,7 +197,7 @@ def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
         docker_username = reg_credentials["username"]
         docker_password = reg_credentials["secret"]
 
-        _login_client(
+        _login_client_OLD(
             client,
             username=docker_username,
             password=docker_password,
@@ -191,7 +206,9 @@ def login_client(client: DockerClient, shell_config: ShellConfig, registry: str,
         )
 
 
-def _login_client(client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool):
+def _login_client_OLD(
+    client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool
+):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
@@ -208,7 +225,7 @@ def _login_client(client: DockerClient, registry: str, username: str, password: 
 
 # TODO quick hack to make this work - duplication of code above bad
 def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKER_TCP_PORT) -> str:
-    from utils.dtproject_utils import CANONICAL_ARCH
+    from .dtproject_utils import CANONICAL_ARCH
 
     client = get_remote_client(duckiebot_ip=duckiebot_ip, port=port)
     epoint_arch = client.info()["Architecture"]
@@ -412,7 +429,7 @@ def start_picamera(duckiebot_name):
     )
 
 
-def check_if_running(client: DockerClient, container_name: str):
+def check_if_running(client: DockerClientOLD, container_name: str):
     try:
         _ = client.containers.get(container_name)
         dtslogger.info(f"{container_name!r} is running.")
@@ -422,7 +439,7 @@ def check_if_running(client: DockerClient, container_name: str):
         return False
 
 
-def remove_if_running(client: DockerClient, container_name: str):
+def remove_if_running(client: DockerClientOLD, container_name: str):
     try:
         container = client.containers.get(container_name)
     except NotFound:
@@ -612,3 +629,88 @@ escape = re.compile("\x1b\[[\d;]*?m")
 
 def remove_escapes(s):
     return escape.sub("", s)
+
+
+try:
+    import dockertown
+
+    _dockertown_available: bool = True
+except ImportError:
+    dtslogger.warning("Some functionalities are disabled until you update your shell to v5.4.0+")
+    _dockertown_available: bool = False
+
+
+if _dockertown_available:
+    from dockertown import DockerClient
+
+    def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+        """Raises CouldNotLogin"""
+        if registry not in shell_config.docker_credentials:
+            msg = f"Cannot find {registry!r} in available config credentials.\n"
+            msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+            msg += (
+                f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
+                f"--docker-password ...\n"
+            )
+            msg += "\nfor each of the servers"
+
+            if raise_on_error:
+                dtslogger.error(msg)
+                raise CouldNotLogin(f"Could not login to {registry!r}.")
+            else:
+                dtslogger.warn(msg)
+                dtslogger.warn("I will try to continue because raise_on_error = False.")
+
+        else:
+            reg_credentials = shell_config.docker_credentials[registry]
+            docker_username = reg_credentials["username"]
+            docker_password = reg_credentials["secret"]
+
+            _login_client(
+                client,
+                username=docker_username,
+                password=docker_password,
+                registry=registry,
+                raise_on_error=raise_on_error,
+            )
+
+    def _login_client(
+        client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
+    ):
+        """Raises CouldNotLogin"""
+        password_hidden = hide_string(password)
+        dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+        # noinspection PyBroadException
+        try:
+            # TODO: add silent=True to dockertown/dockertown
+            client.login(server=registry, username=username, password=password)
+        except BaseException:
+            if raise_on_error:
+                traceback.print_exc()
+                raise CouldNotLogin(f"Could not login to {registry!r}.")
+
+    def ensure_docker_version(client: DockerClient, v: str):
+        version = client.version()
+        vnow_str = version["Server"]["Version"]
+        vnow = parse_version(vnow_str)
+        if v.endswith("+"):
+            vneed_str = v.rstrip("+")
+            vneed = parse_version(vneed_str)
+            if vnow < vneed:
+                msg = f"""
+    
+                Detected Docker Engine {vnow_str} but this command needs Docker Engine >= {vneed_str}.
+                Please, update your Docker Engine before continuing.
+    
+                """
+                raise UserError(msg)
+        else:
+            vneed = parse_version(v)
+            if vnow != vneed:
+                msg = f"""
+    
+                Detected Docker Engine {vnow_str} but this command needs Docker Engine == {v}.
+                Please, install the correct version before continuing.
+    
+                """
+                raise UserError(msg)

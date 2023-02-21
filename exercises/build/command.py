@@ -26,15 +26,15 @@ usage = """
     This is a helper for the exercises. 
     You must run this command inside an exercise folder. 
 
-    To know more on the `exercise` commands, use `dts duckiebot exercise -h`.
+    To know more on the `exercises` commands, use `dts duckiebot exercises -h`.
 
-        $ dts exercise build 
+        $ dts exercises build 
 
 """
 
 BRANCH = "ente"
 ARCH = "amd64"
-ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-template-ros:{BRANCH}-{ARCH}"
+ROS_TEMPLATE_IMAGE = f"duckietown/challenge-aido_lf-baseline-duckietown:{BRANCH}-{ARCH}"
 CF = "config.yaml"
 
 

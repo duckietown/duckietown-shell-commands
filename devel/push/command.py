@@ -11,7 +11,7 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
     hide_string,
-    login_client,
+    login_client_OLD,
     push_image,
 )
 from utils.dtproject_utils import DTProject
@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
         docker = get_client(parsed.machine)
 
         copy_docker_env_into_configuration(shell.shell_config)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=True)
+        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=True)
 
         version = project.version_name
         if parsed.tag:

@@ -13,7 +13,7 @@ VALID_SPACES = ["user", "public", "private"]
 class DTCommand(DTCommandAbs):
     help = "Downloads a file from the Duckietown Cloud Storage space"
 
-    usage = """
+    usage = f"""
 Usage:
 
     dts data get --space <space> <object> <file>
@@ -22,7 +22,7 @@ OR
 
     dts data get [<space>:]<object> <file>
 
-Where <space> can be one of [public, private].
+Where <space> can be one of {str(VALID_SPACES)}.
 """
 
     @staticmethod
@@ -35,6 +35,12 @@ Where <space> can be one of [public, private].
             default=None,
             choices=VALID_SPACES,
             help="Storage space the object should be downloaded from",
+        )
+        parser.add_argument(
+            "-t",
+            "--token",
+            default=None,
+            help="(Optional) Duckietown token to use",
         )
         parser.add_argument(
             "-f",
@@ -98,12 +104,13 @@ Where <space> can be one of [public, private].
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
         # get the token if it is set
-        token = None
-        # noinspection PyBroadException
-        try:
-            token = shell.get_dt1_token()
-        except Exception:
-            pass
+        token = parsed.token
+        if token is None:
+            # noinspection PyBroadException
+            try:
+                token = shell.get_dt1_token()
+            except Exception:
+                pass
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)

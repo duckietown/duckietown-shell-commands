@@ -6,7 +6,7 @@ from utils.docker_utils import (
     get_client,
     get_endpoint_architecture,
     get_registry_to_use,
-    login_client,
+    login_client_OLD,
     pull_image,
 )
 from utils.dtproject_utils import DTProject
@@ -73,7 +73,7 @@ class DTCommand(DTCommandAbs):
 
         # spin up docker client
         docker = get_client(parsed.machine)
-        login_client(docker, shell.shell_config, registry_to_use, raise_on_error=False)
+        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=False)
         # create defaults
         image = project.image(
             arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version
