@@ -13,7 +13,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 from types import SimpleNamespace
-from typing import List
+from typing import List, Optional
 
 from math import floor, log2
 
@@ -26,6 +26,7 @@ from utils.duckietown_utils import (
     WIRED_ROBOT_TYPES,
 )
 from utils.exceptions import InvalidUserInput
+from utils.json_schema_form_utils import open_form_from_schema
 from utils.misc_utils import human_time, sudo_open
 from utils.progress_bar import ProgressBar
 from .constants import (
@@ -47,7 +48,7 @@ SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
-SUPPORTED_STEPS = ["license", "download", "flash", "verify", "setup"]
+SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 ROOT_PARTITIONS = ["root", "APP"]
 
@@ -56,7 +57,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
-        "jetson_nano_4gb": {"stable": "1.2.2", "experimental": "1.2.3"},
+        "jetson_nano_4gb": {"stable": "1.2.3", "experimental": "1.2.3"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -67,16 +68,29 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
 def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
     board_to_placeholders_version = {
         "raspberry_pi": {
-            "1.0": "1.0",
-            "1.1": "1.1",
-            "1.1.1": "1.1",
-            "1.1.2": "1.1",
-            "1.2.0": "1.1",
+            # - stable
             "1.2.1": "1.1",
+            # - experimental
+            "-----": "1.1",
         },
-        "raspberry_pi_64": {"2.0.0": "1.1"},
-        "jetson_nano_4gb": {"1.2.0": "1.1", "1.2.2": "1.1", "1.2.3": "1.1"},
-        "jetson_nano_2gb": {"1.2.0": "1.1", "1.2.1": "1.1", "1.2.2": "1.1"},
+        "raspberry_pi_64": {
+            # - stable
+            "2.0.0": "1.1",
+            # - experimental
+            "-----": "1.1"
+        },
+        "jetson_nano_4gb": {
+            # - stable
+            "1.2.3": "1.1",
+            # - experimental
+            "-----": "1.1"
+        },
+        "jetson_nano_2gb": {
+            # - stable
+            "1.2.2": "1.1",
+            # - experimental
+            "-----": "1.1"
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
@@ -106,7 +120,7 @@ class DTCommand(DTCommandAbs):
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
         parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
-        parser.add_argument("--hostname", required=True, help="Hostname of the device to flash")
+        parser.add_argument("--hostname", default=None, help="Hostname of the device to flash")
         parser.add_argument("--device", default=None, help="The SD card device to flash")
         parser.add_argument("--country", default="US", help="2-letter country code (US, CA, CH, etc.)")
         parser.add_argument(
@@ -150,7 +164,22 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Whether to use cached ISO image"
+        )
+        parser.add_argument(
+            "--gui",
+            default=False,
+            action="store_true",
+            help="Use (experimental) gui",
+        )
+        parser.add_argument(
+            "--verify",
+            default=False,
+            action="store_true",
+            help="Verify written data",
         )
         parser.add_argument(
             "--experimental",
@@ -166,10 +195,55 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Size of the SD card you are flashing",
         )
         parser.add_argument(
-            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
+            "--workdir",
+            default=TMP_WORKDIR,
+            type=str,
+            help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
+
+        # GUI mode does not have required arguments
+        gui: bool = parsed.gui
+        if not gui and parsed.hostname is None:
+            parser.error("The argument --hostname is required, unless you use --gui.")
+            exit(1)
+
+        # fetch given steps
+        steps = parsed.steps.split(",")
+        no_steps = parsed.no_steps.split(",")
+        steps = [s for s in steps if s not in no_steps]
+
+        # verify
+        if parsed.verify:
+            if "verify" in no_steps:
+                raise ValueError("You cannot use --verify together with --no-steps verify")
+            steps += ["verify"]
+
+        # GUI
+        if gui:
+            # ask the user to fill in the form
+            values: Optional[dict] = open_form_from_schema(
+                shell,
+                "init-sd-card",
+                "v1",
+                title="Initialize a new SD card",
+                subtitle="Let's initialize a new Duckietown robot!",
+                completion_message="All done!\nYou can now close this page and return to the terminal."
+            )
+            if values is None:
+                dtslogger.info("No configuration received, exiting...")
+                exit(0)
+            # populate args
+            parsed.hostname = values["hostname"]
+            parsed.robot_type = values["type"]
+            parsed.robot_configuration = values[f"{parsed.robot_type}_configuration"]
+            parsed.wifi = ",".join([f"{w['ssid']}:{w['wpa']}".strip(":") for w in values.get("wifi", [])])
+            parsed.experimental = values.get("experimental", False)
+            parsed.size = int(values["size"])
+            # the form includes all licenses
+            if "license" in steps:
+                steps.remove("license")
         # validate hostname
         if not _validate_hostname(parsed.hostname):
             return
@@ -230,10 +304,7 @@ class DTCommand(DTCommandAbs):
             exit(2)
         dtslogger.info(f"Robot configuration: {parsed.robot_configuration}")
 
-        # fetch given steps
-        steps = parsed.steps.split(",")
-        no_steps = parsed.no_steps.split(",")
-        steps = [s for s in steps if s not in no_steps]
+        # validate steps
         step2function = {
             "license": step_license,
             "download": step_download,
@@ -241,7 +312,6 @@ class DTCommand(DTCommandAbs):
             "verify": step_verify,
             "setup": step_setup,
         }
-        # validate steps
         for step_name in steps:
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
@@ -250,13 +320,6 @@ class DTCommand(DTCommandAbs):
         base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental)
         # compile files destinations
         in_file = lambda e: os.path.join(parsed.workdir, f"{base_disk_image}.{e}")
-        # prepare data
-        data = {
-            "robot_configuration": parsed.robot_configuration,
-            "disk_zip": in_file("zip"),
-            "disk_img": in_file("img"),
-            "disk_metadata": in_file("json"),
-        }
         # notify about licenses
         if "license" not in steps:
             board, _ = get_robot_hardware(parsed.robot_configuration)
@@ -275,6 +338,14 @@ class DTCommand(DTCommandAbs):
                 "   - Duckietown Privacy Policy:\t\t"
                 "https://www.duckietown.org/about/privacy",
             )
+        # prepare data
+        data = {
+            "robot_configuration": parsed.robot_configuration,
+            "disk_zip": in_file("zip"),
+            "disk_img": in_file("img"),
+            "disk_metadata": in_file("json"),
+            "steps": steps
+        }
         # perform steps
         for step_name in steps:
             data.update(step2function[step_name](shell, parsed, data))
@@ -554,7 +625,7 @@ def step_setup(shell, parsed, data):
         "sanitize_files": None,
         "stats": json.dumps(
             {
-                "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
+                "steps": {step: bool(step in data["steps"]) for step in SUPPORTED_STEPS},
                 "base_disk_name": BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental),
                 "base_disk_version": DISK_IMAGE_VERSION(parsed.robot_configuration, parsed.experimental),
                 "base_disk_location": DISK_IMAGE_CLOUD_LOCATION(

@@ -103,7 +103,6 @@ services:
     network_mode: host
     privileged: true
     pid: host
-    mem_swappiness: 0
     volumes:
       - /data:/data
       # avahi socket

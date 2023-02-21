@@ -195,21 +195,30 @@ class DTCommand(DTCommandAbs):
 
         # tag
         version = project.version_name
-        if parsed.tag:
-            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
-            version = parsed.tag
 
+        # parse template version
         try:
             project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
-        # check if the git HEAD is detached
+
+        # check if the git HEAD is detached, in that case we try and get the HEAD tag if any otherwise bail
         if project.is_detached():
-            dtslogger.error(
-                "The repository HEAD is detached. Create a branch or check one out "
-                "before continuing. Aborting."
-            )
-            exit(8)
+            head_tag = project.head_version
+            if head_tag:
+                version = head_tag
+            else:
+                dtslogger.error(
+                    "The repository HEAD is detached. Create a branch or check one out "
+                    "before continuing. Aborting."
+                )
+                exit(8)
+
+        # override version
+        if parsed.tag:
+            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
+            version = parsed.tag
+
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)

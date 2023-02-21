@@ -28,13 +28,19 @@ class DTCommand(DTCommandAbs):
             "--no-pull",
             default=False,
             action="store_true",
-            help="Whether to skip updating the base image from the registry",
+            help="Skip updating the base image from the registry",
+        )
+        parser.add_argument(
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Ignore the Docker cache"
         )
         parser.add_argument(
             "--push",
             default=False,
             action="store_true",
-            help="Whether to push the resulting Docker image to the registry",
+            help="Push the resulting Docker image to the registry",
         )
         parser.add_argument(
             "--recipe",
@@ -59,7 +65,7 @@ class DTCommand(DTCommandAbs):
             help="Docker tag for the base image. Use when the base image is also a development version",
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
-        parser.add_argument("--quiet", default=False, action="store_true", help="Be verbose")
+        parser.add_argument("--quiet", default=False, action="store_true", help="Be quiet")
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -104,6 +110,7 @@ class DTCommand(DTCommandAbs):
             machine=parsed.machine,
             username=parsed.username,
             file=project.dockerfile,
+            no_cache=parsed.no_cache,
             pull=not parsed.no_pull,
             push=parsed.push,
             recipe=parsed.recipe,

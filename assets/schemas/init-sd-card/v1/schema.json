@@ -1,0 +1,200 @@
+{
+    "schema": {
+        "hostname": {
+            "title": "Name",
+            "description": "A (host)name for your new robot",
+            "type": "string",
+            "format": "hostname",
+            "minLength": 1,
+            "maxLength": 12,
+            "required": true
+        },
+        "type": {
+            "title": "Type",
+            "description": "What type of robot are we initializing today?",
+            "type": "string",
+            "enum": [
+                "duckiebot",
+                "duckiedrone",
+                "watchtower",
+                "greenstation",
+                "traffic_light",
+                "duckietown"
+            ]
+        },
+        "duckiebot_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Duckiebot are we initializing today?",
+            "type": "string",
+            "enum": [
+                "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR4"
+            ]
+        },
+        "duckiedrone_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Duckiedrone are we initializing today?",
+            "type": "string",
+            "enum": [
+                "DD18", "DD21"
+            ]
+        },
+        "watchtower_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Watchtower are we initializing today?",
+            "type": "string",
+            "enum": [
+                "WT18", "WT19A", "WT19B", "WT21A", "WT21B"
+            ]
+        },
+        "greenstation_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Green Station are we initializing today?",
+            "type": "string",
+            "enum": [
+                "GS17"
+            ]
+        },
+        "traffic_light_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Traffic Light are we initializing today?",
+            "type": "string",
+            "enum": [
+                "TL18", "TL19", "TL21"
+            ]
+        },
+        "duckietown_configuration": {
+            "title": "Configuration",
+            "description": "What model of a Duckietown robot are we initializing today?",
+            "type": "string",
+            "enum": [
+                "DT20", "DT21"
+            ]
+        },
+        "size": {
+            "title": "SD card size",
+            "type": "number",
+            "minimum": 1
+        },
+        "wifi": {
+            "type": "array",
+            "title": "Wireless Networks",
+            "description": "List all WiFi networks that you want your robot to connect to",
+            "items": {
+                "type": "object",
+                "title": "WiFi Network {{idx}}",
+                "properties": {
+                    "ssid": {
+                        "type": "string",
+                        "title": "SSID",
+                        "description": "Name of the WiFi network",
+                        "required": true
+                    },
+                    "wpa": {
+                        "type": "password",
+                        "title": "Key",
+                        "description": "The WiFi password (leave empty for open networks)"
+                    }
+                }
+            }
+        },
+        "duckietown_toc": {
+            "type": "string",
+            "title": "Duckietown Terms and Conditions (<a href=\"https://www.duckietown.org/about/terms-and-conditions\" target=\"_blank\">read</a>)",
+            "enum": [ "Accept" ],
+            "required": true
+        },
+        "duckietown_license": {
+            "type": "string",
+            "title": "Duckietown Software License (<a href=\"https://www.duckietown.org/about/sw-license\" target=\"_blank\">read</a>)",
+            "enum": [ "Accept" ],
+            "required": true
+        },
+        "duckietown_privacy": {
+            "type": "string",
+            "title": "Duckietown Privacy Policy (<a href=\"https://www.duckietown.org/about/privacy\" target=\"_blank\">read</a>)",
+            "enum": [ "Accept" ],
+            "required": true
+        },
+        "nvidia_license": {
+            "type": "string",
+            "title": "License For Customer Use of NVIDIA Software (<a href=\"https://www.nvidia.com/en-us/drivers/nvidia-license/\" target=\"_blank\">read</a>)",
+            "enum": [ "Accept" ],
+            "required": true
+        },
+        "experimental": {
+            "title": "Experimental",
+            "type": "boolean"
+        }
+    },
+    "form": [
+        "hostname",
+        {
+            "type": "selectfieldset",
+            "key": "type",
+            "titleMap": {
+                "duckiebot": "Duckiebot",
+                "duckiedrone": "Duckiedrone",
+                "watchtower": "Watchtower",
+                "greenstation": "Greenstation",
+                "traffic_light": "Traffic Light",
+                "duckietown": "Duckietown"
+            },
+            "items": [
+                "duckiebot_configuration",
+                "duckiedrone_configuration",
+                "watchtower_configuration",
+                "greenstation_configuration",
+                "traffic_light_configuration",
+                "duckietown_configuration"
+            ]
+        },
+        {
+            "key": "size",
+            "append": "GB",
+            "htmlClass": "sd-card-size"
+        },
+        "wifi",
+        {
+            "key": "duckietown_toc",
+            "type": "radiobuttons",
+            "activeClass": "btn-success"
+        },
+        {
+            "key": "duckietown_license",
+            "type": "radiobuttons",
+            "activeClass": "btn-success"
+        },
+        {
+            "key": "duckietown_privacy",
+            "type": "radiobuttons",
+            "activeClass": "btn-success"
+        },
+        {
+            "key": "nvidia_license",
+            "type": "radiobuttons",
+            "activeClass": "btn-success"
+        },
+        {
+            "type": "advancedfieldset",
+            "items": [
+                {
+                    "key": "experimental",
+                    "inlinetitle": "Use latest non-stable SD card image"
+                }
+            ]
+        },
+        {
+            "type": "submit",
+            "title": "Confirm"
+        }
+    ],
+    "value": {
+        "type": "duckiebot",
+        "duckiebot_configuration": "DB21J",
+        "duckiedrone_configuration": "DD21",
+        "watchtower_configuration": "WT21B",
+        "greenstation_configuration": "GS17",
+        "traffic_light_configuration": "TL21",
+        "duckietown_configuration": "DT21"
+    }
+}
