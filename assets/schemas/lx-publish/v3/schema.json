@@ -1,0 +1,82 @@
+{
+    "schema": {
+        "lx_repo": {
+            "title": "LX Repository",
+            "description": "Which repository you would like to publish the LX to in the format username/repo_name. NOTE: you will need a personal access token from git to publish to any private repos - see the LX Development Book for more details.",
+            "type": "string",
+            "required": true
+        },
+        "lx_branch": {
+            "title": "LX Branch",
+            "description": "Which branch of the LX repository to use",
+            "type": "string",
+            "required": true
+        },
+        "recipe_repo": {
+            "title": "Recipe Repository",
+            "description": "Which repository you would like to publish the LX recipe to in the format username/repo_name",
+            "type": "string",
+            "required": true
+        },
+        "recipe_branch": {
+            "title": "Recipe Branch",
+            "description": "Which branch of the LX recipe repository to use",
+            "type": "string",
+            "required": true
+        },
+        "solution_repo": {
+            "title": "Solution Repository",
+            "description": "Which repository you would like to publish the LX solution to in the format username/repo_name",
+            "type": "string",
+            "required": true
+        },
+        "solution_branch": {
+            "title": "Solution Branch",
+            "description": "Which branch of the LX solution repository to use",
+            "type": "string",
+            "required": true
+        },
+        "update_defaults":
+        {
+            "type": "string",
+            "title": "Would you like to save these publish locations as the defaults in this form?\n You may still edit the values any time you call `dts lx publish`.",
+            "enum": [ "Yes", "No" ],
+            "activeClass": "btn-success",
+            "required": true
+        },
+        "version": {
+            "title": "Version",
+            "description": "Update notes for this published version",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": false
+        }
+    },
+    "form": [
+        "lx_repo",
+        "lx_branch",
+        "recipe_repo",
+        "recipe_branch",
+        "solution_repo",
+        "solution_branch",
+        {
+            "key": "update_defaults",
+            "type": "radiobuttons"
+        },
+        "version",
+        {
+            "type": "submit",
+            "title": "Publish"
+        }
+    ],
+    "value": {
+        "lx_repo": "duckietown/duckietown-lx",
+        "lx_branch": "test-lx-commands",
+        "recipe_repo": "duckietown/duckietown-lx-recipes",
+        "recipe_branch": "test-lx-commands",
+        "solution_repo": "duckietown/duckietown-lx-solutions",
+        "solution_branch": "test-lx-commands",
+        "update_defaults": "Yes"
+    }
+}
