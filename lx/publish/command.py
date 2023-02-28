@@ -67,6 +67,7 @@ class DTCommand(DTCommandAbs):
         config = fill_template_json(config_raw["publish"], svalues)
 
         # Verify the project structure
+        dtslogger.info("Verifying the project structure ...")
         check_dtproject_exists(parsed.workdir, "lx-development")
         check_dtproject_exists(lx_dir, "template-exercise")
         check_dtproject_exists(recipe_dir, "template-exercise-recipe")
@@ -76,6 +77,7 @@ class DTCommand(DTCommandAbs):
         fill_template_file(os.path.join(parsed.workdir, project.name+"-lx", ".dtproject"), config)
 
         # Create a .temp dir and clone the current versions of the lx destination repositories
+        dtslogger.info("Cloning the publishing repositories ...")
         with tempfile.TemporaryDirectory() as temp_dir:
             lx_dest: str = clone_repository(svalues["lx_repo"], svalues["lx_branch"], temp_dir)
             recipe_dest: str = clone_repository(svalues["recipe_repo"], svalues["recipe_branch"], temp_dir)
@@ -83,16 +85,19 @@ class DTCommand(DTCommandAbs):
 
             msg: str = svalues["version"] if "version" in svalues else "Automated commit from dts publish"
             # TODO: Update to git patch solution and remove below
+            dtslogger.info("Publishing the LX ...")
             target = os.path.join(lx_dest, project.name + "-lx")
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(lx_dir, target, dirs_exist_ok=True)
             push_repository(lx_dest, svalues["lx_branch"], msg)
 
+            dtslogger.info("Publishing the recipe ...")
             target = os.path.join(recipe_dest, project.name + "-recipe")
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(recipe_dir, target, dirs_exist_ok=True)
             push_repository(recipe_dest, svalues["recipe_branch"], msg)
 
+            dtslogger.info("Publishing the recipe ...")
             target = os.path.join(solution_dest, project.name + "-solution")
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(solution_dir, target, dirs_exist_ok=True)
