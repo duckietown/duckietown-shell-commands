@@ -53,14 +53,14 @@
             "description": "Your name and email will be listed as the maintainer in the project files",
             "type": "string",
             "minLength": 1,
-            "maxLength": 24,
+            "maxLength": 50,
             "required": true
         },
         "email": {
             "title": "Maintainer Email",
             "type": "string",
             "minLength": 1,
-            "maxLength": 24,
+            "maxLength": 50,
             "required": true
         }
     },
