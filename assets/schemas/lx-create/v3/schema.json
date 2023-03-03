@@ -24,34 +24,44 @@
             ],
             "required": true
         },
-        "dependencies": {
-            "type": "object",
-            "properties": {
-                "apt": {
-                    "type": "array",
-                    "title": "APT Dependencies",
-                    "description": "Packages you would normally install with 'apt install'",
-                    "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
-                    "items": {
-                        "type": "string",
-                        "title": "APT Package",
-                        "minLength": 2,
-                        "required": true
-                    }
-                },
-                "py3": {
-                    "type": "array",
-                    "title": "Python3 Dependencies",
-                    "description": "Packages you would normally install with 'pip3 install'",
-                    "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
-                    "items": {
-                        "type": "string",
-                        "title": "Python Package",
-                        "minLength": 2,
-                        "required": true
-                    }
-                }
+        "apt": {
+            "type": "array",
+            "title": "APT Dependencies",
+            "description": "Packages you would normally install with 'apt install'",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
+            "items": {
+                "type": "string",
+                "title": "APT Package",
+                "minLength": 2,
+                "required": true
             }
+        },
+        "py3": {
+            "type": "array",
+            "title": "Python3 Dependencies",
+            "description": "Packages you would normally install with 'pip3 install'",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
+            "items": {
+                "type": "string",
+                "title": "Python Package",
+                "minLength": 2,
+                "required": true
+            }
+        },
+        "maintainer": {
+            "title": "Maintainer Name",
+            "description": "Your name and email will be listed as the maintainer in the project files",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": true
+        },
+        "email": {
+            "title": "Maintainer Email",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": true
         }
     },
     "form": [
@@ -65,16 +75,17 @@
                 "challenge-aido_lf-baseline-duckietown-ml": "Machine Learning Baseline (challenge-aido_lf-baseline-duckietown-ml)"
             }
         },
-        "dependencies",
+        "maintainer",
+        "email",
+        "apt",
+        "py3",
         {
             "type": "submit",
             "title": "Generate LX"
         }
     ],
     "value": {
-        "dependencies": {
-            "apt": [],
-            "py3": []
-        }
+        "apt": [],
+        "py3": []
     }
 }

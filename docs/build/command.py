@@ -280,10 +280,6 @@ def build_v2(shell: DTShell, args):
             # consume logs
             for (stream, line) in _logs:
                 line = line.decode("utf-8")
-                if build_html:
-                    line = line.replace(CONTAINER_HTML_DIR, html_dir)
-                if build_pdf:
-                    line = line.replace(CONTAINER_PDF_DIR, pdf_dir)
                 print(line, end="")
 
         # start the book build process
