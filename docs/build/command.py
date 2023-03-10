@@ -118,6 +118,12 @@ def build_v2(shell: DTShell, args):
         help="Whether to build the environment for this project without running it",
     )
     parser.add_argument(
+        "--no-cache",
+        default=False,
+        action="store_true",
+        help="Whether to ignore existing build cache",
+    )
+    parser.add_argument(
         "--plain",
         default=False,
         action="store_true",
@@ -267,13 +273,14 @@ def build_v2(shell: DTShell, args):
             volumes.append((pdf_dir, "/out/pdf", "rw"))
 
         # build cache
-        build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
-        try:
-            os.makedirs(build_cache, exist_ok=True)
-        except Exception:
-            pass
-        if os.path.exists(build_cache):
-            volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
+        if not parsed.no_cache:
+            build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
+            try:
+                os.makedirs(build_cache, exist_ok=True)
+            except Exception:
+                pass
+            if os.path.exists(build_cache):
+                volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
 
         # log reader from container
         def consume_container_logs(_logs):
@@ -288,7 +295,7 @@ def build_v2(shell: DTShell, args):
         args = {
             "image": jb_image_name,
             "remove": True,
-            "user": f"{os.getuid()}:{os.getuid()}",
+            "user": f"{os.getuid()}:{os.getgid()}",
             "envs": {
                 "BOOK_BRANCH_NAME": project.version_name,
                 "DEBUG": "1" if debug else "0"
