@@ -298,7 +298,8 @@ def build_v2(shell: DTShell, args):
             "user": f"{os.getuid()}:{os.getgid()}",
             "envs": {
                 "BOOK_BRANCH_NAME": project.version_name,
-                "DEBUG": "1" if debug else "0"
+                "DEBUG": "1" if debug else "0",
+                "LOCAL_BUILD": "1"
             },
             "volumes": volumes,
             "name": container_name,
