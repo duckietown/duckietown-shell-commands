@@ -3,6 +3,7 @@ import getpass
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -37,6 +38,9 @@ DCSS_RSA_SECRET_LOCATION = "secrets/rsa/ssh-{dns}/id_rsa"
 DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
+
+DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
+DEFAULT_LIBRARY_DISTRO = "daffy"
 
 
 class DTCommand(DTCommandAbs):
@@ -140,6 +144,12 @@ def build_v2(shell: DTShell, args):
         type=str,
         default=None,
         help="Destination hostname of the website to publish, e.g., 'docs.duckietown.com'",
+    )
+    parser.add_argument(
+        "--library",
+        type=str,
+        default=DEFAULT_LIBRARY_HOSTNAME,
+        help="Hostname of the website hosting the library to link to, e.g., 'docs.duckietown.com'",
     )
     parser.add_argument(
         "--no-pull",
@@ -298,6 +308,8 @@ def build_v2(shell: DTShell, args):
             "user": f"{os.getuid()}:{os.getgid()}",
             "envs": {
                 "BOOK_BRANCH_NAME": project.version_name,
+                "LIBRARY_HOSTNAME": parsed.library,
+                "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
                 "DEBUG": "1" if debug else "0",
                 "LOCAL_BUILD": "1"
             },
@@ -376,6 +388,9 @@ def build_v2(shell: DTShell, args):
         handler.buffer.seek(0)
         rsa_key = handler.buffer.read().decode("utf-8")
 
+        # get distro from branch name
+        library_distro, *_ = re.split(r"[^a-z]+", project.version_name)
+
         # define ssh configuration
         ssh_hostname = f"ssh-{dns}"
 
@@ -398,6 +413,8 @@ def build_v2(shell: DTShell, args):
                 "SSH_USERNAME": SSH_USERNAME,
                 "BOOK_NAME": project.name,
                 "BOOK_BRANCH_NAME": project.version_name,
+                "LIBRARY_HOSTNAME": dns,
+                "LIBRARY_DISTRO": library_distro,
                 "DT_LAUNCHER": "ci-build"
             },
             "stream": True
