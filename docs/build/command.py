@@ -199,6 +199,7 @@ def build_v2(shell: DTShell, args):
     registry_to_use = get_registry_to_use()
     debug = dtslogger.level <= logging.DEBUG
     build_args = []
+    mount_flags = lambda f: ",".join([f] + (["cached"] if sys.platform == "darwin" else []))
 
     # load project
     parsed.workdir = os.path.abspath(parsed.workdir)
@@ -270,17 +271,17 @@ def build_v2(shell: DTShell, args):
         pdf_dir: str = os.path.join(project.path, "pdf")
         volumes: List[Tuple[str, str, str]] = [
             # source files
-            (project.path, "/book", "ro"),
+            (project.path, "/book", mount_flags("ro")),
         ]
 
         # build HTML
         build_pdf: bool = parsed.pdf
         build_html: bool = True
         if build_html:
-            volumes.append((html_dir, "/out/html", "rw"))
+            volumes.append((html_dir, "/out/html", mount_flags("rw")))
         # build PDF
         if build_pdf:
-            volumes.append((pdf_dir, "/out/pdf", "rw"))
+            volumes.append((pdf_dir, "/out/pdf", mount_flags("rw")))
 
         # build cache
         if not parsed.no_cache:
@@ -290,7 +291,7 @@ def build_v2(shell: DTShell, args):
             except Exception:
                 pass
             if os.path.exists(build_cache):
-                volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
+                volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, mount_flags("rw")))
 
         # log reader from container
         def consume_container_logs(_logs):
