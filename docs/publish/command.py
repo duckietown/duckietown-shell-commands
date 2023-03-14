@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import re
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Tuple, List
@@ -24,6 +25,7 @@ DCSS_RSA_SECRET_LOCATION = "secrets/rsa/{dns}/id_rsa"
 DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CONTAINER_RSA_KEY_LOCATION = "/ssh/id_rsa"
+SAFE_BRANCH_REGEX = re.compile("^[a-z]+-staging$")
 
 
 class DTCommand(DTCommandAbs):
@@ -42,6 +44,12 @@ class DTCommand(DTCommandAbs):
             "--distro",
             default=None,
             help="Which base distro (jupyter-book) to use"
+        )
+        parser.add_argument(
+            "--force",
+            default=False,
+            action="store_true",
+            help="Force the action",
         )
         parser.add_argument(
             "destination",
@@ -84,6 +92,12 @@ class DTCommand(DTCommandAbs):
         SSH_HOSTNAME = f"ssh-{parsed.destination}"
         BOOK_NAME = project.name
         BOOK_BRANCH_NAME = project.version_name
+
+        # safe branch names
+        if not SAFE_BRANCH_REGEX.match(BOOK_BRANCH_NAME) and not parsed.force:
+            dtslogger.error(f"Users can only publish branches matching the pattern "
+                            f"'{SAFE_BRANCH_REGEX.pattern}', unless forced (--force).")
+            exit(1)
 
         # custom distro
         if parsed.distro:
