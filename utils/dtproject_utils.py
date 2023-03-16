@@ -164,6 +164,7 @@ class DTProject:
         self._version = self._project_info["VERSION"]
         self._adapters.append("dtproject")
         self._custom_recipe_dir: Optional[str] = None
+        self._recipe_version: Optional[str] = None
         # use `git` adapter if available
         if os.path.isdir(os.path.join(self._path, ".git")):
             repo_info = self._get_repo_info(self._path)
@@ -251,7 +252,7 @@ class DTProject:
             if self._custom_recipe_dir
             else get_recipe_project_dir(
                 self.metadata["RECIPE_REPOSITORY"],
-                self.metadata["RECIPE_BRANCH"],
+                self._recipe_version or self.metadata["RECIPE_BRANCH"],
                 self.metadata["RECIPE_LOCATION"],
             )
         )
@@ -335,6 +336,9 @@ class DTProject:
     def set_recipe_dir(self, path: str):
         self._custom_recipe_dir = path
 
+    def set_recipe_version(self, branch: str):
+        self._recipe_version = branch
+
     def ensure_recipe_exists(self):
         if not self.needs_recipe:
             return
@@ -342,7 +346,7 @@ class DTProject:
         if not os.path.exists(self.recipe_dir):
             cloned: bool = clone_recipe(
                 self.metadata["RECIPE_REPOSITORY"],
-                self.metadata["RECIPE_BRANCH"],
+                self._recipe_version or self.metadata["RECIPE_BRANCH"],
                 self.metadata["RECIPE_LOCATION"],
             )
             if not cloned:
@@ -359,7 +363,7 @@ class DTProject:
         if self.needs_recipe and not self._custom_recipe_dir:
             return update_recipe(
                 self.metadata["RECIPE_REPOSITORY"],
-                self.metadata["RECIPE_BRANCH"],
+                self._recipe_version or self.metadata["RECIPE_BRANCH"],
                 self.metadata["RECIPE_LOCATION"],
             )  # raises: UserError if the recipe has not been cloned
         return False

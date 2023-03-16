@@ -166,6 +166,9 @@ class DTCommand(DTCommandAbs):
                 else:
                     raise UserError("This project does not support recipes")
             else:
+                if parsed.recipe_version:
+                    project.set_recipe_version(parsed.recipe_version)
+                    dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
                 project.ensure_recipe_exists()
                 project.ensure_recipe_updated()
             recipe: Optional[DTProject] = project.recipe
@@ -199,6 +202,7 @@ class DTCommand(DTCommandAbs):
                         tag=vscode_image_tag,
                         file=project.vscode_dockerfile,
                         recipe=recipe.path if recipe else None,
+                        recipe_version=parsed.recipe_version,
                         build_arg=build_args,
                         pull=not parsed.no_pull,
                         verbose=parsed.verbose,

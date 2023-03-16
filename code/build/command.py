@@ -96,6 +96,9 @@ class DTCommand(DTCommandAbs):
             else:
                 raise UserError("This project does not support recipes")
         else:
+            if parsed.recipe_version:
+                project.set_recipe_version(parsed.recipe_version)
+                dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
             project.ensure_recipe_exists()
             project.ensure_recipe_updated()
 
@@ -119,6 +122,7 @@ class DTCommand(DTCommandAbs):
             pull=not parsed.no_pull,
             push=parsed.push,
             recipe=parsed.recipe,
+            recipe_version=parsed.recipe_version,
             registry=parsed.registry,
             verbose=parsed.verbose,
             quiet=parsed.quiet,
