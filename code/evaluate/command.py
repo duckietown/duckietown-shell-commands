@@ -54,7 +54,12 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--recipe",
             default=None,
-            help="Path to use if specifying a custom recipe",
+            help="Path to use if specifying a custom local recipe path",
+        )
+        parser.add_argument(
+            "--recipe-version",
+            default=None,
+            help="Branch to use if specifying a test branch of the recipes repository",
         )
         parser.add_argument(
             "--no-pull",

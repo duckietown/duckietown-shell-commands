@@ -72,7 +72,12 @@ class DTCommand(DTCommandAbs):
             "--recipe",
             type=str,
             default=None,
-            help="Path to a custom recipe to use",
+            help="Path to use if specifying a custom local recipe path",
+        )
+        parser.add_argument(
+            "--recipe-version",
+            default=None,
+            help="Branch to use if specifying a test branch of the recipes repository",
         )
         parser.add_argument(
             "--image",
