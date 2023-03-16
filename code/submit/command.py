@@ -53,7 +53,12 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--recipe",
             default=None,
-            help="Path to use if specifying a custom recipe",
+            help="Path to use if specifying a custom local recipe path",
+        )
+        parser.add_argument(
+            "--recipe-version",
+            default=None,
+            help="Branch to use if specifying a test branch of the recipes repository",
         )
         parser.add_argument(
             "--no-pull",
@@ -113,6 +118,9 @@ class DTCommand(DTCommandAbs):
             else:
                 raise UserError("This project does not support recipes")
         else:
+            if parsed.recipe_version:
+                project.set_recipe_version(parsed.recipe_version)
+                dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
             project.ensure_recipe_exists()
             project.ensure_recipe_updated()
 
@@ -157,6 +165,7 @@ class DTCommand(DTCommandAbs):
             machine=parsed.machine,
             username=parsed.username,
             recipe=parsed.recipe,
+            recipe_version=parsed.recipe_version,
             launcher=parsed.launcher,
             verbose=parsed.verbose,
             no_cache=parsed.no_cache,
