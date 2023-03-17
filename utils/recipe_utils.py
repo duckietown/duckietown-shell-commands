@@ -52,7 +52,7 @@ def clone_recipe(repository: str, branch: str, location: str) -> bool:
         repo_dir: str = get_recipe_repo_dir(repository, branch)
         dtslogger.info(f"Downloading recipes...")
         dtslogger.debug(f"Downloading recipes into '{repo_dir}' ...")
-        remote_url: str = f"https://github.com/{repository}"
+        remote_url: str = f"git@github.com:{repository}.git"
         run_cmd(["git", "clone", "-b", branch, "--recurse-submodules", remote_url, repo_dir])
         dtslogger.info(f"Recipes downloaded!")
         return True
