@@ -171,7 +171,12 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--recipe",
             default=None,
-            help="Path to a recipe to use",
+            help="Path to use if specifying a custom local recipe path",
+        )
+        parser.add_argument(
+            "--recipe-version",
+            default=None,
+            help="Branch to use if specifying a test branch of the recipes repository",
         )
         parser.add_argument(
             "-b",
@@ -270,6 +275,9 @@ class DTCommand(DTCommandAbs):
                 project.set_recipe_dir(recipe_dir)
             else:
                 raise UserError("This project does not support recipes")
+        elif parsed.recipe_version:
+            project.set_recipe_version(parsed.recipe_version)
+            dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
         recipe: Optional[DTProject] = project.recipe
 
         # tag

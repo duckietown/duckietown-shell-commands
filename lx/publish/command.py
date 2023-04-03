@@ -43,7 +43,7 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
         if not check_dtproject_exists(parsed.workdir, "lx-development"):
-            dtslogger.error(f"You need to be in a 'lx-development' project directory to publish with 'dts lx publish'."
+            dtslogger.error(f"You need to be in a 'lx-development' project directory to publish with 'dts lx publish'. "
                             f"You can generate this type of project with 'dts lx create'.")
         lx_dir: str = os.path.join(parsed.workdir, project.name+"-lx")
         recipe_dir: str = os.path.join(parsed.workdir, project.name+"-recipe")
@@ -77,7 +77,7 @@ class DTCommand(DTCommandAbs):
         fill_template_file(os.path.join(parsed.workdir, project.name+"-lx", ".dtproject"), config)
 
         # Create a .temp dir and clone the current versions of the lx destination repositories
-        dtslogger.info("Cloning the publishing repositories ...")
+        dtslogger.info("Cloning the publishing repositories. This may take a few minutes ...")
         with tempfile.TemporaryDirectory() as temp_dir:
             lx_dest: str = clone_repository(svalues["lx_repo"], svalues["lx_branch"], temp_dir)
             recipe_dest: str = clone_repository(svalues["recipe_repo"], svalues["recipe_branch"], temp_dir)
