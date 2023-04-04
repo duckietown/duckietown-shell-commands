@@ -86,7 +86,7 @@ class DTCommand(DTCommandAbs):
             msg: str = svalues["version"] if "version" in svalues else "Automated commit from dts publish"
             # TODO: Update to git patch solution and remove below
             dtslogger.info("Publishing the LX ...")
-            target = os.path.join(lx_dest, project.name + "lx")
+            target = os.path.join(lx_dest, project.name)
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(lx_dir, target, dirs_exist_ok=True)
             push_repository(lx_dest, svalues["lx_branch"], msg)
