@@ -74,7 +74,7 @@ class DTCommand(DTCommandAbs):
         check_dtproject_exists(solution_dir, "template-exercise")
 
         # Update the recipe references if necessary
-        fill_template_file(os.path.join(parsed.workdir, project.name+"-lx", ".dtproject"), config)
+        fill_template_file(os.path.join(parsed.workdir, "lx", ".dtproject"), config)
 
         # Create a .temp dir and clone the current versions of the lx destination repositories
         dtslogger.info("Cloning the publishing repositories. This may take a few minutes ...")
