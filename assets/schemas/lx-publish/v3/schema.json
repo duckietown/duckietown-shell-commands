@@ -2,13 +2,13 @@
     "schema": {
         "lx_repo": {
             "title": "LX Repository",
-            "description": "Which repository you would like to publish the LX to. This should be in the format `username/repository`.",
+            "description": "Which repository would you like to publish the LX to? This should be in the format `username/repository`.",
             "type": "string",
             "required": true
         },
         "lx_branch": {
             "title": "LX Branch",
-            "description": "Which branch of the LX repository to use. This branch must currently exist in the repository.",
+            "description": "Which branch of the LX repository would you like to use? If this branch does not exist in the repository it will be created for you.",
             "type": "string",
             "required": true
         },
@@ -41,8 +41,8 @@
             "required": true
         },
         "version": {
-            "title": "Version",
-            "description": "Update notes for this published version",
+            "title": "Version Notes",
+            "description": "This will be used as the commit message to your LX repository.",
             "type": "string",
             "minLength": 1,
             "maxLength": 24,
