@@ -8,7 +8,7 @@
         },
         "lx_branch": {
             "title": "LX Branch",
-            "description": "Which branch of the LX repository would you like to use? If this branch does not exist in the repository it will be created for you.",
+            "description": "Which branch of the LX repository would you like to use? Warning: This branch needs to currently exist.",
             "type": "string",
             "required": true
         },
