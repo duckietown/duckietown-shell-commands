@@ -9,13 +9,13 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from disk_image.create.constants import \
     AUTOBOOT_STACKS_DIR, \
     MODULES_TO_LOAD, \
-    DOCKER_IMAGE_TEMPLATE, \
-    DEFAULT_DOCKER_REGISTRY
+    DOCKER_IMAGE_TEMPLATE
 from disk_image.create.utils import \
     list_files,\
     run_cmd,\
     replace_in_file,\
     pull_docker_image
+from utils.docker_utils import get_registry_to_use
 from utils.duckietown_utils import \
     get_distro_version,\
     get_robot_types,\
@@ -65,6 +65,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(
                 "Robot name can only contain letters and numbers and cannot start with a number.")
             return
+        # get registry
+        registry_to_use: str = get_registry_to_use()
         # get the robot configuration
         allowed_configs = get_robot_configurations(parsed.type)
         if parsed.configuration is None:
@@ -114,17 +116,14 @@ class DTCommand(DTCommandAbs):
                 run_cmd(["cp", origin, destination])
                 # add architecture as default value in the stack file
                 dtslogger.debug(
-                    "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s"
-                    % (DEVICE_ARCH, destination)
+                    "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s" % (DEVICE_ARCH, destination)
                 )
                 replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination, open)
                 # add registry as default value in the stack file
                 dtslogger.debug(
-                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
-                    % (DEFAULT_DOCKER_REGISTRY, destination)
+                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s" % (registry_to_use, destination)
                 )
-                replace_in_file("{REGISTRY}", "{REGISTRY:-%s}" %
-                                DEFAULT_DOCKER_REGISTRY, destination, open)
+                replace_in_file("{REGISTRY}", "{REGISTRY:-%s}" % registry_to_use, destination, open)
             # download docker images
             dtslogger.info("Transferring Docker images to your virtual robot.")
             local_docker = docker.from_env()
@@ -164,6 +163,7 @@ class DTCommand(DTCommandAbs):
                         version=distro,
                         tag=module["tag"] if "tag" in module else None,
                         arch=DEVICE_ARCH,
+                        registry=module.get("registry", registry_to_use)
                     )
                     pull_docker_image(remote_docker, image)
                 # ---

@@ -1,7 +1,8 @@
 import os
 import argparse
 
-import docker
+import docker as dockerpy
+from dockertown import DockerClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.utils import pull_docker_image
@@ -27,13 +28,18 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Update the runtime image"
         )
+        parser.add_argument(
+            "-t",
+            "--tag",
+            type=str,
+            default=get_distro_version(shell),
+            help="Tag of the robot runtime image to use"
+        )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to start")
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments
         parsed.robot = parsed.robot[0]
-        # get version
-        distro = get_distro_version(shell)
         # make sure the virtual robot exists
         vbot_dir = os.path.join(VIRTUAL_FLEET_DIR, parsed.robot)
         if not os.path.isdir(vbot_dir):
@@ -45,47 +51,36 @@ class DTCommand(DTCommandAbs):
                             f"for robot '{parsed.robot}'")
             return
         # make sure the virtual robot is not running already
-        local_docker = docker.from_env()
+        local_docker = dockerpy.from_env()
+        docker = DockerClient()
         try:
             local_docker.containers.get(f"dts-virtual-{parsed.robot}")
             dtslogger.error(f"Another instance of the virtual robot '{parsed.robot}' was found, "
                             f"you cannot have two copies of the same robot running.")
             return
-        except docker.errors.NotFound:
+        except dockerpy.errors.NotFound:
             # good
             pass
         # launch robot
-        runtime_image = VIRTUAL_ROBOT_RUNTIME_IMAGE.format(distro=distro)
+        runtime_image = VIRTUAL_ROBOT_RUNTIME_IMAGE.format(distro=parsed.tag)
         if parsed.pull:
             dtslogger.info("Downloading virtual robot runtime...")
             # pull dind image
             pull_docker_image(local_docker, runtime_image)
         # runtime
-        local_docker.containers.run(
+        docker.container.run(
             image=runtime_image,
             detach=True,
             remove=True,
             privileged=True,
             name=f"dts-virtual-{parsed.robot}",
             hostname=parsed.robot,
+            cgroupns="private",
             volumes={
-                "/sys/fs/cgroup": {
-                    "bind": "/sys/fs/cgroup",
-                    "mode": "ro"
-                },
-                os.path.join(vbot_root_dir, "data"): {
-                    "bind": "/data",
-                    "mode": "rw"
-                },
-                os.path.join(vbot_root_dir, "var", "lib", "docker"): {
-                    "bind": "/var/lib/docker",
-                    "mode": "rw"
-                },
-                os.path.join(vbot_root_dir, "boot"): {
-                    "bind": "/boot",
-                    "mode": "rw"
-                },
-            }
+                (os.path.join(vbot_root_dir, "data"), "/data", "rw"),
+                (os.path.join(vbot_root_dir, "var", "lib", "docker"), "/var/lib/docker", "rw"),
+                (os.path.join(vbot_root_dir, "boot"), "/boot", "rw"),
+            },
         )
         # ---
         print()
