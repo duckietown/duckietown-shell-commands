@@ -1,0 +1,107 @@
+{
+    "schema": {
+        "name": {
+            "title": "Name",
+            "description": "What is the name of your new Learning Experience?",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "required": true
+        },
+        "description": {
+            "title": "Description",
+            "description": "What is this Learning Experience about?",
+            "type": "string",
+            "required": true
+        },
+        "base": {
+            "title": "Base",
+            "description": "Which baseline will be the foundation for your Learning Experience?",
+            "type": "string",
+            "enum": [
+                "challenge-aido_lf-baseline-duckietown",
+                "challenge-aido_lf-baseline-duckietown-ml"
+            ],
+            "required": true
+        },
+        "versions": {
+            "title": "Supported Robot Versions",
+            "description": "Which robots will your Learning Experience support?",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "title": "Option",
+                "enum": [
+                    "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR4"
+                ]
+            }
+        },
+        "apt": {
+            "type": "array",
+            "title": "APT Dependencies",
+            "description": "List the packages you would normally install with 'apt install'.",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
+            "items": {
+                "type": "string",
+                "title": "APT Package",
+                "minLength": 2,
+                "required": true
+            }
+        },
+        "py3": {
+            "type": "array",
+            "title": "Python3 Dependencies",
+            "description": "List the packages you would normally install with 'pip3 install'.",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9\\-_]+$",
+            "items": {
+                "type": "string",
+                "title": "Python Package",
+                "minLength": 2,
+                "required": true
+            }
+        },
+        "maintainer": {
+            "title": "Maintainer Name",
+            "description": "Your name and email will be listed as the maintainer in the project files.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "required": true
+        },
+        "email": {
+            "title": "Maintainer Email",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "required": true
+        }
+    },
+    "form": [
+        "name",
+        "description",
+        {
+            "key": "base",
+            "type": "radios",
+            "titleMap": {
+                "challenge-aido_lf-baseline-duckietown": "Duckietown Baseline (challenge-aido_lf-baseline-duckietown)",
+                "challenge-aido_lf-baseline-duckietown-ml": "Machine Learning Baseline (challenge-aido_lf-baseline-duckietown-ml)"
+            }
+        },
+        {
+            "key": "versions",
+            "type": "checkboxes"
+        },
+        "maintainer",
+        "email",
+        "apt",
+        "py3",
+        {
+            "type": "submit",
+            "title": "Generate LX"
+        }
+    ],
+    "value": {
+        "apt": [],
+        "py3": []
+    }
+}

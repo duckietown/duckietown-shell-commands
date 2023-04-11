@@ -3,6 +3,7 @@ import getpass
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -37,6 +38,9 @@ DCSS_RSA_SECRET_LOCATION = "secrets/rsa/ssh-{dns}/id_rsa"
 DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
+
+DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
+DEFAULT_LIBRARY_DISTRO = "daffy"
 
 
 class DTCommand(DTCommandAbs):
@@ -118,6 +122,12 @@ def build_v2(shell: DTShell, args):
         help="Whether to build the environment for this project without running it",
     )
     parser.add_argument(
+        "--no-cache",
+        default=False,
+        action="store_true",
+        help="Whether to ignore existing build cache",
+    )
+    parser.add_argument(
         "--plain",
         default=False,
         action="store_true",
@@ -134,6 +144,12 @@ def build_v2(shell: DTShell, args):
         type=str,
         default=None,
         help="Destination hostname of the website to publish, e.g., 'docs.duckietown.com'",
+    )
+    parser.add_argument(
+        "--library",
+        type=str,
+        default=DEFAULT_LIBRARY_HOSTNAME,
+        help="Hostname of the website hosting the library to link to, e.g., 'docs.duckietown.com'",
     )
     parser.add_argument(
         "--no-pull",
@@ -183,6 +199,7 @@ def build_v2(shell: DTShell, args):
     registry_to_use = get_registry_to_use()
     debug = dtslogger.level <= logging.DEBUG
     build_args = []
+    mount_flags = lambda f: ",".join([f] + (["cached"] if sys.platform == "darwin" else []))
 
     # load project
     parsed.workdir = os.path.abspath(parsed.workdir)
@@ -254,36 +271,33 @@ def build_v2(shell: DTShell, args):
         pdf_dir: str = os.path.join(project.path, "pdf")
         volumes: List[Tuple[str, str, str]] = [
             # source files
-            (project.path, "/book", "ro"),
+            (project.path, "/book", mount_flags("ro")),
         ]
 
         # build HTML
         build_pdf: bool = parsed.pdf
         build_html: bool = True
         if build_html:
-            volumes.append((html_dir, "/out/html", "rw"))
+            volumes.append((html_dir, "/out/html", mount_flags("rw")))
         # build PDF
         if build_pdf:
-            volumes.append((pdf_dir, "/out/pdf", "rw"))
+            volumes.append((pdf_dir, "/out/pdf", mount_flags("rw")))
 
         # build cache
-        build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
-        try:
-            os.makedirs(build_cache, exist_ok=True)
-        except Exception:
-            pass
-        if os.path.exists(build_cache):
-            volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
+        if not parsed.no_cache:
+            build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
+            try:
+                os.makedirs(build_cache, exist_ok=True)
+            except Exception:
+                pass
+            if os.path.exists(build_cache):
+                volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, mount_flags("rw")))
 
         # log reader from container
         def consume_container_logs(_logs):
             # consume logs
             for (stream, line) in _logs:
                 line = line.decode("utf-8")
-                if build_html:
-                    line = line.replace(CONTAINER_HTML_DIR, html_dir)
-                if build_pdf:
-                    line = line.replace(CONTAINER_PDF_DIR, pdf_dir)
                 print(line, end="")
 
         # start the book build process
@@ -292,10 +306,13 @@ def build_v2(shell: DTShell, args):
         args = {
             "image": jb_image_name,
             "remove": True,
-            "user": f"{os.getuid()}:{os.getuid()}",
+            "user": f"{os.getuid()}:{os.getgid()}",
             "envs": {
                 "BOOK_BRANCH_NAME": project.version_name,
-                "DEBUG": "1" if debug else "0"
+                "LIBRARY_HOSTNAME": parsed.library,
+                "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
+                "DEBUG": "1" if debug else "0",
+                "PRODUCTION_BUILD": "0"
             },
             "volumes": volumes,
             "name": container_name,
@@ -372,6 +389,10 @@ def build_v2(shell: DTShell, args):
         handler.buffer.seek(0)
         rsa_key = handler.buffer.read().decode("utf-8")
 
+        # get distro from branch name
+        library_distro, *_ = re.split(r"[^a-z]+", project.version_name)
+        production_build: bool = library_distro == project.version_name
+
         # define ssh configuration
         ssh_hostname = f"ssh-{dns}"
 
@@ -394,7 +415,10 @@ def build_v2(shell: DTShell, args):
                 "SSH_USERNAME": SSH_USERNAME,
                 "BOOK_NAME": project.name,
                 "BOOK_BRANCH_NAME": project.version_name,
-                "DT_LAUNCHER": "ci-build"
+                "LIBRARY_HOSTNAME": dns,
+                "LIBRARY_DISTRO": library_distro,
+                "DT_LAUNCHER": "ci-build",
+                "PRODUCTION_BUILD": str(int(production_build))
             },
             "stream": True
         }

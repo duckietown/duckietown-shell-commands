@@ -2,14 +2,13 @@ import argparse
 import json
 import logging
 import os
-import shutil
+import re
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Tuple, List
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from utils.cli_utils import check_program_dependency
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
 from utils.dtproject_utils import DTProject
 from utils.duckietown_utils import get_distro_version
@@ -26,6 +25,7 @@ DCSS_RSA_SECRET_LOCATION = "secrets/rsa/{dns}/id_rsa"
 DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CONTAINER_RSA_KEY_LOCATION = "/ssh/id_rsa"
+SAFE_BRANCH_REGEX = re.compile("^[a-z]+-staging$")
 
 
 class DTCommand(DTCommandAbs):
@@ -46,6 +46,12 @@ class DTCommand(DTCommandAbs):
             help="Which base distro (jupyter-book) to use"
         )
         parser.add_argument(
+            "--force",
+            default=False,
+            action="store_true",
+            help="Force the action",
+        )
+        parser.add_argument(
             "destination",
             type=str,
             nargs=1,
@@ -64,7 +70,7 @@ class DTCommand(DTCommandAbs):
         # make sure we are building the right project type
         if project.type != "template-book":
             dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
-                            f"'template-book' can be cleaned with 'dts docs clean'.")
+                            f"'template-book' can be published with 'dts docs publish'.")
             return False
 
         # make sure we support this version of the template
@@ -86,6 +92,12 @@ class DTCommand(DTCommandAbs):
         SSH_HOSTNAME = f"ssh-{parsed.destination}"
         BOOK_NAME = project.name
         BOOK_BRANCH_NAME = project.version_name
+
+        # safe branch names
+        if not SAFE_BRANCH_REGEX.match(BOOK_BRANCH_NAME) and not parsed.force:
+            dtslogger.error(f"Users can only publish branches matching the pattern "
+                            f"'{SAFE_BRANCH_REGEX.pattern}', unless forced (--force).")
+            exit(1)
 
         # custom distro
         if parsed.distro:
@@ -166,5 +178,18 @@ class DTCommand(DTCommandAbs):
                 line = line.decode("utf-8")
                 print(line, end="")
 
-            dtslogger.info(f"Project '{project.name}' published.")
-
+            published_title: str = project.name.replace("book-", "", 1)  #TODO: Where does jupyter-book cut this?
+            url: str = f"https://{parsed.destination}/{BOOK_BRANCH_NAME}/{published_title}/index.html"
+            bar: str = "=" * len(url)
+            spc: str = " " * len(url)
+            pspc: str = " " * (len(url)-len(project.name))
+            dtslogger.info(
+                f"\n\n"
+                f"====================={bar}===========================================\n"
+                f"|                    {spc}                                          |\n"
+                f"|    Project '{project.name}' published to:{pspc}                                  |\n"
+                f"|                    {spc}                                          |\n"
+                f"|        >   {url}                                                  |\n"
+                f"|                    {spc}                                          |\n"
+                f"====================={bar}===========================================\n"
+            )
