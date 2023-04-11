@@ -45,9 +45,9 @@ class DTCommand(DTCommandAbs):
         if not check_dtproject_exists(parsed.workdir, "lx-development"):
             dtslogger.error(f"You need to be in a 'lx-development' project directory to publish with 'dts lx publish'. "
                             f"You can generate this type of project with 'dts lx create'.")
-        lx_dir: str = os.path.join(parsed.workdir, project.name+"-lx")
-        recipe_dir: str = os.path.join(parsed.workdir, project.name+"-recipe")
-        solution_dir: str = os.path.join(parsed.workdir, project.name+"-solution")
+        lx_dir: str = os.path.join(parsed.workdir, "lx")
+        recipe_dir: str = os.path.join(parsed.workdir, "recipe")
+        solution_dir: str = os.path.join(parsed.workdir, "solution")
 
         # Get the form data
         svalues: Optional[dict] = open_form_from_schema(
@@ -74,7 +74,7 @@ class DTCommand(DTCommandAbs):
         check_dtproject_exists(solution_dir, "template-exercise")
 
         # Update the recipe references if necessary
-        fill_template_file(os.path.join(parsed.workdir, project.name+"-lx", ".dtproject"), config)
+        fill_template_file(os.path.join(parsed.workdir, "lx", ".dtproject"), config)
 
         # Create a .temp dir and clone the current versions of the lx destination repositories
         dtslogger.info("Cloning the publishing repositories. This may take a few minutes ...")
@@ -86,7 +86,7 @@ class DTCommand(DTCommandAbs):
             msg: str = svalues["version"] if "version" in svalues else "Automated commit from dts publish"
             # TODO: Update to git patch solution and remove below
             dtslogger.info("Publishing the LX ...")
-            target = os.path.join(lx_dest, project.name + "-lx")
+            target = os.path.join(lx_dest, project.name)
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(lx_dir, target, dirs_exist_ok=True)
             push_repository(lx_dest, svalues["lx_branch"], msg)
