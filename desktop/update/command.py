@@ -19,12 +19,12 @@ from utils.cli_utils import ask_confirmation
 OTHER_IMAGES_TO_UPDATE = [
     "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
     "{registry}/duckietown/dt-core:{distro}-{arch}",
-    "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}",
-    "{registry}/duckietown/aido-base-python3:{distro}-{arch}",
+    # "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-simulator-gym:{distro}-{arch}",
+    # "{registry}/duckietown/aido-base-python3:{distro}-{arch}",
 ]
 
 DISK_SPACE_REQUIRED_SOFT = 10 * ((2 ** 10) ** 3)  # prompt

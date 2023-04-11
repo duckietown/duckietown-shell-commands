@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# the value passed to the trigger is available as first parameter
+value=$1
+
+# dry-run command
+command="status"
+
+# figure out the proper command
+if [[ "${value}" = "on" ]]; then
+    rfkill unblock wlan
+    command="start"
+fi
+
+if [[ "${value}" = "restart" ]]; then
+    systemctl stop wpa_supplicant.service
+    # clear blocking files
+    rm -rf /run/wpa_supplicant/*
+    # start
+    rfkill unblock wlan
+    command="start"
+fi
+
+if [[ "${value}" = "off" ]]; then
+    command="stop"
+fi
+
+# enable/disable wifi client process
+systemctl ${command} wpa_supplicant.service

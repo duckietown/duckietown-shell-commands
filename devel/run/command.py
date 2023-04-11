@@ -173,7 +173,7 @@ class DTCommand(DTCommandAbs):
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
             idx = args.index("--")
-            args = args[:idx] + ["--", "--fake"] + args[idx + 1 :]
+            args = args[:idx] + ["--", "--fake"] + args[idx + 1:]
         except ValueError:
             pass
         # parse arguments

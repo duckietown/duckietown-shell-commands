@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable
+from typing import Callable
 
 import collections
 import fnmatch
@@ -19,6 +19,7 @@ from disk_image.create.constants import (
     DEFAULT_DOCKER_REGISTRY,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
+    DEFAULT_DOCKER_REGISTRY,
     DOCKER_IMAGE_TEMPLATE,
     FILE_PLACEHOLDER_SIGNATURE,
     MODULES_TO_LOAD,

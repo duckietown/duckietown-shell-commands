@@ -97,7 +97,13 @@ TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-exercise-recipe": {
         "3": lambda repo: ("packages", "/code/catkin_ws/src/{:s}/packages".format(repo))
     },
-    "template-exercise": {"3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))},
+    "template-exercise": {
+        "3": lambda repo: ("packages/*", "/code/catkin_ws/src/{:s}/packages".format(repo))
+    },
+    "template-compose": {
+        "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
+        "2": lambda repo: ("", "/code/{:s}/".format(repo)),
+    },
 }
 
 TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
@@ -127,6 +133,10 @@ TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] =
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+    },
+    "template-compose": {
+        "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
+        "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
     "template-exercise-recipe": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
     "template-exercise": {"3": lambda repo: ("launchers", "/launch/{:s}".format(repo))},
@@ -188,7 +198,14 @@ class DTProject:
 
     @property
     def name(self):
-        return (self._repository.name if self._repository else os.path.basename(self.path)).lower()
+        # high priority: NAME defined
+        if "NAME" in self._project_info:
+            return self._project_info["NAME"].lower()
+        # medium priority: git repository name
+        if self._repository:
+            return self._repository.name.lower()
+        # low priority (fallback): directory name
+        return os.path.basename(self.path).lower()
 
     @property
     def metadata(self) -> Dict[str, str]:

@@ -19,9 +19,9 @@ OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
     "{registry}/duckietown/dt-core:{distro}-{arch}",
-    "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
-    "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
+    # "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
+    # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
 ]
 
 

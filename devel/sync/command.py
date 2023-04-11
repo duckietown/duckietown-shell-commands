@@ -9,6 +9,7 @@ from utils.misc_utils import sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
 DEFAULT_REMOTE_USER = "duckie"
+REMOTE_RSYNC_CODE_LOCATION = "/tmp/code"
 
 
 class DTCommand(DTCommandAbs):
@@ -19,7 +20,10 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to run"
+            "-C",
+            "--workdir",
+            default=os.getcwd(),
+            help="Directory containing the project to run"
         )
         parser.add_argument(
             "-H",
@@ -64,7 +68,7 @@ class DTCommand(DTCommandAbs):
         # make sure rsync is installed
         check_program_dependency("rsync")
         dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-        remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+        remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:{REMOTE_RSYNC_CODE_LOCATION}/"
         # get projects' locations
         projects_to_sync = [parsed.workdir] if parsed.mount is True else []
         # sync secondary projects

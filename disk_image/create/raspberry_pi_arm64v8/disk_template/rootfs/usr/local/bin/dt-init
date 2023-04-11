@@ -2,8 +2,6 @@
 
 set -x
 
-SD_DEVICE=/dev/mmcblk0
-ROOT_PART_ID=2
 EVENTS_DIR=/data/stats/events
 USAGE_DIR=/data/stats/usage
 
@@ -29,8 +27,29 @@ store_event() {
     echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
-run_on_first_boot() {
-    echo "Setting up the robot for its first ever boot..."
+
+run_on_setup_boot() {
+    echo "Setting up the robot for its first ever (aka setup) boot..."
+
+    # copy configuration files
+    if [ -d /config ]; then
+        if [ -f /config/hostname ]; then
+            cp /config/hostname /etc/hostname
+            chmod 644 /etc/hostname
+            cp /config/hostname /config/hostname.loaded
+        fi
+        if [ -f /config/wpa_supplicant.conf ]; then
+            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
+            chmod 644 /etc/wpa_supplicant.conf
+            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
+        fi
+    fi
+
+    echo "Setting up completed!"
+}
+
+run_on_configuration_boot() {
+    echo "Configuring the robot..."
 
     # setup /etc/hosts
     echo "Setting up the environment..."
@@ -39,17 +58,8 @@ run_on_first_boot() {
     # activate `booting` service
     mv /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
-    # resize root partition
-    growpart ${SD_DEVICE} ${ROOT_PART_ID}
-    resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
-    partprobe
-
     # sanitize files
     dt-sanitize-files
-
-    # rename user `ubuntu` -> `duckie`
-    usermod -md /home/duckie -l duckie ubuntu
-    groupmod -n duckie ubuntu
 
     # sudo without a password
     echo "duckie ALL=(ALL) NOPASSWD:ALL" | tee -a /etc/sudoers
@@ -85,6 +95,9 @@ run_on_first_boot() {
 
     # create swap
     echo "Setting up swap..."
+    # disable default swap space
+    sudo dphys-swapfile swapoff /var/swap
+    # make a new (bigger) swap space
     dd if=/dev/zero of=/swap0 bs=1M count=2048
     chmod 0600 /swap0
     mkswap /swap0
@@ -132,6 +145,15 @@ run_on_first_boot() {
 run_on_every_boot() {
     echo "Setting up the robot for this boot..."
 
+    # copy configuration files
+    if [ -d /config ]; then
+        if [ -f /config/wpa_supplicant.conf ]; then
+            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
+            chmod 644 /etc/wpa_supplicant.conf
+            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
+        fi
+    fi
+
     # setup /etc/hosts
     setup_etc_hosts
 
@@ -141,19 +163,49 @@ run_on_every_boot() {
     # launch triggers handlers
     dt-serve-triggers
 
+    # log containers
+    if [ -d /data/logs/containers ]; then
+        for d in /data/logs/containers/*; do
+            if [ -d "$d" ]; then
+                # $d is a directory, check if we have a container with that name
+                container_name=$(basename "${d}")
+                echo "Found directory ${d}, enabling logging for container ${container_name}"
+                if docker ps -q -f name="${container_name}" ; then
+                    log_file=$d/0.log
+                    echo "Container ${container_name} found. Logging to file ${log_file}"
+                    # container found
+                    docker logs --follow --timestamps "${container_name}" > "${log_file}" &
+                else
+                    echo "Container ${container_name} not found. Skipping logging."
+                fi
+            fi
+        done
+    fi
+
     # mark event
     store_event "boot"
 
-    echo "Setting up completed!"
+    echo "Robot configured!"
 }
 
-FIRST_BOOT_EVIDENCE_FILE="/boot/dt.first.boot.evidence"
-if test -f "$FIRST_BOOT_EVIDENCE_FILE"; then
-    echo "$FIRST_BOOT_EVIDENCE_FILE exists so we assume this is not the first boot!"
+SETUP_BOOT_EVIDENCE_FILE="/boot/dt.setup.boot.evidence"
+CONFIGURATION_BOOT_EVIDENCE_FILE="/boot/dt.configuration.boot.evidence"
+
+if [ -f "$CONFIGURATION_BOOT_EVIDENCE_FILE" ]; then
+    echo "$CONFIGURATION_BOOT_EVIDENCE_FILE exists, robot is configured, run default boot sequence"
     run_on_every_boot 2>&1 | tee /data/logs/this_boot_init.log
 else
-    echo "$FIRST_BOOT_EVIDENCE_FILE does not exist so we assume this is the first boot!"
-    run_on_first_boot 2>&1 | tee /data/logs/first_boot_init.log
-    touch "$FIRST_BOOT_EVIDENCE_FILE"
-    reboot
+    if [ -f "$SETUP_BOOT_EVIDENCE_FILE" ]; then
+        echo "$SETUP_BOOT_EVIDENCE_FILE exists, robot is setup, run configuration boot sequence"
+        run_on_configuration_boot 2>&1 | tee /data/logs/configuration_boot_init.log
+        # mark robot as 'configured'
+        touch "$CONFIGURATION_BOOT_EVIDENCE_FILE"
+        reboot
+    else
+        echo "$SETUP_BOOT_EVIDENCE_FILE doe NOT exist, run setup boot sequence"
+        run_on_setup_boot 2>&1 | tee /data/logs/setup_boot_init.log
+        # mark robot as 'setup'
+        touch "$SETUP_BOOT_EVIDENCE_FILE"
+        reboot
+    fi
 fi

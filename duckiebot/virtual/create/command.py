@@ -8,8 +8,9 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.constants import \
     AUTOBOOT_STACKS_DIR, \
-    MODULES_TO_LOAD_MINIMAL, \
-    DOCKER_IMAGE_TEMPLATE
+    MODULES_TO_LOAD, \
+    DOCKER_IMAGE_TEMPLATE, \
+    DEFAULT_DOCKER_REGISTRY
 from disk_image.create.utils import \
     list_files,\
     run_cmd,\
@@ -117,6 +118,13 @@ class DTCommand(DTCommandAbs):
                     % (DEVICE_ARCH, destination)
                 )
                 replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination, open)
+                # add registry as default value in the stack file
+                dtslogger.debug(
+                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
+                    % (DEFAULT_DOCKER_REGISTRY, destination)
+                )
+                replace_in_file("{REGISTRY}", "{REGISTRY:-%s}" %
+                                DEFAULT_DOCKER_REGISTRY, destination, open)
             # download docker images
             dtslogger.info("Transferring Docker images to your virtual robot.")
             local_docker = docker.from_env()
@@ -149,7 +157,7 @@ class DTCommand(DTCommandAbs):
                 remote_docker = docker.DockerClient(base_url=endpoint_url)
                 dtslogger.info("Transferring Docker images...")
                 # pull images inside the disk image
-                for module in MODULES_TO_LOAD_MINIMAL:
+                for module in MODULES_TO_LOAD:
                     image = DOCKER_IMAGE_TEMPLATE(
                         owner=module["owner"],
                         module=module["module"],

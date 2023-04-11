@@ -53,11 +53,10 @@ from disk_image.create.utils import (
 
 
 # NOTE: -----------------------------------
-#   The input image is ubuntu 20.04.2, it was downloaded, flashed to an SD card and:
-#       - password was set to `quackquack`, user remained `ubuntu`
+#   The input image is raspberry pi OS 2022.04.04, it was downloaded, flashed to an SD card and:
 #       - cmd: `sudo apt update`
 #       - cmd: `sudo apt full-upgrade`
-#       - cmd: `sudo apt install rsync docker.io docker-compose cloud-guest-utils inotify-tools`
+#       - cmd: `sudo apt install rsync docker.io docker-compose inotify-tools`
 #       - cmd: `sudo apt autoremove`
 #   SD card was then dumped into an .img file and uploaded to S3
 # -----------------------------------------
@@ -68,20 +67,23 @@ from disk_image.create.utils import (
 #
 #
 
-DISK_IMAGE_PARTITION_TABLE = {"system-boot": 1, "writeable": 2}
-ROOT_PARTITION = "writeable"
+DISK_IMAGE_PARTITION_TABLE = {"boot": 1, "rootfs": 2}
+ROOT_PARTITION = "rootfs"
 DISK_IMAGE_SIZE_GB = 10
-DISK_IMAGE_VERSION = "2.0.0"
-UBUNTU_VERSION = "20.04.2"
+DISK_IMAGE_VERSION = "3.0.7"
+OS_VERSION = "04.04.2022"
 DEVICE_ARCH = "arm64v8"
-UBUNTU_DISK_IMAGE_NAME = f"ubuntu-rpi-v{UBUNTU_VERSION}"
+DEFAULT_DOCKER_REGISTRY = "docker.io"
+DISK_IMAGE_NAME = f"raspios-bullseye-lite-v{OS_VERSION}-{DEVICE_ARCH}"
 INPUT_DISK_IMAGE_URL = (
     f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/disk_template/"
-    f"{UBUNTU_DISK_IMAGE_NAME}.zip"
+    f"{DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
-    "APP:/data/config/calibrations/*/default.yaml": lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
+    f"{ROOT_PARTITION}:/data/autoboot/*.yaml":
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    f"{ROOT_PARTITION}:/data/config/calibrations/*/default.yaml":
+        lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 DISK_TEMPLATE_DIR = os.path.join(COMMAND_DIR, "disk_template")
@@ -103,6 +105,7 @@ MANDATORY_STEPS = ["create", "mount", "unmount"]
 APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
+    "emacs",
     "htop",
     "i2c-tools",
     "libraspberrypi-bin",
@@ -110,15 +113,15 @@ APT_PACKAGES_TO_INSTALL = [
     "avahi-daemon",
     "libnss-mdns",
     "docker-compose",
-    # provides the command `growpart`, used to resize the root partition at first boot
-    "cloud-guest-utils",
+    "sysprof",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
     "inotify-tools",
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
-    "initramfs-tools"
+    # "initramfs-tools"
 ]
+DEFAULT_DOCKER_REGISTRY = "docker.io"
 
 
 class DTCommand(DTCommandAbs):
@@ -168,6 +171,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Continue with the current artefact, do not overwrite (experts only)",
+        )
+        parser.add_argument(
+            "--fast-compression",
+            default=False,
+            action="store_true",
+            help="Use fast ZIP compression",
         )
         parser.add_argument(
             "--push",
@@ -226,9 +235,9 @@ class DTCommand(DTCommandAbs):
         if not os.path.exists(parsed.output):
             os.makedirs(parsed.output)
         # define output file template
-        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{UBUNTU_DISK_IMAGE_NAME}.{ex}")
+        in_file_path = lambda ex: os.path.join(parsed.workdir, f"{DISK_IMAGE_NAME}.{ex}")
         input_image_name = pathlib.Path(in_file_path("img")).stem
-        output_image_name = input_image_name.replace(UBUNTU_VERSION, DISK_IMAGE_VERSION)
+        output_image_name = input_image_name.replace(OS_VERSION, DISK_IMAGE_VERSION)
         out_file_name = lambda ex: f"dt-{output_image_name}.{ex}"
         out_file_path = lambda ex: os.path.join(parsed.output, out_file_name(ex))
         cached_step_file_path = lambda step, ex: os.path.join(
@@ -250,7 +259,7 @@ class DTCommand(DTCommandAbs):
             "input_name": input_image_name,
             "input_url": INPUT_DISK_IMAGE_URL,
             "base_type": "Ubuntu",
-            "base_version": UBUNTU_VERSION,
+            "base_version": OS_VERSION,
             "environment": {
                 "hostname": socket.gethostname(),
                 "user": getpass.getuser(),
@@ -329,7 +338,7 @@ class DTCommand(DTCommandAbs):
                         file=[in_file_path("zip")],
                         object=[
                             os.path.join(
-                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{UBUNTU_DISK_IMAGE_NAME}.zip"
+                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{DISK_IMAGE_NAME}.zip"
                             )
                         ],
                         space="public",
@@ -581,11 +590,11 @@ class DTCommand(DTCommandAbs):
                 # get local docker client
                 local_docker = docker.from_env()
                 # pull dind image
-                pull_docker_image(local_docker, "docker:dind")
+                pull_docker_image(local_docker, "docker:20.10.5-dind")
                 # run auxiliary Docker engine
                 remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
-                    image="docker:dind",
+                    image="docker:20.10.5-dind",
                     detach=True,
                     remove=True,
                     auto_remove=True,
@@ -616,7 +625,7 @@ class DTCommand(DTCommandAbs):
                             tag=module["tag"] if "tag" in module else None,
                             arch=DEVICE_ARCH,
                         )
-                        pull_docker_image(remote_docker, image)
+                        pull_docker_image(remote_docker, image, platform="linux/arm64")
                     # ---
                     dtslogger.info("Docker images successfully transferred!")
                 except Exception as e:
@@ -708,7 +717,15 @@ class DTCommand(DTCommandAbs):
                                     "- Replacing '{ARCH}' with '{ARCH:-%s}' in %s"
                                     % (DEVICE_ARCH, destination)
                                 )
-                                replace_in_file("{ARCH}", "{ARCH:-%s}" % DEVICE_ARCH, destination)
+                                replace_in_file("{ARCH}", "{ARCH:-%s}" %
+                                                DEVICE_ARCH, destination)
+                                # add registry as default value in the stack file
+                                dtslogger.debug(
+                                    "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
+                                    % (DEFAULT_DOCKER_REGISTRY, destination)
+                                )
+                                replace_in_file("{REGISTRY}", "{REGISTRY:-%s}" %
+                                                DEFAULT_DOCKER_REGISTRY, destination)
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
@@ -834,7 +851,11 @@ class DTCommand(DTCommandAbs):
         if "compress" in parsed.steps:
             dtslogger.info("Step BEGIN: compress")
             dtslogger.info("Compressing disk image...")
-            run_cmd(["zip", "-j", out_file_path("zip"), out_file_path("img"), out_file_path("json")])
+            zip_cmd = ["zip", "-j"]
+            if parsed.fast_compression:
+                zip_cmd += ["-1"]
+            zip_cmd += [out_file_path("zip"), out_file_path("img"), out_file_path("json")]
+            run_cmd(zip_cmd)
             dtslogger.info("Done!")
             cache_step("compress")
             dtslogger.info("Step END: compress\n")

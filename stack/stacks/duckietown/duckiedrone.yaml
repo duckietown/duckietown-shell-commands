@@ -86,6 +86,35 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+#  vscode:
+#    image: ${REGISTRY}/duckietown/dt-vscode:ente-${ARCH}
+#    container_name: vscode
+#    restart: unless-stopped
+#    network_mode: host
+#    volumes:
+#      - /data:/data
+#      # host /etc
+#      - /etc:/host/etc:ro
+#      # avahi socket
+#      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+#      # docker socket
+#      - /var/run/docker.sock:/var/run/docker.sock
+#      # user code
+#      - /code:/code/user_ws
+
+  wifi-access-point:
+    image: ${REGISTRY}/duckietown/dt-wifi-access-point:ente-${ARCH}
+    container_name: wifi-access-point
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /data:/data
+      # host triggers
+      - /triggers:/triggers
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
   ros:
     image: ${REGISTRY}/duckietown/dt-ros-commons:ente-${ARCH}
     container_name: ros

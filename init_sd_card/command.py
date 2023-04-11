@@ -56,7 +56,7 @@ ROOT_PARTITIONS = ["root", "APP"]
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
-        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
+        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "3.0.7"},
         "jetson_nano_4gb": {"stable": "1.2.3", "experimental": "1.2.3"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
@@ -100,7 +100,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi_64": f"dt-raspios-bullseye-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
@@ -312,6 +312,7 @@ class DTCommand(DTCommandAbs):
             "verify": step_verify,
             "setup": step_setup,
         }
+        # validate steps
         for step_name in steps:
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
@@ -728,8 +729,8 @@ def _validate_hostname(hostname):
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
     if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
-        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
-                        "It should not start with a digit")
+        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. "
+                        "No capital letters are allowed. It should not start with a digit.")
         return False
     return True
 

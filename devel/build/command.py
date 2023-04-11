@@ -413,6 +413,9 @@ class DTCommand(DTCommandAbs):
         # architecture target
         docker_build_args["ARCH"] = parsed.arch
 
+        # docker repository name
+        docker_build_args["REPO_NAME"] = project.name
+
         # development base images
         if parsed.base_tag is not None:
             docker_build_args[DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
@@ -507,10 +510,15 @@ class DTCommand(DTCommandAbs):
                     remote_time = image_labels[time_label]
                     remote_sha = image_labels[sha_label]
                     if remote_sha == local_sha and remote_time != "ND":
-                        dtslogger.debug("Identical image found. Reusing cache.")
+                        dtslogger.debug("Image built off of the same git SHA already exists. "
+                                        "Unless the base image changed, this might be identical "
+                                        "to what we are trying to build.")
                         # local and remote SHA match, reuse time
                         build_time = remote_time
         # default build_time
+        # TODO: this build_time thing is WRONG, we don't update it when the image is rebuilt
+        #       because of an updated base image, we only check the SHA of THIS repository, so
+        #       we carry on old dates until a change in THIS repo sha triggers a label update
         build_time = build_time or datetime.datetime.utcnow().isoformat()
         dtslogger.debug(f"Image timestamp: {build_time}")
         # add timestamp label
