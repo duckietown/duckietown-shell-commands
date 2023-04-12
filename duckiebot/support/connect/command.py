@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import List, Tuple
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -17,6 +18,11 @@ except ImportError:
 
 BASE_IMAGE = "cloudflare/cloudflared"
 VERSION = "latest"
+
+DCSS_RSA_SECRET_LOCATION = "secrets/rsa/{dns}/id_rsa"
+DCSS_RSA_SECRET_SPACE = "private"
+SSH_USERNAME = "duckie"
+CONTAINER_RSA_KEY_LOCATION = "/ssh/id_rsa"
 
 
 usage = """
@@ -53,9 +59,25 @@ class DTCommand(DTCommandAbs):
             parsed, _ = parser.parse_known_args(args=args)
         parsed.dns = parsed.dns[0]
 
+        SSH_HOSTNAME = parsed.dns
         volumes: List[Tuple[str, str, str]] = []
+
         with TemporaryDirectory() as tmpdir:
-            # TODO: Get the required key
+            # Download RSA key and mount to container
+            dtslogger.info(f"Downloading RSA key for tunnel '{SSH_HOSTNAME}'...")
+            local_rsa = os.path.join(tmpdir, "id_rsa")
+            shell.include.data.get.command(
+                shell,
+                [],
+                parsed=SimpleNamespace(
+                    file=[local_rsa],
+                    object=[DCSS_RSA_SECRET_LOCATION.format(dns=SSH_HOSTNAME)],
+                    space=DCSS_RSA_SECRET_SPACE,
+                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
+                ),
+            )
+            os.chmod(local_rsa, 0o600)
+            volumes.append((local_rsa, CONTAINER_RSA_KEY_LOCATION, "ro"))
 
             # Configure docker
             debug = dtslogger.level <= logging.DEBUG
@@ -63,17 +85,22 @@ class DTCommand(DTCommandAbs):
 
             tunneling_image = f"{BASE_IMAGE}:{VERSION}"
             robot_id = parsed.dns.split('-')[0]
-            container_name: str = f"{robot_id}-support"
+            container_name: str = f"device-support-{robot_id}"
+
+            cmd: str = (f'ssh -o "ProxyCommand=cloudflared access ssh --hostname %h \
+                                    -o "StrictHostKeyChecking=no" \
+                                    -o "UserKnownHostsFile=/dev/null" \
+                                    ${SSH_USERNAME}@${SSH_HOSTNAME}')
+
             args = {
                 "image": tunneling_image,
                 "auto_remove": True,
                 "volumes": volumes,
                 "name": container_name,
-                "stream": True,
-                "command": None  # TODO
+                "command": cmd
             }
 
-            dtslogger.info(f"Opening a connection to {parsed.dns} ...")
+            dtslogger.info(f"Opening a connection to {SSH_HOSTNAME} ...")
             docker_client.run(**args)
 
             # Attach to the support container with an interactive session
