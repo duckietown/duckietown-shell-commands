@@ -22,7 +22,7 @@ VERSION = "latest"
 usage = """
 
 ## Basic usage
-    This command enables secure remote access to Duckiebots for technical support.
+    This command enables secure remote technical support for Duckiebots.
 
 """
 
@@ -32,7 +32,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
-        prog = "dts support access"
+        prog = "dts duckiebot support connect"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(

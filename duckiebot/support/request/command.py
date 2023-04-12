@@ -36,7 +36,7 @@ API_CREATE_URL = "https://staging-hub.duckietown.com/api/v1/tunnel/create"
 usage = """
 
 ## Basic usage
-    This command allows the Duckietown technical team to access your Duckiebot and provide direct debugging assistance.
+    This command requests direct support for your Duckiebot from the Duckietown technical team .
 
 """
 
@@ -46,13 +46,13 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
-        prog = "dts support open"
+        prog = "dts duckiebot support request"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
         parser.add_argument(
             "robot",
             nargs=1,
-            help="Name of the robot to open for support")
+            help="Name of the robot to support")
 
         parser.add_argument(
             "--pull",
