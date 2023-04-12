@@ -19,10 +19,10 @@ except ImportError:
 BASE_IMAGE = "cloudflare/cloudflared"
 VERSION = "latest"
 
-DCSS_RSA_SECRET_LOCATION = "secrets/rsa/{dns}/id_rsa"
+DCSS_RSA_SECRET_LOCATION = "secrets/rsa/cloudflared/duckietown.io/cert.pem"
 DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
-CONTAINER_RSA_KEY_LOCATION = "/ssh/id_rsa"
+CONTAINER_RSA_KEY_LOCATION = "/ssh/cert.pem"
 
 
 usage = """
@@ -87,21 +87,23 @@ class DTCommand(DTCommandAbs):
             robot_id = parsed.dns.split('-')[0]
             container_name: str = f"device-support-{robot_id}"
 
-            cmd: str = (f'ssh -o "ProxyCommand=cloudflared access ssh --hostname %h \
+            cmd: str = (f'ssh -o "ProxyCommand=cloudflared access ssh --hostname %h" \
                                     -o "StrictHostKeyChecking=no" \
                                     -o "UserKnownHostsFile=/dev/null" \
                                     ${SSH_USERNAME}@${SSH_HOSTNAME}')
 
             args = {
                 "image": tunneling_image,
-                "auto_remove": True,
+                "remove": True,
                 "volumes": volumes,
                 "name": container_name,
                 "command": cmd
             }
 
             dtslogger.info(f"Opening a connection to {SSH_HOSTNAME} ...")
-            docker_client.run(**args)
+            logs = docker_client.run(**args)
+            with open("logs.txt", "wb") as binary_file:
+                binary_file.write(logs)
 
             # Attach to the support container with an interactive session
             attach_cmd = "docker attach %s" % container_name

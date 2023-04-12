@@ -18,7 +18,6 @@ from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
 
-
 # NOTE: this is to avoid breaking the user workspace
 try:
     import dockertown
@@ -107,7 +106,7 @@ class DTCommand(DTCommandAbs):
         args = {
             "image": tunneling_image,
             "name": container_name,
-            "auto_remove": True,
+            "detach": True,
             "network_mode": parsed.network,
             "command": f"tunnel run --url ssh://localhost:22 --token {tunnel_token} tunnel"
         }
@@ -128,13 +127,15 @@ class DTCommand(DTCommandAbs):
             f"|                    {spc}                                          |\n"
             f"|        > Support ID - {tunnel_dns}                                       |\n"
             f"|                    {spc}                                          |\n"
+            f"|     Press Enter when you are ready to exit.{spc}                  |\n"                              
+            f"|                    {spc}                                          |\n"
             f"====================={bar}===========================================\n"
         )
 
         # Create and handle the support container
-        # TODO: Is there a clean way to do this with dockertown?
-        container = robot_client.containers.run(**args)
-        atexit.register(exit_handler, container=container)
+        support_container = robot_client.containers.run(**args)
+        atexit.register(_shutdown_handler, container=support_container)
+        input("")
 
 
 def create_cloudflare_tunnel(robot_id: str, dt_token: str) -> dict:
@@ -163,5 +164,5 @@ def get_robot_id(hostname: str) -> str:
         dtslogger.error(f"There was a problem reaching the robot: {e}")
 
 
-def exit_handler(container):
-    container.stop()
+def _shutdown_handler(container):
+    container.kill()
