@@ -91,6 +91,7 @@ class DTCommand(DTCommandAbs):
         cred: dict = create_cloudflare_tunnel(robot_id, dt_token)
         tunnel_token: str = cred["tunnel"]["token"]
         tunnel_dns: str = cred["dns"][0]
+        tunnel_name: str = cred["tunnel"]["credentials_file"]["TunnelName"]
 
         # Set up docker
         robot_client = get_remote_client(robot_ip)
@@ -108,7 +109,7 @@ class DTCommand(DTCommandAbs):
             "name": container_name,
             "detach": True,
             "network_mode": parsed.network,
-            "command": f"tunnel run --url ssh://localhost:22 --token {tunnel_token} tunnel"
+            "command": f"tunnel --url ssh://localhost:22 run --token {tunnel_token} {tunnel_name}"
         }
         dtslogger.info(f"Starting the support container '{container_name}' on {robot_hostname} ...")
         dtslogger.debug(
