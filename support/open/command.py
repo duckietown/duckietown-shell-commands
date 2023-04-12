@@ -1,4 +1,5 @@
 import argparse
+import atexit
 import json
 import requests
 
@@ -12,7 +13,6 @@ from utils.docker_utils import (
     pull_if_not_exist,
     pull_image,
     remove_if_running)
-from utils.duckietown_utils import get_distro_version
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -67,6 +67,14 @@ class DTCommand(DTCommandAbs):
             help="Name of the network to connect the container to"
         )
 
+        parser.add_argument(
+            "--detach",
+            "-d",
+            action="store_true",
+            default=False,
+            help="Detach from container",
+        )
+
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -87,7 +95,6 @@ class DTCommand(DTCommandAbs):
 
         # Set up docker
         robot_client = get_remote_client(robot_ip)
-
         tunneling_image = f"{BASE_IMAGE}:{VERSION}-{ARCH}"
 
         # Create the container
@@ -102,15 +109,12 @@ class DTCommand(DTCommandAbs):
             "name": container_name,
             "auto_remove": True,
             "network_mode": parsed.network,
-            "command": f"tunnel --url ssh://localhost:22 --token {tunnel_token} run tunnel"
+            "command": f"tunnel run --url ssh://localhost:22 --token {tunnel_token} tunnel"
         }
         dtslogger.info(f"Starting the support container '{container_name}' on {robot_hostname} ...")
         dtslogger.debug(
             f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
         )
-        logs = robot_client.containers.run(**args)
-        with open("logs.txt", "wb") as binary_file:
-            binary_file.write(logs)
 
         # Give final instructions
         bar: str = "=" * len(tunnel_dns)
@@ -119,7 +123,7 @@ class DTCommand(DTCommandAbs):
             f"\n\n"
             f"====================={bar}===========================================\n"
             f"|                    {spc}                                          |\n"
-            f"|     Your Duckiebot is now running a support tunnel.{spc}          |\n"
+            f"|     Your Duckiebot is now starting a support tunnel.{spc}         |\n"
             f"|     Leave this command running until debugging is finished.{spc}  |\n"
             f"|                    {spc}                                          |\n"
             f"|        > Support ID - {tunnel_dns}                                       |\n"
@@ -127,11 +131,11 @@ class DTCommand(DTCommandAbs):
             f"====================={bar}===========================================\n"
         )
 
-        attach_cmd = "docker attach %s" % container_name
-        try:
-            start_command_in_subprocess(attach_cmd)
-        except Exception as e:
-            dtslogger.error(str(e))
+        # Create and handle the support container
+        # TODO: Is there a clean way to do this with dockertown?
+        container = robot_client.containers.run(**args)
+        atexit.register(exit_handler, container=container)
+
 
 def create_cloudflare_tunnel(robot_id: str, dt_token: str) -> dict:
     creation_url: str = f"{API_CREATE_URL}?robot={robot_id}&service=ssh"
@@ -157,3 +161,7 @@ def get_robot_id(hostname: str) -> str:
 
     except ConnectionError as e:
         dtslogger.error(f"There was a problem reaching the robot: {e}")
+
+
+def exit_handler(container):
+    container.stop()
