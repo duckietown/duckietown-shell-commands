@@ -1,14 +1,10 @@
 import argparse
 import atexit
 import json
+
 import requests
-
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-
-from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
-    get_endpoint_architecture,
-    get_registry_to_use,
     get_remote_client,
     pull_if_not_exist,
     pull_image,
@@ -16,7 +12,6 @@ from utils.docker_utils import (
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
-
 
 # NOTE: this is to avoid breaking the user workspace
 try:

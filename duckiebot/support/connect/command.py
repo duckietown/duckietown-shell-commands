@@ -1,13 +1,9 @@
 import argparse
-import logging
-import os
-from tempfile import TemporaryDirectory
-from types import SimpleNamespace
-from typing import List, Tuple
+from shutil import which
 
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from dt_shell.utils import run_cmd
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import start_command_in_subprocess
+from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -55,6 +51,11 @@ class DTCommand(DTCommandAbs):
         if not parsed:
             parsed, _ = parser.parse_known_args(args=args)
         parsed.dns = parsed.dns[0]
+
+        # Make sure cloudflared is installed
+        if not which("cloudflared"):
+            dtslogger.error("You need to install 'cloudflared' before you can connect to a remote robot.")
+            exit(1)
 
         SSH_HOSTNAME = parsed.dns
 
