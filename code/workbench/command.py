@@ -134,6 +134,9 @@ class SettingsFile:
     # TODO: do we still need this?
     rsync_exclude: List[str] = dataclasses.field(default_factory=list)
 
+    # editor configuration
+    editor: dict = dataclasses.field(default_factory=dict)
+
     def __str__(self):
         fields: Iterable[dataclasses.Field] = dataclasses.fields(SettingsFile)
         return "\n\t" + "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
