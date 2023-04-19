@@ -83,6 +83,7 @@ TEMPLATE_TO_SRC: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
         "1": lambda repo: ("code", "/packages/{:s}/".format(repo)),
         "2": lambda repo: ("", "/code/{:s}/".format(repo)),
         "3": lambda repo: ("", "/code/{:s}/".format(repo)),
+        "4": lambda repo: ("", "/code/{:s}/".format(repo)),
     },
     "template-ros": {
         "1": lambda repo: ("", "/code/catkin_ws/src/{:s}/".format(repo)),
@@ -123,6 +124,7 @@ TEMPLATE_TO_LAUNCHFILE: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] =
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
         "2": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
         "3": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
+        "4": lambda repo: ("launchers", "/launch/{:s}".format(repo)),
     },
     "template-ros": {
         "1": lambda repo: ("launch.sh", "/launch/{:s}/launch.sh".format(repo)),
