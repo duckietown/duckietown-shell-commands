@@ -88,7 +88,7 @@ Calibrate:
 
         dtslogger.info(
             "When the window opens you will be able to perform the calibration.\n "
-            "Follow the instructions on the official book at https://docs.duckietown.org.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.com.\n "
             "Press [Q] to close the window."
         )
 
