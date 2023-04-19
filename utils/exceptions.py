@@ -1,7 +1,7 @@
 import dt_shell
 from dt_shell import UserError
 
-__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound"]
+__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound", "SecretNotFound"]
 
 
 class ShellNeedsUpdate(Exception):
@@ -23,4 +23,8 @@ class InvalidUserInput(UserError):
 
 
 class RecipeProjectNotFound(UserError):
+    pass
+
+
+class SecretNotFound(UserError):
     pass
