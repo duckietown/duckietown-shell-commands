@@ -13,7 +13,7 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 LED_COMMAND = "roslaunch led_widget led_widget_{mode}.launch veh:={veh}"
-BRANCH = "daffy"
+BRANCH = "ente"
 GUI_ARCH = "amd64"
 ARCH = "arm32v7"
 GUI_DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + GUI_ARCH
