@@ -2,12 +2,19 @@ import argparse
 import os
 import tempfile
 from types import SimpleNamespace
+from typing import Set, Optional
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
+from utils.assets_utils import get_asset_path
 from utils.docker_utils import get_endpoint_architecture
 from utils.dtproject_utils import DTProject
 from utils.duckietown_utils import get_distro_version
+
+SUPPORTED_PROJECT_TYPES = {
+    "template-book": {"2", },
+    "template-library": {"2", }
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -65,13 +72,16 @@ class DTCommand(DTCommandAbs):
         project: DTProject = DTProject(parsed.workdir)
 
         # make sure we are building the right project type
-        if project.type != "template-book":
-            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
-                            f"'template-book' can be built with 'dts docs env build'.")
+        if project.type not in SUPPORTED_PROJECT_TYPES:
+            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of types "
+                            f"{', '.join(SUPPORTED_PROJECT_TYPES)} can be built with 'dts docs build'.")
             return False
-        if project.type_version != "2":
-            dtslogger.error(f"Project of type version '{project.type_version}' not supported. "
-                            f"Only projects of type version '2' can be built with 'dts docs env build'.")
+        supported_versions: Set[str] = SUPPORTED_PROJECT_TYPES[project.type]
+
+        # make sure we support this project type version
+        if project.type_version not in supported_versions:
+            dtslogger.error(f"Project of type '{project.type}' version '{project.type_version}' is "
+                            f"not supported. Only versions {', '.join(supported_versions)} are.")
             return False
 
         # pick the right architecture
@@ -92,14 +102,23 @@ class DTCommand(DTCommandAbs):
         # by default, we don't add any source to the image
         source_dir = tempfile.TemporaryDirectory()
         source_path: str = source_dir.name
+        dockerfile_path: Optional[str] = None
+
         if parsed.embed:
-            source_path = project.path
+            source_path: str = project.path
+
+        # some projects contain their books in a subdirectory
+        if project.type == "template-library":
+            dockerfile_path = get_asset_path("dockerfile", "library-jupyter-book", "v1", "Dockerfile")
+            if parsed.embed:
+                source_path = os.path.join(project.path, "docs")
 
         # build jb environment
         dtslogger.info(f"Building environment image for project '{project.name}'...")
         buildx_namespace: SimpleNamespace = SimpleNamespace(
             workdir=parsed.workdir,
             machine=parsed.machine,
+            file=dockerfile_path,
             username="duckietown",
             tag=jb_image_tag,
             build_arg=build_args,
