@@ -16,7 +16,7 @@ from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 
 from .cli_utils import start_command_in_subprocess
-from .misc_utils import parse_version
+from .misc_utils import parse_version, hide_string
 from .networking_utils import get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
 
@@ -52,11 +52,6 @@ def get_registry_to_use(quiet: bool = False) -> str:
 
 class AuthNotFound(Exception):
     pass
-
-
-def hide_string(s: str) -> str:
-    hidden = "*" * (len(s) - 3) + s[-3:]
-    return hidden
 
 
 def get_docker_auth_from_env() -> Tuple[str, str]:
