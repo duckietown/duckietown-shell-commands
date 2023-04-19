@@ -112,11 +112,11 @@ class ImageRunSpec:
 class SettingsFile:
     # agent base image
     # TODO: do we still need this?
-    agent_base: str
+    agent_base: Optional[str] = None
 
     # directory that contains the code the user needs to see
     # TODO: do we still need this?
-    ws_dir: str
+    ws_dir: Optional[str] = None
 
     # directory that we should mount to put logs in
     # TODO: do we still need this?
