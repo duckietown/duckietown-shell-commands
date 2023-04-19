@@ -41,11 +41,16 @@ def load_template(name: str, version: str) -> dict:
         return json.load(fin)
 
 
+def get_asset_path(kind: str, name: str, version: str, *path) -> str:
+    return os.path.join(ASSETS_DIR, kind, name, version, *path)
+
+
 __all__ = [
     "ASSETS_DIR",
     "load_schema",
     "get_schema_icon_filepath",
     "get_schema_html_filepath",
     "load_dtproject",
-    "load_template"
+    "load_template",
+    "get_asset_path"
 ]
