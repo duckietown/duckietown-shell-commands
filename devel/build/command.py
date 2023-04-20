@@ -276,18 +276,11 @@ class DTCommand(DTCommandAbs):
                 # update machine parameter
                 parsed.machine = get_cloud_builder(parsed.ci_force_builder_arch)
                 dtslogger.info(f"Build forced to happen on {parsed.ci_force_builder_arch} CI node")
-            # configure docker for DT
-            if parsed.ci:
-                token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
-            else:
-                token = shell.get_dt1_token()
             # we are not transferring the image back to local when,
             # - we build on CI
             # - we build to push
             if parsed.ci or parsed.push:
                 parsed.destination = parsed.machine
-            # add token
-            _add_token_to_docker_config(token)
             # update destination parameter
             if not parsed.destination:
                 parsed.destination = DEFAULT_MACHINE
@@ -703,19 +696,3 @@ def _build_line(line):
         line += "\n"
     # ---
     return line
-
-
-def _add_token_to_docker_config(token):
-    config = {}
-    config_file = os.path.expanduser("~/.docker/config.json")
-    if os.path.isfile(config_file):
-        config = json.load(open(config_file, "r")) if os.path.exists(config_file) else {}
-    else:
-        docker_config_dir = os.path.dirname(config_file)
-        dtslogger.info('Creating directory "{:s}"'.format(docker_config_dir))
-        os.makedirs(docker_config_dir)
-    if "HttpHeaders" not in config:
-        config["HttpHeaders"] = {}
-    if "X-Duckietown-Token" not in config["HttpHeaders"]:
-        config["HttpHeaders"]["X-Duckietown-Token"] = token
-        json.dump(config, open(config_file, "w"), indent=2)
