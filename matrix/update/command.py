@@ -1,21 +1,10 @@
 import argparse
-import os
-import subprocess
 from types import SimpleNamespace
 
-import dt_data_api
+from dt_shell import DTCommandAbs, DTShell
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.duckiematrix_utils import \
-    APP_NAME, \
-    DCSS_SPACE_NAME, \
-    APP_RELEASES_DIR, \
-    get_most_recent_version_installed, \
-    remote_zip_obj, \
-    get_latest_version
-
-from utils.duckietown_utils import get_distro_version
-from utils.misc_utils import versiontuple
+    APP_NAME
 
 
 class DTCommand(DTCommandAbs):

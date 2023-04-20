@@ -1,7 +1,6 @@
 import argparse
-from typing import List
 
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, dtslogger
 
 
 class DTCommand(DTCommandAbs):

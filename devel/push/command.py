@@ -2,19 +2,17 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+
+from dtproject import DTProject
 from utils.docker_utils import (
-    AuthNotFound,
     copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
     get_client,
-    get_docker_auth_from_env,
     get_endpoint_architecture,
     get_registry_to_use,
-    hide_string,
     login_client_OLD,
     push_image,
 )
-from utils.dtproject_utils import DTProject
 
 
 class DTCommand(DTCommandAbs):

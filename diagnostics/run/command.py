@@ -5,9 +5,9 @@ import subprocess
 
 from utils.duckietown_utils import get_robot_types, get_distro_version
 from utils.avahi_utils import wait_for_service
-from utils.dtproject_utils import CANONICAL_ARCH
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.misc_utils import sanitize_hostname
+from dtproject.constants import CANONICAL_ARCH
 
 from dt_shell import DTCommandAbs, dtslogger
 

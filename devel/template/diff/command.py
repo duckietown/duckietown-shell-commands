@@ -3,7 +3,7 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 
 
 class DTCommand(DTCommandAbs):

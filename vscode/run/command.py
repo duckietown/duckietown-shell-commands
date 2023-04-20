@@ -30,6 +30,8 @@ from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname
 
 VSCODE_PORT = 8088
+
+# noinspection PyUnresolvedReferences
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 

@@ -9,7 +9,7 @@ from utils.docker_utils import (
     login_client_OLD,
     pull_image,
 )
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.duckietown_utils import DEFAULT_OWNER
 
 

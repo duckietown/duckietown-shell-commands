@@ -15,7 +15,7 @@ from utils.docker_utils import (
     get_registry_to_use,
     login_client_OLD,
 )
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 
 
 class DTCommand(DTCommandAbs):

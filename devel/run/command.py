@@ -5,15 +5,19 @@ import shutil
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
+
+from dtproject import DTProject
+from dtproject.constants import (
+    BUILD_COMPATIBILITY_MAP,
+    CANONICAL_ARCH
+)
 from utils.cli_utils import check_program_dependency
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DOCKER_INFO,
     get_endpoint_architecture,
-    get_registry_to_use,
+    get_registry_to_use, CLOUD_BUILDERS, get_cloud_builder,
 )
-from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject, CLOUD_BUILDERS, \
-    get_cloud_builder
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -95,7 +99,7 @@ class DTCommand(DTCommandAbs):
             nargs="?",
             type=str,
             help="Whether to mount the current project into the container. "
-            "Pass a comma-separated list of paths to mount multiple projects",
+                 "Pass a comma-separated list of paths to mount multiple projects",
         )
         parser.add_argument(
             "--cloud", default=False, action="store_true", help="Run the image on the cloud"
@@ -470,7 +474,7 @@ class DTCommand(DTCommandAbs):
 
 
 def _run_cmd(
-    cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
+        cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
 ):
     if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])

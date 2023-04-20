@@ -8,7 +8,7 @@ from typing import Tuple, List
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.duckietown_utils import get_distro_version
 from utils.exceptions import ShellNeedsUpdate
 

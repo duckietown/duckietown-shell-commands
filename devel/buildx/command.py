@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from typing import Optional, List
 
+from dtproject.utils.misc import dtlabel
 from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -38,16 +39,12 @@ from utils.docker_utils import (
     pull_image,
     sanitize_docker_baseurl,
     get_client,
-    ensure_docker_version,
+    ensure_docker_version, CLOUD_BUILDERS, get_cloud_builder,
 )
-from utils.dtproject_utils import (
+from dtproject import DTProject
+from dtproject.constants import (
     CANONICAL_ARCH,
-    CLOUD_BUILDERS,
-    DISTRO_KEY,
-    dtlabel,
-    DTProject,
-    get_cloud_builder,
-    ARCH_TO_PLATFORM,
+    ARCH_TO_PLATFORM, DISTRO_KEY,
 )
 from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname
@@ -370,7 +367,7 @@ class DTCommand(DTCommandAbs):
                 exit(3)
             # update machine parameter
             parsed.machine = get_cloud_builder(parsed.arch)
-            # in CI we can force builds on specific architectures
+            # in CI, we can force builds on specific architectures
             if parsed.ci_force_builder_arch is not None:
                 # force routing to the given architecture node
                 if parsed.ci_force_builder_arch not in CLOUD_BUILDERS:

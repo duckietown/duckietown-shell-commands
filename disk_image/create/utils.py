@@ -1,5 +1,3 @@
-from typing import Callable
-
 import collections
 import fnmatch
 import glob
@@ -15,8 +13,9 @@ from typing import Callable
 from typing import List
 
 import yaml
+from dt_shell import dtslogger
+
 from disk_image.create.constants import (
-    DEFAULT_DOCKER_REGISTRY,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
     DEFAULT_DOCKER_REGISTRY,
@@ -25,7 +24,6 @@ from disk_image.create.constants import (
     MODULES_TO_LOAD,
     PARTITION_MOUNTPOINT,
 )
-from dt_shell import dtslogger
 from utils.cli_utils import check_program_dependency
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sudo_open

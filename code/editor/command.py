@@ -15,7 +15,7 @@ except ImportError:
 # NOTE: this is to avoid breaking the user workspace
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.misc_utils import get_user_login
 
 

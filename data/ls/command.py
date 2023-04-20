@@ -1,12 +1,8 @@
 import argparse
-import os
-import signal
 from typing import List
 
-from dt_data_api import DataClient, TransferStatus
+from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, dtslogger
-from utils.misc_utils import human_size
-from utils.progress_bar import ProgressBar
 
 VALID_SPACES = ["user", "public", "private"]
 

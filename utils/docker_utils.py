@@ -1,5 +1,6 @@
 import os
 import platform
+import random
 import re
 import subprocess
 import traceback
@@ -15,6 +16,8 @@ from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 
+from dtproject.constants import CANONICAL_ARCH
+from dtproject.utils.misc import canonical_arch
 from .cli_utils import start_command_in_subprocess
 from .misc_utils import parse_version
 from .networking_utils import get_duckiebot_ip, resolve_hostname
@@ -41,6 +44,17 @@ Docker Endpoint:
   Total Memory: {MemTotal}
   CPUs: {NCPU}
 """
+
+CLOUD_BUILDERS = {
+    "arm32v7": ["172.27.0.102:2376"],
+    "arm64v8": ["172.27.0.102:2376"],
+    "amd64": ["172.27.0.101:2376"],
+}
+
+
+def get_cloud_builder(arch: str) -> str:
+    arch = canonical_arch(arch)
+    return random.choice(CLOUD_BUILDERS[arch])
 
 
 def get_registry_to_use(quiet: bool = False) -> str:
@@ -85,8 +99,6 @@ def get_endpoint_ncpus(epoint=None):
 
 
 def get_endpoint_architecture_from_client_OLD(client: DockerClientOLD) -> str:
-    from .dtproject_utils import CANONICAL_ARCH
-
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
@@ -159,7 +171,7 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
 
 
 def copy_docker_env_into_configuration(
-    shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
+        shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
 ):
     registry = registry or get_registry_to_use(quiet)
     try:
@@ -207,7 +219,7 @@ def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registr
 
 
 def _login_client_OLD(
-    client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool
+        client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool
 ):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
@@ -223,10 +235,8 @@ def _login_client_OLD(
     # TODO: check for error
 
 
-# TODO quick hack to make this work - duplication of code above bad
+# TODO quick hack to make this work - duplication of code above is bad
 def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKER_TCP_PORT) -> str:
-    from .dtproject_utils import CANONICAL_ARCH
-
     client = get_remote_client(duckiebot_ip=duckiebot_ip, port=port)
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
@@ -264,8 +274,8 @@ def push_image(image: str, endpoint=None, progress=True) -> str:
     final_digest = None
     for line in client.api.push(*image.split(":"), stream=True, decode=True):
         if "error" in line:
-            l = str(line["error"])
-            msg = f"Cannot push image {image}:\n{l}"
+            err = str(line["error"])
+            msg = f"Cannot push image {image}:\n{err}"
             raise Exception(msg)
 
         if "aux" in line:
@@ -615,8 +625,8 @@ def build_logs_to_string(build_logs):
 
     """
     s = ""
-    for l in build_logs:
-        for k, v in l.items():
+    for line in build_logs:
+        for k, v in line.items():
             if k == "stream":
                 s += str(v)
     return s
@@ -639,9 +649,9 @@ except ImportError:
     dtslogger.warning("Some functionalities are disabled until you update your shell to v5.4.0+")
     _dockertown_available: bool = False
 
-
 if _dockertown_available:
     from dockertown import DockerClient
+
 
     def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
         """Raises CouldNotLogin"""
@@ -674,8 +684,9 @@ if _dockertown_available:
                 raise_on_error=raise_on_error,
             )
 
+
     def _login_client(
-        client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
+            client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
     ):
         """Raises CouldNotLogin"""
         password_hidden = hide_string(password)
@@ -688,6 +699,7 @@ if _dockertown_available:
             if raise_on_error:
                 traceback.print_exc()
                 raise CouldNotLogin(f"Could not login to {registry!r}.")
+
 
     def ensure_docker_version(client: DockerClient, v: str):
         version = client.version()

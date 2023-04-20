@@ -11,10 +11,21 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
 from docker.errors import APIError, ContainerError, ImageNotFound
-from termcolor import colored
-
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from duckietown_docker_utils import ENV_REGISTRY
+from termcolor import colored
+
+from dtproject import DTProject
+from dtproject.constants import (
+    BUILD_COMPATIBILITY_MAP,
+    CANONICAL_ARCH,
+    DISTRO_KEY,
+    ARCH_TO_PLATFORM,
+    ARCH_TO_PLATFORM_OS,
+    ARCH_TO_PLATFORM_ARCH,
+    ARCH_TO_PLATFORM_VARIANT,
+)
+from dtproject.utils.misc import dtlabel
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     copy_docker_env_into_configuration,
@@ -25,20 +36,7 @@ from utils.docker_utils import (
     get_endpoint_ncpus,
     get_registry_to_use,
     login_client_OLD,
-    pull_image,
-)
-from utils.dtproject_utils import (
-    BUILD_COMPATIBILITY_MAP,
-    CANONICAL_ARCH,
-    CLOUD_BUILDERS,
-    DISTRO_KEY,
-    dtlabel,
-    DTProject,
-    get_cloud_builder,
-    ARCH_TO_PLATFORM,
-    ARCH_TO_PLATFORM_OS,
-    ARCH_TO_PLATFORM_ARCH,
-    ARCH_TO_PLATFORM_VARIANT,
+    pull_image, CLOUD_BUILDERS, get_cloud_builder,
 )
 from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname

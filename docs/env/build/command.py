@@ -8,12 +8,13 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.assets_utils import get_asset_path
 from utils.docker_utils import get_endpoint_architecture
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.duckietown_utils import get_distro_version
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", },
-    "template-library": {"2", }
+    "template-library": {"2", },
+    "template-basic": {"4", },
 }
 
 

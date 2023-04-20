@@ -6,7 +6,7 @@ from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json"]
+           "get_user_login", "pretty_json", "versiontuple"]
 
 from typing import Any
 

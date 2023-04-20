@@ -4,7 +4,7 @@ import os
 import termcolor as tc
 
 from dt_shell import DTCommandAbs, DTShell
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 
 PROJECT_INFO = """
 {project}

@@ -25,6 +25,7 @@ from docker.errors import APIError, NotFound
 from docker.models.containers import Container
 from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
+from dtproject import DTProject
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
@@ -37,7 +38,6 @@ from utils.docker_utils import (
     remove_if_running,
     get_endpoint_architecture_from_client_OLD,
 )
-from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
 from utils.misc_utils import sanitize_hostname, indent_block
 from utils.networking_utils import get_duckiebot_ip

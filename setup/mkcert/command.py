@@ -15,7 +15,7 @@ import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 
-from utils.dtproject_utils import CANONICAL_ARCH
+from dtproject.constants import CANONICAL_ARCH
 
 MKCERT_VERSION = "1.4.4"
 LOCAL_DOMAIN = "localhost"
