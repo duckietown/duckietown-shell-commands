@@ -24,22 +24,23 @@ except ImportError:
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from duckietown_docker_utils import ENV_REGISTRY
-from dockertown import DockerClient
+from dockertown import DockerClient, Image
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DEFAULT_REGISTRY,
+    CLOUD_BUILDERS,
     copy_docker_env_into_configuration,
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
     login_client,
-    pull_image,
     sanitize_docker_baseurl,
-    get_client,
-    ensure_docker_version, CLOUD_BUILDERS, get_cloud_builder,
+    ensure_docker_version,
+    get_cloud_builder,
+    pull_image,
 )
 from dtproject import DTProject
 from dtproject.constants import (
@@ -52,7 +53,7 @@ from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
 from dockertown.components.buildx.imagetools.models import Manifest
-from dockertown.exceptions import NoSuchManifest
+from dockertown.exceptions import NoSuchManifest, NoSuchImage
 from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
@@ -449,9 +450,6 @@ class DTCommand(DTCommandAbs):
         # ensure buildx version
         ensure_buildx_version(docker, "0.8.0+")
 
-        # TODO: this should be removed, use dockertown only
-        client = get_client(parsed.machine)
-
         # build-arg NCPUS
         ncpu: str = str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         docker_build_args["NCPUS"] = ncpu
@@ -544,13 +542,15 @@ class DTCommand(DTCommandAbs):
             docker_build_contexts[RECIPE_STAGE_NAME] = recipe.path
             docker_build_contexts[MEAT_STAGE_NAME] = project.path
 
+        pull_image("duckietown/dt-gui-tools:ente-amd64", endpoint=docker)
+
         # cache
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
             try:
-                client.images.get(image)
+                docker.image.inspect(image)
                 is_present = True
-            except (ImageNotFound, BaseException):
+            except NoSuchImage:
                 is_present = False
             # ---
             if not is_present:
@@ -558,7 +558,7 @@ class DTCommand(DTCommandAbs):
                     # try to pull the same image so Docker can use it as cache source
                     dtslogger.info(f'Pulling image "{image}" to use as cache...')
                     try:
-                        pull_image(image, endpoint=client, progress=not parsed.ci)
+                        pull_image(image, endpoint=docker, progress=not parsed.ci)
                         is_present = True
                     except KeyboardInterrupt:
                         dtslogger.info("Aborting.")
@@ -696,7 +696,7 @@ class DTCommand(DTCommandAbs):
             exit(1)
 
         # get resulting image
-        dimage = client.images.get(image)
+        dimage: Image = docker.image.inspect(image)
         dtslogger.info("Project packaged successfully!")
 
         # update manifest
@@ -737,7 +737,10 @@ class DTCommand(DTCommandAbs):
         # print out image analysis
         if not parsed.quiet:
             # get image history
-            historylog = [(layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()]
+            historylog = [
+                (layer.id, layer.size, layer.created_by)
+                for layer in docker.image.history(image)
+            ]
 
             # round up extra info
             extra_info = []
@@ -776,7 +779,7 @@ class DTCommand(DTCommandAbs):
             ]
             for tag_data in tags_data:
                 with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                    metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
                     # add build metadata
                     metadata["build"] = {
                         "args": copy.deepcopy(buildargs),

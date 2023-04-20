@@ -9,7 +9,7 @@ from typing import Optional
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import DEFAULT_REGISTRY, get_client
+from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD
 from utils.duckiematrix_utils import \
     APP_NAME
 from utils.duckietown_utils import get_distro_version
@@ -151,7 +151,7 @@ class MatrixEngine:
         if self.config is None:
             raise ValueError("Configure the engine first.")
         # create docker client
-        docker = get_client()
+        docker = get_client_OLD()
         # run
         try:
             dtslogger.info("Launching Engine...")

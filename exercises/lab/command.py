@@ -11,7 +11,7 @@ from docker.errors import APIError, ImageNotFound, NotFound
 from dt_data_api import APIError
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from duckietown_docker_utils import ENV_REGISTRY
-from utils.docker_utils import get_client, get_registry_to_use
+from utils.docker_utils import get_client_OLD, get_registry_to_use
 from utils.exceptions import InvalidUserInput
 from utils.exercises_utils import get_exercise_config
 from utils.pip_utils import get_pip_index_url, import_or_install
@@ -115,7 +115,7 @@ class DTCommand(DTCommandAbs):
         lab_image_name = f"{username}/exercise-{config.exercise_name}-lab"
 
         # make sure the image exists
-        client = get_client()
+        client = get_client_OLD()
         try:
             client.images.get(lab_image_name)
         except ImageNotFound:

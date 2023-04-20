@@ -4,11 +4,11 @@ from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    get_client,
+    get_client_OLD,
     get_endpoint_architecture,
     get_registry_to_use,
     login_client_OLD,
-    pull_image,
+    pull_image_OLD,
 )
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
@@ -54,7 +54,7 @@ class DTCommand(DTCommandAbs):
         images = [
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
-        client = get_client(hostname)
+        client = get_client_OLD(hostname)
         login_client_OLD(client, shell.shell_config, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
@@ -70,7 +70,7 @@ class DTCommand(DTCommandAbs):
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             try:
-                pull_image(image, client)
+                pull_image_OLD(image, client)
             except NotFound:
                 dtslogger.error(f"Image '{image}' not found on registry '{registry_to_use}'. " f"Aborting.")
                 return

@@ -5,7 +5,7 @@ import re
 import subprocess
 import traceback
 from os.path import expanduser
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
@@ -16,6 +16,9 @@ from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 
+from dockertown import DockerClient
+from dockertown.components.image.models import LayerPullStatus
+from dockertown.exceptions import NoSuchImage
 from dtproject.constants import CANONICAL_ARCH
 from dtproject.utils.misc import canonical_arch
 from .cli_utils import start_command_in_subprocess
@@ -86,7 +89,7 @@ def get_docker_auth_from_env() -> Tuple[str, str]:
 
 
 def get_endpoint_ncpus(epoint=None):
-    client = get_client(epoint)
+    client = get_client_OLD(epoint)
     epoint_ncpus = 1
     try:
         epoint_ncpus = client.info()["NCPU"]
@@ -131,7 +134,16 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
         return url
 
 
-def get_client(endpoint=None):
+def get_client(endpoint=None) -> DockerClient:
+    if endpoint is None:
+        return dockertown.docker
+    else:
+        # create client
+        return endpoint if isinstance(endpoint, DockerClient) else \
+            DockerClient(host=sanitize_docker_baseurl(endpoint))
+
+
+def get_client_OLD(endpoint=None) -> DockerClientOLD:
     if endpoint is None:
         client = dockerOLD.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
@@ -245,8 +257,38 @@ def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKE
     return CANONICAL_ARCH[epoint_arch]
 
 
-def pull_image(image: str, endpoint: str = None, progress=True):
-    client = get_client(endpoint)
+def pull_image(image: str, endpoint: Union[None, str, DockerClient] = None, progress=True):
+    client: DockerClient = get_client(endpoint)
+    layers = set()
+    pulled = set()
+    do_update: bool = False
+    pbar = ProgressBar() if progress else None
+    try:
+        for update in client.image.interactive_pull(image):
+            layers.add(update.layer_id)
+            if update.status in (LayerPullStatus.EXISTS, LayerPullStatus.PULLED):
+                pulled.add(update.layer_id)
+            # update progress bar (do_update avoids a jumpy progress bar early on)
+            if progress and (do_update or len(layers) != len(pulled)):
+                percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 99.0
+                pbar.update(percentage)
+                do_update = True
+    except NoSuchImage as e:
+        raise e
+    except KeyboardInterrupt as e:
+        raise e
+    except:
+        pbar.update(1)
+        # fallback to attempt to pull without interactive progress
+        client.image.pull(image)
+    # ---
+    if progress:
+        pbar.done()
+
+
+# TODO: this should be removed
+def pull_image_OLD(image: str, endpoint: str = None, progress=True):
+    client = get_client_OLD(endpoint)
     layers = set()
     pulled = set()
     pbar = ProgressBar() if progress else None
@@ -266,7 +308,7 @@ def pull_image(image: str, endpoint: str = None, progress=True):
 
 
 def push_image(image: str, endpoint=None, progress=True) -> str:
-    client = get_client(endpoint)
+    client = get_client_OLD(endpoint)
 
     layers = set()
     pushed = set()

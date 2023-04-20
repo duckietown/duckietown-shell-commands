@@ -13,7 +13,7 @@ if sys.version_info < (3, 6):
     msg = "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s." % str(sys.version)
     raise UserError(msg)
 
-min_duckietown_shell = ".".join(["5", "5", "0"])
+min_duckietown_shell = ".".join(["5", "5", "3"])
 duckietown_shell_commands_version = "6.0.0"
 
 

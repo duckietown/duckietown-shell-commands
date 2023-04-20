@@ -34,7 +34,7 @@ from utils.docker_utils import (
     get_registry_to_use,
     get_remote_client,
     pull_if_not_exist,
-    pull_image,
+    pull_image_OLD,
     remove_if_running,
     get_endpoint_architecture_from_client_OLD,
 )
@@ -580,11 +580,11 @@ class DTCommand(DTCommandAbs):
             # - pull no matter what
             for image in local_images:
                 dtslogger.info(f"Pulling '{image}'...")
-                pull_image(image, local_client)
+                pull_image_OLD(image, local_client)
                 dtslogger.info(f"Image '{image}' successfully updated!")
             for image in agent_images:
                 dtslogger.info(f"Pulling '{image}'...")
-                pull_image(image, agent_client)
+                pull_image_OLD(image, agent_client)
                 dtslogger.info(f"Image '{image}' successfully updated!")
         else:
             # - pull only if they do not exist

@@ -29,7 +29,7 @@ from utils.docker_utils import (
     get_registry_to_use,
     get_remote_client,
     pull_if_not_exist,
-    pull_image,
+    pull_image_OLD,
     remove_if_running,
 )
 from utils.exceptions import InvalidUserInput
@@ -388,10 +388,10 @@ class DTCommand(DTCommandAbs):
         if parsed.pull:
             for image in local_images:
                 dtslogger.info(f"Pulling {image}")
-                pull_image(image, local_client)
+                pull_image_OLD(image, local_client)
             for image in agent_images:
                 dtslogger.info(f"Pulling {image}")
-                pull_image(image, agent_client)
+                pull_image_OLD(image, agent_client)
         else:
             for image in local_images:
                 pull_if_not_exist(local_client, image)

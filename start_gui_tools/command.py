@@ -14,7 +14,7 @@ from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
     pull_if_not_exist,
-    pull_image,
+    pull_image_OLD,
     remove_if_running,
     get_registry_to_use,
 )
@@ -151,7 +151,7 @@ class DTCommand(DTCommandAbs):
 
         # pull image
         if parsed.pull:
-            pull_image(image, client)
+            pull_image_OLD(image, client)
         else:
             pull_if_not_exist(client, image)
 

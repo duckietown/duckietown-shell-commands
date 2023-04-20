@@ -7,7 +7,7 @@ from dtproject import DTProject
 from utils.docker_utils import (
     copy_docker_env_into_configuration,
     DEFAULT_MACHINE,
-    get_client,
+    get_client_OLD,
     get_endpoint_architecture,
     get_registry_to_use,
     login_client_OLD,
@@ -96,7 +96,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
         # login (CI only)
         # spin up docker client
-        docker = get_client(parsed.machine)
+        docker = get_client_OLD(parsed.machine)
 
         copy_docker_env_into_configuration(shell.shell_config)
         login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=True)
