@@ -14,7 +14,7 @@ if sys.version_info < (3, 6):
     raise UserError(msg)
 
 min_duckietown_shell = ".".join(["5", "2", "21"])
-duckietown_shell_commands_version = "5.4.5"
+duckietown_shell_commands_version = "6.0.0"
 
 
 BILLBOARDS_DCSS_PREFIX = "assets/dts/billboard/content/"
