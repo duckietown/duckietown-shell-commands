@@ -108,11 +108,15 @@ class DTCommand(DTCommandAbs):
         if parsed.embed:
             source_path: str = project.path
 
-        # some projects contain their books in a subdirectory
-        if project.type == "template-library":
-            dockerfile_path = get_asset_path("dockerfile", "library-jupyter-book", "v1", "Dockerfile")
+        # some projects store their books in subdirectories
+        docs_path: str = project.docs_path()
+        if docs_path != project.path:
+            dockerfile_path = os.path.join(docs_path, "Dockerfile")
+            if not os.path.exists(dockerfile_path):
+                # provide a Dockerfile if the documentation dir does not carry its own
+                dockerfile_path = get_asset_path("dockerfile", "library-jupyter-book", "v1", "Dockerfile")
             if parsed.embed:
-                source_path = os.path.join(project.path, "docs")
+                source_path = docs_path
 
         # build jb environment
         dtslogger.info(f"Building environment image for project '{project.name}'...")
@@ -123,7 +127,10 @@ class DTCommand(DTCommandAbs):
             username="duckietown",
             tag=jb_image_tag,
             build_arg=build_args,
-            build_context=[("source", source_path)],
+            build_context=[
+                ("source", source_path),
+                ("project", project.path),
+            ],
             pull=not parsed.no_pull,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,

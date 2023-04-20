@@ -253,11 +253,9 @@ class DTCommand(DTCommandAbs):
             # locations of interest
             html_dir: str = os.path.join(project.path, "html")
             pdf_dir: str = os.path.join(project.path, "pdf")
-            book_dir: str = project.path
 
-            # some projects contain their books in a subdirectory
-            if project.type == "template-library":
-                book_dir = os.path.join(project.path, "docs")
+            # some projects store their books in subdirectories
+            book_dir = project.docs_path()
 
             # collect volumes to mount
             volumes: List[Tuple[str, str, str]] = [
