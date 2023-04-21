@@ -190,15 +190,9 @@ class MatrixEngine:
         # ---
         stime = time.time()
         while True:
-            self.engine.reload()
-            if self.engine.status not in ["created", "running"]:
-                raise ValueError(f"Container was found in status '{self.engine.status}'")
-            attrs = self.engine.attrs
-            if "State" in attrs and "Health" in attrs["State"]:
-                health = attrs["State"]["Health"]["Status"]
-                # check health
-                if health == "healthy":
-                    return
+            _, health = self.engine.exec_run("cat /health", stderr=False)
+            if health == b"healthy":
+                return
             # ---
             time.sleep(1)
             if 0 < timeout < time.time() - stime:
