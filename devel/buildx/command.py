@@ -542,8 +542,6 @@ class DTCommand(DTCommandAbs):
             docker_build_contexts[RECIPE_STAGE_NAME] = recipe.path
             docker_build_contexts[MEAT_STAGE_NAME] = project.path
 
-        pull_image("duckietown/dt-gui-tools:ente-amd64", endpoint=docker)
-
         # cache
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
