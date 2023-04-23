@@ -2,10 +2,10 @@
     "schema": {
         "name": {
             "title": "Title",
-            "description": "This will also be used to generate a file safe workspace name e.g. How to Robot -> how-to-robot.",
+            "description": "This will also be used to generate a file safe workspace name e.g. How to Robot! -> how-to-robot.",
             "type": "string",
             "minLength": 1,
-            "maxLength": 24,
+            "maxLength": 62,
             "required": true
         },
         "description": {
