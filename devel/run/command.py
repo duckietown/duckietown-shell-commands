@@ -11,7 +11,7 @@ from dtproject.constants import (
     BUILD_COMPATIBILITY_MAP,
     CANONICAL_ARCH
 )
-from utils.cli_utils import check_program_dependency
+from utils.cli_utils import ensure_command_is_installed
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DOCKER_INFO,
@@ -437,7 +437,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
                 exit(2)
             # make sure rsync is installed
-            check_program_dependency("rsync")
+            ensure_command_is_installed("rsync", dependant="dts devel run")
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
             remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
             # get projects' locations

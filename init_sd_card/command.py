@@ -18,7 +18,7 @@ from typing import List, Optional
 from math import floor, log2
 
 from dt_shell import __version__ as shell_version, DTCommandAbs, DTShell, dtslogger
-from utils.cli_utils import ask_confirmation, check_program_dependency
+from utils.cli_utils import ask_confirmation, ensure_command_is_installed
 from utils.duckietown_utils import (
     get_robot_configurations,
     get_robot_hardware,
@@ -410,7 +410,7 @@ def step_license(_, parsed, __):
 
 def step_download(shell, parsed, data):
     # check if dependencies are met
-    check_program_dependency("unzip")
+    ensure_command_is_installed("unzip")
 
     # clear cache (if requested)
     if parsed.no_cache:
@@ -449,9 +449,9 @@ def step_download(shell, parsed, data):
 
 def step_flash(_, parsed, data):
     # check if dependencies are met
-    check_program_dependency("sudo")
-    check_program_dependency("lsblk")
-    check_program_dependency("umount")
+    ensure_command_is_installed("sudo")
+    ensure_command_is_installed("lsblk")
+    ensure_command_is_installed("umount")
     print("=" * 30)
 
     # ask for a device if not set already
@@ -608,9 +608,9 @@ def step_verify(_, parsed, data):
 
 def step_setup(shell, parsed, data):
     # check if dependencies are met
-    check_program_dependency("dd")
-    check_program_dependency("sudo")
-    check_program_dependency("sync")
+    ensure_command_is_installed("dd")
+    ensure_command_is_installed("sudo")
+    ensure_command_is_installed("sync")
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")

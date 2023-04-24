@@ -23,7 +23,7 @@ from requests import ReadTimeout
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import continuously_monitor
-from utils.cli_utils import check_program_dependency, start_command_in_subprocess
+from utils.cli_utils import ensure_command_is_installed, start_command_in_subprocess
 from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
@@ -287,7 +287,7 @@ class DTCommand(DTCommandAbs):
             arch = DEFAULT_ARCH
         else:
             # let's set some things up to run on the Duckiebot
-            check_program_dependency("rsync")
+            ensure_command_is_installed("rsync")
             remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
             dtslogger.info(f"Syncing your local folder with {duckiebot_name}")
             rsync_cmd = "rsync -a "

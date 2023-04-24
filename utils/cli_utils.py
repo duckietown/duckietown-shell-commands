@@ -2,10 +2,11 @@ import os
 import subprocess
 import sys
 from shutil import which
+from typing import Optional
 
-from dt_shell import dtslogger
+from dt_shell import dtslogger, UserError
 
-__all__ = ["get_clean_env", "start_command_in_subprocess", "ask_confirmation", "check_program_dependency"]
+__all__ = ["get_clean_env", "start_command_in_subprocess", "ask_confirmation", "ensure_command_is_installed"]
 
 
 def get_clean_env():
@@ -75,12 +76,17 @@ def ask_confirmation(message, default="n", question="Do you confirm?", choices=N
                 return r
 
 
-def check_program_dependency(exe):
-    p = which(exe)
-    if p is None:
-        dtslogger.error(
-            f"The command '{exe}' is required but could not be found. "
-            f"Please, install it before continuing."
-        )
-        exit(1)
-    dtslogger.debug("Found %r at %s" % (exe, p))
+def ensure_command_is_installed(command, dependant: Optional[str] = None):
+    command_path: Optional[str] = which(command)
+    if command_path is None:
+        extra: str = ""
+        if dependant:
+            extra = f" by '{dependant}'"
+        msg = f"""
+
+        The command '{command}' is required{extra}. Please, install it before continuing.
+
+        """
+        raise UserError(msg)
+    else:
+        dtslogger.debug(f"Command '{command}' found: {command_path}")

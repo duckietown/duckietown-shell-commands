@@ -29,7 +29,7 @@ from dtproject import DTProject
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-from utils.cli_utils import check_program_dependency, start_command_in_subprocess
+from utils.cli_utils import ensure_command_is_installed, start_command_in_subprocess
 from utils.docker_utils import (
     get_registry_to_use,
     get_remote_client,
@@ -468,7 +468,7 @@ class DTCommand(DTCommandAbs):
         if not parsed.local:
             if parsed.sync:
                 # let's set some things up to run on the Duckiebot
-                check_program_dependency("rsync")
+                ensure_command_is_installed("rsync")
                 remote_base_path = f"{DEFAULT_REMOTE_USER}@{duckiebot_hostname}:/code/{exercise_name}"
                 dtslogger.info(f"Syncing your local folder with {duckiebot}")
                 rsync_cmd = "rsync -a "
