@@ -6,10 +6,11 @@ from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json"]
+           "get_user_login", "pretty_json", "NotSet", "hide_string"]
 
 from typing import Any
 
+NotSet = object()
 
 def human_time(time_secs, compact=False):
     label = lambda s: s[0] if compact else " " + s
@@ -83,3 +84,8 @@ def get_user_login() -> str:
         import getpass
         user = getpass.getuser()
     return user
+
+
+def hide_string(s: str, k: int = 3) -> str:
+    hidden = "*" * (len(s) - k) + s[-k:]
+    return hidden
