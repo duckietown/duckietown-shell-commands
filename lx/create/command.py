@@ -105,7 +105,7 @@ class DTCommand(DTCommandAbs):
             f"====================={bar}=============================\n\n"
         )
 
-        dtslogger.info(f"To verify your template, run `dts code build --recipe ../{'recipe'}` in the "
+        dtslogger.info(f"To verify your template, run `dts code build --recipe ../recipe` in the "
                        f"'{safe_name+'/lx'}' directory. \n")
 
     @staticmethod
