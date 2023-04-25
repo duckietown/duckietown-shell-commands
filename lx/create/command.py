@@ -38,9 +38,13 @@ class DTCommand(DTCommandAbs):
             "v3",
             title="Create New Learning Experience",
             subtitle="Populate the fields below to create a new Learning Experience",
-            completion_message="Generating your LX ...\n You can now close this page and return to the terminal."
+            completion_message="Generating your LX ...\n "
+                               "You can now close this page and return to the terminal."
         )
-        safe_name: str = re.sub(r'[^\w\s@]', "", svalues["name"]).replace(" ", "-").lower()
+        safe_name: str = re.sub(
+            r"-+", "-",
+            re.sub(r'[^\w\s-]', "", svalues["name"]).replace(" ", "-").lower()
+        ).strip("-")
         # Clean some form values
         svalues["safe_name"] = safe_name  # file safe alternate name - ex. Robot Time! -> robot-time
         svalues.setdefault("apt", "\n")
@@ -66,9 +70,9 @@ class DTCommand(DTCommandAbs):
 
         # Clone lx-template and lx-recipe-template into the workdir renamed and stripped of .git
         dtslogger.info("Creating LX and recipe directories ...")
-        lx_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, safe_name+"-lx")
-        recipe_path: str = clone_unlinked_repo(config["recipe-template-repo"], version, create_dir, safe_name+"-recipe")
-        solution_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, safe_name+"-solution")
+        lx_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, "lx")
+        recipe_path: str = clone_unlinked_repo(config["recipe-template-repo"], version, create_dir, "recipe")
+        solution_path: str = clone_unlinked_repo(config["lx-template-repo"], version, create_dir, "solution")
 
         # Update the template files with merged configuration and user values
         # Not included in first config: challenge definitions
@@ -105,8 +109,8 @@ class DTCommand(DTCommandAbs):
             f"====================={bar}=============================\n\n"
         )
 
-        dtslogger.info(f"To verify your template, run `dts code build --recipe ../{safe_name+'-recipe'}` in the "
-                       f"'{safe_name+'-lx'}' directory. \n")
+        dtslogger.info(f"To verify your template, run `dts code build --recipe ../recipe` in the "
+                       f"'{safe_name+'/lx'}' directory. \n")
 
     @staticmethod
     def complete(shell, word, line):

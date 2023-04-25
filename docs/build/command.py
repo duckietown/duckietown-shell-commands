@@ -48,7 +48,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(add_help=False)
         parser.add_argument(
             "-C",
             "--workdir",
@@ -164,10 +164,10 @@ def build_v2(shell: DTShell, args):
         help="Whether to build a PDF instead of HTML",
     )
     parser.add_argument(
-        "--no-optimization",
+        "--optimize",
         default=False,
         action="store_true",
-        help="Whether to skip the images optimization step",
+        help="Whether to run the image optimization step",
     )
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
     # parse arguments
@@ -325,7 +325,7 @@ def build_v2(shell: DTShell, args):
         consume_container_logs(logs)
 
         # start the image optimizer process
-        if build_html and (not parsed.no_optimization):
+        if build_html and parsed.optimize:
             dtslogger.info(f"Optimizing media...")
             container_name: str = f"docs-image-optimizer-{project.name}"
             args = {

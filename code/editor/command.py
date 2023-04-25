@@ -1,11 +1,14 @@
 import argparse
 import os
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, List
 
+from code.workbench.command import SettingsFile
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
 from utils.exceptions import ShellNeedsUpdate
+from utils.secrets_utils import SecretsManager
+from utils.yaml_utils import load_yaml
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -151,27 +154,28 @@ class DTCommand(DTCommandAbs):
         arch: str = get_endpoint_architecture()
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
+        # recipe
+        if parsed.recipe is not None:
+            if project.needs_recipe:
+                recipe_dir: str = os.path.abspath(parsed.recipe)
+                dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
+                project.set_recipe_dir(recipe_dir)
+            else:
+                raise UserError("This project does not support recipes")
+        else:
+            if parsed.recipe_version:
+                project.set_recipe_version(parsed.recipe_version)
+                dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
+            project.ensure_recipe_exists()
+            project.ensure_recipe_updated()
+        recipe: Optional[DTProject] = project.recipe
+
         # find (or build) the vscode image to run
         if parsed.image is not None:
             vscode_image_name: str = parsed.image
             dtslogger.info(f"Using custom image: {vscode_image_name}")
         else:
             # editor not provided, we need to build our own
-            # recipe
-            if parsed.recipe is not None:
-                if project.needs_recipe:
-                    recipe_dir: str = os.path.abspath(parsed.recipe)
-                    dtslogger.info(f"Using custom recipe from '{recipe_dir}'")
-                    project.set_recipe_dir(recipe_dir)
-                else:
-                    raise UserError("This project does not support recipes")
-            else:
-                if parsed.recipe_version:
-                    project.set_recipe_version(parsed.recipe_version)
-                    dtslogger.info(f"Using recipe version on branch '{parsed.recipe_version}'")
-                project.ensure_recipe_exists()
-                project.ensure_recipe_updated()
-            recipe: Optional[DTProject] = project.recipe
 
             # custom VSCode distro
             if parsed.distro:
@@ -228,12 +232,30 @@ class DTCommand(DTCommandAbs):
         # we know which VSCode to use
         dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
 
+        # settings file is in the recipe
+        settings_file: str = os.path.join(recipe.path, "settings.yaml")
+        if not os.path.exists(settings_file):
+            msg = "Recipe must contain a 'settings.yaml' file"
+            dtslogger.error(msg)
+            exit(1)
+        settings: SettingsFile = SettingsFile(**load_yaml(settings_file))
+
+        # gather secrets to share with the container
+        secrets: List[str] = []
+        for secret_id in settings.editor.get("secrets", []):
+            if not SecretsManager.has(secret_id):
+                dtslogger.error(f"Secret '{secret_id}' is not set. This project requires that you set this "
+                                f"secret. Please, follow the proper instructions on how to do so.")
+                return False
+            secrets.append(secret_id)
+
         # run VSCode
         vscode_namespace = SimpleNamespace(
             workdir=[parsed.workdir],
             image=vscode_image_name,
             bind=parsed.bind,
             impersonate=parsed.impersonate,
+            mount_secret=secrets,
             verbose=parsed.verbose,
             keep=parsed.keep,
         )
