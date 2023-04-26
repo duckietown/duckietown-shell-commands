@@ -110,6 +110,12 @@ class DTCommand(DTCommandAbs):
             help="Link robots inside the matrix to robots outside",
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
@@ -205,6 +211,8 @@ class DTCommand(DTCommandAbs):
         try:
             # - engine
             if run_engine:
+                if not parsed.no_pull:
+                    engine.pull()
                 engine.start()
 
             # - renderer

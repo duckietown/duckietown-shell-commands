@@ -9,7 +9,7 @@ from typing import Optional
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD
+from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD
 from utils.duckiematrix_utils import \
     APP_NAME
 from utils.duckietown_utils import get_distro_version
@@ -147,6 +147,13 @@ class MatrixEngine:
                            "Just a heads up that it might still be there.")
         self.engine = None
 
+    def pull(self):
+        # download engine image
+        image: str = self.config["image"]
+        dtslogger.info(f"Download image '{image}'...")
+        pull_image_OLD(image)
+        dtslogger.info(f"Image downloaded!")
+
     def start(self, join: bool = False) -> bool:
         if self.config is None:
             raise ValueError("Configure the engine first.")
@@ -268,6 +275,12 @@ class DTCommand(DTCommandAbs):
             help="Build assets and exit"
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
@@ -302,6 +315,8 @@ class DTCommand(DTCommandAbs):
         if engine is None:
             return
         # ---
+        if not parsed.no_pull:
+            engine.pull()
         engine.start()
         engine.join()
 
