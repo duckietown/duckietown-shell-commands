@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+from typing import List, Optional
 
 from dt_shell import DTCommandAbs, dtslogger
 
@@ -126,14 +127,6 @@ class DTCommand(DTCommandAbs):
             "--loop", default=False, action="store_true", help="(Experimental) Whether to run the LOOP image"
         )
         parser.add_argument(
-            "-A",
-            "--argument",
-            dest="arguments",
-            default=[],
-            action="append",
-            help="Arguments for the container command",
-        )
-        parser.add_argument(
             "--runtime", default="docker", type=str, help="Docker runtime to use to run the container"
         )
         parser.add_argument(
@@ -174,6 +167,13 @@ class DTCommand(DTCommandAbs):
         if multi.is_multicommand:
             multi.execute()
             return
+        # everything after "++" is a passthrough for the container's command
+        container_cmd_arguments: Optional[List[str]] = None
+        if "++" in args:
+            idx: int = args.index("++")
+            container_cmd_arguments = args[idx+1:]
+            args = args[:idx]
+
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
             idx = args.index("--")
@@ -262,6 +262,7 @@ class DTCommand(DTCommandAbs):
             version = parsed.tag
 
         # get the module configuration
+        # noinspection PyListCreation
         module_configuration_args = []
         # apply default module configuration
         module_configuration_args.append(f"--net={parsed.network_mode}")
@@ -412,11 +413,8 @@ class DTCommand(DTCommandAbs):
             parsed.cmd = LAUNCHER_FMT % parsed.launcher
         cmd_option = [] if not parsed.cmd else [parsed.cmd]
         cmd_arguments = (
-            [] if not parsed.arguments else
-            (["--"] if not cmd_option else []) + list(map(
-                lambda s: ("--%s" if ('=' not in s or s.index('=') > 1) else "-%s") % s,
-                parsed.arguments
-            ))
+            [] if not container_cmd_arguments else
+            (["--"] if not cmd_option else []) + container_cmd_arguments
         )
         # docker arguments
         if not parsed.docker_args:
