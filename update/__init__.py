@@ -17,6 +17,7 @@ min_duckietown_shell = ".".join(["5", "5", "7"])
 duckietown_shell_commands_version = "6.0.0"
 
 
+DISTRO = "ente"
 BILLBOARDS_DCSS_PREFIX = "assets/dts/billboard/content/"
 
 
