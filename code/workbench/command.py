@@ -406,7 +406,7 @@ class DTCommand(DTCommandAbs):
         # TODO: what is this for?
         # environment directory is in the recipe
         environment_dir = os.path.join(recipe.path, "assets", "environment")
-        if not os.path.exists(environment_dir):
+        if parsed.simulation and not os.path.exists(environment_dir):
             msg = "Recipe must contain a 'assets/environment' directory"
             raise InvalidUserInput(msg)
 
@@ -1044,61 +1044,68 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info("Starting attached container")
 
-        agent_env = load_yaml(os.path.join(environment_dir, "agent_env.yaml"))
-        if settings.ros:
-            agent_env = {
-                **ros_env,
-                **agent_env,
-            }
-            if duckiebot is not None:
-                agent_env.update({
-                    "VEHICLE_NAME": duckiebot,
-                    "HOSTNAME": duckiebot,
-                })
+        if parsed.simulation or parsed.duckiebot:
+            agent_env = load_yaml(os.path.join(environment_dir, "agent_env.yaml"))
+            if settings.ros:
+                agent_env = {
+                    **ros_env,
+                    **agent_env,
+                }
+                if duckiebot is not None:
+                    agent_env.update({
+                        "VEHICLE_NAME": duckiebot,
+                        "HOSTNAME": duckiebot,
+                    })
 
-        if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
-            agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
+            if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
+                agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
 
-        # build agent (if needed)
-        # TODO: check if there is an image with name 'image_name', build one if not
+            # build agent (if needed)
+            # TODO: check if there is an image with name 'image_name', build one if not
 
-        # TODO: adapt this to 'code/build'
-        # # build VNC
-        # dtslogger.info(f"Running VNC...")
-        # vnc_namespace: SimpleNamespace = SimpleNamespace(
-        #     workdir=project.path,
-        #     username=username,
-        #     recipe=recipe.path,
-        #     # TODO: test this
-        #     # impersonate=uid,
-        #     build_only=True,
-        #     quiet=True,
-        # )
-        # dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
-        # shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
-        # TODO: adapt this to 'code/build'
+            # TODO: adapt this to 'code/build'
+            # # build VNC
+            # dtslogger.info(f"Running VNC...")
+            # vnc_namespace: SimpleNamespace = SimpleNamespace(
+            #     workdir=project.path,
+            #     username=username,
+            #     recipe=recipe.path,
+            #     # TODO: test this
+            #     # impersonate=uid,
+            #     build_only=True,
+            #     quiet=True,
+            # )
+            # dtslogger.debug(f"Calling command 'code/vnc' with arguments: {str(vnc_namespace)}")
+            # shell.include.code.vnc.command(shell, [], parsed=vnc_namespace)
+            # TODO: adapt this to 'code/build'
 
-        # noinspection PyBroadException
+            # noinspection PyBroadException
         try:
-            agent_container = launch_agent(
-                project=project,
-                agent_container_name=agent_container_name,
-                agent_volumes=agent_bind,
-                parsed=parsed,
-                agent_base_image=agent_image,
-                agent_network=agent_network,
-                agent_client=agent_client,
-                duckiebot=duckiebot,
-                agent_env=agent_env,
-                tmpdir=tmpdir,
-            )
+            if parsed.simulation or parsed.duckiebot:
+                agent_container = launch_agent(
+                    project=project,
+                    agent_container_name=agent_container_name,
+                    agent_volumes=agent_bind,
+                    parsed=parsed,
+                    agent_base_image=agent_image,
+                    agent_network=agent_network,
+                    agent_client=agent_client,
+                    duckiebot=duckiebot,
+                    agent_env=agent_env,
+                    tmpdir=tmpdir,
+                )
 
-            containers_monitor.add(agent_container)
+                containers_monitor.add(agent_container)
 
-            attach_cmd = "docker %sattach %s" % (
-                "" if parsed.local else f"-H {duckiebot}.local ",
-                agent_container_name,
-            )
+                attach_cmd = "docker %sattach %s" % (
+                        "" if parsed.local else f"-H {duckiebot}.local ",
+                        agent_container_name,
+                    )
+            else:
+                attach_cmd = "docker %sattach %s" % (
+                        "" if parsed.local else f"-H {duckiebot}.local ",
+                        vnc_container_name,
+                    )
             start_command_in_subprocess(attach_cmd)
 
         except Exception:
