@@ -312,7 +312,7 @@ def build_v2(shell: DTShell, args):
                 "LIBRARY_HOSTNAME": parsed.library,
                 "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
                 "DEBUG": "1" if debug else "0",
-                "LOCAL_BUILD": "1"
+                "PRODUCTION_BUILD": "0"
             },
             "volumes": volumes,
             "name": container_name,
@@ -391,6 +391,7 @@ def build_v2(shell: DTShell, args):
 
         # get distro from branch name
         library_distro, *_ = re.split(r"[^a-z]+", project.version_name)
+        production_build: bool = library_distro == project.version_name
 
         # define ssh configuration
         ssh_hostname = f"ssh-{dns}"
@@ -416,7 +417,8 @@ def build_v2(shell: DTShell, args):
                 "BOOK_BRANCH_NAME": project.version_name,
                 "LIBRARY_HOSTNAME": dns,
                 "LIBRARY_DISTRO": library_distro,
-                "DT_LAUNCHER": "ci-build"
+                "DT_LAUNCHER": "ci-build",
+                "PRODUCTION_BUILD": str(int(production_build))
             },
             "stream": True
         }
