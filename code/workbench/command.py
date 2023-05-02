@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 import traceback
+import yaml
 from dataclasses import dataclass
 from enum import Enum
 from types import SimpleNamespace
@@ -79,6 +80,7 @@ PORT_VNC = 8087
 PORT_MANAGER = 8090
 
 ROBOT_LOGS_DIR = "/data/logs"
+INFTY = 86400
 
 
 class Levels(Enum):
@@ -805,6 +807,15 @@ class DTCommand(DTCommandAbs):
                 "tty": True,
                 "user": uid,
             }
+
+            # open configuration
+            expman_config = yaml.safe_load(expman_params["environment"]["experiment_manager_parameters"])
+            # overwrite experiment manager timeouts
+            expman_config["timeout_initialization"] = INFTY
+            expman_config["timeout_regular"] = INFTY
+            # close configuration
+            expman_params["environment"]["experiment_manager_parameters"] = yaml.safe_dump(expman_config)
+
             # ---
             dtslogger.debug(
                 f"Running experiment manager container '{expman_container_name}' "
