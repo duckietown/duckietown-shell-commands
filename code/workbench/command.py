@@ -80,7 +80,7 @@ PORT_VNC = 8087
 PORT_MANAGER = 8090
 
 ROBOT_LOGS_DIR = "/data/logs"
-INFTY = 99999999999999
+INFTY = 86400
 
 
 class Levels(Enum):
@@ -809,12 +809,14 @@ class DTCommand(DTCommandAbs):
             }
 
             # open configuration
+            print(expman_params)
             expman_config = yaml.safe_load(expman_params["environment"]["experiment_manager_parameters"])
             # overwrite experiment manager timeouts
             expman_config["timeout_initialization"] = INFTY
             expman_config["timeout_regular"] = INFTY
             # close configuration
             expman_params["environment"]["experiment_manager_parameters"] = yaml.safe_dump(expman_config)
+            print(expman_params)
 
             # ---
             dtslogger.debug(
