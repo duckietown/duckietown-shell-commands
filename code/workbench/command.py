@@ -137,11 +137,45 @@ class SettingsFile:
     rsync_exclude: List[str] = dataclasses.field(default_factory=list)
 
     # editor configuration
-    editor: dict = dataclasses.field(default_factory=dict)
+    editor: Dict[str, object] = dataclasses.field(default_factory=dict)
 
-    def __str__(self):
+    def __str__(self) -> str:
         fields: Iterable[dataclasses.Field] = dataclasses.fields(SettingsFile)
         return "\n\t" + "\n\t".join(f"{field.name}: {getattr(self, field.name)}" for field in fields) + "\n"
+
+
+def SettingsFile_from_yaml(filename: str) -> SettingsFile:
+    data =  load_yaml(filename)
+    if not isinstance(data, dict):
+        msg = f'Expected that the settings file {filename!r} would be a dictionary, obtained {type(data)}.'
+        raise Exception(msg)
+
+    data_dict = cast(Dict[str, object], data)
+    known: Dict[str, object] = {
+        'agent_base': None,
+        'ws_dir': None,
+        'log_dir': None,
+        'ros': True,
+        'step': None,
+        'rsync_exclude': [],
+        'editor': {},
+    }
+
+    params = {}
+    for k, default in known.items():
+        params[k] = data_dict.get(k, default)
+
+    extra = {}
+    for k, v in data_dict.items():
+        if k not in known:
+            extra[k] = v
+    if extra:
+        dtslogger.warn(f'Ignoring extra keys {list(extra)} in {filename!r}')
+
+    settings = SettingsFile(**params)
+
+    return settings
+
 
 
 ALLOWED_LEVELS = [e.value for e in Levels]
@@ -390,7 +424,7 @@ class DTCommand(DTCommandAbs):
             msg = "Recipe must contain a 'settings.yaml' file"
             dtslogger.error(msg)
             exit(1)
-        settings: SettingsFile = SettingsFile(**load_yaml(settings_file))
+        settings: SettingsFile = SettingsFile_from_yaml(settings_file)
 
         # custom settings
         challenge: str = parsed.challenge or get_challenge_from_submission_file(recipe)
