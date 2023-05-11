@@ -73,6 +73,7 @@ Calibrate:
             command="dt-launcher-calibrate-extrinsics",
             environment=env,
             remove=True,
+            stream=True,
         )
         dtslogger.info("Done!")
 
@@ -89,5 +90,6 @@ Calibrate:
                 command="dt-launcher-validate-extrinsics",
                 environment=env,
                 remove=True,
+                stream=True,
             )
             dtslogger.info("Done!")
