@@ -55,6 +55,15 @@ class DTCommand(DTCommandAbs):
         # install mkcert (if needed)
         DTCommand._install_mkcert()
 
+
+        
+        # create local certificate authority and domain certificate (if needed)
+        # - define CA files
+        ca_cert: str = join(ca_dir, "rootCA.pem")
+        ca_key: str = join(ca_dir, "rootCA-key.pem")
+        ca_flag: str = join(ca_dir, "rootCA-key.installed")
+        ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
+
         # uninstall
         if parsed.uninstall:
             dtslogger.info(
@@ -64,19 +73,17 @@ class DTCommand(DTCommandAbs):
             cmd: List[str] = DTCommand._mkcert_command("-uninstall")
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             subprocess.check_call(cmd, env=env)
+            try:
+                os.remove(ca_flag)
+                print(f"File '{ca_flag}' deleted successfully.")
+            except OSError as e:
+                print(f"Error occurred while deleting the file: {e}")
             return
-        
-        # create local certificate authority and domain certificate (if needed)
-        # - define CA files
-        ca_cert: str = join(ca_dir, "rootCA.pem")
-        ca_key: str = join(ca_dir, "rootCA-key.pem")
-        ca_flag: str = join(ca_dir, "rootCA-key.installed")
-        ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
 
         # - make certificate authority and install
         if not ca_exists:
             dtslogger.info(
-                "Creating and installing a new local Certificate Authority, "
+                "Installing a new local Certificate Authority, "
                 "you might be prompted to insert your sudo password..."
             )
             cmd: List[str] = DTCommand._mkcert_command("-install")
