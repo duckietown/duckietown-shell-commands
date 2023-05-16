@@ -85,8 +85,9 @@ class DTCommand(DTCommandAbs):
             # make sure the CA was created
             if "The local CA is now installed" not in out:
                 raise Exception(f"An error occurred while installing a local CA:\n\n{out}")
-            elif "Created a new local CA" not in out and "The local CA is already installed" not in out:
-                raise Exception(f"An error occurred while creating a local CA:\n\n{out}")
+            else:
+                if "Created a new local CA" not in out and "The local CA is already installed" not in out:
+                    raise Exception(f"An error occurred while creating a local CA:\n\n{out}")
             assert exists(ca_cert)
             assert exists(ca_key)
             # look for missing libraries
