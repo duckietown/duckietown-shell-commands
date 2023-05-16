@@ -44,16 +44,6 @@ class DTCommand(DTCommandAbs):
         ca_variable_name = "CAROOT"
         ca_flag: str = join(ca_dir, "rootCA-key.installed")
 
-        # Check if the environment variable exists and is not empty
-        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
-            print(f"The environment variable {ca_variable_name} exists and is not empty.")
-            # copy the CA files to our dir
-            import shutil
-            shutil.copytree(os.environ.get(ca_variable_name),ca_dir)
-            dtslogger.info(f"An existing local Certificate Authority is already installed. Copying it to {ca_dir}.")
-            with open(ca_flag, "wt") as fout:
-                fout.write(str(datetime.datetime.now().isoformat()))
-            
         cmd_env = {ca_variable_name: ca_dir}
 
         env = {**os.environ, **cmd_env}
@@ -71,7 +61,16 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             subprocess.check_call(cmd, env=env)
             return
-
+        
+        # Check if the environment variable exists and is not empty
+        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
+            # copy the CA files to our dir
+            import shutil
+            dtslogger.info(f"An existing local Certificate Authority is already installed. Copying it to {ca_dir}.")
+            shutil.copytree(os.environ.get(ca_variable_name),ca_dir)
+            with open(ca_flag, "wt") as fout:
+                fout.write(str(datetime.datetime.now().isoformat()))
+            
         # create local certificate authority and domain certificate (if needed)
         # - make sure the directory exists
         os.makedirs(ca_dir, exist_ok=True)
