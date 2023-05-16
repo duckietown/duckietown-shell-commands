@@ -83,7 +83,9 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             out = subprocess.check_output(cmd, env=env, stderr=STDOUT).decode("utf-8")
             # make sure the CA was created
-            if "Created a new local CA" not in out and "The local CA is already installed" not in out:
+            if "The local CA is now installed" not in out:
+                raise Exception(f"An error occurred while installing a local CA:\n\n{out}")
+            elif "Created a new local CA" not in out and "The local CA is already installed" not in out:
                 raise Exception(f"An error occurred while creating a local CA:\n\n{out}")
             assert exists(ca_cert)
             assert exists(ca_key)
