@@ -42,6 +42,7 @@ class DTCommand(DTCommandAbs):
 
         # check if CAROOT is already set and use it
         ca_variable_name = "CAROOT"
+        ca_flag: str = join(ca_dir, "rootCA-key.installed")
 
         # Check if the environment variable exists and is not empty
         if ca_variable_name in os.environ and os.environ[ca_variable_name]:
@@ -78,7 +79,6 @@ class DTCommand(DTCommandAbs):
         # - define CA files
         ca_cert: str = join(ca_dir, "rootCA.pem")
         ca_key: str = join(ca_dir, "rootCA-key.pem")
-        ca_flag: str = join(ca_dir, "rootCA-key.installed")
         ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
 
         # - make certificate authority and install
