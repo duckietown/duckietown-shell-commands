@@ -54,8 +54,7 @@ class DTCommand(DTCommandAbs):
             with open(ca_flag, "wt") as fout:
                 fout.write(str(datetime.datetime.now().isoformat()))
             
-        else:
-            cmd_env = {ca_variable_name: ca_dir}
+        cmd_env = {ca_variable_name: ca_dir}
 
         env = {**os.environ, **cmd_env}
 
