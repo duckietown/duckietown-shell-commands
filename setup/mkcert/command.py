@@ -42,14 +42,10 @@ class DTCommand(DTCommandAbs):
         if ca_variable_name in os.environ and os.environ[ca_variable_name]:
             ca_dir: str = os.environ.get(ca_variable_name)
             dtslogger.info(f"An existing local Certificate Authority is already installed in {ca_dir}.")
-            ca_flag: str = join(ca_dir, "rootCA-key.installed")
-            with open(ca_flag, "wt") as fout:
-                fout.write(str(datetime.datetime.now().isoformat()))
         else:
             # - make sure the directory exists
             ca_dir: str = join(root, "secrets", "mkcert", "ca")
             os.makedirs(ca_dir, exist_ok=True)
-            ca_flag: str = join(ca_dir, "rootCA-key.installed")
 
         ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
         cmd_env = {ca_variable_name: ca_dir}
@@ -74,6 +70,7 @@ class DTCommand(DTCommandAbs):
         # - define CA files
         ca_cert: str = join(ca_dir, "rootCA.pem")
         ca_key: str = join(ca_dir, "rootCA-key.pem")
+        ca_flag: str = join(ca_dir, "rootCA-key.installed")
         ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
 
         # - make certificate authority and install
