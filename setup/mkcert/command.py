@@ -47,8 +47,8 @@ class DTCommand(DTCommandAbs):
                 fout.write(str(datetime.datetime.now().isoformat()))
         else:
             # - make sure the directory exists
-            os.makedirs(ca_dir, exist_ok=True)
             ca_dir: str = join(root, "secrets", "mkcert", "ca")
+            os.makedirs(ca_dir, exist_ok=True)
             ca_flag: str = join(ca_dir, "rootCA-key.installed")
 
         ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
