@@ -40,8 +40,8 @@ class DTCommand(DTCommandAbs):
         # check if CAROOT is already set and use it
         ca_variable_name = "CAROOT"
         if ca_variable_name in os.environ and os.environ[ca_variable_name]:
-            dtslogger.info(f"An existing local Certificate Authority is already installed in {ca_dir}.")
             ca_dir: str = os.environ.get(ca_variable_name)
+            dtslogger.info(f"An existing local Certificate Authority is already installed in {ca_dir}.")
             ca_flag: str = join(ca_dir, "rootCA-key.installed")
             with open(ca_flag, "wt") as fout:
                 fout.write(str(datetime.datetime.now().isoformat()))
