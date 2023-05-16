@@ -39,7 +39,23 @@ class DTCommand(DTCommandAbs):
         root: str = expanduser(DTShellConstants.ROOT)
         ca_dir: str = join(root, "secrets", "mkcert", "ca")
         ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
-        cmd_env = {"CAROOT": ca_dir}
+
+        # check if CAROOT is already set and use it
+        ca_variable_name = "CAROOT"
+
+        # Check if the environment variable exists and is not empty
+        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
+            print(f"The environment variable {ca_variable_name} exists and is not empty.")
+            with open(ca_flag, "wt") as fout:
+                fout.write(str(datetime.datetime.now().isoformat()))
+            
+            # copy the CA files to our dir
+            import shutil
+            shutil.copytree(os.environ.get(ca_variable_name),ca_dir)
+            dtslogger.info(f"An existing local Certificate Authority is already installed. Copying it to {ca_dir}.")
+        else:
+            cmd_env = {ca_variable_name: ca_dir}
+
         env = {**os.environ, **cmd_env}
 
         # install mkcert (if needed)
