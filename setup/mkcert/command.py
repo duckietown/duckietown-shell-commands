@@ -37,13 +37,21 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args=args)
         # define location for SSL certificate and key
         root: str = expanduser(DTShellConstants.ROOT)
-        ca_dir: str = join(root, "secrets", "mkcert", "ca")
-        ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
-
         # check if CAROOT is already set and use it
         ca_variable_name = "CAROOT"
-        ca_flag: str = join(ca_dir, "rootCA-key.installed")
+        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
+            dtslogger.info(f"An existing local Certificate Authority is already installed in {ca_dir}.")
+            ca_dir: str = os.environ.get(ca_variable_name)
+            ca_flag: str = join(ca_dir, "rootCA-key.installed")
+            with open(ca_flag, "wt") as fout:
+                fout.write(str(datetime.datetime.now().isoformat()))
+        else:
+            # - make sure the directory exists
+            os.makedirs(ca_dir, exist_ok=True)
+            ca_dir: str = join(root, "secrets", "mkcert", "ca")
+            ca_flag: str = join(ca_dir, "rootCA-key.installed")
 
+        ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
         cmd_env = {ca_variable_name: ca_dir}
 
         env = {**os.environ, **cmd_env}
@@ -62,18 +70,7 @@ class DTCommand(DTCommandAbs):
             subprocess.check_call(cmd, env=env)
             return
         
-        # Check if the environment variable exists and is not empty
-        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
-            # copy the CA files to our dir
-            import shutil
-            dtslogger.info(f"An existing local Certificate Authority is already installed. Copying it to {ca_dir}.")
-            shutil.copytree(os.environ.get(ca_variable_name),ca_dir)
-            with open(ca_flag, "wt") as fout:
-                fout.write(str(datetime.datetime.now().isoformat()))
-            
         # create local certificate authority and domain certificate (if needed)
-        # - make sure the directory exists
-        os.makedirs(ca_dir, exist_ok=True)
         # - define CA files
         ca_cert: str = join(ca_dir, "rootCA.pem")
         ca_key: str = join(ca_dir, "rootCA-key.pem")
