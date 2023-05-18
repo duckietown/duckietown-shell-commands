@@ -37,13 +37,32 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args=args)
         # define location for SSL certificate and key
         root: str = expanduser(DTShellConstants.ROOT)
-        ca_dir: str = join(root, "secrets", "mkcert", "ca")
+        # check if CAROOT is already set and use it
+        ca_variable_name = "CAROOT"
+        if ca_variable_name in os.environ and os.environ[ca_variable_name]:
+            ca_dir: str = os.environ.get(ca_variable_name)
+            dtslogger.info(f"An existing local Certificate Authority is already installed in {ca_dir}.")
+        else:
+            # - make sure the directory exists
+            ca_dir: str = join(root, "secrets", "mkcert", "ca")
+            os.makedirs(ca_dir, exist_ok=True)
+
         ssl_dir: str = join(root, "secrets", "mkcert", "ssl")
-        cmd_env = {"CAROOT": ca_dir}
+        cmd_env = {ca_variable_name: ca_dir}
+
         env = {**os.environ, **cmd_env}
 
         # install mkcert (if needed)
         DTCommand._install_mkcert()
+
+
+        
+        # create local certificate authority and domain certificate (if needed)
+        # - define CA files
+        ca_cert: str = join(ca_dir, "rootCA.pem")
+        ca_key: str = join(ca_dir, "rootCA-key.pem")
+        ca_flag: str = join(ca_dir, "rootCA-key.installed")
+        ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
 
         # uninstall
         if parsed.uninstall:
@@ -54,29 +73,26 @@ class DTCommand(DTCommandAbs):
             cmd: List[str] = DTCommand._mkcert_command("-uninstall")
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             subprocess.check_call(cmd, env=env)
+            try:
+                os.remove(ca_flag)
+                print(f"File '{ca_flag}' deleted successfully.")
+            except OSError as e:
+                print(f"Error occurred while deleting the file: {e}")
             return
-
-        # create local certificate authority and domain certificate (if needed)
-        # - make sure the directory exists
-        os.makedirs(ca_dir, exist_ok=True)
-        # - define CA files
-        ca_cert: str = join(ca_dir, "rootCA.pem")
-        ca_key: str = join(ca_dir, "rootCA-key.pem")
-        ca_flag: str = join(ca_dir, "rootCA-key.installed")
-        ca_exists: bool = exists(ca_flag) and exists(ca_cert) and exists(ca_key)
 
         # - make certificate authority and install
         if not ca_exists:
             dtslogger.info(
-                "Creating and installing a new local Certificate Authority, "
+                "Installing a new local Certificate Authority, "
                 "you might be prompted to insert your sudo password..."
             )
             cmd: List[str] = DTCommand._mkcert_command("-install")
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             out = subprocess.check_output(cmd, env=env, stderr=STDOUT).decode("utf-8")
             # make sure the CA was created
-            if "Created a new local CA" not in out and "The local CA is already installed" not in out:
+            if "Created a new local CA" not in out and "The local CA is already installed" not in out and "The local CA is now installed" not in out:
                 raise Exception(f"An error occurred while creating a local CA:\n\n{out}")
+
             assert exists(ca_cert)
             assert exists(ca_key)
             # look for missing libraries
