@@ -500,7 +500,7 @@ class DTCommand(DTCommandAbs):
 
         # sync code with the robot if we are running on a physical robot
         agent_client = local_client
-        if not parsed.local:
+        if not parsed.local and has_agent:
             if parsed.sync:
                 # let's set some things up to run on the Duckiebot
                 check_program_dependency("rsync")
