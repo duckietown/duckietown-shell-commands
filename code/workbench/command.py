@@ -568,11 +568,11 @@ class DTCommand(DTCommandAbs):
         # - agent docker engine
         if has_agent:
             remove_if_running(agent_client, sim_container_name)
-            remove_if_running(agent_client, ros_container_name)
             remove_if_running(agent_client, expman_container_name)
             remove_if_running(agent_client, agent_container_name)
             remove_if_running(agent_client, bridge_container_name)
         # - always local engine
+        remove_if_running(agent_client, ros_container_name)
         remove_if_running(local_client, vnc_container_name)
 
         # cleanup unused docker networks
