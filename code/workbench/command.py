@@ -935,7 +935,7 @@ class DTCommand(DTCommandAbs):
                     }
                 }
             # configure ROS core container's network
-            if parsed.duckiebot:
+            if parsed.duckiebot and not parsed.local:
                 # running on duckiebot, make ROS core container visible on the host network
                 ros_params["network_mode"] = "host"
             else:
@@ -1015,7 +1015,7 @@ class DTCommand(DTCommandAbs):
                 "mode": "rw",
             }
         # when running locally, we attach VNC to the agent's network
-        if parsed.duckiebot:
+        if parsed.duckiebot and not parsed.local:
             # when running on the robot, let (local) VNC reach the host network to use ROS
             if not running_on_mac:
                 vnc_params["network_mode"] = "host"
