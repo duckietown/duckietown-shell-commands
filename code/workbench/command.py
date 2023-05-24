@@ -598,21 +598,28 @@ class DTCommand(DTCommandAbs):
         #     dtslogger.info("Only stopping the containers. Exiting.")
         #     return
 
-        # configure ROS environment [TODO: restructure?]
-        if parsed.local:
-            ros_env = {
-                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
-            }
-            if parsed.simulation:
-                ros_env["VEHICLE_NAME"] = "agent"
-                ros_env["HOSTNAME"] = "agent"
+        # configure ROS environment
+        if has_agent:
+            if parsed.local:
+                ros_env = {
+                    "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
+                }
+                if parsed.simulation:
+                    ros_env["VEHICLE_NAME"] = "agent"
+                    ros_env["HOSTNAME"] = "agent"
+                else:
+                    ros_env["VEHICLE_NAME"] = duckiebot
+                    ros_env["HOSTNAME"] = duckiebot
             else:
-                ros_env["VEHICLE_NAME"] = duckiebot
-                ros_env["HOSTNAME"] = duckiebot
+                ros_env = {
+                    # TODO: use duckiebot_ip in the URL
+                    "ROS_MASTER_URI": f"http://{duckiebot}.local:{AGENT_ROS_PORT}",
+                }
         else:
             ros_env = {
-                # TODO: use duckiebot_ip in the URL
-                "ROS_MASTER_URI": f"http://{duckiebot}.local:{AGENT_ROS_PORT}",
+                "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
+                "VEHICLE_NAME": "agent",
+                "HOSTNAME": "agent"
             }
 
         # update the docker images we will be using (if requested)
