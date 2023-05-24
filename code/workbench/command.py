@@ -1526,25 +1526,36 @@ def get_calibration_files(destination_dir, duckiebot):
     dtslogger.info("Getting all calibration files")
 
     calib_files = [
-        "config/calibrations/camera_intrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/camera_extrinsic/{duckiebot:s}.yaml",
-        "config/calibrations/kinematics/{duckiebot:s}.yaml",
+        "config/calibrations/camera_intrinsic/{name:s}.yaml",
+        "config/calibrations/camera_extrinsic/{name:s}.yaml",
+        "config/calibrations/kinematics/{name:s}.yaml",
     ]
 
     for calib_file in calib_files:
-        calib_file = calib_file.format(duckiebot=duckiebot)
-        url = "http://{:s}.local/files/data/{:s}".format(duckiebot, calib_file)
+        calib_fpath = calib_file.format(name=duckiebot)
+        url = "http://{:s}.local/files/data/{:s}".format(duckiebot, calib_fpath)
         # get calibration using the files API
         dtslogger.debug('Fetching file "{:s}"'.format(url))
         res = requests.get(url, timeout=10)
         if res.status_code != 200:
-            dtslogger.warn(
+            dtslogger.error(
                 "Could not get the calibration file {:s} from robot {:s}. Is it calibrated? "
-                "".format(calib_file, duckiebot)
+                "Getting default calibration instead."
+                "".format(calib_fpath, duckiebot)
             )
-            continue
+            # get default calibration using the files API
+            calib_fpath = calib_file.format(name="default")
+            url = "http://{:s}.local/files/data/{:s}".format(duckiebot, calib_fpath)
+            dtslogger.debug('Fetching file "{:s}"'.format(url))
+            res = requests.get(url, timeout=10)
+            if res.status_code != 200:
+                dtslogger.fatal(
+                    "Could not get the default calibration file {:s} from robot {:s}. This should not have "
+                    "happened. Skipping this calibration.".format(calib_fpath, duckiebot)
+                )
+                continue
         # make destination directory
-        dirname = os.path.join(destination_dir, os.path.dirname(calib_file))
+        dirname = os.path.join(destination_dir, os.path.dirname(calib_fpath))
         if not os.path.isdir(dirname):
             dtslogger.debug('Creating directory "{:s}"'.format(dirname))
             os.makedirs(dirname)
@@ -1552,7 +1563,7 @@ def get_calibration_files(destination_dir, duckiebot):
         # Also save them to specific robot name for local evaluation
         destination_file = os.path.join(dirname, f"{duckiebot}.yaml")
         dtslogger.debug(
-            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(duckiebot, calib_file, destination_file)
+            'Writing calibration file "{:s}:{:s}" to "{:s}"'.format(duckiebot, calib_fpath, destination_file)
         )
         with open(destination_file, "wb") as fd:
             for chunk in res.iter_content(chunk_size=128):
