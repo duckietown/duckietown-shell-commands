@@ -480,7 +480,7 @@ class DTCommand(DTCommandAbs):
             duckiebot_hostname = sanitize_hostname(duckiebot)
 
         # agent is local
-        agent_is_local: bool = parsed.simulation or parsed.local
+        agent_is_local: bool = parsed.simulation or parsed.local or not has_agent
 
         # build agent
         dtslogger.info(f"Building Agent...")
