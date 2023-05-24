@@ -561,11 +561,12 @@ class DTCommand(DTCommandAbs):
 
         # make sure these containers are not running
         # - agent docker engine
-        remove_if_running(agent_client, sim_container_name)
-        remove_if_running(agent_client, ros_container_name)
-        remove_if_running(agent_client, expman_container_name)
-        remove_if_running(agent_client, agent_container_name)
-        remove_if_running(agent_client, bridge_container_name)
+        if has_agent:
+            remove_if_running(agent_client, sim_container_name)
+            remove_if_running(agent_client, ros_container_name)
+            remove_if_running(agent_client, expman_container_name)
+            remove_if_running(agent_client, agent_container_name)
+            remove_if_running(agent_client, bridge_container_name)
         # - always local engine
         remove_if_running(local_client, vnc_container_name)
 
