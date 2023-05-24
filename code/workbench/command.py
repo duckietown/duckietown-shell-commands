@@ -480,7 +480,7 @@ class DTCommand(DTCommandAbs):
             duckiebot_hostname = sanitize_hostname(duckiebot)
 
         # agent is local
-        agent_is_local: bool = parsed.simulation or parsed.local
+        agent_is_local: bool = parsed.simulation or parsed.local or not has_agent
 
         # build agent
         dtslogger.info(f"Building Agent...")
@@ -658,17 +658,17 @@ class DTCommand(DTCommandAbs):
         # create a docker network to deploy the containers in
         # noinspection PyBroadException
         agent_network: Optional[Network] = None
-        if has_agent:
-            try:
-                dtslogger.info(f"Creating agent network '{agent_network_name}'...")
-                agent_network = agent_client.networks.create(agent_network_name, driver="bridge")
-                dtslogger.info(f"Agent network '{agent_network_name}' created successfully!")
-            except Exception:
-                error: str = traceback.format_exc()
-                dtslogger.error(
-                    "An error occurred while creating the agent network. " f"The error reads: {error}"
-                )
-                return
+
+        try:
+            dtslogger.info(f"Creating agent network '{agent_network_name}'...")
+            agent_network = agent_client.networks.create(agent_network_name, driver="bridge")
+            dtslogger.info(f"Agent network '{agent_network_name}' created successfully!")
+        except Exception:
+            error: str = traceback.format_exc()
+            dtslogger.error(
+                "An error occurred while creating the agent network. " f"The error reads: {error}"
+            )
+            return
 
         # make temporary directories
         # TODO: use python's temporary directory
@@ -938,13 +938,13 @@ class DTCommand(DTCommandAbs):
                     }
                 }
             # configure ROS core container's network
-            if parsed.local:
+            if parsed.duckiebot:
+                # running on duckiebot, make ROS core container visible on the host network
+                ros_params["network_mode"] = "host"
+            else:
                 # local run, attach the ROS core container to the local agent network
                 ros_params["network"] = agent_network.name
                 ros_params["ports"] = {f"{AGENT_ROS_PORT}/tcp": ("0.0.0.0", AGENT_ROS_PORT)}
-            else:
-                # running on duckiebot, make ROS core container visible on the host network
-                ros_params["network_mode"] = "host"
             # ---
             dtslogger.debug(
                 f"Running ROS core container '{ros_container_name}' "
@@ -1018,17 +1018,17 @@ class DTCommand(DTCommandAbs):
                 "mode": "rw",
             }
         # when running locally, we attach VNC to the agent's network
-        if parsed.local:
+        if parsed.duckiebot:
+            # when running on the robot, let (local) VNC reach the host network to use ROS
+            if not running_on_mac:
+                vnc_params["network_mode"] = "host"
+        else:
             vnc_params["network"] = agent_network.name
             # when using --bind, specify the address
             if parsed.bind:
                 vnc_params["ports"] = {"8087/tcp": (parsed.bind, 0)}
             else:
                 vnc_params["ports"] = {"8087/tcp": ("127.0.0.1", 0)}
-        else:
-            # when running on the robot, let (local) VNC reach the host network to use ROS
-            if not running_on_mac:
-                vnc_params["network_mode"] = "host"
 
         # - mount code (from project (aka meat))
         # get local and remote paths to code
