@@ -465,20 +465,19 @@ class DTCommand(DTCommandAbs):
         # check user inputs
         # - we run either in simulation or we need a duckiebot name
         duckiebot = parsed.duckiebot
+        if duckiebot is None and not parsed.simulation:
+            msg = "You must specify a '--duckiebot' or run in '--simulation' mode"
+            raise InvalidUserInput(msg)
 
         # - running in simulation forces a local run
         if not parsed.local and parsed.simulation:
             dtslogger.warning("Running locally since we are using simulator")
             parsed.local = True
 
-        if not parsed.local and not parsed.simulation:
-            dtslogger.warning("Running VNC environment locally")
-            parsed.local = True
-
         # - resolve duckiebot information if we are not using the simulator
         # TODO: duckiebot_ip is not used
         duckiebot_client = duckiebot_hostname = duckiebot_ip = None
-        if parsed.duckiebot is not None:
+        if not parsed.simulation:
             duckiebot_ip = get_duckiebot_ip(duckiebot)
             duckiebot_client = get_remote_client(duckiebot_ip)
             duckiebot_hostname = sanitize_hostname(duckiebot)
@@ -537,7 +536,7 @@ class DTCommand(DTCommandAbs):
             images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
             sim_spec = images["simulator"]
             expman_spec = images["evaluator"]
-        elif parsed.simulation:
+        else:
             # load container specs from the environment configuration
             sim_env = load_yaml(os.path.join(environment_dir, "sim_env.yaml"))
             sim_spec = ImageRunSpec(
@@ -596,7 +595,7 @@ class DTCommand(DTCommandAbs):
         #     dtslogger.info("Only stopping the containers. Exiting.")
         #     return
 
-        # configure ROS environment [TODO: restructure?]
+        # configure ROS environment
         if parsed.local:
             ros_env = {
                 "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
@@ -871,7 +870,7 @@ class DTCommand(DTCommandAbs):
             containers_to_monitor.append(expman_container)
             containers_to_monitor.append(sim_container)
 
-        elif parsed.duckiebot:
+        else:
             # we are running on a robot instead
 
             # - launch FIFOs bridge
