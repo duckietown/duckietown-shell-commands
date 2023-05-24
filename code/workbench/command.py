@@ -517,8 +517,9 @@ class DTCommand(DTCommandAbs):
             agent_client = duckiebot_client
 
         # get agent's architecture and image name
-        arch: str = get_endpoint_architecture_from_client_OLD(agent_client)
-        agent_image = project.image(registry=parsed.registry, arch=arch, owner=username)
+        if has_agent:
+            agent_arch: str = get_endpoint_architecture_from_client_OLD(agent_client)
+            agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
 
         # docker container specifications for simulator and experiment manager
         sim_spec: ImageRunSpec
@@ -610,7 +611,11 @@ class DTCommand(DTCommandAbs):
 
         # update the docker images we will be using (if requested)
         local_images = [expman_spec.image_name, sim_spec.image_name]
-        agent_images = [bridge_image, ros_image, agent_image]
+        if has_agent:
+            agent_images = [bridge_image, ros_image, agent_image]
+        else:
+            agent_images = []
+
         if parsed.pull:
             # - pull no matter what
             for image in local_images:
