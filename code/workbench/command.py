@@ -516,37 +516,37 @@ class DTCommand(DTCommandAbs):
             # the agent runs on the duckiebot client
             agent_client = duckiebot_client
 
-        # get agent's architecture and image name
         if has_agent:
+            # get agent's architecture and image name
             agent_arch: str = get_endpoint_architecture_from_client_OLD(agent_client)
             agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
 
-        # docker container specifications for simulator and experiment manager
-        sim_spec: ImageRunSpec
-        expman_spec: ImageRunSpec
-        if use_challenge:
-            # make sure the token is set
-            token = shell.shell_config.token_dt1
-            if token is None:
-                raise UserError("Please set token using the command 'dts tok set'")
-            # get container specs from the challenges server
-            images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
-            sim_spec = images["simulator"]
-            expman_spec = images["evaluator"]
-        elif parsed.simulation:
-            # load container specs from the environment configuration
-            sim_env = load_yaml(os.path.join(environment_dir, "sim_env.yaml"))
-            sim_spec = ImageRunSpec(
-                docker_image(SIMULATOR_IMAGE, parsed.registry), environment=sim_env, ports=[]
-            )
-            expman_env = load_yaml(os.path.join(environment_dir, "exp_manager_env.yaml"))
-            expman_spec = ImageRunSpec(
-                docker_image(EXPERIMENT_MANAGER_IMAGE, parsed.registry), environment=expman_env, ports=[]
-            )
+            # docker container specifications for simulator and experiment manager
+            sim_spec: ImageRunSpec
+            expman_spec: ImageRunSpec
+            if use_challenge:
+                # make sure the token is set
+                token = shell.shell_config.token_dt1
+                if token is None:
+                    raise UserError("Please set token using the command 'dts tok set'")
+                # get container specs from the challenges server
+                images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
+                sim_spec = images["simulator"]
+                expman_spec = images["evaluator"]
+            elif parsed.simulation:
+                # load container specs from the environment configuration
+                sim_env = load_yaml(os.path.join(environment_dir, "sim_env.yaml"))
+                sim_spec = ImageRunSpec(
+                    docker_image(SIMULATOR_IMAGE, parsed.registry), environment=sim_env, ports=[]
+                )
+                expman_env = load_yaml(os.path.join(environment_dir, "exp_manager_env.yaml"))
+                expman_spec = ImageRunSpec(
+                    docker_image(EXPERIMENT_MANAGER_IMAGE, parsed.registry), environment=expman_env, ports=[]
+                )
 
-        # image names
-        ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
-        bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
+            # image names
+            ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
+            bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
         vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
 
         # define container and network names
@@ -610,11 +610,12 @@ class DTCommand(DTCommandAbs):
             }
 
         # update the docker images we will be using (if requested)
-        local_images = [expman_spec.image_name, sim_spec.image_name]
         if has_agent:
+            local_images = [expman_spec.image_name, sim_spec.image_name]
             agent_images = [bridge_image, ros_image, agent_image]
         else:
             agent_images = []
+            local_images = []
 
         if parsed.pull:
             # - pull no matter what
