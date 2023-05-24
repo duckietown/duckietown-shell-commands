@@ -16,6 +16,7 @@ import time
 import traceback
 import yaml
 from dataclasses import dataclass
+from docker.models.networks import Network
 from enum import Enum
 from types import SimpleNamespace
 from typing import Callable, cast, Dict, List, Optional, Iterable
@@ -145,7 +146,7 @@ class SettingsFile:
 
 
 def SettingsFile_from_yaml(filename: str) -> SettingsFile:
-    data =  load_yaml(filename)
+    data = load_yaml(filename)
     if not isinstance(data, dict):
         msg = f'Expected that the settings file {filename!r} would be a dictionary, obtained {type(data)}.'
         raise Exception(msg)
@@ -177,8 +178,8 @@ def SettingsFile_from_yaml(filename: str) -> SettingsFile:
     return settings
 
 
-
-ALLOWED_LEVELS = [e.value for e in Levels]
+# noinspection PyTypeChecker
+ALLOWED_LEVELS: List[str] = [e.value for e in Levels]
 LOG_LEVELS: Dict[ContainerNames, Levels] = {
     ContainerNames.NAME_AGENT: Levels.LEVEL_DEBUG,
     ContainerNames.NAME_MANAGER: Levels.LEVEL_NONE,
@@ -498,7 +499,12 @@ class DTCommand(DTCommandAbs):
             dtslogger.error("Failed to build the agent image. Aborting.")
             exit(1)
 
+        # image names
+        bridge_image: Optional[str] = None
+        agent_image: Optional[str] = None
         # sync code with the robot if we are running on a physical robot
+        sim_spec: Optional[ImageRunSpec] = None
+        expman_spec: Optional[ImageRunSpec] = None
         agent_client = local_client
         if not parsed.local and has_agent:
             if parsed.sync:
@@ -518,12 +524,10 @@ class DTCommand(DTCommandAbs):
 
         if has_agent:
             # get agent's architecture and image name
-            agent_arch: str = get_endpoint_architecture_from_client_OLD(agent_client)
+            agent_arch = get_endpoint_architecture_from_client_OLD(agent_client)
             agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
 
             # docker container specifications for simulator and experiment manager
-            sim_spec: ImageRunSpec
-            expman_spec: ImageRunSpec
             if use_challenge:
                 # make sure the token is set
                 token = shell.shell_config.token_dt1
@@ -546,6 +550,7 @@ class DTCommand(DTCommandAbs):
 
             # image names
             bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
+
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
         vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
 
@@ -645,6 +650,7 @@ class DTCommand(DTCommandAbs):
 
         # create a docker network to deploy the containers in
         # noinspection PyBroadException
+        agent_network: Optional[Network] = None
         if has_agent:
             try:
                 dtslogger.info(f"Creating agent network '{agent_network_name}'...")
@@ -660,7 +666,7 @@ class DTCommand(DTCommandAbs):
         # make temporary directories
         # TODO: use python's temporary directory
         now: str = datetime.datetime.now().strftime("%d%b%y_%H_%M_%S")
-        tmpdir = os.path.join("/tmp", username, re.sub(r"[^\w]", "_", prog), now)
+        tmpdir = os.path.join("/tmp", username, re.sub(r"\W", "_", prog), now)
         os.makedirs(tmpdir, exist_ok=False)
 
         # - fifos directory
@@ -1143,7 +1149,6 @@ class DTCommand(DTCommandAbs):
                     agent_base_image=agent_image,
                     agent_network=agent_network,
                     agent_client=agent_client,
-                    duckiebot=duckiebot,
                     agent_env=agent_env,
                     tmpdir=tmpdir,
                 )
@@ -1322,7 +1327,6 @@ def launch_agent(
     agent_base_image: str,
     agent_network,
     agent_client: DockerClient,
-    duckiebot: str,
     agent_env: Dict[str, str],
     tmpdir: str,
 ):
