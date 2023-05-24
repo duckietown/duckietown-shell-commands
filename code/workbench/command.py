@@ -656,17 +656,14 @@ class DTCommand(DTCommandAbs):
                         exit(1)
 
         # create a docker network to deploy the containers in
-        # noinspection PyBroadException
-        agent_network: Optional[Network] = None
-
         try:
             dtslogger.info(f"Creating agent network '{agent_network_name}'...")
-            agent_network = agent_client.networks.create(agent_network_name, driver="bridge")
+            agent_network: Network = agent_client.networks.create(agent_network_name, driver="bridge")
             dtslogger.info(f"Agent network '{agent_network_name}' created successfully!")
         except Exception:
             error: str = traceback.format_exc()
             dtslogger.error(
-                "An error occurred while creating the agent network. " f"The error reads: {error}"
+                f"An error occurred while creating the agent network. The error reads: {error}"
             )
             return
 
