@@ -545,8 +545,8 @@ class DTCommand(DTCommandAbs):
                 )
 
             # image names
-            ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
             bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
+        ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
         vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
 
         # define container and network names
@@ -616,7 +616,7 @@ class DTCommand(DTCommandAbs):
             agent_images = [bridge_image, ros_image, agent_image]
         else:
             agent_images = []
-            local_images = []
+            local_images = [ros_image]
 
         if parsed.pull:
             # - pull no matter what
