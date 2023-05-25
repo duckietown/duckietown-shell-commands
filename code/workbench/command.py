@@ -428,8 +428,7 @@ class DTCommand(DTCommandAbs):
         settings: SettingsFile = SettingsFile_from_yaml(settings_file)
 
         # custom settings
-        if has_agent:
-            challenge: str = parsed.challenge or get_challenge_from_submission_file(recipe)
+        challenge: str = parsed.challenge or get_challenge_from_submission_file(recipe)
         settings.step = parsed.step or settings.step
         settings.log_dir = parsed.log_dir or settings.log_dir
         dtslogger.info(f"Settings:\n{settings}")
