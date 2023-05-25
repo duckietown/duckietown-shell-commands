@@ -80,7 +80,7 @@ def get_user_login() -> str:
     try:
         user = os.getlogin()
     # fall back on getpass for terminals not registering with utmp
-    except FileNotFoundError:
+    except (OSError, FileNotFoundError):
         import getpass
         user = getpass.getuser()
     return user

@@ -3,12 +3,11 @@ import os
 from types import SimpleNamespace
 from typing import Optional, List
 
-from code.workbench.command import SettingsFile
+from code.workbench.command import SettingsFile, SettingsFile_from_yaml
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
 from utils.exceptions import ShellNeedsUpdate
 from utils.secrets_utils import SecretsManager
-from utils.yaml_utils import load_yaml
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -169,6 +168,13 @@ class DTCommand(DTCommandAbs):
             project.ensure_recipe_exists()
             project.ensure_recipe_updated()
         recipe: Optional[DTProject] = project.recipe
+        # settings file is in the recipe
+        settings_file: str = os.path.join(recipe.path, "settings.yaml")
+        if not os.path.exists(settings_file):
+            msg = "Recipe must contain a 'settings.yaml' file"
+            dtslogger.error(msg)
+            exit(1)
+        settings: SettingsFile = SettingsFile_from_yaml(settings_file)
 
         # find (or build) the vscode image to run
         if parsed.image is not None:
@@ -232,13 +238,6 @@ class DTCommand(DTCommandAbs):
         # we know which VSCode to use
         dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
 
-        # settings file is in the recipe
-        settings_file: str = os.path.join(recipe.path, "settings.yaml")
-        if not os.path.exists(settings_file):
-            msg = "Recipe must contain a 'settings.yaml' file"
-            dtslogger.error(msg)
-            exit(1)
-        settings: SettingsFile = SettingsFile(**load_yaml(settings_file))
 
         # gather secrets to share with the container
         secrets: List[str] = []

@@ -1,10 +1,12 @@
+from typing import Union
+
 import os
 import yaml
 
 __all__ = ["load_yaml"]
 
 
-def load_yaml(file_name: str) -> dict:
+def load_yaml(file_name: str) -> Union[dict, list, bytes, float, int, None]:
     if not os.path.isfile(file_name):
         msg = f"File does not exist {file_name}"
         raise Exception(msg)
