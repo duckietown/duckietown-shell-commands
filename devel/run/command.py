@@ -94,7 +94,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-M",
             "--mount",
-            default=False,
+            default=True,
             const=True,
             action="store",
             nargs="?",
@@ -313,15 +313,6 @@ class DTCommand(DTCommandAbs):
                 local_launch, destination_launch = proj.launch_paths(root)
                 # compile mountpoints
                 mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
-        # check if the index is clean
-        if parsed.mount and project.is_dirty():
-            dtslogger.warning("Your index is not clean (some files are not committed).")
-            dtslogger.warning(
-                "If you know what you are doing, use --force (-f) to force " "the execution of the command."
-            )
-            if not parsed.force:
-                exit(1)
-            dtslogger.warning("Forced!")
         # create image name
         image = project.image(
             arch=parsed.arch,

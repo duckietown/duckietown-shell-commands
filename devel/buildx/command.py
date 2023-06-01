@@ -412,13 +412,6 @@ class DTCommand(DTCommandAbs):
         labels[dtlabel("template.name")] = project.type
         labels[dtlabel("template.version")] = project.type_version
 
-        # check if the index is clean
-        if project.is_dirty():
-            dtslogger.warning("Your index is not clean (some files are not committed).")
-            dtslogger.warning("If you know what you are doing, use --force (-f) to force.")
-            if not parsed.force:
-                exit(1)
-            dtslogger.warning("Forced!")
         # add configuration labels (template v2+)
         if project_template_ver >= 2:
             for cfg_name, cfg_data in project.configurations().items():
