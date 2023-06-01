@@ -191,7 +191,7 @@ class DTCommand(DTCommandAbs):
             elif parsed.force_vulkan:
                 app_config += ["-force-vulkan"]
             else:
-                # by default we use Vulkan
+                # by default, we use Vulkan
                 app_config += ["-force-vulkan"]
             # custom engine
             if parsed.engine_hostname is not None:
