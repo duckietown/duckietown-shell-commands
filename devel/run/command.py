@@ -213,6 +213,10 @@ class DTCommand(DTCommandAbs):
             else:
                 parsed.machine = DEFAULT_MACHINE
 
+        # when we run against a remote machine, we need to sync the code
+        if parsed.machine != DEFAULT_MACHINE:
+            parsed.sync = True
+
         # x-docker runtime
         if parsed.use_x_docker:
             command_dir = os.path.dirname(os.path.abspath(__file__))
