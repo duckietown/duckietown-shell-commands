@@ -59,6 +59,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Figuring out the IP address...")
                 engine_hostname = get_ip_address(default_interface)
                 dtslogger.info(f"IP address found: {engine_hostname}")
+        engine_hostname="localhost"
         # compile data_in and data_out URIs
         data_in_uri = f"{DATA_IN_PROTOCOL}://{engine_hostname}:{DATA_IN_PORT}"
         data_out_uri = f"{DATA_OUT_PROTOCOL}://{engine_hostname}:{DATA_OUT_PORT}"
