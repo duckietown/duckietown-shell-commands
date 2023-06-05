@@ -134,8 +134,7 @@ class DTCommand(DTCommandAbs):
             pull=not parsed.no_pull,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
-            force=True,
-            no_login=True
+            force=True
         )
         dtslogger.debug(f"Calling command 'devel/buildx' with arguments: {str(buildx_namespace)}")
         shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)

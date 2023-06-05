@@ -216,7 +216,7 @@ class DTCommand(DTCommandAbs):
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
         parser.add_argument(
-            "--no-login", default=False, action="store_true", help="Do not login against the registry"
+            "--login", default=False, action="store_true", help="Login against the registry first"
         )
 
         # get pre-parsed or parse arguments
@@ -456,7 +456,7 @@ class DTCommand(DTCommandAbs):
             print(DOCKER_INFO.format(**epoint))
 
         # login client (unless skipped)
-        if not parsed.no_login:
+        if parsed.login:
             copy_docker_env_into_configuration(shell.shell_config)
             login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
 
