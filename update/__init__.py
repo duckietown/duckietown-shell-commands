@@ -9,6 +9,8 @@ import dt_shell
 from dt_shell import dtslogger, UserError
 from dt_shell.constants import DTShellConstants
 
+from utils.misc_utils import parse_version, render_version
+
 if sys.version_info < (3, 6):
     msg = "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s." % str(sys.version)
     raise UserError(msg)
@@ -19,14 +21,6 @@ duckietown_shell_commands_version = "6.0.0"
 
 DISTRO = "ente"
 BILLBOARDS_DCSS_PREFIX = "assets/dts/billboard/content/"
-
-
-def parse_version(x):
-    return tuple(int(_) for _ in x.split("."))
-
-
-def render_version(t):
-    return ".".join(str(_) for _ in t)
 
 
 def check_compatible():

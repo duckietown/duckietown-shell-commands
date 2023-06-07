@@ -6,7 +6,7 @@ from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json", "versiontuple"]
+           "get_user_login", "pretty_json", "versiontuple", "render_version"]
 
 from typing import Any
 
@@ -64,6 +64,10 @@ def sudo_open(path, mode, *_, **__):
 
 def parse_version(v: str) -> tuple:
     return tuple(map(int, (sub("[^0-9]", "", v).split("."))))
+
+
+def render_version(t: tuple) -> str:
+    return ".".join(str(_) for _ in t)
 
 
 def indent_block(s: str, indent: int = 4) -> str:
