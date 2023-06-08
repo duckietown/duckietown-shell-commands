@@ -2,11 +2,12 @@ import ipaddress
 import json
 import os
 import subprocess
+import traceback
 from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json", "versiontuple", "render_version"]
+           "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc"]
 
 from typing import Any
 
@@ -77,6 +78,10 @@ def indent_block(s: str, indent: int = 4) -> str:
 
 def pretty_json(data: Any, indent: int = 0) -> str:
     return indent_block(json.dumps(data, sort_keys=True, indent=4), indent=indent)
+
+
+def pretty_exc(exc: Exception, indent: int = 0) -> str:
+    return indent_block(''.join(traceback.TracebackException.from_exception(exc).format()), indent=indent)
 
 
 def get_user_login() -> str:
