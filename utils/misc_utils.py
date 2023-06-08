@@ -7,10 +7,12 @@ from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc"]
+           "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc", "NotSet",
+           "hide_string"]
 
 from typing import Any
 
+NotSet = object()
 
 def human_time(time_secs, compact=False):
     label = lambda s: s[0] if compact else " " + s
@@ -88,7 +90,7 @@ def get_user_login() -> str:
     try:
         user = os.getlogin()
     # fall back on getpass for terminals not registering with utmp
-    except FileNotFoundError:
+    except (OSError, FileNotFoundError):
         import getpass
         user = getpass.getuser()
     return user
@@ -96,3 +98,8 @@ def get_user_login() -> str:
 
 def versiontuple(version: str):
     return tuple(map(int, (version.split("."))))
+
+
+def hide_string(s: str, k: int = 3) -> str:
+    hidden = "*" * (len(s) - k) + s[-k:]
+    return hidden

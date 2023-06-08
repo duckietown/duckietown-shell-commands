@@ -97,7 +97,7 @@ class DTCommand(DTCommandAbs):
             shutil.copytree(recipe_dir, target, dirs_exist_ok=True)
             push_repository(recipe_dest, svalues["recipe_branch"], msg)
 
-            dtslogger.info("Publishing the recipe ...")
+            dtslogger.info("Publishing the solution ...")
             target = os.path.join(solution_dest, project.name + "-solution")
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(solution_dir, target, dirs_exist_ok=True)

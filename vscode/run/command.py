@@ -6,8 +6,9 @@ import os
 import signal
 import time
 import uuid
+import webbrowser
 from pwd import getpwnam
-from typing import Optional
+from typing import Optional, List, Tuple
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
@@ -15,6 +16,7 @@ from urllib3.exceptions import InsecureRequestWarning
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from utils.exceptions import ShellNeedsUpdate
+from utils.secrets_utils import SecretsManager, Secret
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -30,6 +32,7 @@ from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname
 
 VSCODE_PORT = 8088
+CONTAINER_SECRETS_DIR = "/run/secrets"
 
 # noinspection PyUnresolvedReferences
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -78,6 +81,12 @@ class DTCommand(DTCommandAbs):
             default=None,
             type=str,
             help="Username or UID of the user to impersonate inside VSCode",
+        )
+        parser.add_argument(
+            "--mount-secret",
+            default=[],
+            action="append",
+            help="Key(s) of the secret(s) to share with the container",
         )
         parser.add_argument(
             "--keep",
@@ -192,6 +201,18 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(f"Cannot impersonate '{parsed.impersonate}', user not found")
                     return
 
+        # secrets to share
+        secrets: List[Tuple[str, str, str]] = []
+        for secret_id in parsed.mount_secret:
+            if not SecretsManager.has(secret_id):
+                dtslogger.error(f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
+                                f"this secret before continuing.")
+                return
+            secret: Secret = SecretsManager.get(secret_id)
+            host_secret_fpath: str = secret.temporary_json_file
+            container_secret_fpath: str = os.path.join(CONTAINER_SECRETS_DIR, secret_id)
+            secrets.append((host_secret_fpath, container_secret_fpath, "ro"))
+
         # launch container
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
@@ -206,12 +227,12 @@ class DTCommand(DTCommandAbs):
                 "HOST_UID": identity,
             },
             "volumes": [
-                # needed by the container to figure out the GID of `docker` on the host
-                # ("/etc/group", "/host/etc/group", "ro"),
                 # needed by VSCode to run in a safe context, nothing works in VSCode via HTTP
                 (ssl_dir, "/ssl", "ro"),
                 # this is the actual workspace
                 (parsed.workdir, workdir, "rw"),
+                # secrets
+                *secrets
             ],
             "publish": [(f"{parsed.bind}:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
@@ -258,15 +279,25 @@ class DTCommand(DTCommandAbs):
             finally:
                 return
 
-        # print URL to VSCode
+        # Print VSCode URL
+        bar: str = "=" * len(url)
+        spc: str = " " * len(url)
         dtslogger.info(
-            "\nYou can open VSCode in your browser by visiting the URL:\n"
-            "\n"
-            f"\t> {url}\n"
-            f"\n"
-            f"VSCode might take a few seconds to be ready...\n"
-            f"--------------------------------------------------------"
+            f"\n\n"
+            f"====================={bar}===================================\n"
+            f"|                    {spc}                                  |\n"
+            f"|    VSCode should open in the browser automatically.{spc}  |\n"
+            f"|    Alternatively, you can click on:{spc}                  |\n"
+            f"|                    {spc}                                  |\n"
+            f"|        >   {url}                                          |\n"
+            f"|                    {spc}                                  |\n"
+            f"====================={bar}===================================\n"
         )
+
+        # open web browser tab, give the web browser a second to get up
+        time.sleep(1)
+        browser = SimpleWindowBrowser()
+        browser.open(url)
 
         # attach
         if parsed.detach:
@@ -284,3 +315,18 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def complete(shell, word, line):
         return []
+
+
+class SimpleWindowBrowser:
+
+    def __init__(self):
+        self._browser = webbrowser.get()
+        # with Chrome, we can use --app to open a simple window
+        if isinstance(self._browser, webbrowser.Chrome):
+            self._browser.remote_args = ["--app=%s"]
+
+    def open(self, url: str) -> bool:
+        try:
+            return self._browser.open(url)
+        except:
+            webbrowser.open(url)
