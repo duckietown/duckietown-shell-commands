@@ -6,6 +6,7 @@ import os
 import signal
 import time
 import uuid
+import webbrowser
 from pwd import getpwnam
 from typing import Optional, List, Tuple
 
@@ -276,15 +277,25 @@ class DTCommand(DTCommandAbs):
             finally:
                 return
 
-        # print URL to VSCode
+        # Print VSCode URL
+        bar: str = "=" * len(url)
+        spc: str = " " * len(url)
         dtslogger.info(
-            "\nYou can open VSCode in your browser by visiting the URL:\n"
-            "\n"
-            f"\t> {url}\n"
-            f"\n"
-            f"VSCode might take a few seconds to be ready...\n"
-            f"--------------------------------------------------------"
+            f"\n\n"
+            f"====================={bar}===================================\n"
+            f"|                    {spc}                                  |\n"
+            f"|    VSCode should open in the browser automatically.{spc}  |\n"
+            f"|    Alternatively, you can click on:{spc}                  |\n"
+            f"|                    {spc}                                  |\n"
+            f"|        >   {url}                                          |\n"
+            f"|                    {spc}                                  |\n"
+            f"====================={bar}===================================\n"
         )
+
+        # open web browser tab, give the web browser a second to get up
+        time.sleep(1)
+        browser = SimpleWindowBrowser()
+        browser.open(url)
 
         # attach
         if parsed.detach:
@@ -302,3 +313,18 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def complete(shell, word, line):
         return []
+
+
+class SimpleWindowBrowser:
+
+    def __init__(self):
+        self._browser = webbrowser.get()
+        # with Chrome, we can use --app to open a simple window
+        if isinstance(self._browser, webbrowser.Chrome):
+            self._browser.remote_args = ["--app=%s"]
+
+    def open(self, url: str) -> bool:
+        try:
+            return self._browser.open(url)
+        except:
+            webbrowser.open(url)
