@@ -384,9 +384,11 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
         # break into [registry], [owner], image
         p1, p2, p3, *_ = srv_image.split("/") + [None, None]
         # get registry (or use default)
-        registries = [
-            p1.replace("${REGISTRY}", kwargs.get("registry", DEFAULT_DOCKER_REGISTRY))
-        ] if p3 else ["", f"{DEFAULT_DOCKER_REGISTRY}/"]
+        registries = (
+            [p1.replace("${REGISTRY}", kwargs.get("registry", DEFAULT_DOCKER_REGISTRY))]
+            if p3
+            else ["", f"{DEFAULT_DOCKER_REGISTRY}/"]
+        )
         # get owner (or use default)
         owners = [p2] if p3 else ([p1] if p2 else ["", "library/"])
         # break the image name into repository and tag
@@ -403,7 +405,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
         if len(candidates.intersection(modules)) > 0:
             continue
         # no images found
-        modules_list = '\n\t'.join(modules)
+        modules_list = "\n\t".join(modules)
         msg = (
             f"The 'duckietown' stack '{remote_path}' requires the "
             f"Docker image '{srv_image}' for the service '{srv_name}' but "

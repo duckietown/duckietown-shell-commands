@@ -66,6 +66,7 @@ def update_billboard():
         return
 
     from dt_data_api import DataClient, Storage, Item
+
     # create billboards directory
     billboard_dir: str = os.path.join(os.path.expanduser(DTShellConstants.ROOT), "billboards", "v1")
     os.makedirs(billboard_dir, exist_ok=True)

@@ -24,7 +24,6 @@ HOST_BUILD_CACHE_DIR = "/tmp/duckietown/docs/{book}"
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
@@ -44,8 +43,10 @@ class DTCommand(DTCommandAbs):
 
         # make sure we are building the right project type
         if project.type != "template-book":
-            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
-                            f"'template-book' can be cleaned with 'dts docs clean'.")
+            dtslogger.error(
+                f"Project of type '{project.type}' not supported. Only projects of type "
+                f"'template-book' can be cleaned with 'dts docs clean'."
+            )
             return False
 
         # clean V1
@@ -57,8 +58,9 @@ class DTCommand(DTCommandAbs):
             return clean_v2(shell, args)
 
         else:
-            dtslogger.error(f"Project of type '{project.type}', "
-                            f"version '{project.type_version}' not supported.")
+            dtslogger.error(
+                f"Project of type '{project.type}', " f"version '{project.type_version}' not supported."
+            )
             return False
 
 
@@ -70,16 +72,8 @@ def clean_v2(shell: DTShell, args):
         default=os.getcwd(),
         help="Directory containing the book to clean",
     )
-    parser.add_argument(
-        "--image",
-        default=None,
-        help="Which environment image to use to clean the book"
-    )
-    parser.add_argument(
-        "--distro",
-        default=None,
-        help="Which base distro (jupyter-book) to use"
-    )
+    parser.add_argument("--image", default=None, help="Which environment image to use to clean the book")
+    parser.add_argument("--distro", default=None, help="Which base distro (jupyter-book) to use")
     parser.add_argument(
         "--pdf",
         default=False,
@@ -143,14 +137,10 @@ def clean_v2(shell: DTShell, args):
         "remove": True,
         "volumes": volumes,
         "name": container_name,
-        "envs": {
-            "DT_LAUNCHER": "jb-clean"
-        },
-        "stream": True
+        "envs": {"DT_LAUNCHER": "jb-clean"},
+        "stream": True,
     }
-    dtslogger.debug(
-        f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
-    )
+    dtslogger.debug(f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n")
     logs = docker.run(**args)
 
     # consume logs

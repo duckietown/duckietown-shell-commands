@@ -27,8 +27,9 @@ OTHER_IMAGES_TO_UPDATE = [
     "{registry}/duckietown/aido-base-python3:{distro}-{arch}",
 ]
 
-DISK_SPACE_REQUIRED_SOFT = 10 * ((2 ** 10) ** 3)  # prompt
-DISK_SPACE_REQUIRED_HARD = 3 * ((2 ** 10) ** 3)  # abort
+DISK_SPACE_REQUIRED_SOFT = 10 * ((2**10) ** 3)  # prompt
+DISK_SPACE_REQUIRED_HARD = 3 * ((2**10) ** 3)  # abort
+
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -56,7 +57,7 @@ class DTCommand(DTCommandAbs):
             )
             if not res:
                 return
-        elif res is False: # below soft limit
+        elif res is False:  # below soft limit
             res = check_enough_disk(DISK_SPACE_REQUIRED_HARD)
             if not res:  # below hard limit, abort
                 tmp = num_bytes_to_simple_friendly_str(DISK_SPACE_REQUIRED_HARD)

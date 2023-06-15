@@ -16,9 +16,9 @@ _DISK_SPACE_MARGIN_PERC = 0.0
 _DISK_SPACE_MARGIN_BYTES_ABS = 0
 
 # KB, MB, GB
-_CONST_NUM_BYTES_IN_KB = 2 ** 10
-_CONST_NUM_BYTES_IN_MB = _CONST_NUM_BYTES_IN_KB ** 2
-_CONST_NUM_BYTES_IN_GB = _CONST_NUM_BYTES_IN_KB ** 3
+_CONST_NUM_BYTES_IN_KB = 2**10
+_CONST_NUM_BYTES_IN_MB = _CONST_NUM_BYTES_IN_KB**2
+_CONST_NUM_BYTES_IN_GB = _CONST_NUM_BYTES_IN_KB**3
 
 
 def check_enough_disk(value: Union[str, float]) -> Optional[bool]:
@@ -42,10 +42,9 @@ def check_enough_disk(value: Union[str, float]) -> Optional[bool]:
         else:
             return False
     except Exception as e:
-        dtslogger.warning((
-            "Unable to determine whether sufficient disk space is present. "
-            f"Error details: {e}"
-        ))
+        dtslogger.warning(
+            ("Unable to determine whether sufficient disk space is present. " f"Error details: {e}")
+        )
 
 
 def num_bytes_to_simple_friendly_str(num_bytes: int) -> str:

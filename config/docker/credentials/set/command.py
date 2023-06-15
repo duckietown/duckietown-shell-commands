@@ -19,9 +19,7 @@ Usage:
     def command(shell, args, **kwargs):
         parser = argparse.ArgumentParser(
             prog="dts config docker credentials set",
-            description=(
-                "Save Docker logins locally for Duckietown"
-            ),
+            description=("Save Docker logins locally for Duckietown"),
         )
         parser.add_argument(
             "server",
@@ -54,17 +52,14 @@ Usage:
             overwrite: bool = ask_confirmation(
                 "A set of credentials for this Docker registry is already stored, if you continue, the "
                 "old credentials will be overwritten.",
-                default="y"
+                default="y",
             )
             if not overwrite:
                 dtslogger.info("Leaving credentials untouched")
                 return False
 
         # - store secrets
-        secret_value: dict = {
-            "username": username,
-            "secret": password
-        }
+        secret_value: dict = {"username": username, "secret": password}
         SecretsManager.set(secret_key, secret_value)
 
         # ---

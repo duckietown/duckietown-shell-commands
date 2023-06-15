@@ -136,9 +136,7 @@ TEMPLATE_TO_ASSETS: Dict[str, Dict[str, Callable[[str], Tuple[str, str]]]] = {
     "template-exercise-recipe": {
         "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
     },
-    "template-exercise": {
-        "3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))
-    },
+    "template-exercise": {"3": lambda repo: ("assets/*", "/code/catkin_ws/src/{:s}/assets".format(repo))},
 }
 
 DISTRO_KEY = {"1": "MAJOR", "2": "DISTRO", "3": "DISTRO"}
@@ -220,8 +218,11 @@ class DTProject:
 
     @property
     def version_name(self):
-        return (self._repository.branch if self._repository.branch != "HEAD" else self.head_version) \
-            if self._repository else "latest"
+        return (
+            (self._repository.branch if self._repository.branch != "HEAD" else self.head_version)
+            if self._repository
+            else "latest"
+        )
 
     @property
     def safe_version_name(self) -> str:

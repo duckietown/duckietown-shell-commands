@@ -24,6 +24,7 @@ _command_file = "command.py"
 # import current command
 if _exists(_join(_this_dir, _command_file)):
     try:
+        # noinspection PyUnresolvedReferences
         from .command import *
     except ShellNeedsUpdate as e:
         _root: str = _join(_dirname(utils.__file__), "..")

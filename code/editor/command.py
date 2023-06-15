@@ -238,13 +238,14 @@ class DTCommand(DTCommandAbs):
         # we know which VSCode to use
         dtslogger.debug(f"Using VSCode image '{vscode_image_name}'")
 
-
         # gather secrets to share with the container
         secrets: List[str] = []
         for secret_id in settings.editor.get("secrets", []):
             if not SecretsManager.has(secret_id):
-                dtslogger.error(f"Secret '{secret_id}' is not set. This project requires that you set this "
-                                f"secret. Please, follow the proper instructions on how to do so.")
+                dtslogger.error(
+                    f"Secret '{secret_id}' is not set. This project requires that you set this "
+                    f"secret. Please, follow the proper instructions on how to do so."
+                )
                 return False
             secrets.append(secret_id)
 

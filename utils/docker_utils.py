@@ -4,7 +4,7 @@ import re
 import subprocess
 import traceback
 from os.path import expanduser
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
@@ -230,7 +230,7 @@ def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKE
     return CANONICAL_ARCH[epoint_arch]
 
 
-def pull_image(image: str, endpoint: str = None, progress=True):
+def pull_image(image: str, endpoint: Union[None, str, "DockerClient"] = None, progress=True):
     client = get_client(endpoint)
     layers = set()
     pulled = set()

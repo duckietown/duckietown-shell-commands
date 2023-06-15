@@ -24,7 +24,6 @@ FilePath = str
 
 
 class SecretsManager:
-
     @classmethod
     def get(cls, key: str, default: "Secret" = NotSet) -> "Secret":
         path: FilePath = cls._secret_filepath(key)
@@ -58,7 +57,7 @@ class SecretsManager:
 
     @staticmethod
     def _secret_filepath(key: str, ext: str = "b6s") -> FilePath:
-        keepcharacters = ('.', '-', '_', '/')
+        keepcharacters = (".", "-", "_", "/")
         key = key.lower()
         key = key.rstrip().rstrip(".")
         key = "".join(c for c in key if c.isalnum() or c in keepcharacters) + f".{ext}"
@@ -66,7 +65,6 @@ class SecretsManager:
 
 
 class Secret:
-
     def __init__(self, value: Union[str, int, dict]):
         self._value = value
 
