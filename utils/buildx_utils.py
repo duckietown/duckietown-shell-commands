@@ -7,6 +7,7 @@ import requests
 from dt_shell import UserError
 
 from dockertown import DockerClient
+from dtproject.constants import CANONICAL_ARCH
 
 from .misc_utils import parse_version
 
@@ -25,8 +26,6 @@ DEFAULT_BUILDX_VERSION = "0.9.1"
 
 
 def install_buildx(version: str = DEFAULT_BUILDX_VERSION):
-    from .dtproject_utils import CANONICAL_ARCH
-
     version = version.lstrip("v")
     # get machine architecture
     machine = platform.machine()

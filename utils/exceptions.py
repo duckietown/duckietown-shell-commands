@@ -1,7 +1,9 @@
 import dt_shell
 from dt_shell import UserError
 
-__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound"]
+__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound", "SecretNotFound"]
+
+from update import parse_version
 
 
 class ShellNeedsUpdate(Exception):
@@ -17,10 +19,22 @@ class ShellNeedsUpdate(Exception):
     def version_needed(self) -> str:
         return self._version_needed
 
+    @staticmethod
+    def assert_newer_or_equal_to(needed: str):
+        exc = ShellNeedsUpdate(needed)
+        vnow = parse_version(exc.current_version)
+        vneed = parse_version(needed)
+        if vneed > vnow:
+            raise exc
+
 
 class InvalidUserInput(UserError):
     pass
 
 
 class RecipeProjectNotFound(UserError):
+    pass
+
+
+class SecretNotFound(UserError):
     pass

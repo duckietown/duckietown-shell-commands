@@ -24,6 +24,13 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument("robot", nargs=1, help="Name of the Robot to destroy")
+        parser.add_argument(
+            "-y",
+            "--yes",
+            action="store_true",
+            default=False,
+            help="Do not ask for confirmation"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
 
@@ -52,14 +59,14 @@ class DTCommand(DTCommandAbs):
             # good
             pass
 
-        # ask for confirmation
+        # ask for confirmation (unless skipped)
         confirmed = ask_confirmation(
             f"The virtual robot '{parsed.robot}' will be destroyed together will all its data. "
             f"This cannot be undone.",
             default="n"
-        )
+        ) if not parsed.yes else True
         if not confirmed:
-            dtslogger.info("Sounds good!")
+            dtslogger.info("Sounds good! I won't touch anything then.")
             return
 
         # remove virtual robot

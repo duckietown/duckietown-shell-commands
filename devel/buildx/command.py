@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from typing import Optional, List
 
+from dtproject.utils.misc import dtlabel
 from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -23,31 +24,28 @@ except ImportError:
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from duckietown_docker_utils import ENV_REGISTRY
-from dockertown import DockerClient
+from dockertown import DockerClient, Image
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DEFAULT_REGISTRY,
+    CLOUD_BUILDERS,
     copy_docker_env_into_configuration,
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
     login_client,
-    pull_image,
     sanitize_docker_baseurl,
-    get_client,
     ensure_docker_version,
-)
-from utils.dtproject_utils import (
-    CANONICAL_ARCH,
-    CLOUD_BUILDERS,
-    DISTRO_KEY,
-    dtlabel,
-    DTProject,
     get_cloud_builder,
-    ARCH_TO_PLATFORM,
+    pull_image,
+)
+from dtproject import DTProject
+from dtproject.constants import (
+    CANONICAL_ARCH,
+    ARCH_TO_PLATFORM, DISTRO_KEY,
 )
 from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, sanitize_hostname
@@ -55,7 +53,7 @@ from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
 from dockertown.components.buildx.imagetools.models import Manifest
-from dockertown.exceptions import NoSuchManifest
+from dockertown.exceptions import NoSuchManifest, NoSuchImage
 from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
@@ -218,7 +216,7 @@ class DTCommand(DTCommandAbs):
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
         parser.add_argument(
-            "--no-login", default=False, action="store_true", help="Do not login against the registry"
+            "--login", default=False, action="store_true", help="Login against the registry first"
         )
 
         # get pre-parsed or parse arguments
@@ -370,7 +368,7 @@ class DTCommand(DTCommandAbs):
                 exit(3)
             # update machine parameter
             parsed.machine = get_cloud_builder(parsed.arch)
-            # in CI we can force builds on specific architectures
+            # in CI, we can force builds on specific architectures
             if parsed.ci_force_builder_arch is not None:
                 # force routing to the given architecture node
                 if parsed.ci_force_builder_arch not in CLOUD_BUILDERS:
@@ -414,13 +412,6 @@ class DTCommand(DTCommandAbs):
         labels[dtlabel("template.name")] = project.type
         labels[dtlabel("template.version")] = project.type_version
 
-        # check if the index is clean
-        if project.is_dirty():
-            dtslogger.warning("Your index is not clean (some files are not committed).")
-            dtslogger.warning("If you know what you are doing, use --force (-f) to force.")
-            if not parsed.force:
-                exit(1)
-            dtslogger.warning("Forced!")
         # add configuration labels (template v2+)
         if project_template_ver >= 2:
             for cfg_name, cfg_data in project.configurations().items():
@@ -452,9 +443,6 @@ class DTCommand(DTCommandAbs):
         # ensure buildx version
         ensure_buildx_version(docker, "0.8.0+")
 
-        # TODO: this should be removed, use dockertown only
-        client = get_client(parsed.machine)
-
         # build-arg NCPUS
         ncpu: str = str(get_endpoint_ncpus(parsed.machine)) if parsed.ncpus is None else str(parsed.ncpus)
         docker_build_args["NCPUS"] = ncpu
@@ -468,7 +456,7 @@ class DTCommand(DTCommandAbs):
             print(DOCKER_INFO.format(**epoint))
 
         # login client (unless skipped)
-        if not parsed.no_login:
+        if parsed.login:
             copy_docker_env_into_configuration(shell.shell_config)
             login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
 
@@ -551,9 +539,9 @@ class DTCommand(DTCommandAbs):
         if not parsed.no_cache:
             # check if the endpoint contains an image with the same name
             try:
-                client.images.get(image)
+                docker.image.inspect(image)
                 is_present = True
-            except (ImageNotFound, BaseException):
+            except NoSuchImage:
                 is_present = False
             # ---
             if not is_present:
@@ -561,7 +549,7 @@ class DTCommand(DTCommandAbs):
                     # try to pull the same image so Docker can use it as cache source
                     dtslogger.info(f'Pulling image "{image}" to use as cache...')
                     try:
-                        pull_image(image, endpoint=client, progress=not parsed.ci)
+                        pull_image(image, endpoint=docker, progress=not parsed.ci)
                         is_present = True
                     except KeyboardInterrupt:
                         dtslogger.info("Aborting.")
@@ -699,7 +687,7 @@ class DTCommand(DTCommandAbs):
             exit(1)
 
         # get resulting image
-        dimage = client.images.get(image)
+        dimage: Image = docker.image.inspect(image)
         dtslogger.info("Project packaged successfully!")
 
         # update manifest
@@ -740,7 +728,10 @@ class DTCommand(DTCommandAbs):
         # print out image analysis
         if not parsed.quiet:
             # get image history
-            historylog = [(layer["Id"], layer["Size"], layer["CreatedBy"]) for layer in dimage.history()]
+            historylog = [
+                (layer.id, layer.size, layer.created_by)
+                for layer in docker.image.history(image)
+            ]
 
             # round up extra info
             extra_info = []
@@ -779,7 +770,7 @@ class DTCommand(DTCommandAbs):
             ]
             for tag_data in tags_data:
                 with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                    metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
                     # add build metadata
                     metadata["build"] = {
                         "args": copy.deepcopy(buildargs),

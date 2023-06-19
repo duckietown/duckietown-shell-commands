@@ -110,6 +110,12 @@ class DTCommand(DTCommandAbs):
             help="Link robots inside the matrix to robots outside",
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
@@ -185,7 +191,7 @@ class DTCommand(DTCommandAbs):
             elif parsed.force_vulkan:
                 app_config += ["-force-vulkan"]
             else:
-                # by default we use Vulkan
+                # by default, we use Vulkan
                 app_config += ["-force-vulkan"]
             # custom engine
             if parsed.engine_hostname is not None:
@@ -205,6 +211,8 @@ class DTCommand(DTCommandAbs):
         try:
             # - engine
             if run_engine:
+                if not parsed.no_pull:
+                    engine.pull()
                 engine.start()
 
             # - renderer

@@ -1,9 +1,9 @@
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):
+    help = 'Brief description of the command'  # please redefine this help message
 
-    help = 'Brief description of the command'     # please redefine this help message
     # name = <read-only> a string with the name of the command
     # level = <read-only> integer indicating the level of this command. Follows directory hierarchy
     # commands = <read-only> a dictionary of subcommands

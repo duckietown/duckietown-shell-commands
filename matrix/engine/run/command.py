@@ -9,7 +9,7 @@ from typing import Optional
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import DEFAULT_REGISTRY, get_client
+from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD
 from utils.duckiematrix_utils import \
     APP_NAME
 from utils.duckietown_utils import get_distro_version
@@ -147,11 +147,18 @@ class MatrixEngine:
                            "Just a heads up that it might still be there.")
         self.engine = None
 
+    def pull(self):
+        # download engine image
+        image: str = self.config["image"]
+        dtslogger.info(f"Download image '{image}'...")
+        pull_image_OLD(image)
+        dtslogger.info(f"Image downloaded!")
+
     def start(self, join: bool = False) -> bool:
         if self.config is None:
             raise ValueError("Configure the engine first.")
         # create docker client
-        docker = get_client()
+        docker = get_client_OLD()
         # run
         try:
             dtslogger.info("Launching Engine...")
@@ -190,15 +197,9 @@ class MatrixEngine:
         # ---
         stime = time.time()
         while True:
-            self.engine.reload()
-            if self.engine.status not in ["created", "running"]:
-                raise ValueError(f"Container was found in status '{self.engine.status}'")
-            attrs = self.engine.attrs
-            if "State" in attrs and "Health" in attrs["State"]:
-                health = attrs["State"]["Health"]["Status"]
-                # check health
-                if health == "healthy":
-                    return
+            _, health = self.engine.exec_run("cat /health", stderr=False)
+            if health == b"healthy":
+                return
             # ---
             time.sleep(1)
             if 0 < timeout < time.time() - stime:
@@ -274,6 +275,12 @@ class DTCommand(DTCommandAbs):
             help="Build assets and exit"
         )
         parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
@@ -308,6 +315,8 @@ class DTCommand(DTCommandAbs):
         if engine is None:
             return
         # ---
+        if not parsed.no_pull:
+            engine.pull()
         engine.start()
         engine.join()
 

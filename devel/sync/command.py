@@ -3,7 +3,7 @@ import os
 import subprocess
 
 from dt_shell import DTCommandAbs, dtslogger
-from utils.cli_utils import check_program_dependency
+from utils.cli_utils import ensure_command_is_installed
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.misc_utils import sanitize_hostname
 from utils.multi_command_utils import MultiCommand
@@ -66,7 +66,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
             exit(2)
         # make sure rsync is installed
-        check_program_dependency("rsync")
+        ensure_command_is_installed("rsync")
         dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
         remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:{REMOTE_RSYNC_CODE_LOCATION}/"
         # get projects' locations

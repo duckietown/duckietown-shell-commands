@@ -10,7 +10,8 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.misc_utils import sanitize_hostname
 
 DUCKIEMATRIX_ROS_API_URL = "http://{robot_hostname}/ros/duckiematrix/connect?" \
-                           "data_in={data_in_uri}&data_out={data_out_uri}"
+                           "matrix={matrix}&uri={uri}&entity={entity}"
+
 DATA_IN_PROTOCOL = "tcp"
 DATA_OUT_PROTOCOL = "tcp"
 DATA_IN_PORT = 7505
@@ -34,6 +35,7 @@ class DTCommand(DTCommandAbs):
             help="Hostname or IP address of the engine to attach the robot to"
         )
         parser.add_argument("robot", nargs=1, help="Name of the robot to attach to the Matrix")
+        parser.add_argument("entity", nargs=1, help="Name of the Duckiematrix entity to attach the robot to")
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -44,7 +46,9 @@ class DTCommand(DTCommandAbs):
             parsed = DTCommand._parse_args(args)
         # ---
         parsed.robot = parsed.robot[0]
+        parsed.entity = parsed.entity[0]
         # get IP address on the gateway network interface
+        engine_hostname = None
         if parsed.engine_hostname is None:
             dtslogger.info("Engine hostname not given, assuming the engine is running "
                            "on the local machine.")
@@ -59,20 +63,19 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Figuring out the IP address...")
                 engine_hostname = get_ip_address(default_interface)
                 dtslogger.info(f"IP address found: {engine_hostname}")
-        # compile data_in and data_out URIs
-        data_in_uri = f"{DATA_IN_PROTOCOL}://{engine_hostname}:{DATA_IN_PORT}"
-        data_out_uri = f"{DATA_OUT_PROTOCOL}://{engine_hostname}:{DATA_OUT_PORT}"
         # compile robot's API URI
         robot_api_uri = DUCKIEMATRIX_ROS_API_URL.format(
             robot_hostname=sanitize_hostname(parsed.robot),
-            data_in_uri=data_in_uri,
-            data_out_uri=data_out_uri,
+            # for future developments only
+            matrix="local",
+            uri=engine_hostname,
+            entity=parsed.entity,
         )
         dtslogger.debug(f"GET: {robot_api_uri}")
         # ask the world robot to join the network
         try:
-            dtslogger.info(f"Requesting robot {parsed.robot} to join Duckiematrix engine at "
-                           f"{engine_hostname}...")
+            dtslogger.info(f"Requesting robot '{parsed.robot}' to attach to entity '{parsed.entity}' on "
+                           f"Duckiematrix engine at {engine_hostname}...")
             requests.get(robot_api_uri).json()
             dtslogger.info("Request sent, robot should now connect.")
         except BaseException as e:

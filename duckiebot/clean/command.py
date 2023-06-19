@@ -4,8 +4,8 @@ from docker.errors import APIError
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
-from utils.docker_utils import get_client
-from utils.dtproject_utils import dtlabel
+from utils.docker_utils import get_client_OLD
+from dtproject.utils.misc import dtlabel
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
@@ -38,7 +38,7 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
         # open connection to robot
-        client = get_client(hostname)
+        client = get_client_OLD(hostname)
         client.info()
         # it looks like the clean is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/clean")

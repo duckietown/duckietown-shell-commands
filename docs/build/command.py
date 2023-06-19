@@ -7,11 +7,13 @@ import sys
 from types import SimpleNamespace
 from typing import Tuple, List, Optional, Set
 
+from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from dt_data_api import DataClient
-from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl
-from utils.dtproject_utils import DTProject, get_cloud_builder
+from update import DISTRO
+from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
+    get_cloud_builder
+from dtproject import DTProject
 from utils.duckietown_utils import get_distro_version
 from utils.exceptions import ShellNeedsUpdate
 
@@ -35,11 +37,12 @@ SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
 DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = "daffy"
+DEFAULT_LIBRARY_DISTRO = DISTRO
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", },
-    "template-library": {"2", }
+    "template-library": {"2", },
+    "template-basic": {"4", },
 }
 
 
@@ -143,7 +146,7 @@ class DTCommand(DTCommandAbs):
 
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
-            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of types "
+            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
                             f"{', '.join(SUPPORTED_PROJECT_TYPES)} can be built with 'dts docs build'.")
             return False
         supported_versions: Set[str] = SUPPORTED_PROJECT_TYPES[project.type]
@@ -252,11 +255,9 @@ class DTCommand(DTCommandAbs):
             # locations of interest
             html_dir: str = os.path.join(project.path, "html")
             pdf_dir: str = os.path.join(project.path, "pdf")
-            book_dir: str = project.path
 
-            # some projects contain their books in a subdirectory
-            if project.type == "template-library":
-                book_dir = os.path.join(project.path, "docs")
+            # some projects store their books in subdirectories
+            book_dir = project.docs_path()
 
             # collect volumes to mount
             volumes: List[Tuple[str, str, str]] = [

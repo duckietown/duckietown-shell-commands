@@ -14,7 +14,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_client, get_registry_to_use, pull_if_not_exist, remove_if_running
+from utils.docker_utils import get_client_OLD, get_registry_to_use, pull_if_not_exist, remove_if_running
 from utils.exceptions import InvalidUserInput
 from utils.notebook_utils import convert_notebooks
 from utils.pip_utils import get_pip_index_url, import_or_install
@@ -115,7 +115,7 @@ class DTCommand(DTCommandAbs):
             if os.path.exists(dockerfile_lab) and os.path.isfile(dockerfile_lab):
                 # build notebook image
                 lab_image_name = f"{getpass.getuser()}/exercise-{exercise_name}-lab"
-                client = get_client()
+                client = get_client_OLD()
                 logs = client.api.build(
                     buildargs=docker_build_args,
                     path=labdir,

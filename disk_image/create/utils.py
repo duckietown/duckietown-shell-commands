@@ -1,5 +1,3 @@
-from typing import Callable
-
 import collections
 import fnmatch
 import glob
@@ -15,8 +13,9 @@ from typing import Callable
 from typing import List
 
 import yaml
+from dt_shell import dtslogger
+
 from disk_image.create.constants import (
-    DEFAULT_DOCKER_REGISTRY,
     CLI_TOOLS_NEEDED,
     DEFAULT_DEVICE_ARCH,
     DEFAULT_DOCKER_REGISTRY,
@@ -25,8 +24,7 @@ from disk_image.create.constants import (
     MODULES_TO_LOAD,
     PARTITION_MOUNTPOINT,
 )
-from dt_shell import dtslogger
-from utils.cli_utils import check_program_dependency
+from utils.cli_utils import ensure_command_is_installed
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sudo_open
 from utils.progress_bar import ProgressBar
@@ -217,7 +215,7 @@ class VirtualSDCard:
 def check_cli_tools(*args):
     clis = CLI_TOOLS_NEEDED + list(args)
     for cli_tool in clis:
-        check_program_dependency(cli_tool)
+        ensure_command_is_installed(cli_tool)
 
 
 def pull_docker_image(client, image, platform=None):

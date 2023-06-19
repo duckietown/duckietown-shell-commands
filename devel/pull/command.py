@@ -3,13 +3,13 @@ import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
-    get_client,
+    get_client_OLD,
     get_endpoint_architecture,
     get_registry_to_use,
     login_client_OLD,
-    pull_image,
+    pull_image_OLD,
 )
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.duckietown_utils import DEFAULT_OWNER
 
 
@@ -72,7 +72,7 @@ class DTCommand(DTCommandAbs):
             version = parsed.tag
 
         # spin up docker client
-        docker = get_client(parsed.machine)
+        docker = get_client_OLD(parsed.machine)
         login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=False)
         # create defaults
         image = project.image(
@@ -80,7 +80,7 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pulling image {image}...")
-        pull_image(image, docker)
+        pull_image_OLD(image, docker)
         dtslogger.info("Image successfully pulled!")
 
     @staticmethod

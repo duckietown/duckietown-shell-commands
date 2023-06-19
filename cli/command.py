@@ -7,9 +7,9 @@ import uuid
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import DEFAULT_MACHINE
-from utils.dtproject_utils import CANONICAL_ARCH
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
+from dtproject.constants import CANONICAL_ARCH
 
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
 DEFAULT_RUNTIME = "docker"

@@ -2,7 +2,7 @@ import argparse
 import requests
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import DEFAULT_MACHINE, get_client
+from utils.docker_utils import DEFAULT_MACHINE, get_client_OLD
 from utils.misc_utils import pretty_json
 
 TOKEN_URL = "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repository}:pull"
@@ -82,7 +82,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug(f"Token: {token}")
 
         # spin up a docker client
-        docker = get_client(parsed.machine)
+        docker = get_client_OLD(parsed.machine)
 
         # compile limits url
         limits_url: str = LIMITS_URL.format(repository=repository, tag=tag)

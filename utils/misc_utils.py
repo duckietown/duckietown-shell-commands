@@ -2,14 +2,17 @@ import ipaddress
 import json
 import os
 import subprocess
+import traceback
 from re import sub
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
-           "get_user_login", "pretty_json"]
+           "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc", "NotSet",
+           "hide_string"]
 
 from typing import Any
 
+NotSet = object()
 
 def human_time(time_secs, compact=False):
     label = lambda s: s[0] if compact else " " + s
@@ -66,6 +69,10 @@ def parse_version(v: str) -> tuple:
     return tuple(map(int, (sub("[^0-9]", "", v).split("."))))
 
 
+def render_version(t: tuple) -> str:
+    return ".".join(str(_) for _ in t)
+
+
 def indent_block(s: str, indent: int = 4) -> str:
     space: str = " " * indent
     return space + f"\n{space}".join(s.splitlines())
@@ -75,11 +82,15 @@ def pretty_json(data: Any, indent: int = 0) -> str:
     return indent_block(json.dumps(data, sort_keys=True, indent=4), indent=indent)
 
 
+def pretty_exc(exc: Exception, indent: int = 0) -> str:
+    return indent_block(''.join(traceback.TracebackException.from_exception(exc).format()), indent=indent)
+
+
 def get_user_login() -> str:
     try:
         user = os.getlogin()
     # fall back on getpass for terminals not registering with utmp
-    except FileNotFoundError:
+    except (OSError, FileNotFoundError):
         import getpass
         user = getpass.getuser()
     return user
@@ -87,3 +98,8 @@ def get_user_login() -> str:
 
 def versiontuple(version: str):
     return tuple(map(int, (version.split("."))))
+
+
+def hide_string(s: str, k: int = 3) -> str:
+    hidden = "*" * (len(s) - k) + s[-k:]
+    return hidden

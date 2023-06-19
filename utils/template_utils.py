@@ -1,13 +1,11 @@
-import json
 import os
 import re
 from string import Template
 from typing import List
 
-from dt_shell import dtslogger
 from dt_shell.exceptions import UserError
 
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.exceptions import InvalidUserInput
 
 
@@ -75,6 +73,7 @@ def fill_template_json(json_values: dict, user_value_map: dict) -> dict:
                 fill_items(val)
             else:
                 flat[key] = Template(val).safe_substitute(user_value_map)
+
     fill_items(json_values)
     return json_values
 

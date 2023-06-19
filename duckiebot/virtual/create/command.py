@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import time
+from typing import Optional
 
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -21,10 +22,14 @@ from utils.duckietown_utils import \
     get_robot_types,\
     get_robot_configurations, \
     USER_DATA_DIR
+from utils.misc_utils import pretty_json, pretty_exc
+
+from ..destroy import DTCommand as DestroyVirtualDuckiebotCommand
 
 DEVICE_ARCH = "amd64"
 DISK_NAME = "root"
 DEFAULT_STACK = "duckietown"
+DIND_IMAGE_NAME = "docker:24.0-dind"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 COMMANDS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..")
@@ -101,7 +106,8 @@ class DTCommand(DTCommandAbs):
         # create virtual bot directory
         dtslogger.info(f"Create root directory for your virtual robot at {vbot_dir}.")
         os.makedirs(vbot_dir)
-        # from this point on, if anything weird happens, remove partial virtual bot
+        # from this point on, if anything weird happens, stop and remove partial virtual bot
+        remote_docker_engine_container = None
         try:
             # copy root
             vbot_root_dir = os.path.join(vbot_dir, DISK_NAME)
@@ -128,33 +134,53 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Transferring Docker images to your virtual robot.")
             local_docker = docker.from_env()
             # pull dind image
-            pull_docker_image(local_docker, "docker:dind")
+            pull_docker_image(local_docker, DIND_IMAGE_NAME)
             # run auxiliary Docker engine
             remote_docker_dir = os.path.join(vbot_root_dir, "var", "lib", "docker")
             creator_container_name = f"dts-duckiebot-virtual-create-env-{parsed.robot}"
-            remote_docker_engine_container = local_docker.containers.run(
-                image="docker:dind",
-                detach=True,
-                remove=True,
-                auto_remove=True,
-                publish_all_ports=True,
-                privileged=True,
-                name=creator_container_name,
-                volumes={remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
-                entrypoint=["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
-            )
-            dtslogger.info("Waiting 20 seconds for your new robot to start...")
-            time.sleep(20)
+            creator_container_args = {
+                "image": DIND_IMAGE_NAME,
+                "detach": True,
+                "remove": True,
+                "auto_remove": True,
+                "publish_all_ports": False,
+                "privileged": True,
+                "name": creator_container_name,
+                "volumes": {remote_docker_dir: {"bind": "/var/lib/docker", "mode": "rw"}},
+                "entrypoint": ["dockerd", "--host=tcp://0.0.0.0:2375", "--bridge=none"],
+            }
+            dtslogger.debug(f"Creating virtual robot DIND container with configuration:\n"
+                            f"{pretty_json(creator_container_args, indent=4)}")
+            remote_docker_engine_container = local_docker.containers.run(**creator_container_args)
+            time.sleep(1)
             # get IP address of the container
             container_info = local_docker.api.inspect_container(creator_container_name)
             container_ip = container_info["NetworkSettings"]["IPAddress"]
             # create remote docker client
             endpoint_url = f"tcp://{container_ip}:2375"
-            dtslogger.info(f"The robot should now be up, transferring images...")
+            dtslogger.debug(f"DIND endpoint: {endpoint_url}")
+            # wait for the engine to come up
+            dtslogger.info("Waiting up to 30 seconds for your new robot to start...")
+            t0: float = time.time()
+            remote_docker: Optional[docker.DockerClient] = None
+            while time.time() - t0 < 30:
+                time.sleep(2)
+                try:
+                    remote_docker = docker.DockerClient(base_url=endpoint_url)
+                    dtslogger.debug(f"docker.version(): {remote_docker.version()}")
+                except Exception:
+                    continue
+                break
+            if remote_docker is None:
+                dtslogger.fatal("Failed to bring up a virtual Docker engine for your virtual robot. "
+                                "Add the flag 'dts --debug duckiebot virtual ...' to get more information.")
+                exit(1)
+            # ---
+            dtslogger.info("Testing virtual Docker environment...")
+            dtslogger.info(f" - Detected version: {remote_docker.version()['Version']}")
+            dtslogger.info(f"The robot is now up, transferring images...")
             # from this point on, if anything weird happens, stop container and unmount disk
             try:
-                remote_docker = docker.DockerClient(base_url=endpoint_url)
-                dtslogger.info("Transferring Docker images...")
                 # pull images inside the disk image
                 for module in MODULES_TO_LOAD:
                     image = DOCKER_IMAGE_TEMPLATE(
@@ -177,6 +203,7 @@ class DTCommand(DTCommandAbs):
             finally:
                 # stop container
                 remote_docker_engine_container.stop()
+                remote_docker_engine_container = None
             # perform surgery
             # - data/config/robot_type
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_type"), "wt") as fout:
@@ -187,9 +214,12 @@ class DTCommand(DTCommandAbs):
                 fout.write(parsed.configuration)
         except Exception as e:
             # warn user
-            dtslogger.error(f"An error occurred while creating the virtual robot.")
+            dtslogger.error(f"An error occurred while creating the virtual robot. Error:\n{pretty_exc(e, 4)}")
+            # attempt to stop container
+            if remote_docker_engine_container:
+                remote_docker_engine_container.stop()
             # remove partial virtual bot
-            run_cmd(["sudo", "rm", "-rf", vbot_dir])
+            DestroyVirtualDuckiebotCommand.command(shell, ["--yes", parsed.robot])
             # ---
             raise e
         finally:

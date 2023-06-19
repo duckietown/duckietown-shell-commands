@@ -11,7 +11,7 @@ from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
-from utils.docker_utils import get_client, get_endpoint_architecture, pull_image
+from utils.docker_utils import get_client_OLD, get_endpoint_architecture, pull_image_OLD
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
@@ -54,7 +54,7 @@ class DTCommand(DTCommandAbs):
         # check if the health-api container is running
         dtslogger.info("Releasing battery...")
         hostname = sanitize_hostname(parsed.duckiebot)
-        client = get_client(hostname)
+        client = get_client_OLD(hostname)
         device_health = None
         try:
             device_health = client.containers.get(HEALTH_CONTAINER_NAME)
@@ -143,7 +143,7 @@ class DTCommand(DTCommandAbs):
         # step 0. always try to pull the latest dt-firmware-upgrade image
         dtslogger.info(f'Pulling image "{image}" on: {hostname}')
         try:
-            pull_image(image, endpoint=client)
+            pull_image_OLD(image, endpoint=client)
         except KeyboardInterrupt:
             dtslogger.info("Aborting.")
             return

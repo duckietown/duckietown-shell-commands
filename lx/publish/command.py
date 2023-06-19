@@ -7,7 +7,7 @@ from typing import Optional
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.assets_utils import load_template
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 from utils.git_utils import clone_repository, push_repository
 from utils.json_schema_form_utils import open_form_from_schema
 from utils.template_utils import fill_template_json, fill_template_file, check_dtproject_exists
@@ -97,7 +97,7 @@ class DTCommand(DTCommandAbs):
             shutil.copytree(recipe_dir, target, dirs_exist_ok=True)
             push_repository(recipe_dest, svalues["recipe_branch"], msg)
 
-            dtslogger.info("Publishing the recipe ...")
+            dtslogger.info("Publishing the solution ...")
             target = os.path.join(solution_dest, project.name + "-solution")
             if not os.path.exists(target): os.makedirs(target)
             shutil.copytree(solution_dir, target, dirs_exist_ok=True)

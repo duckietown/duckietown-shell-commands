@@ -1,10 +1,11 @@
 import os
 import platform
+import random
 import re
 import subprocess
 import traceback
 from os.path import expanduser
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
@@ -15,8 +16,13 @@ from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
 from duckietown_docker_utils import ENV_REGISTRY
 
+from dockertown import DockerClient
+from dockertown.components.image.models import LayerPullStatus
+from dockertown.exceptions import NoSuchImage
+from dtproject.constants import CANONICAL_ARCH
+from dtproject.utils.misc import canonical_arch
 from .cli_utils import start_command_in_subprocess
-from .misc_utils import parse_version
+from .misc_utils import parse_version, hide_string
 from .networking_utils import get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
 
@@ -42,6 +48,17 @@ Docker Endpoint:
   CPUs: {NCPU}
 """
 
+CLOUD_BUILDERS = {
+    "arm32v7": ["172.27.0.102:2376"],
+    "arm64v8": ["172.27.0.102:2376"],
+    "amd64": ["172.27.0.101:2376"],
+}
+
+
+def get_cloud_builder(arch: str) -> str:
+    arch = canonical_arch(arch)
+    return random.choice(CLOUD_BUILDERS[arch])
+
 
 def get_registry_to_use(quiet: bool = False) -> str:
     docker_registry = os.environ.get(ENV_REGISTRY, DEFAULT_REGISTRY)
@@ -52,11 +69,6 @@ def get_registry_to_use(quiet: bool = False) -> str:
 
 class AuthNotFound(Exception):
     pass
-
-
-def hide_string(s: str) -> str:
-    hidden = "*" * (len(s) - 3) + s[-3:]
-    return hidden
 
 
 def get_docker_auth_from_env() -> Tuple[str, str]:
@@ -72,7 +84,7 @@ def get_docker_auth_from_env() -> Tuple[str, str]:
 
 
 def get_endpoint_ncpus(epoint=None):
-    client = get_client(epoint)
+    client = get_client_OLD(epoint)
     epoint_ncpus = 1
     try:
         epoint_ncpus = client.info()["NCPU"]
@@ -85,8 +97,6 @@ def get_endpoint_ncpus(epoint=None):
 
 
 def get_endpoint_architecture_from_client_OLD(client: DockerClientOLD) -> str:
-    from .dtproject_utils import CANONICAL_ARCH
-
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
         dtslogger.error(f"Architecture {epoint_arch} not supported!")
@@ -119,7 +129,16 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
         return url
 
 
-def get_client(endpoint=None):
+def get_client(endpoint=None) -> DockerClient:
+    if endpoint is None:
+        return dockertown.docker
+    else:
+        # create client
+        return endpoint if isinstance(endpoint, DockerClient) else \
+            DockerClient(host=sanitize_docker_baseurl(endpoint))
+
+
+def get_client_OLD(endpoint=None) -> DockerClientOLD:
     if endpoint is None:
         client = dockerOLD.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
@@ -159,7 +178,7 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
 
 
 def copy_docker_env_into_configuration(
-    shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
+        shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
 ):
     registry = registry or get_registry_to_use(quiet)
     try:
@@ -207,7 +226,7 @@ def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registr
 
 
 def _login_client_OLD(
-    client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool
+        client: DockerClientOLD, registry: str, username: str, password: str, raise_on_error: bool
 ):
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
@@ -223,10 +242,8 @@ def _login_client_OLD(
     # TODO: check for error
 
 
-# TODO quick hack to make this work - duplication of code above bad
+# TODO quick hack to make this work - duplication of code above is bad
 def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKER_TCP_PORT) -> str:
-    from .dtproject_utils import CANONICAL_ARCH
-
     client = get_remote_client(duckiebot_ip=duckiebot_ip, port=port)
     epoint_arch = client.info()["Architecture"]
     if epoint_arch not in CANONICAL_ARCH:
@@ -235,8 +252,38 @@ def get_endpoint_architecture_from_ip(duckiebot_ip, *, port: str = DEFAULT_DOCKE
     return CANONICAL_ARCH[epoint_arch]
 
 
-def pull_image(image: str, endpoint: str = None, progress=True):
-    client = get_client(endpoint)
+def pull_image(image: str, endpoint: Union[None, str, DockerClient] = None, progress=True):
+    client: DockerClient = get_client(endpoint)
+    layers = set()
+    pulled = set()
+    do_update: bool = False
+    pbar = ProgressBar() if progress else None
+    try:
+        for update in client.image.interactive_pull(image):
+            layers.add(update.layer_id)
+            if update.status in (LayerPullStatus.EXISTS, LayerPullStatus.PULLED):
+                pulled.add(update.layer_id)
+            # update progress bar (do_update avoids a jumpy progress bar early on)
+            if progress and (do_update or len(layers) != len(pulled)):
+                percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 99.0
+                pbar.update(percentage)
+                do_update = True
+    except NoSuchImage as e:
+        raise e
+    except KeyboardInterrupt as e:
+        raise e
+    except:
+        pbar.update(1)
+        # fallback to attempt to pull without interactive progress
+        client.image.pull(image)
+    # ---
+    if progress:
+        pbar.done()
+
+
+# TODO: this should be removed
+def pull_image_OLD(image: str, endpoint: str = None, progress=True):
+    client = get_client_OLD(endpoint)
     layers = set()
     pulled = set()
     pbar = ProgressBar() if progress else None
@@ -256,7 +303,7 @@ def pull_image(image: str, endpoint: str = None, progress=True):
 
 
 def push_image(image: str, endpoint=None, progress=True) -> str:
-    client = get_client(endpoint)
+    client = get_client_OLD(endpoint)
 
     layers = set()
     pushed = set()
@@ -264,8 +311,8 @@ def push_image(image: str, endpoint=None, progress=True) -> str:
     final_digest = None
     for line in client.api.push(*image.split(":"), stream=True, decode=True):
         if "error" in line:
-            l = str(line["error"])
-            msg = f"Cannot push image {image}:\n{l}"
+            err = str(line["error"])
+            msg = f"Cannot push image {image}:\n{err}"
             raise Exception(msg)
 
         if "aux" in line:
@@ -615,8 +662,8 @@ def build_logs_to_string(build_logs):
 
     """
     s = ""
-    for l in build_logs:
-        for k, v in l.items():
+    for line in build_logs:
+        for k, v in line.items():
             if k == "stream":
                 s += str(v)
     return s
@@ -639,9 +686,9 @@ except ImportError:
     dtslogger.warning("Some functionalities are disabled until you update your shell to v5.4.0+")
     _dockertown_available: bool = False
 
-
 if _dockertown_available:
     from dockertown import DockerClient
+
 
     def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
         """Raises CouldNotLogin"""
@@ -674,8 +721,9 @@ if _dockertown_available:
                 raise_on_error=raise_on_error,
             )
 
+
     def _login_client(
-        client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
+            client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
     ):
         """Raises CouldNotLogin"""
         password_hidden = hide_string(password)
@@ -688,6 +736,7 @@ if _dockertown_available:
             if raise_on_error:
                 traceback.print_exc()
                 raise CouldNotLogin(f"Could not login to {registry!r}.")
+
 
     def ensure_docker_version(client: DockerClient, v: str):
         version = client.version()

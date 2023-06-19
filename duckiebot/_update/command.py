@@ -14,11 +14,11 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
-    get_client,
+    get_client_OLD,
     get_endpoint_architecture,
     get_endpoint_architecture_from_ip,
     get_remote_client,
-    pull_image,
+    pull_image_OLD,
 )
 from utils.duckietown_utils import get_distro_version
 from utils.networking_utils import get_duckiebot_ip
@@ -90,7 +90,7 @@ class DTCommand(DTCommandAbs):
 
         # open Docker client
         if parsed.local:
-            docker = get_client()
+            docker = get_client_OLD()
             endpoint_arch = get_endpoint_architecture()
             container_name = f"code-api-{vehicle}"
         else:
@@ -129,7 +129,7 @@ class DTCommand(DTCommandAbs):
                         dtslogger.info("Pulling new image for module `dt-code-api`. Be patient...")
                     dtslogger.debug(f"Trial {trial_no}/{num_trials}: Pulling image `dt-code-api`.")
                     # ---
-                    pull_image(code_api_image, endpoint=docker)
+                    pull_image_OLD(code_api_image, endpoint=docker)
                     version_str = " new version of"
                     break
                 except APIError:
@@ -357,7 +357,7 @@ class DTCommand(DTCommandAbs):
         if parsed.local:
             dtslogger.info("Cleaning up...")
             vehicle = parsed.vehicle[0].rstrip(".local")
-            client = get_client()
+            client = get_client_OLD()
             container_name = f"code-api-{vehicle}"
             try:
                 container = client.containers.get(container_name)

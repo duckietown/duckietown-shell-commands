@@ -6,7 +6,7 @@ import yaml
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use, pull_image
+from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use, pull_image_OLD
 from utils.misc_utils import sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -77,6 +77,6 @@ class DTCommand(DTCommandAbs):
             image_name = service["image"].replace("${ARCH}", endpoint_arch)
             image_name = image_name.replace("${REGISTRY}", registry_to_use)
             dtslogger.info(f"Pulling image `{image_name}`...")
-            pull_image(image_name, parsed.machine)
+            pull_image_OLD(image_name, parsed.machine)
         # ---
         print("<------")

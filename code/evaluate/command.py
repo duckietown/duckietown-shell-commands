@@ -21,7 +21,7 @@ except ImportError:
 from dockertown import DockerClient
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from utils.docker_utils import sanitize_docker_baseurl, get_endpoint_architecture, get_registry_to_use
-from utils.dtproject_utils import DTProject
+from dtproject import DTProject
 
 AGENT_SUBMISSION_REPOSITORY = "aido-submissions"
 
