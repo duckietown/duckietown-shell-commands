@@ -724,7 +724,7 @@ class DTCommand(DTCommandAbs):
                 manifest_images.append(manifest_image)
             # update manifest
             dtslogger.debug(f"Creating manifest '{manifest}' with images: {manifest_images}")
-            docker.buildx.imagetools.create(tag=manifest, source=manifest_images)
+            docker.buildx.imagetools.create(tags=[manifest], sources=manifest_images)
             # get manifest
             dmanifest = docker.manifest.inspect(manifest)
 
