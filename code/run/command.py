@@ -1,4 +1,4 @@
-from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell import DTCommandAbs, DTShell
 
 
 class DTCommand(DTCommandAbs):

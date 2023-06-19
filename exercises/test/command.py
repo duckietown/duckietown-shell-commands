@@ -925,7 +925,7 @@ def launch_agent(
         group_add = [g.gr_gid for g in grp.getgrall() if getpass.getuser() in g.gr_mem]
 
     agent_env["PYTHONDONTWRITEBYTECODE"] = "1"
-    agent_params = {
+    agent_params: dict = {
         "image": agent_base_image,
         "name": agent_container_name,
         "volumes": agent_volumes,

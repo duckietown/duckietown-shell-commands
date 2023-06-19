@@ -77,19 +77,19 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             # - stable
             "2.0.0": "1.1",
             # - experimental
-            "-----": "1.1"
+            "-----": "1.1",
         },
         "jetson_nano_4gb": {
             # - stable
             "1.2.3": "1.1",
             # - experimental
-            "-----": "1.1"
+            "-----": "1.1",
         },
         "jetson_nano_2gb": {
             # - stable
             "1.2.2": "1.1",
             # - experimental
-            "-----": "1.1"
+            "-----": "1.1",
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -164,10 +164,7 @@ class DTCommand(DTCommandAbs):
             help="Which configuration your robot is in",
         )
         parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Whether to use cached ISO image"
+            "--no-cache", default=False, action="store_true", help="Whether to use cached ISO image"
         )
         parser.add_argument(
             "--gui",
@@ -195,10 +192,7 @@ class DTCommand(DTCommandAbs):
             help="(Optional) Size of the SD card you are flashing",
         )
         parser.add_argument(
-            "--workdir",
-            default=TMP_WORKDIR,
-            type=str,
-            help="(Optional) temporary working directory to use"
+            "--workdir", default=TMP_WORKDIR, type=str, help="(Optional) temporary working directory to use"
         )
         # parse arguments
         parsed = parser.parse_args(args=args)
@@ -229,7 +223,7 @@ class DTCommand(DTCommandAbs):
                 "v1",
                 title="Initialize a new SD card",
                 subtitle="Let's initialize a new Duckietown robot!",
-                completion_message="All done!\nYou can now close this page and return to the terminal."
+                completion_message="All done!\nYou can now close this page and return to the terminal.",
             )
             if values is None:
                 dtslogger.info("No configuration received, exiting...")
@@ -344,7 +338,7 @@ class DTCommand(DTCommandAbs):
             "disk_zip": in_file("zip"),
             "disk_img": in_file("img"),
             "disk_metadata": in_file("json"),
-            "steps": steps
+            "steps": steps,
         }
         # perform steps
         for step_name in steps:
@@ -656,7 +650,7 @@ def step_setup(shell, parsed, data):
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f"v{placeholders_version}")
+    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", "v" + placeholders_version)
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
     for surgery_bit in surgery_plan:
@@ -728,8 +722,10 @@ def _validate_hostname(hostname):
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
     if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
-        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
-                        "It should not start with a digit")
+        dtslogger.error(
+            "The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
+            "It should not start with a digit"
+        )
         return False
     return True
 

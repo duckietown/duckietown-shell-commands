@@ -19,6 +19,7 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
     # perform discover
     zeroconf = Zeroconf()
     listener = DiscoverListener(service_in_callback=cb)
+    # noinspection PyTypeChecker
     ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
     # wait
     stime = time.time()

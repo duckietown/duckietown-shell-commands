@@ -767,8 +767,9 @@ class DTCommand(DTCommandAbs):
                                     "- Replacing '{REGISTRY}' with '{REGISTRY:-%s}' in %s"
                                     % (DEFAULT_REGISTRY, destination)
                                 )
-                                replace_in_file("{REGISTRY}",
-                                                "{REGISTRY:-%s}" % DEFAULT_REGISTRY, destination)
+                                replace_in_file(
+                                    "{REGISTRY}", "{REGISTRY:-%s}" % DEFAULT_REGISTRY, destination
+                                )
                         # apply changes from disk_template
                         files = disk_template_objects(DISK_TEMPLATE_DIR, partition, "file")
                         for update in files:
@@ -786,7 +787,7 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
@@ -916,7 +917,7 @@ class DTCommand(DTCommandAbs):
                     file=[out_file_path("zip")],
                     object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
                     space="public",
-                    token=shell.get_dt1_token()
+                    token=shell.get_dt1_token(),
                 ),
             )
             dtslogger.info("Done!")

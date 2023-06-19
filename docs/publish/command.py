@@ -29,22 +29,14 @@ SAFE_BRANCH_REGEX = re.compile("^[a-z]+-staging$")
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the book to publish"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the book to publish"
         )
-        parser.add_argument(
-            "--distro",
-            default=None,
-            help="Which base distro (jupyter-book) to use"
-        )
+        parser.add_argument("--distro", default=None, help="Which base distro (jupyter-book) to use")
         parser.add_argument(
             "--force",
             default=False,
@@ -55,7 +47,7 @@ class DTCommand(DTCommandAbs):
             "destination",
             type=str,
             nargs=1,
-            help="Destination hostname of the website to publish, e.g., 'docs.duckietown.com'"
+            help="Destination hostname of the website to publish, e.g., 'docs.duckietown.com'",
         )
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
@@ -69,14 +61,17 @@ class DTCommand(DTCommandAbs):
 
         # make sure we are building the right project type
         if project.type != "template-book":
-            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
-                            f"'template-book' can be published with 'dts docs publish'.")
+            dtslogger.error(
+                f"Project of type '{project.type}' not supported. Only projects of type "
+                f"'template-book' can be published with 'dts docs publish'."
+            )
             return False
 
         # make sure we support this version of the template
         if project.type_version != "2":
-            dtslogger.error(f"Project of type '{project.type}', "
-                            f"version '{project.type_version}' not supported.")
+            dtslogger.error(
+                f"Project of type '{project.type}', " f"version '{project.type_version}' not supported."
+            )
             return False
 
         # variables
@@ -95,8 +90,10 @@ class DTCommand(DTCommandAbs):
 
         # safe branch names
         if not SAFE_BRANCH_REGEX.match(BOOK_BRANCH_NAME) and not parsed.force:
-            dtslogger.error(f"Users can only publish branches matching the pattern "
-                            f"'{SAFE_BRANCH_REGEX.pattern}', unless forced (--force).")
+            dtslogger.error(
+                f"Users can only publish branches matching the pattern "
+                f"'{SAFE_BRANCH_REGEX.pattern}', unless forced (--force)."
+            )
             exit(1)
 
         # custom distro
@@ -143,7 +140,7 @@ class DTCommand(DTCommandAbs):
                     file=[local_rsa],
                     object=[DCSS_RSA_SECRET_LOCATION.format(dns=SSH_HOSTNAME)],
                     space=DCSS_RSA_SECRET_SPACE,
-                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
+                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None),
                 ),
             )
             # setup key permissions
@@ -166,7 +163,7 @@ class DTCommand(DTCommandAbs):
                     "BOOK_NAME": BOOK_NAME,
                     "BOOK_BRANCH_NAME": BOOK_BRANCH_NAME,
                 },
-                "stream": True
+                "stream": True,
             }
             dtslogger.debug(
                 f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
@@ -178,11 +175,13 @@ class DTCommand(DTCommandAbs):
                 line = line.decode("utf-8")
                 print(line, end="")
 
-            published_title: str = project.name.replace("book-", "", 1)  #TODO: Where does jupyter-book cut this?
+            published_title: str = project.name.replace(
+                "book-", "", 1
+            )  # TODO: Where does jupyter-book cut this?
             url: str = f"https://{parsed.destination}/{BOOK_BRANCH_NAME}/{published_title}/index.html"
             bar: str = "=" * len(url)
             spc: str = " " * len(url)
-            pspc: str = " " * (len(url)-len(project.name))
+            pspc: str = " " * (len(url) - len(project.name))
             dtslogger.info(
                 f"\n\n"
                 f"====================={bar}===========================================\n"

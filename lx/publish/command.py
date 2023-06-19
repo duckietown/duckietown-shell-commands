@@ -21,17 +21,14 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the LX project to publish"
+            "-C", "--workdir", default=os.getcwd(), help="Directory containing the LX project to publish"
         )
 
         parser.add_argument(
             "-n",
             "--dry-run",
             default=os.getcwd(),
-            help="Verify that your project is ready to push without actually sending the files"
+            help="Verify that your project is ready to push without actually sending the files",
         )
 
         # Get pre-parsed or parse arguments
@@ -43,8 +40,10 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
         if not check_dtproject_exists(parsed.workdir, "lx-development"):
-            dtslogger.error(f"You need to be in a 'lx-development' project directory to publish with 'dts lx publish'. "
-                            f"You can generate this type of project with 'dts lx create'.")
+            dtslogger.error(
+                f"You need to be in a 'lx-development' project directory to publish with 'dts lx publish'. "
+                f"You can generate this type of project with 'dts lx create'."
+            )
         lx_dir: str = os.path.join(parsed.workdir, "lx")
         recipe_dir: str = os.path.join(parsed.workdir, "recipe")
         solution_dir: str = os.path.join(parsed.workdir, "solution")
@@ -56,13 +55,14 @@ class DTCommand(DTCommandAbs):
             "v3",
             title="Publish your Learning Experience",
             subtitle="Populate the fields below to publish your Learning Experience",
-            completion_message="Uploading LX ...\n You can now close this page and return to the terminal."
+            completion_message="Uploading LX ...\n You can now close this page and return to the terminal.",
         )
         svalues["safe_name"] = project.name
         dtslogger.debug(f"Form values received: '{str(svalues)}'")
 
         # Load in the template configuration and update with user form values
         # The template placeholder values should match the form schema names
+        # noinspection PyUnresolvedReferences
         config_raw: dict = load_template("lx", "v3")
         config = fill_template_json(config_raw["publish"], svalues)
 
@@ -81,25 +81,30 @@ class DTCommand(DTCommandAbs):
         with tempfile.TemporaryDirectory() as temp_dir:
             lx_dest: str = clone_repository(svalues["lx_repo"], svalues["lx_branch"], temp_dir)
             recipe_dest: str = clone_repository(svalues["recipe_repo"], svalues["recipe_branch"], temp_dir)
-            solution_dest: str = clone_repository(svalues["solution_repo"], svalues["solution_branch"], temp_dir)
+            solution_dest: str = clone_repository(
+                svalues["solution_repo"], svalues["solution_branch"], temp_dir
+            )
 
             msg: str = svalues["version"] if "version" in svalues else "Automated commit from dts publish"
             # TODO: Update to git patch solution and remove below
             dtslogger.info("Publishing the LX ...")
             target = os.path.join(lx_dest, project.name)
-            if not os.path.exists(target): os.makedirs(target)
+            if not os.path.exists(target):
+                os.makedirs(target)
             shutil.copytree(lx_dir, target, dirs_exist_ok=True)
             push_repository(lx_dest, svalues["lx_branch"], msg)
 
             dtslogger.info("Publishing the recipe ...")
             target = os.path.join(recipe_dest, project.name + "-recipe")
-            if not os.path.exists(target): os.makedirs(target)
+            if not os.path.exists(target):
+                os.makedirs(target)
             shutil.copytree(recipe_dir, target, dirs_exist_ok=True)
             push_repository(recipe_dest, svalues["recipe_branch"], msg)
 
             dtslogger.info("Publishing the solution ...")
             target = os.path.join(solution_dest, project.name + "-solution")
-            if not os.path.exists(target): os.makedirs(target)
+            if not os.path.exists(target):
+                os.makedirs(target)
             shutil.copytree(solution_dir, target, dirs_exist_ok=True)
             push_repository(solution_dest, svalues["solution_branch"], msg)
 

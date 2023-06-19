@@ -6,7 +6,6 @@ from utils.secrets_utils import SecretsManager, Secret
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell, args, **kwargs):
         prog = "dts config github credentials info"
@@ -26,14 +25,18 @@ class DTCommand(DTCommandAbs):
 
         secret_key: str = "github/credentials/token"
         if not SecretsManager.has(secret_key):
-            dtslogger.warning("\nNo github credentials found.\n"
-                              "Please see how one could be configured using:\n\n"
-                              "\tdts config github credentials set --help\n")
+            dtslogger.warning(
+                "\nNo github credentials found.\n"
+                "Please see how one could be configured using:\n\n"
+                "\tdts config github credentials set --help\n"
+            )
             return False
 
         credentials: Secret = SecretsManager.get(secret_key)
-        secret: str = credentials['secret'] if parsed.show else hide_string(credentials['secret'])
+        secret: str = credentials["secret"] if parsed.show else hide_string(credentials["secret"])
 
-        dtslogger.info(f"GitHub credentials:\n\n"
-                       f"\tusername:   {credentials['username']}\n"
-                       f"\t  secret:   {secret}\n")
+        dtslogger.info(
+            f"GitHub credentials:\n\n"
+            f"\tusername:   {credentials['username']}\n"
+            f"\t  secret:   {secret}\n"
+        )

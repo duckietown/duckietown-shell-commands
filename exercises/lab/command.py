@@ -127,10 +127,7 @@ class DTCommand(DTCommandAbs):
             msg = f"There is no Dockerfile.lab present at {dockerfile}"
             raise UserError(msg)
 
-        docker_build_args = {}
-
-        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
-        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+        docker_build_args = {"PIP_INDEX_URL": get_pip_index_url(), ENV_REGISTRY: get_registry_to_use()}
 
         buildargs = {
             "buildargs": docker_build_args,

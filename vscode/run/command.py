@@ -33,6 +33,8 @@ from utils.misc_utils import human_size, sanitize_hostname
 
 VSCODE_PORT = 8088
 CONTAINER_SECRETS_DIR = "/run/secrets"
+
+# noinspection PyUnresolvedReferences
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
@@ -203,8 +205,10 @@ class DTCommand(DTCommandAbs):
         secrets: List[Tuple[str, str, str]] = []
         for secret_id in parsed.mount_secret:
             if not SecretsManager.has(secret_id):
-                dtslogger.error(f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
-                                f"this secret before continuing.")
+                dtslogger.error(
+                    f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
+                    f"this secret before continuing."
+                )
                 return
             secret: Secret = SecretsManager.get(secret_id)
             host_secret_fpath: str = secret.temporary_json_file
@@ -230,7 +234,7 @@ class DTCommand(DTCommandAbs):
                 # this is the actual workspace
                 (parsed.workdir, workdir, "rw"),
                 # secrets
-                *secrets
+                *secrets,
             ],
             "publish": [(f"{parsed.bind}:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
@@ -316,7 +320,6 @@ class DTCommand(DTCommandAbs):
 
 
 class SimpleWindowBrowser:
-
     def __init__(self):
         self._browser = webbrowser.get()
         # with Chrome, we can use --app to open a simple window

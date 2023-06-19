@@ -55,8 +55,6 @@ class DTCommand(DTCommandAbs):
         # install mkcert (if needed)
         DTCommand._install_mkcert()
 
-
-        
         # create local certificate authority and domain certificate (if needed)
         # - define CA files
         ca_cert: str = join(ca_dir, "rootCA.pem")
@@ -90,7 +88,11 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Running command:\n\t$ {cmd}\n\tenv: {cmd_env}\n")
             out = subprocess.check_output(cmd, env=env, stderr=STDOUT).decode("utf-8")
             # make sure the CA was created
-            if "Created a new local CA" not in out and "The local CA is already installed" not in out and "The local CA is now installed" not in out:
+            if (
+                "Created a new local CA" not in out
+                and "The local CA is already installed" not in out
+                and "The local CA is now installed" not in out
+            ):
                 raise Exception(f"An error occurred while creating a local CA:\n\n{out}")
 
             assert exists(ca_cert)

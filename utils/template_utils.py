@@ -1,21 +1,19 @@
-import json
 import os
 import re
 from string import Template
 from typing import List
 
-from dt_shell import dtslogger
 from dt_shell.exceptions import UserError
-
 from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
 
 
 class DTTemplate(Template):
     """Updates string.Template to handle .dtproject placeholder format -> <REPLACEMENT_HERE>"""
-    delimiter = '<'
-    idpattern = r'(?a:[_a-z][_a-z0-9]*)'
-    pattern = fr"""
+
+    delimiter = "<"
+    idpattern = r"(?a:[_a-z][_a-z0-9]*)"
+    pattern = rf"""
                 {delimiter}(?:
                   (?P<escaped>>)                  |   # Escape sequence of two delimiters
                   (?P<named>{idpattern})>         |   # delimiter and a Python identifier
@@ -27,9 +25,10 @@ class DTTemplate(Template):
 
 class SafeDTTemplate(Template):
     """Updates DTTemplate to only allow safe path string format -> this_is-safe-1"""
-    delimiter = '<'
-    idpattern = r'(?a:[_a-z][_a-z0-9]*)'
-    pattern = fr"""
+
+    delimiter = "<"
+    idpattern = r"(?a:[_a-z][_a-z0-9]*)"
+    pattern = rf"""
                 {delimiter}(?:
                   (?P<escaped>>)                  |   # Escape sequence of two delimiters
                   (?P<named>{idpattern})>         |   # delimiter and a Python identifier
@@ -75,6 +74,7 @@ def fill_template_json(json_values: dict, user_value_map: dict) -> dict:
                 fill_items(val)
             else:
                 flat[key] = Template(val).safe_substitute(user_value_map)
+
     fill_items(json_values)
     return json_values
 

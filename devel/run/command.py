@@ -12,8 +12,13 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
 )
-from utils.dtproject_utils import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH, DTProject, CLOUD_BUILDERS, \
-    get_cloud_builder
+from utils.dtproject_utils import (
+    BUILD_COMPATIBILITY_MAP,
+    CANONICAL_ARCH,
+    DTProject,
+    CLOUD_BUILDERS,
+    get_cloud_builder,
+)
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 
@@ -97,9 +102,7 @@ class DTCommand(DTCommandAbs):
             help="Whether to mount the current project into the container. "
             "Pass a comma-separated list of paths to mount multiple projects",
         )
-        parser.add_argument(
-            "--cloud", default=False, action="store_true", help="Run the image on the cloud"
-        )
+        parser.add_argument("--cloud", default=False, action="store_true", help="Run the image on the cloud")
         parser.add_argument(
             "-u",
             "--username",
@@ -158,10 +161,7 @@ class DTCommand(DTCommandAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
-            "-t",
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "-t", "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
 
         parser.add_argument("docker_args", nargs="*", default=[])
@@ -191,8 +191,7 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             if parsed.machine is not None:
                 dtslogger.error(
-                    "The parameter --machine (-H) cannot be set together with "
-                    + "--cloud. Aborting..."
+                    "The parameter --machine (-H) cannot be set together with " + "--cloud. Aborting..."
                 )
                 exit(1)
             # route the run to the native node
