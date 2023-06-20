@@ -20,7 +20,7 @@ except ImportError:
 BASE_IMAGE = "cloudflare/cloudflared"
 VERSION = "latest"
 ARCH = "arm64"
-API_CREATE_URL = "https://staging-hub.duckietown.com/api/v1/tunnel/create"
+API_CREATE_URL = "https://hub.duckietown.com/api/v1/tunnel/create"
 
 
 usage = """
