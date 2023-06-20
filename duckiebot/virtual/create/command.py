@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 import re
 import time
 from typing import Optional
@@ -209,9 +210,11 @@ class DTCommand(DTCommandAbs):
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_type"), "wt") as fout:
                 fout.write(parsed.type)
             # - data/config/robot_configuration
-            with open(os.path.join(vbot_root_dir, "data", "config", "robot_configuration"),
-                      "wt") as fout:
+            with open(os.path.join(vbot_root_dir, "data", "config", "robot_configuration"), "wt") as fout:
                 fout.write(parsed.configuration)
+            # - data/stats/MAC/eth0
+            with open(os.path.join(vbot_root_dir, "data", "stats", "MAC", "eth0"), "wt") as fout:
+                fout.write(random_virtual_mac_address())
         except Exception as e:
             # warn user
             dtslogger.error(f"An error occurred while creating the virtual robot. Error:\n{pretty_exc(e, 4)}")
@@ -230,3 +233,16 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Your virtual robot was created successfully.")
         dtslogger.info(f"You can now run it using the command "
                        f"'dts duckiebot virtual start {parsed.robot}'.")
+
+
+def random_virtual_mac_address() -> str:
+    """
+    Generates a random MAC address of the form:     vv:**:**:**:**:**
+    And while this is not a valid MAC address (because vv is not base16-decodable), it allows us
+    to distinguish between virtual robot IDs and physical robot IDs while giving us the peace of
+    mind that no physical robot can have a MAC address overlapping with a virtual MAC address.
+
+    :return: a fake virtual MAC address
+    """
+    r = lambda: random.randint(0, 255)
+    return "vv:%02x:%02x:%02x:%02x:%02x" % (r(), r(), r(), r(), r())
