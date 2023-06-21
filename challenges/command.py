@@ -7,14 +7,13 @@ from datetime import datetime
 from typing import List
 
 from cli.command import _run_cmd
-from dt_shell import check_package_version, DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version("duckietown-docker-utils-daffy", "6.0.78")
         from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
         parser = argparse.ArgumentParser(prog="dts challenges")
