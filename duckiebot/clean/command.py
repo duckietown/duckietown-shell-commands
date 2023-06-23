@@ -6,6 +6,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client
 from utils.dtproject_utils import dtlabel
+from utils.exceptions import UserAborted
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
@@ -102,8 +103,8 @@ class DTCommand(DTCommandAbs):
         if not parsed.yes:
             granted = ask_confirmation("This cannot be undone")
             if not granted:
-                dtslogger.error("User aborted.")
-                return
+                dtslogger.debug("User aborted the operation.")
+                raise UserAborted("User aborted, stopping ...")
         # do clean
         for container in containers:
             dtslogger.info(f"Removing container [{container.short_id}] {container.name}...")

@@ -28,3 +28,7 @@ class RecipeProjectNotFound(UserError):
 
 class SecretNotFound(UserError):
     pass
+
+
+class UserAborted(UserError):
+    pass
