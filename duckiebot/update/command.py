@@ -11,6 +11,7 @@ from utils.docker_utils import (
     pull_image,
 )
 from utils.duckietown_utils import get_distro_version
+from utils.exceptions import UserAborted
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
@@ -45,9 +46,14 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
         registry_to_use = get_registry_to_use()
-        # clean duckiebot
+        # clean duckiebot and offer user abort option
         if not parsed.no_clean:
-            shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
+            try:
+                shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
+            except UserAborted as e:
+                dtslogger.info(e)
+                return
+
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
