@@ -48,7 +48,6 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         parsed.entity = parsed.entity[0]
         # get IP address on the gateway network interface
-        engine_hostname = None
         if parsed.engine_hostname is None:
             dtslogger.info("Engine hostname not given, assuming the engine is running "
                            "on the local machine.")
@@ -63,6 +62,8 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("Figuring out the IP address...")
                 engine_hostname = get_ip_address(default_interface)
                 dtslogger.info(f"IP address found: {engine_hostname}")
+        else:
+            engine_hostname = parsed.engine_hostname
         # compile robot's API URI
         robot_api_uri = DUCKIEMATRIX_ROS_API_URL.format(
             robot_hostname=sanitize_hostname(parsed.robot),
