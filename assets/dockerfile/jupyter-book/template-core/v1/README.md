@@ -1,0 +1,1 @@
+This is a stripped down version of the Dockerfile in the template-book v2 repository.
