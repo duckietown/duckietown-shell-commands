@@ -5,7 +5,7 @@ import os
 import re
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Tuple, List
+from typing import Tuple, List, Set
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
@@ -26,6 +26,12 @@ DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CONTAINER_RSA_KEY_LOCATION = "/ssh/id_rsa"
 SAFE_BRANCH_REGEX = re.compile("^[a-z]+-staging$")
+
+SUPPORTED_PROJECT_TYPES = {
+    "template-book": {"2", },
+    "template-library": {"2", },
+    "template-basic": {"4", },
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -57,10 +63,11 @@ class DTCommand(DTCommandAbs):
             nargs=1,
             help="Destination hostname of the website to publish, e.g., 'docs.duckietown.com'"
         )
-        # Get pre-parsed or parse arguments
+
+        # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+            parsed = parser.parse_args(args=args)
         parsed.destination = parsed.destination[0]
 
         # load project
@@ -68,15 +75,16 @@ class DTCommand(DTCommandAbs):
         project: DTProject = DTProject(parsed.workdir)
 
         # make sure we are building the right project type
-        if project.type != "template-book":
+        if project.type not in SUPPORTED_PROJECT_TYPES:
             dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
-                            f"'template-book' can be published with 'dts docs publish'.")
+                            f"{', '.join(SUPPORTED_PROJECT_TYPES)} can be built with 'dts docs build'.")
             return False
+        supported_versions: Set[str] = SUPPORTED_PROJECT_TYPES[project.type]
 
-        # make sure we support this version of the template
-        if project.type_version != "2":
-            dtslogger.error(f"Project of type '{project.type}', "
-                            f"version '{project.type_version}' not supported.")
+        # make sure we support this project type version
+        if project.type_version not in supported_versions:
+            dtslogger.error(f"Project of type '{project.type}' version '{project.type_version}' is "
+                            f"not supported. Only versions {', '.join(supported_versions)} are.")
             return False
 
         # variables
@@ -90,7 +98,7 @@ class DTCommand(DTCommandAbs):
 
         # book-specific parameters
         SSH_HOSTNAME = f"ssh-{parsed.destination}"
-        BOOK_NAME = project.name
+        BOOK_NAME = project.name if project.name.startswith("book-") else f"book-{project.name}"
         BOOK_BRANCH_NAME = project.version_name
 
         # safe branch names
@@ -152,8 +160,8 @@ class DTCommand(DTCommandAbs):
             volumes.append((local_rsa, CONTAINER_RSA_KEY_LOCATION, "ro"))
 
             # start the publish process
-            dtslogger.info(f"Publishing project '{project.name}'...")
-            container_name: str = f"docs-publish-{project.name}"
+            dtslogger.info(f"Publishing project '{BOOK_NAME}'...")
+            container_name: str = f"docs-publish-{BOOK_NAME}"
             args = {
                 "image": jb_image_name,
                 "remove": True,
@@ -178,16 +186,16 @@ class DTCommand(DTCommandAbs):
                 line = line.decode("utf-8")
                 print(line, end="")
 
-            published_title: str = project.name.replace("book-", "", 1)  #TODO: Where does jupyter-book cut this?
+            published_title: str = BOOK_NAME.replace("book-", "", 1)
             url: str = f"https://{parsed.destination}/{BOOK_BRANCH_NAME}/{published_title}/index.html"
             bar: str = "=" * len(url)
             spc: str = " " * len(url)
-            pspc: str = " " * (len(url)-len(project.name))
+            pspc: str = " " * (len(url)-len(BOOK_NAME))
             dtslogger.info(
                 f"\n\n"
                 f"====================={bar}===========================================\n"
                 f"|                    {spc}                                          |\n"
-                f"|    Project '{project.name}' published to:{pspc}                                  |\n"
+                f"|    Project '{BOOK_NAME}' published to:{pspc}                                  |\n"
                 f"|                    {spc}                                          |\n"
                 f"|        >   {url}                                                  |\n"
                 f"|                    {spc}                                          |\n"
