@@ -9,6 +9,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
+from utils.assets_utils import get_asset_bin_path
 from dtproject.constants import CANONICAL_ARCH
 
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
@@ -43,7 +44,7 @@ class DTCommand(DTCommandAbs):
             dest="use_x_docker",
             default=False,
             action="store_true",
-            help="Use x-docker as runtime (needs to be installed separately)",
+            help="Use x-docker as runtime",
         )
         parser.add_argument("-M", "--master", default=None, type=str, help="Hostname of the ROS Master node")
         parser.add_argument(
@@ -77,7 +78,7 @@ class DTCommand(DTCommandAbs):
         docker_arguments = [] if not parsed.arguments else list(map(lambda s: "--%s" % s, parsed.arguments))
         # x-docker runtime
         if parsed.use_x_docker:
-            parsed.runtime = "x-docker"
+            parsed.runtime = get_asset_bin_path("x-docker")
             docker_arguments += ["--privileged"]
         # check runtime
         if shutil.which(parsed.runtime) is None:
