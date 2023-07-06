@@ -12,14 +12,19 @@ from dtproject import DTProject
 from utils.duckietown_utils import get_distro_version
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
-    "template-library": {"2", },
-    "template-basic": {"4", },
+    "template-book": {
+        "2",
+    },
+    "template-library": {
+        "2",
+    },
+    "template-basic": {
+        "4",
+    },
 }
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parser = argparse.ArgumentParser()
@@ -30,16 +35,9 @@ class DTCommand(DTCommandAbs):
             help="Directory containing the book to work on",
         )
         parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
         )
-        parser.add_argument(
-            "--distro",
-            default=None,
-            help="Which base distro (jupyter-book) to use"
-        )
+        parser.add_argument("--distro", default=None, help="Which base distro (jupyter-book) to use")
         parser.add_argument(
             "--no-pull",
             default=False,
@@ -74,15 +72,19 @@ class DTCommand(DTCommandAbs):
 
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
-            dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of types "
-                            f"{', '.join(SUPPORTED_PROJECT_TYPES)} can be built with 'dts docs build'.")
+            dtslogger.error(
+                f"Project of type '{project.type}' not supported. Only projects of types "
+                f"{', '.join(SUPPORTED_PROJECT_TYPES)} can be built with 'dts docs build'."
+            )
             return False
         supported_versions: Set[str] = SUPPORTED_PROJECT_TYPES[project.type]
 
         # make sure we support this project type version
         if project.type_version not in supported_versions:
-            dtslogger.error(f"Project of type '{project.type}' version '{project.type_version}' is "
-                            f"not supported. Only versions {', '.join(supported_versions)} are.")
+            dtslogger.error(
+                f"Project of type '{project.type}' version '{project.type_version}' is "
+                f"not supported. Only versions {', '.join(supported_versions)} are."
+            )
             return False
 
         # pick the right architecture
@@ -114,7 +116,9 @@ class DTCommand(DTCommandAbs):
             dockerfile_path = os.path.join(docs_path, "Dockerfile")
             if not os.path.exists(dockerfile_path):
                 # provide a Dockerfile if the documentation dir does not carry its own
-                dockerfile_path = get_asset_path("dockerfile", "library-jupyter-book", "v1", "Dockerfile")
+                dockerfile_path = get_asset_path(
+                    "dockerfile", "jupyter-book", project.type, "v1", "Dockerfile"
+                )
             if parsed.embed:
                 source_path = docs_path
 
@@ -134,7 +138,7 @@ class DTCommand(DTCommandAbs):
             pull=not parsed.no_pull,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
-            force=True
+            force=True,
         )
         dtslogger.debug(f"Calling command 'devel/buildx' with arguments: {str(buildx_namespace)}")
         shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)

@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-# empty
+# set permissions as the user accepted the terms-and-conditions inside init-sd-card
+echo -n 1 > /data/config/permissions/allow_push_config_data
+echo -n 1 > /data/config/permissions/allow_push_logs_data
+echo -n 1 > /data/config/permissions/allow_push_stats_data
