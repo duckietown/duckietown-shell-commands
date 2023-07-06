@@ -64,6 +64,11 @@ from disk_image.create.utils import (
 
 # TODO:
 #  - fix camera
+#       you need to add the following to /boot/firmware/usercfg.txt
+#
+#            start_x=1
+#            disable_camera_led=0
+#            gpu_mem=128
 #
 #
 
