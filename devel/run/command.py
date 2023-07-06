@@ -27,6 +27,8 @@ DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 DEFAULT_NETWORK_MODE = "host"
 DEFAULT_REMOTE_USER = "duckie"
 
+DEFAULT_TRUE = object()
+
 
 class DTCommand(DTCommandAbs):
     help = "Runs the current project"
@@ -94,13 +96,19 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-M",
             "--mount",
-            default=True,
+            default=DEFAULT_TRUE,
             const=True,
             action="store",
             nargs="?",
             type=str,
             help="Whether to mount the current project into the container. "
                  "Pass a comma-separated list of paths to mount multiple projects",
+        )
+        parser.add_argument(
+            "--no-mount",
+            default=False,
+            action="store_true",
+            help="Whether NOT TO mount the current project into the container"
         )
         parser.add_argument(
             "--cloud", default=False, action="store_true", help="Run the image on the cloud"
@@ -184,6 +192,15 @@ class DTCommand(DTCommandAbs):
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
+
+        # incompatible args
+        if isinstance(parsed.mount, (bool, str)) and parsed.mount and parsed.no_mount:
+            dtslogger.error("You cannot both -m/--mount and --no-mount at the same time.")
+            exit(1)
+
+        # no-mount
+        if parsed.no_mount:
+            parsed.mount = False
 
         # cloud run
         if parsed.cloud:
