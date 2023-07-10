@@ -198,6 +198,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.error("You cannot both -m/--mount and --no-mount at the same time.")
             exit(1)
 
+        # mount
+        if parsed.mount is DEFAULT_TRUE:
+            parsed.mount = True
+
         # no-mount
         if parsed.no_mount:
             parsed.mount = False
