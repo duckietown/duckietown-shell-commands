@@ -32,6 +32,13 @@ class ExitCode(IntEnum):
     FIRMWARE_NEEDS_UPDATE = 6
     GENERIC_ERROR = 9
 
+ENV_KEY_PCB_VERSION = "PCB_VERSION"
+PCB_VERSION_ID_EXIT_CODE_NONE = 0
+
+# since the PCB version reading process does not return detailed error code,
+# we allow only a number of trials, before aborting.
+N_TRIALS_READ_PCB_VERSION = 3
+
 
 class DTCommand(DTCommandAbs):
     help = "Upgrades a Duckiebot's battery firmware"
@@ -140,7 +147,7 @@ class DTCommand(DTCommandAbs):
             extra_env = {"FORCE_BATTERY_FW_VERSION": parsed.version}
             parsed.force = True
 
-        # step 0. always try to pull the latest dt-firmware-upgrade image
+        # Always try to pull the latest dt-firmware-upgrade image
         dtslogger.info(f'Pulling image "{image}" on: {hostname}')
         try:
             pull_image(image, endpoint=client)
@@ -151,6 +158,67 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(f'An error occurred while pulling the image "{image}": {str(e)}')
             exit(1)
         dtslogger.info(f'The image "{image}" is now up-to-date.')
+
+        # step 0: check PCB version of the board
+        dtslogger.info(f"Fetching PCB version...")
+        # we run the helper in "--find-pcbid" mode and expect one of:
+        #   - 0 (PCB_VERSION_ID_EXIT_CODE_NONE) if any error occurred
+        #   - any other int                     the obtained PCB version
+        pcb_version = None
+        for _ in range(N_TRIALS_READ_PCB_VERSION):
+            exit_code = None
+            logs = None
+            try:
+                container = client.containers.run(
+                    image=image,
+                    name="dts-battery-firmware-upgrade-find-pcbid",
+                    privileged=True,
+                    detach=True,
+                    environment={"DEBUG": DEBUG},
+                    command=["--", "--battery", "--find-pcbid"],
+                )
+                try:
+                    data = container.wait(timeout=10)
+                    exit_code, logs = data["StatusCode"], container.logs().decode("utf-8")
+                except requests.exceptions.ReadTimeout:
+                    container.stop()
+                finally:
+                    container.remove()
+                if logs:
+                    print(logs)
+            except APIError as e:
+                dtslogger.error(str(e))
+                exit(1)
+
+            if exit_code != PCB_VERSION_ID_EXIT_CODE_NONE:
+                # valid result
+                pcb_version = exit_code
+                dtslogger.info(
+                    f"[Success] The battery PCB version is: v{pcb_version}"
+                )
+                break
+            # no valid PCB version read
+            else:
+                answer = input("Press ENTER to retry, 'q' to quit... ")
+                if answer.strip() == "q":
+                    exit(0)
+                continue
+        # did not manage to read PCB version in N_TRIALS_READ_PCB_VERSION times
+        # abort operation and re-engage device_health
+        if pcb_version is None:
+            dtslogger.error((
+                "Problem reading PCB version. "
+                "Please save a copy of all above logs and contact your administrator."
+            ))
+            # re-activate device-health
+            if device_health:
+                start_container_and_try_blocking_until_healthy(
+                    container=device_health,
+                    msg_before="Re-engaging battery (this might take a while)...",
+                    msg_after="Battery returned to work!",
+                )
+            exit(1)
+        # From this point on, the battery PCB version is stored in pcb_version
 
         # step 1. read the battery current version (unless forced)
         if not parsed.force:
@@ -167,7 +235,7 @@ class DTCommand(DTCommandAbs):
                         name="dts-battery-firmware-upgrade-check",
                         privileged=True,
                         detach=True,
-                        environment={"DEBUG": DEBUG},
+                        environment={"DEBUG": DEBUG, ENV_KEY_PCB_VERSION: pcb_version},
                         command=["--", "--battery", "--check"],
                     )
                     try:
@@ -250,13 +318,22 @@ class DTCommand(DTCommandAbs):
                     image=image,
                     name="dts-battery-firmware-upgrade-dryrun",
                     privileged=True,
-                    environment={"DEBUG": DEBUG, **extra_env},
+                    environment={"DEBUG": DEBUG, ENV_KEY_PCB_VERSION: pcb_version, **extra_env},
                     command=["--", "--battery", "--dry-run"],
                 )
             except APIError as e:
                 dtslogger.error(str(e))
                 exit(1)
             except ContainerError as e:
+                if container:
+                    try:
+                        dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-dryrun'...")
+                        container.remove()
+                        container = None
+                    except APIError as e:
+                        dtslogger.error(str(e))
+                        exit(1)
+
                 exit_code = e.exit_status
                 # make sure we know what happened
                 status = None
@@ -292,14 +369,6 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(f"The battery reported the status '{status.name}'")
                     exit(1)
 
-        if container:
-            try:
-                dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-dryrun'...")
-                container.remove()
-            except APIError as e:
-                dtslogger.error(str(e))
-                exit(1)
-
         # step 3: perform update
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(hostname, "battery/upgrade")
@@ -314,7 +383,7 @@ class DTCommand(DTCommandAbs):
                 name="dts-battery-firmware-upgrade-do",
                 privileged=True,
                 detach=True,
-                environment={"DEBUG": DEBUG, **extra_env},
+                environment={"DEBUG": DEBUG, ENV_KEY_PCB_VERSION: pcb_version, **extra_env},
                 command=["--", "--battery"],
             )
             DTCommand._consume_output(container.attach(stream=True))
