@@ -26,6 +26,7 @@ LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
 DEFAULT_NETWORK_MODE = "host"
 DEFAULT_REMOTE_USER = "duckie"
+DEFAULT_REMOTE_SYNC_LOCATION = "/code"
 
 DEFAULT_TRUE = object()
 
@@ -146,6 +147,20 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument(
             "-s", "--sync", default=False, action="store_true", help="Sync code from local project to remote"
+        )
+        parser.add_argument(
+            "-su",
+            "--sync-user",
+            type=str,
+            default=DEFAULT_REMOTE_USER,
+            help="User on the remote server to sync as"
+        )
+        parser.add_argument(
+            "-sd",
+            "--sync-destination",
+            type=str,
+            default=DEFAULT_REMOTE_SYNC_LOCATION,
+            help="Location of the synced code on the remote server"
         )
         parser.add_argument(
             "--net",
@@ -325,15 +340,14 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(f"The path '{project_path}' is not a Duckietown project")
                 # get project info
                 proj = DTProject(project_path)
-                # (experimental): when we run remotely, use /code/<project> as root
-                root = f"/code/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
+                rcode: str = parsed.sync_destination
+                # (experimental): when we run remotely, use <rcode>/<project> as root
+                root = os.path.join(rcode, proj.name) if parsed.machine != DEFAULT_MACHINE else proj.path
                 # get local and remote paths to code
                 local_srcs, destination_srcs = proj.code_paths(root)
                 # compile mountpoints
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
                     mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
-                # (experimental): when we run remotely, use /code/<project> as root
-                root = f"/code/{proj.name}" if parsed.machine != DEFAULT_MACHINE else proj.path
                 # get local and remote paths to launchers
                 local_launch, destination_launch = proj.launch_paths(root)
                 # compile mountpoints
@@ -453,7 +467,7 @@ class DTCommand(DTCommandAbs):
             # make sure rsync is installed
             ensure_command_is_installed("rsync", dependant="dts devel run")
             dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            remote_path = f"{DEFAULT_REMOTE_USER}@{parsed.machine}:/code/"
+            remote_path = f"{parsed.sync_user}@{parsed.machine}:{parsed.sync_destination.rstrip('/')}/"
             # get projects' locations
             projects_to_sync = [parsed.workdir] if parsed.mount is True else []
             # sync secondary projects
