@@ -66,7 +66,7 @@ def sudo_open(path, mode, *_, **__):
 
 
 def parse_version(v: str) -> tuple:
-    return tuple(map(int, (sub("[^0-9]", "", v).split("."))))
+    return tuple(int(_) for _ in v.split("."))
 
 
 def render_version(t: tuple) -> str:
