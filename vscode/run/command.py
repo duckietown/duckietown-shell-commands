@@ -321,12 +321,19 @@ class DTCommand(DTCommandAbs):
 
 class SimpleWindowBrowser:
     def __init__(self):
-        self._browser = webbrowser.get()
-        # with Chrome, we can use --app to open a simple window
+        try:
+            self._browser = webbrowser.get()
+        except webbrowser.Error:
+            dtslogger.warning("We could not found a web browser to open the code editor in. Please, use the "
+                              "URL given above in the web browser you prefer instead.")
+            self._browser = None
+            # with Chrome, we can use --app to open a simple window
         if isinstance(self._browser, webbrowser.Chrome):
             self._browser.remote_args = ["--app=%s"]
 
     def open(self, url: str) -> bool:
+        if self._browser is None:
+            return False
         try:
             return self._browser.open(url)
         except:
