@@ -1,14 +1,35 @@
-from dt_shell import DTCommandAbs, DTShell
-from dt_shell.tokens_cli import verify_a_token_main
+import builtins
+import json
+import sys
+
+from dt_authentication import DuckietownToken, InvalidToken
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
+        try:
+            if args:
+                token_s = args[0]
+            else:
+                msg = "Please enter token:\n> "
+                token_s = builtins.input(msg)
 
-        if args:
-            args0 = args
-        else:
-            args0 = []  # will enter it
+            dtslogger.debug("Verifying token %r\n" % token_s)
 
-        verify_a_token_main(args0)
+            try:
+                token = DuckietownToken.from_string(token_s)
+            except InvalidToken:
+                msg = "Invalid token format."
+                dtslogger.error(msg + "\n")
+                sys.exit(3)
+
+            dtslogger.info("Token parsed correctly!")
+            payload = json.dumps(token.payload)
+            print(f"\nToken content:\n{payload}")
+            sys.exit(0)
+
+        except Exception as e:
+            dtslogger.error(str(e) + "\n")
+            sys.exit(3)
