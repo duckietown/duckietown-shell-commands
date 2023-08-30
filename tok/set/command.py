@@ -1,10 +1,10 @@
 import webbrowser
 
 import termcolor
+from dt_authentication import InvalidToken, DuckietownToken
 from future import builtins
 
 from dt_shell import DTCommandAbs
-from dt_shell.duckietown_tokens import get_id_from_token, InvalidToken
 
 token_dt1_config_key = "token_dt1"
 
@@ -42,11 +42,11 @@ Enter token: """.format(
 
         s = val_in.strip()
         try:
-            uid = get_id_from_token(s)
-            if uid == -1:
+            token = DuckietownToken.from_string(s)
+            if token.uid == -1:
                 msg = "This is the sample token. Please use your own token."
                 raise ValueError(msg)
-            shell.sprint("Correctly identified as uid = %s" % uid)
+            shell.sprint("Correctly identified as uid = %s" % token.uid)
         except InvalidToken as e:
             msg = 'The string "%s" does not look like a valid token:\n%s' % (s, e)
             shell.sprint(msg)

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List
 
 from cli.command import _run_cmd
-from dt_shell import check_package_version, DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
 
 

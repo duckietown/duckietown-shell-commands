@@ -27,24 +27,15 @@ usage = """
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
         prog = "dts duckiebot support connect"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument(
-            "dns",
-            nargs=1,
-            help="DNS to connect to an open tunnel")
+        parser.add_argument("dns", nargs=1, help="DNS to connect to an open tunnel")
 
-        parser.add_argument(
-            "--pull",
-            action="store_true",
-            default=False,
-            help="Update the support image"
-        )
+        parser.add_argument("--pull", action="store_true", default=False, help="Update the support image")
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)

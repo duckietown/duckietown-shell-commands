@@ -2,6 +2,8 @@ import os
 import re
 import socket
 
+from utils.exceptions import NetworkingError
+
 
 def get_ip_from_ping(alias):
     response = os.popen("ping -c 1 %s" % alias).read()
@@ -34,5 +36,9 @@ def resolve_hostname(hostname: str) -> str:
         idx = hostname.index(":")
         hostname, port = hostname[0:idx], hostname[idx:]
     # perform name resolution
-    ip = socket.gethostbyname(hostname)
+    try:
+        ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        msg = f"Failed to resolve host using name '{hostname}'.\n\tException(socket.gaierror): {e}"
+        raise NetworkingError(msg)
     return protocol + ip + port

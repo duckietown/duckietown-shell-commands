@@ -7,7 +7,6 @@ from utils.secrets_utils import SecretsManager, Secret
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell, args, **kwargs):
         prog = "dts config docker credentials info"
@@ -35,15 +34,19 @@ class DTCommand(DTCommandAbs):
 
         secret_key: str = f"docker/credentials/{server}"
         if not SecretsManager.has(secret_key):
-            dtslogger.warning("\nNo docker credentials available.\n"
-                              "Please see how one could be configured using:\n\n"
-                              "\tdts config docker credentials set --help\n")
+            dtslogger.warning(
+                "\nNo docker credentials available.\n"
+                "Please see how one could be configured using:\n\n"
+                "\tdts config docker credentials set --help\n"
+            )
             return False
 
         credentials: Secret = SecretsManager.get(secret_key)
-        secret: str = credentials['secret'] if parsed.show else hide_string(credentials['secret'])
+        secret: str = credentials["secret"] if parsed.show else hide_string(credentials["secret"])
 
-        dtslogger.info(f"Docker credentials:\n\n"
-                       f"\tregistry:   {server}\n"
-                       f"\tusername:   {credentials['username']}\n"
-                       f"\t  secret:   {secret}\n")
+        dtslogger.info(
+            f"Docker credentials:\n\n"
+            f"\tregistry:   {server}\n"
+            f"\tusername:   {credentials['username']}\n"
+            f"\t  secret:   {secret}\n"
+        )

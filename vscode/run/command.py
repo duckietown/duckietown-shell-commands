@@ -205,8 +205,10 @@ class DTCommand(DTCommandAbs):
         secrets: List[Tuple[str, str, str]] = []
         for secret_id in parsed.mount_secret:
             if not SecretsManager.has(secret_id):
-                dtslogger.error(f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
-                                f"this secret before continuing.")
+                dtslogger.error(
+                    f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
+                    f"this secret before continuing."
+                )
                 return
             secret: Secret = SecretsManager.get(secret_id)
             host_secret_fpath: str = secret.temporary_json_file
@@ -232,7 +234,7 @@ class DTCommand(DTCommandAbs):
                 # this is the actual workspace
                 (parsed.workdir, workdir, "rw"),
                 # secrets
-                *secrets
+                *secrets,
             ],
             "publish": [(f"{parsed.bind}:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
@@ -318,14 +320,20 @@ class DTCommand(DTCommandAbs):
 
 
 class SimpleWindowBrowser:
-
     def __init__(self):
-        self._browser = webbrowser.get()
-        # with Chrome, we can use --app to open a simple window
+        try:
+            self._browser = webbrowser.get()
+        except webbrowser.Error:
+            dtslogger.warning("We could not found a web browser to open the code editor in. Please, use the "
+                              "URL given above in the web browser you prefer instead.")
+            self._browser = None
+            # with Chrome, we can use --app to open a simple window
         if isinstance(self._browser, webbrowser.Chrome):
             self._browser.remote_args = ["--app=%s"]
 
     def open(self, url: str) -> bool:
+        if self._browser is None:
+            return False
         try:
             return self._browser.open(url)
         except:

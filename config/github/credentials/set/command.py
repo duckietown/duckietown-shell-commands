@@ -18,9 +18,7 @@ Usage:
     def command(shell, args, **kwargs):
         parser = argparse.ArgumentParser(
             prog="dts config github credentials set",
-            description=(
-                "Save github logins locally for Duckietown"
-            ),
+            description="Save github logins locally for Duckietown",
         )
         parser.add_argument(
             "--username",
@@ -46,17 +44,14 @@ Usage:
             overwrite: bool = ask_confirmation(
                 "A set of credentials for GitHub is already stored, if you continue, the "
                 "old credentials will be overwritten.",
-                default="y"
+                default="y",
             )
             if not overwrite:
                 dtslogger.info("Leaving credentials untouched")
                 return False
 
         # - store secrets
-        secret_value: dict = {
-            "username": username,
-            "secret": token
-        }
+        secret_value: dict = {"username": username, "secret": token}
         SecretsManager.set(secret_key, secret_value)
 
         dtslogger.info("GitHub access credentials stored!")

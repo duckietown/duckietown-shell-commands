@@ -35,11 +35,11 @@ def _board_find_hw_addon_overlays(dtbos):
     hw_addons = {}
 
     for dtbo in dtbos:
-        name = dtc.get_prop_value(dtbo, '/', 'overlay-name', 0)
+        name = dtc.get_prop_value(dtbo, "/", "overlay-name", 0)
         if name is None:
             continue
 
-        if name == 'Jetson 40pin Header':
+        if name == "Jetson 40pin Header":
             continue
 
         if name in hw_addons.keys():
@@ -55,11 +55,11 @@ def _board_find_header_overlay(dtbos):
     header = None
 
     for dtbo in dtbos:
-        name = dtc.get_prop_value(dtbo, '/', 'overlay-name', 0)
+        name = dtc.get_prop_value(dtbo, "/", "overlay-name", 0)
         if name is None:
             continue
 
-        if name == 'Jetson 40pin Header':
+        if name == "Jetson 40pin Header":
             if header:
                 error = "Multiple DT overlays for '%s' found!\n" % name
                 error = error + "Please remove duplicate(s)"
@@ -74,7 +74,7 @@ def _board_find_header_overlay(dtbos):
 
 def _board_get(compat):
     dn = os.path.dirname(os.path.abspath(__file__))
-    for fn in glob.glob(os.path.join(dn, 'boards/*.board')):
+    for fn in glob.glob(os.path.join(dn, "boards/*.board")):
         board = os.path.splitext(os.path.basename(fn))[0]
         if board in compat:
             return board
@@ -98,7 +98,7 @@ def _board_load_data(board):
         raise RuntimeError("Board %s not supported!" % board)
     data = {}
     with open(fn) as f:
-        code = compile(f.read(), fn, 'exec')
+        code = compile(f.read(), fn, "exec")
         exec(code, globals(), data)
     return data
 
@@ -110,7 +110,7 @@ def _board_partition_is_mounted(partlabel):
 
 
 def _board_partition_mount(partlabel):
-    path = os.path.join('/mnt', partlabel)
+    path = os.path.join("/mnt", partlabel)
     if os.path.exists(path):
         raise RuntimeError("Mountpoint %s already exists!" % path)
     os.makedirs(path)
@@ -127,8 +127,8 @@ def _board_partition_umount(mountpoint):
 class Board(object):
     def __init__(self):
         self.appdir = None
-        self.bootdir = '/boot'
-        self.extlinux = '/boot/extlinux/extlinux.conf'
+        self.bootdir = "/boot"
+        self.extlinux = "/boot/extlinux/extlinux.conf"
         dtbdir = self.bootdir
         fio.is_rw(self.bootdir)
 
@@ -137,13 +137,13 @@ class Board(object):
         # parse the extlinux.conf and loads the kernel DTB. Therefore, if
         # the rootfs is mounted using NFS, it is necessary to mount this
         # partition and copy the generated files back to this partition.
-        if not _board_partition_is_mounted('APP'):
-            self.appdir = _board_partition_mount('APP')
-            dtbdir = os.path.join(self.appdir, 'boot/dtb')
+        if not _board_partition_is_mounted("APP"):
+            self.appdir = _board_partition_mount("APP")
+            dtbdir = os.path.join(self.appdir, "boot/dtb")
             fio.is_rw(self.appdir)
 
-        self.compat = dt.read_prop('compatible')
-        self.model = dt.read_prop('model')
+        self.compat = dt.read_prop("compatible")
+        self.model = dt.read_prop("model")
         self.name = _board_get(self.compat)
         self.data = _board_load_data(self.name)
         self.dtb = _board_get_dtb(self.compat, self.model, dtbdir)
@@ -174,16 +174,15 @@ class Board(object):
         overlay = self.hw_addons[name]
         self.header.pins_reset()
 
-        nodes = dtc.find_nodes_with_prop(overlay, '/', 'nvidia,function')
+        nodes = dtc.find_nodes_with_prop(overlay, "/", "nvidia,function")
 
         for node in nodes:
-            res = re.match(r'.*/pin([0-9]*)/', node)
+            res = re.match(r".*/pin([0-9]*)/", node)
             if res is None:
-                raise RuntimeError("Failed to get pin number for node %s!" %
-                                   node)
+                raise RuntimeError("Failed to get pin number for node %s!" % node)
 
             pin = int(res.groups()[0])
-            function = dtc.get_prop_value(overlay, node, 'nvidia,function', 0)
+            function = dtc.get_prop_value(overlay, node, "nvidia,function", 0)
             self.header.pin_set_function(pin, function)
 
     def _create_header_dtbo(self, name):
@@ -195,35 +194,32 @@ class Board(object):
             node = self.header.pin_get_node(pin)
 
             if self.header.pin_is_enabled(pin):
-                dtc.set_prop_value(dtbo, node, 's', 'nvidia,function',
-                                   function)
+                dtc.set_prop_value(dtbo, node, "s", "nvidia,function", function)
             else:
                 if self.header.pin_is_default(pin):
                     dtc.remove_node(dtbo, node)
                 else:
                     if function is not None:
-                        dtc.set_prop_value(dtbo, node, 's', 'nvidia,function',
-                                           function)
+                        dtc.set_prop_value(dtbo, node, "s", "nvidia,function", function)
 
-                    dtc.set_prop_value(dtbo, node, 'u', 'nvidia,tristate', '1')
-                    dtc.set_prop_value(dtbo, node, 'u', 'nvidia,enable-input',
-                                       '0')
+                    dtc.set_prop_value(dtbo, node, "u", "nvidia,tristate", "1")
+                    dtc.set_prop_value(dtbo, node, "u", "nvidia,enable-input", "0")
 
         return dtbo
 
     def create_dtbo_for_header(self):
-        date = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
         name = "User Custom [%s]" % date
         fn = "%s-user-custom.dtbo" % self.get_dtb_basename()
         dtbo = self._create_header_dtbo(fn)
-        dtc.set_prop_value(dtbo, '/', 's', 'overlay-name', "%s" % name)
+        dtc.set_prop_value(dtbo, "/", "s", "overlay-name", "%s" % name)
         return dtbo
 
     def create_dtb_for_hw_addon(self, name):
         if name not in self.hw_addons.keys():
             raise RuntimeError("Unknown hardware addon %s!" % name)
         dtbo = self.hw_addons[name]
-        suffix = name.replace(' ', '-').lower()
+        suffix = name.replace(" ", "-").lower()
         dtb = self.gen_dtb_filename(suffix, self.bootdir)
         dtc.overlay(self.dtb, dtb, dtbo)
         if self.appdir:
@@ -238,7 +234,7 @@ class Board(object):
     def create_dtb_for_header(self):
         dtb = self.gen_dtb_filename("user-custom", self.bootdir)
         try:
-            dtbo = self._create_header_dtbo('jetson-user-custom.dtbo')
+            dtbo = self._create_header_dtbo("jetson-user-custom.dtbo")
             dtc.overlay(self.dtb, dtb, dtbo)
         except Exception:
             raise
@@ -249,9 +245,9 @@ class Board(object):
         name = "Custom 40-pin Header Config"
         if self.appdir:
             appextlinux = os.path.join(self.appdir, self.extlinux[1:])
-            extlinux.add_entry(appextlinux, 'JetsonIO', name, dtb, True)
+            extlinux.add_entry(appextlinux, "JetsonIO", name, dtb, True)
             shutil.copyfile(dtb, os.path.join(self.appdir, dtb[1:]))
             shutil.copyfile(appextlinux, self.extlinux)
         else:
-            extlinux.add_entry(self.extlinux, 'JetsonIO', name, dtb, True)
+            extlinux.add_entry(self.extlinux, "JetsonIO", name, dtb, True)
         return dtb

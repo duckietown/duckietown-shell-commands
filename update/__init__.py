@@ -15,7 +15,7 @@ if sys.version_info < (3, 6):
     msg = "duckietown-shell-commands requires Python 3.6 and later.\nDetected %s." % str(sys.version)
     raise UserError(msg)
 
-min_duckietown_shell = ".".join(["5", "5", "7"])
+min_duckietown_shell = ".".join(["5", "5", "9"])
 duckietown_shell_commands_version = "6.0.0"
 
 
@@ -61,6 +61,7 @@ def update_billboard():
         return
 
     from dt_data_api import DataClient, Storage, Item
+
     # create billboards directory
     billboard_dir: str = os.path.join(os.path.expanduser(DTShellConstants.ROOT), "billboards", "v1")
     os.makedirs(billboard_dir, exist_ok=True)

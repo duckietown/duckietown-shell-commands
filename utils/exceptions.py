@@ -1,7 +1,13 @@
 import dt_shell
 from dt_shell import UserError
 
-__all__ = ["ShellNeedsUpdate", "InvalidUserInput", "RecipeProjectNotFound", "SecretNotFound"]
+__all__ = [
+    "ShellNeedsUpdate",
+    "InvalidUserInput",
+    "RecipeProjectNotFound",
+    "SecretNotFound",
+    "NetworkingError",
+]
 
 from update import parse_version
 
@@ -37,4 +43,8 @@ class RecipeProjectNotFound(UserError):
 
 
 class SecretNotFound(UserError):
+    pass
+
+
+class NetworkingError(UserError):
     pass

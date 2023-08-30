@@ -151,7 +151,7 @@ class DTCommand(DTCommandAbs):
                     file=[local_rsa],
                     object=[DCSS_RSA_SECRET_LOCATION.format(dns=SSH_HOSTNAME)],
                     space=DCSS_RSA_SECRET_SPACE,
-                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
+                    token=os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None),
                 ),
             )
             # setup key permissions
@@ -174,7 +174,7 @@ class DTCommand(DTCommandAbs):
                     "BOOK_NAME": BOOK_NAME,
                     "BOOK_BRANCH_NAME": BOOK_BRANCH_NAME,
                 },
-                "stream": True
+                "stream": True,
             }
             dtslogger.debug(
                 f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"

@@ -87,10 +87,7 @@ class DTCommand(DTCommandAbs):
             raise InvalidUserInput(msg)
         config = load_yaml(cfile)
 
-        docker_build_args = {}
-
-        docker_build_args["PIP_INDEX_URL"] = get_pip_index_url()
-        docker_build_args[ENV_REGISTRY] = get_registry_to_use()
+        docker_build_args = {"PIP_INDEX_URL": get_pip_index_url(), ENV_REGISTRY: get_registry_to_use()}
 
         # make sure this exercise has a lab_dir key in its config file and that it points to
         # an existing directory

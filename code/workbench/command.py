@@ -148,18 +148,18 @@ class SettingsFile:
 def SettingsFile_from_yaml(filename: str) -> SettingsFile:
     data = load_yaml(filename)
     if not isinstance(data, dict):
-        msg = f'Expected that the settings file {filename!r} would be a dictionary, obtained {type(data)}.'
+        msg = f"Expected that the settings file {filename!r} would be a dictionary, obtained {type(data)}."
         raise Exception(msg)
 
     data_dict = cast(Dict[str, object], data)
     known: Dict[str, object] = {
-        'agent_base': None,
-        'ws_dir': None,
-        'log_dir': None,
-        'ros': True,
-        'step': None,
-        'rsync_exclude': [],
-        'editor': {},
+        "agent_base": None,
+        "ws_dir": None,
+        "log_dir": None,
+        "ros": True,
+        "step": None,
+        "rsync_exclude": [],
+        "editor": {},
     }
 
     params = {}
@@ -171,7 +171,7 @@ def SettingsFile_from_yaml(filename: str) -> SettingsFile:
         if k not in known:
             extra[k] = v
     if extra:
-        dtslogger.warn(f'Ignoring extra keys {list(extra)} in {filename!r}')
+        dtslogger.warn(f"Ignoring extra keys {list(extra)} in {filename!r}")
 
     settings = SettingsFile(**params)
 
@@ -249,18 +249,10 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--pull",
-            action="store_true",
-            default=False,
-            help="Should we pull all of the images"
+            "--pull", action="store_true", default=False, help="Should we pull all of the images"
         )
 
-        parser.add_argument(
-            "--no-cache",
-            default=False,
-            action="store_true",
-            help="Ignore the Docker cache"
-        )
+        parser.add_argument("--no-cache", default=False, action="store_true", help="Ignore the Docker cache")
 
         parser.add_argument(
             "--bind",
@@ -369,8 +361,10 @@ class DTCommand(DTCommandAbs):
             try:
                 from docker.types import DeviceRequest
             except ImportError:
-                dtslogger.error("You need to update the Docker SDK for Python to be able to use the flag "
-                                "--nvidia. You can do so with the command:\n\n\tpip3 install -U docker\n")
+                dtslogger.error(
+                    "You need to update the Docker SDK for Python to be able to use the flag "
+                    "--nvidia. You can do so with the command:\n\n\tpip3 install -U docker\n"
+                )
                 exit(1)
 
         # get information about the host user
@@ -491,7 +485,7 @@ class DTCommand(DTCommandAbs):
             username=username,
             no_cache=parsed.no_cache,
             recipe=recipe.path,
-            quiet=True
+            quiet=True,
         )
         dtslogger.debug(f"Building with 'code/build' using args: {build_namespace}")
         success: bool = shell.include.code.build.command(shell, [], parsed=build_namespace)
@@ -619,7 +613,7 @@ class DTCommand(DTCommandAbs):
             ros_env = {
                 "ROS_MASTER_URI": f"http://{ros_container_name}:{AGENT_ROS_PORT}",
                 "VEHICLE_NAME": "agent",
-                "HOSTNAME": "agent"
+                "HOSTNAME": "agent",
             }
 
         # update the docker images we will be using (if requested)
@@ -662,9 +656,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Agent network '{agent_network_name}' created successfully!")
         except Exception:
             error: str = traceback.format_exc()
-            dtslogger.error(
-                f"An error occurred while creating the agent network. The error reads: {error}"
-            )
+            dtslogger.error(f"An error occurred while creating the agent network. The error reads: {error}")
             return
 
         # make temporary directories
@@ -1114,10 +1106,12 @@ class DTCommand(DTCommandAbs):
                     **agent_env,
                 }
                 if duckiebot is not None:
-                    agent_env.update({
-                        "VEHICLE_NAME": duckiebot,
-                        "HOSTNAME": duckiebot,
-                    })
+                    agent_env.update(
+                        {
+                            "VEHICLE_NAME": duckiebot,
+                            "HOSTNAME": duckiebot,
+                        }
+                    )
 
             if LOG_LEVELS[ContainerNames.NAME_AGENT] != Levels.LEVEL_NONE:
                 agent_env[ENV_LOGLEVEL] = LOG_LEVELS[ContainerNames.NAME_AGENT].value
@@ -1419,6 +1413,7 @@ def launch_agent(
 
     if parsed.nvidia:
         from docker.types import DeviceRequest
+
         agent_params["runtime"] = "nvidia"
         agent_params["device_requests"] = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
 

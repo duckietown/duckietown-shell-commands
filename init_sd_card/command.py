@@ -77,19 +77,19 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             # - stable
             "2.0.0": "1.1",
             # - experimental
-            "3.0.7": "1.1"
+            "3.0.7": "1.1",
         },
         "jetson_nano_4gb": {
             # - stable
             "1.2.3": "1.1",
             # - experimental
-            "-----": "1.1"
+            "-----": "1.1",
         },
         "jetson_nano_2gb": {
             # - stable
             "1.2.2": "1.1",
             # - experimental
-            "-----": "1.1"
+            "-----": "1.1",
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -229,7 +229,7 @@ class DTCommand(DTCommandAbs):
                 "v1",
                 title="Initialize a new SD card",
                 subtitle="Let's initialize a new Duckietown robot!",
-                completion_message="All done!\nYou can now close this page and return to the terminal."
+                completion_message="All done!\nYou can now close this page and return to the terminal.",
             )
             if values is None:
                 dtslogger.info("No configuration received, exiting...")
@@ -345,7 +345,7 @@ class DTCommand(DTCommandAbs):
             "disk_zip": in_file("zip"),
             "disk_img": in_file("img"),
             "disk_metadata": in_file("json"),
-            "steps": steps
+            "steps": steps,
         }
         # perform steps
         for step_name in steps:

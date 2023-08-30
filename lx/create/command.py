@@ -19,10 +19,7 @@ class DTCommand(DTCommandAbs):
         # Configure args
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory to generate the LX project into"
+            "-C", "--workdir", default=os.getcwd(), help="Directory to generate the LX project into"
         )
 
         # Get pre-parsed or parse arguments
@@ -39,11 +36,10 @@ class DTCommand(DTCommandAbs):
             title="Create New Learning Experience",
             subtitle="Populate the fields below to create a new Learning Experience",
             completion_message="Generating your LX ...\n "
-                               "You can now close this page and return to the terminal."
+            "You can now close this page and return to the terminal.",
         )
         safe_name: str = re.sub(
-            r"-+", "-",
-            re.sub(r'[^\w\s-]', "", svalues["name"]).replace(" ", "-").lower()
+            r"-+", "-", re.sub(r"[^\w\s-]", "", svalues["name"]).replace(" ", "-").lower()
         ).strip("-")
         # Clean some form values
         svalues["safe_name"] = safe_name  # file safe alternate name - ex. Robot Time! -> robot-time
@@ -53,6 +49,7 @@ class DTCommand(DTCommandAbs):
 
         # Load in the template configuration and update with user form values
         # The template placeholder values should match the form schema names
+        # noinspection PyUnresolvedReferences
         config_raw: dict = load_template("lx", "v3")
         config = fill_template_json(config_raw, svalues)
         version: str = config["template-version"]
@@ -78,16 +75,16 @@ class DTCommand(DTCommandAbs):
         # Not included in first config: challenge definitions
         dtslogger.info("Customizing the LX ...")
         file_updates: dict = {
-            os.path.join(lx_path, ".dtproject"): config['lx-dtproject'],  # .dtproject files
-            os.path.join(solution_path, ".dtproject"): config['lx-dtproject'],
-            os.path.join(recipe_path, "Dockerfile"): config['dockerfile'],  # Dockerfiles
-            os.path.join(recipe_path, "Dockerfile.vnc"): config['dockerfile'],
-            os.path.join(recipe_path, "Dockerfile.vscode"): config['dockerfile'],
+            os.path.join(lx_path, ".dtproject"): config["lx-dtproject"],  # .dtproject files
+            os.path.join(solution_path, ".dtproject"): config["lx-dtproject"],
+            os.path.join(recipe_path, "Dockerfile"): config["dockerfile"],  # Dockerfiles
+            os.path.join(recipe_path, "Dockerfile.vnc"): config["dockerfile"],
+            os.path.join(recipe_path, "Dockerfile.vscode"): config["dockerfile"],
             os.path.join(recipe_path, "dependencies-apt.txt"): config["dependencies"],  # Dependencies
             os.path.join(recipe_path, "dependencies-py3.txt"): config["dependencies"],  # READMEs
             os.path.join(lx_path, "README.md"): config["readme"],
             os.path.join(solution_path, "README.md"): config["readme"],
-            os.path.join(recipe_path, "README.md"): config["readme"]
+            os.path.join(recipe_path, "README.md"): config["readme"],
         }
         dtslogger.debug(f"Updating the following template files: {str(file_updates.keys())} ...")
 
@@ -103,14 +100,16 @@ class DTCommand(DTCommandAbs):
             f"====================={bar}=============================\n"
             f"|                    {spc}                            |\n"
             f"|    {success}                                            |\n"
-            f"|                    {spc}                            |\n"           
+            f"|                    {spc}                            |\n"
             f"|    For next steps, see the LX Developer Manual.{spc}|\n"  # TODO: Link book when live
             f"|                    {spc}                            |\n"
             f"====================={bar}=============================\n\n"
         )
 
-        dtslogger.info(f"To verify your template, run `dts code build --recipe ../recipe` in the "
-                       f"'{safe_name+'/lx'}' directory. \n")
+        dtslogger.info(
+            f"To verify your template, run `dts code build --recipe ../recipe` in the "
+            f"'{safe_name+'/lx'}' directory. \n"
+        )
 
     @staticmethod
     def complete(shell, word, line):

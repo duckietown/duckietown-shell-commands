@@ -86,13 +86,10 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
         "ROS_MASTER_URI": "http://%s:11311" % machine,
         "HOSTNAME": hostname,
     }
-    volumes = {}
+    volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
     env["QT_X11_NO_MITSHM"] = 1
 
-    volumes["/tmp/.X11-unix"] = {"bind": "/tmp/.X11-unix", "mode": "rw"}
-
     # 2020-09-28 fix network resolve issue:
-
     if os.path.exists(AVAHI_SOCKET):
         volumes[AVAHI_SOCKET] = {"bind": AVAHI_SOCKET, "mode": "rw"}
     else:

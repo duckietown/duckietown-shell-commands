@@ -20,31 +20,26 @@ UTILITY_DASHBORD_IMAGE = "{registry}/duckietown/jsonschema-form:{distro}-{arch}"
 UTILITY_DASHBORD_PORT = "8080"
 
 
-def open_form_from_schema(
-        shell: DTShell,
-        name: str,
-        version: str,
-        title: str,
-        **kwargs
-) -> Optional[dict]:
+def open_form_from_schema(shell: DTShell, name: str, version: str, title: str, **kwargs) -> Optional[dict]:
     schema: dict = load_schema(name, version)
     icon: Optional[str] = get_schema_icon_filepath(name, version)
     header: Optional[str] = get_schema_html_filepath(name, version, "header.html")
     footer: Optional[str] = get_schema_html_filepath(name, version, "footer.html")
-    return open_form(shell, title, schema,
-                     icon_fpath=icon, header_fpath=header, footer_fpath=footer, **kwargs)
+    return open_form(
+        shell, title, schema, icon_fpath=icon, header_fpath=header, footer_fpath=footer, **kwargs
+    )
 
 
 def open_form(
-        shell: DTShell,
-        title: str,
-        schema: dict,
-        *,
-        subtitle: str = "",
-        completion_message: Optional[str] = None,
-        icon_fpath: Optional[str] = None,
-        header_fpath: Optional[str] = None,
-        footer_fpath: Optional[str] = None,
+    shell: DTShell,
+    title: str,
+    schema: dict,
+    *,
+    subtitle: str = "",
+    completion_message: Optional[str] = None,
+    icon_fpath: Optional[str] = None,
+    header_fpath: Optional[str] = None,
+    footer_fpath: Optional[str] = None,
 ) -> Optional[dict]:
     values: Optional[dict] = None
     distro: str = get_distro_version(shell)
@@ -52,10 +47,7 @@ def open_form(
     # copy schema object
     data: dict = copy.deepcopy(schema)
     # add page info
-    data["page"] = {
-        "title": title,
-        "subtitle": subtitle
-    }
+    data["page"] = {"title": title, "subtitle": subtitle}
     # completion message
     if completion_message:
         data["page"]["completion_message"] = completion_message
@@ -105,8 +97,10 @@ def open_form(
                 "publish": [(f"127.0.0.1:0", UTILITY_DASHBORD_PORT, "tcp")],
                 "detach": True,
             }
-            dtslogger.debug(f"Creating container with the following configuration:\n"
-                            f"{indent_block(json.dumps(container_cfg, indent=4, sort_keys=True))}")
+            dtslogger.debug(
+                f"Creating container with the following configuration:\n"
+                f"{indent_block(json.dumps(container_cfg, indent=4, sort_keys=True))}"
+            )
             container: Container = docker.container.run(**container_cfg)
             # get the IP address to the container
             port: str = container.network_settings.ports[f"{UTILITY_DASHBORD_PORT}/tcp"][0]["HostPort"]
@@ -165,8 +159,10 @@ def open_form(
                     assert os.path.exists(values_fpath)
                     with open(values_fpath, "rt") as fin:
                         values = json.load(fin)
-                        dtslogger.debug(f"Container '{container_name}' returned values:\n"
-                                        f"{pretty_json(values, indent=4)}")
+                        dtslogger.debug(
+                            f"Container '{container_name}' returned values:\n"
+                            f"{pretty_json(values, indent=4)}"
+                        )
                 elif not user_terminated:
                     raise e
             # user terminated
@@ -178,7 +174,6 @@ def open_form(
 
 
 class SimpleWindowBrowser:
-
     def __init__(self):
         self._browser = webbrowser.get()
         # with Chrome, we can use --app to open a simple window

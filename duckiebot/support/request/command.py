@@ -4,11 +4,7 @@ import json
 
 import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from utils.docker_utils import (
-    get_remote_client,
-    pull_if_not_exist,
-    pull_image,
-    remove_if_running)
+from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
 from utils.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
@@ -24,7 +20,7 @@ except ImportError:
 BASE_IMAGE = "cloudflare/cloudflared"
 VERSION = "latest"
 ARCH = "arm64"
-API_CREATE_URL = "https://staging-hub.duckietown.com/api/v1/tunnel/create"
+API_CREATE_URL = "https://hub.duckietown.com/api/v1/tunnel/create"
 
 
 usage = """
@@ -36,29 +32,18 @@ usage = """
 
 
 class DTCommand(DTCommandAbs):
-
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         # Configure args
         prog = "dts duckiebot support request"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument(
-            "robot",
-            nargs=1,
-            help="Name of the robot to support")
+        parser.add_argument("robot", nargs=1, help="Name of the robot to support")
+
+        parser.add_argument("--pull", action="store_true", default=False, help="Update the support image")
 
         parser.add_argument(
-            "--pull",
-            action="store_true",
-            default=False,
-            help="Update the support image"
-        )
-
-        parser.add_argument(
-            "--network",
-            default="host",
-            help="Name of the network to connect the container to"
+            "--network", default="host", help="Name of the network to connect the container to"
         )
 
         parser.add_argument(
@@ -104,7 +89,7 @@ class DTCommand(DTCommandAbs):
             "name": container_name,
             "detach": True,
             "network_mode": parsed.network,
-            "command": f"tunnel --url ssh://localhost:22 run --token {tunnel_token} {tunnel_name}"
+            "command": f"tunnel --url ssh://localhost:22 run --token {tunnel_token} {tunnel_name}",
         }
         dtslogger.info(f"Starting the support container '{container_name}' on {robot_hostname} ...")
         dtslogger.debug(
@@ -123,7 +108,7 @@ class DTCommand(DTCommandAbs):
             f"|                    {spc}                                          |\n"
             f"|        > Support ID - {tunnel_dns}                                       |\n"
             f"|                    {spc}                                          |\n"
-            f"|     Press Enter when you are ready to exit.{spc}                  |\n"                              
+            f"|     Press Enter when you are ready to exit.{spc}                  |\n"
             f"|                    {spc}                                          |\n"
             f"====================={bar}===========================================\n"
         )
@@ -137,7 +122,7 @@ class DTCommand(DTCommandAbs):
 def create_cloudflare_tunnel(robot_id: str, dt_token: str) -> dict:
     creation_url: str = f"{API_CREATE_URL}?robot={robot_id}&service=ssh"
     try:
-        cred_response = requests.get(creation_url, headers={'Authorization': f'Token {dt_token}'})
+        cred_response = requests.get(creation_url, headers={"Authorization": f"Token {dt_token}"})
         cred = cred_response.json()
         dtslogger.debug(f"Tunnel endpoint returned: \n\n {cred}")
 

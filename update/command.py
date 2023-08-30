@@ -13,4 +13,3 @@ class DTCommand(DTCommandAbs):
             dtslogger.warn("Will not update the commands because the path was set explicitly.")
         else:
             shell.update_commands()
-

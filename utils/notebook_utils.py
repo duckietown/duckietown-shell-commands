@@ -59,6 +59,7 @@ def convertNotebook(filepath: str, target_dir: str):
     # clean the notebook, remove the cells to be skipped:
     c = Config()
     c.TagRemovePreprocessor.remove_cell_tags = ("skip",)
+    # noinspection PyTypeChecker
     exporter = PythonExporter(config=c)
 
     # source is a tuple of python source code
