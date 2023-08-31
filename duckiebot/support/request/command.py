@@ -5,7 +5,7 @@ import json
 import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 

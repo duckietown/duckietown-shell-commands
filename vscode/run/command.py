@@ -15,7 +15,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.secrets_utils import SecretsManager, Secret
 
 # NOTE: this is to avoid breaking the user workspace

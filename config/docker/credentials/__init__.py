@@ -15,7 +15,7 @@ import glob as _glob
 from dt_shell import dtslogger
 
 import utils
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # constants
 _this_dir = _dirname(__file__)
@@ -34,7 +34,7 @@ if _exists(_join(_this_dir, _command_file)):
             f"updated. Current version is {e.current_version}, required version is "
             f"{e.version_needed}"
         )
-        from utils.command_utils import failed_to_load_command as command
+        from dt_shell.commands import failed_to_load_command as command
 
 # find all modules
 _modules = [m for m in _glob.glob(_join(_this_dir, "*")) if _isdir(m)]

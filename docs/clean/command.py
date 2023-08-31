@@ -9,7 +9,7 @@ from dtproject import DTProject
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:

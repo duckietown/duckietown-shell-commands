@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Optional, List
 
 from dtproject.utils.misc import dtlabel
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:

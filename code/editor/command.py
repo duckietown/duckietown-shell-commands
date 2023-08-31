@@ -6,7 +6,7 @@ from typing import Optional, List
 from code.workbench.command import SettingsFile, SettingsFile_from_yaml
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.secrets_utils import SecretsManager
 
 # NOTE: this is to avoid breaking the user workspace
