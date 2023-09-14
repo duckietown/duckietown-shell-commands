@@ -7,6 +7,8 @@
 #   APPLY_DIFF
 #
 
+set -x
+
 template_url="https://github.com/${TEMPLATE_TYPE}"
 template_remote="template"
 
