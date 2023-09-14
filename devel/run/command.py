@@ -349,9 +349,14 @@ class DTCommand(DTCommandAbs):
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
                     mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
                 # get local and remote paths to launchers
-                local_launch, destination_launch = proj.launch_paths(root)
-                # compile mountpoints
-                mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
+                local_launchs, destination_launchs = proj.launch_paths(root)
+                if isinstance(local_launchs, str):
+                    # compile mountpoints
+                    mount_option += ["-v", "{:s}:{:s}".format(local_launchs, destination_launchs)]
+                else:
+                    # compile mountpoints
+                    for local_launch, destination_launch in zip(local_launchs, destination_launchs):
+                        mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
         # create image name
         image = project.image(
             arch=parsed.arch,

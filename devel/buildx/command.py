@@ -519,6 +519,11 @@ class DTCommand(DTCommandAbs):
         docker_build_args["PIP_INDEX_URL"] = pip_index_url_to_use
         docker_build_args[ENV_REGISTRY] = registry_to_use
 
+        # project-defined build arguments
+        if hasattr(project, "build_args"):
+            for key, value in project.build_args.items():
+                docker_build_args[key] = value
+
         # custom build arguments
         for key, value in parsed.build_arg:
             docker_build_args[key] = value
