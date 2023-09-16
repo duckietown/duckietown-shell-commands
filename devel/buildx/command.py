@@ -11,7 +11,6 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from typing import Optional, List
 
-from dtproject.utils.misc import dtlabel
 from utils.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -42,13 +41,16 @@ from utils.docker_utils import (
     get_cloud_builder,
     pull_image,
 )
+import dtproject
 from dtproject import DTProject
 from dtproject.constants import (
     CANONICAL_ARCH,
     ARCH_TO_PLATFORM, DISTRO_KEY,
 )
+from dtproject.utils.misc import dtlabel
+
 from utils.duckietown_utils import DEFAULT_OWNER
-from utils.misc_utils import human_size, human_time, sanitize_hostname
+from utils.misc_utils import human_size, human_time, sanitize_hostname, parse_version
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
@@ -239,6 +241,12 @@ class DTCommand(DTCommandAbs):
             parsed = default_parsed
         # ---
 
+        # check version of dtproject
+        if parse_version(dtproject.__version__) < (1, 0, 0):
+            dtslogger.error("You need a version of 'dtproject' that is newer than or equal to 1.0.0. "
+                            f"Detected {dtproject.__version__}. Please, update before continuing.")
+            exit(1)
+
         # variables
         docker_build_args: dict = {}
         labels: dict = {}
@@ -283,12 +291,6 @@ class DTCommand(DTCommandAbs):
 
         # tag
         version = project.version_name
-
-        # parse template version
-        try:
-            project_template_ver = int(project.type_version)
-        except ValueError:
-            project_template_ver = -1
 
         # check if the git HEAD is detached, in that case we try and get the HEAD tag if any otherwise bail
         if project.is_detached():
@@ -416,10 +418,13 @@ class DTCommand(DTCommandAbs):
         labels[dtlabel("template.version")] = project.type_version
 
         # add configuration labels (template v2+)
-        if project_template_ver >= 2:
+        if project.format.version >= 2 and project.format.version <= 3:
             for cfg_name, cfg_data in project.configurations().items():
                 label = dtlabel(f"image.configuration.{cfg_name}")
                 labels[label] = json.dumps(cfg_data)
+        elif project.format.version >= 4:
+            # TODO: use containers layer
+            pass
 
         # create docker client
         host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
@@ -487,7 +492,7 @@ class DTCommand(DTCommandAbs):
 
         # search for launchers (template v2+)
         launchers = []
-        if project_template_ver >= 2:
+        if project.format.version >= 2:
             launchers_dir = os.path.join(parsed.workdir, "launchers")
             files = (
                 [
@@ -509,7 +514,7 @@ class DTCommand(DTCommandAbs):
 
         # development base images
         if parsed.base_tag is not None:
-            docker_build_args[DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
+            docker_build_args[DISTRO_KEY[str(project.format.version)]] = parsed.base_tag
 
         # loop mode (Experimental)
         if parsed.loop:
