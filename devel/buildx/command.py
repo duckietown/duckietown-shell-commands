@@ -258,6 +258,11 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
 
+        # project-defined build arguments
+        if hasattr(project, "build_args"):
+            for key, value in project.build_args.items():
+                docker_build_args[key] = value
+
         # show info about project
         if not parsed.quiet:
             dtslogger.info("Project workspace: {}".format(parsed.workdir))
@@ -518,11 +523,6 @@ class DTCommand(DTCommandAbs):
         # custom pip registry
         docker_build_args["PIP_INDEX_URL"] = pip_index_url_to_use
         docker_build_args[ENV_REGISTRY] = registry_to_use
-
-        # project-defined build arguments
-        if hasattr(project, "build_args"):
-            for key, value in project.build_args.items():
-                docker_build_args[key] = value
 
         # custom build arguments
         for key, value in parsed.build_arg:
