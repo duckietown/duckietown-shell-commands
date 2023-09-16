@@ -60,6 +60,12 @@ from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 
+MIN_FORMAT_PER_DISTRO = {
+    "daffy": 1,
+    "ente": 4,
+}
+
+
 class DTCommand(DTCommandAbs):
     help = "Builds the current project"
 
@@ -245,7 +251,7 @@ class DTCommand(DTCommandAbs):
         if parse_version(dtproject.__version__) < (1, 0, 0):
             dtslogger.error("You need a version of 'dtproject' that is newer than or equal to 1.0.0. "
                             f"Detected {dtproject.__version__}. Please, update before continuing.")
-            exit(1)
+            exit(10)
 
         # variables
         docker_build_args: dict = {}
@@ -265,6 +271,17 @@ class DTCommand(DTCommandAbs):
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
+
+        # check format of dtproject
+        if project.distro not in MIN_FORMAT_PER_DISTRO:
+            dtslogger.warning(f"Distro '{project.distro}' not recognized, things might not work properly.")
+        else:
+            min_format_version: int = MIN_FORMAT_PER_DISTRO[project.distro]
+            if project.format.version < min_format_version:
+                dtslogger.error(f"The distro '{project.distro}' requires a project format version "
+                                f"newer than or equal to v{min_format_version}. "
+                                f"Detected {project.format.version}. Please, update your project first.")
+                exit(11)
 
         # project-defined build arguments
         if hasattr(project, "build_args"):
