@@ -280,7 +280,7 @@ class DTCommand(DTCommandAbs):
             if project.format.version < min_format_version:
                 dtslogger.error(f"The distro '{project.distro}' requires a project format version "
                                 f"newer than or equal to v{min_format_version}. "
-                                f"Detected {project.format.version}. Please, update your project first.")
+                                f"Detected v{project.format.version}. Please, update your project first.")
                 exit(11)
 
         # project-defined build arguments
