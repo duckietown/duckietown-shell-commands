@@ -20,6 +20,9 @@ class DTCommand(DTCommandAbs):
             "-t", "--template", default=None, help="Template to use (default = project's template)"
         )
         parser.add_argument(
+            "--brute", default=False, action="store_true", help="Replace everything"
+        )
+        parser.add_argument(
             "-v",
             "--version",
             default=None,
@@ -69,6 +72,7 @@ class DTCommand(DTCommandAbs):
             "TEMPLATE_TYPE": template,
             "TEMPLATE_VERSION": template_version,
             "APPLY_DIFF": str(int(parsed.apply)),
+            "MODE": "brute" if parsed.brute else "conservative",
         }
         if parsed.apply:
             dtslogger.info("Applying diff...")

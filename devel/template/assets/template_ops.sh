@@ -5,9 +5,17 @@
 #   TEMPLATE_TYPE
 #   TEMPLATE_VERSION
 #   APPLY_DIFF
+#   MODE
 #
 
 set -x
+
+declare -A MODES=(
+    ["conservative"]=":!assets :!code :!html :!docs :!launchers :!packages :!dependencies* :!configurations.yaml :!.dtproject :!dtproject/self.yaml :!.github :!.bumpversion.cfg :!README.md :!LICENSE.pdf" \
+    ["brute"]="" \
+)
+
+exclusions=${MODES[$MODE]}
 
 template_url="https://github.com/${TEMPLATE_TYPE}"
 template_remote="template"
@@ -31,22 +39,7 @@ if [ "${APPLY_DIFF}" != "1" ]; then
   git \
     -c core.pager="${PRETTY_DIFF} | less --tabs=4 -RFX" \
     -C "${CODE_DIR}" \
-    diff template/${TEMPLATE_VERSION} HEAD \
-      -- \
-        . \
-        ':!assets' \
-        ':!code' \
-        ':!html' \
-        ':!docs' \
-        ':!launchers' \
-        ':!packages' \
-        ':!dependencies*' \
-        ':!configurations.yaml' \
-        ':!.dtproject' \
-        ':!.github' \
-        ':!.bumpversion.cfg' \
-        ':!README.md' \
-        ':!LICENSE.pdf'
+    diff template/${TEMPLATE_VERSION} HEAD -- . ${exclusions}
 fi
 
 # run git diff
@@ -57,23 +50,7 @@ if [ "${APPLY_DIFF}" = "1" ]; then
     # apply the diff
     git \
       -C "${CODE_DIR}" \
-      diff HEAD template/${TEMPLATE_VERSION} \
-        --binary \
-        -- \
-          . \
-          ':!assets' \
-          ':!code' \
-          ':!html' \
-          ':!docs' \
-          ':!launchers' \
-          ':!packages' \
-          ':!dependencies*' \
-          ':!configurations.yaml' \
-          ':!.dtproject' \
-          ':!.github' \
-          ':!.bumpversion.cfg' \
-          ':!README.md' \
-          ':!LICENSE.pdf' \
+      diff HEAD template/${TEMPLATE_VERSION} --binary -- . ${exclusions} \
     | git \
       -C "${CODE_DIR}" \
       apply
