@@ -27,6 +27,13 @@ fi
 # add template as a remote if it does not exist
 git -C "${CODE_DIR}" remote add ${template_remote} ${template_url} &> /dev/null
 
+close() {
+    # remove template as a remote
+    git -C "${CODE_DIR}" remote remove ${template_remote} &> /dev/null
+    # ---
+    exit $1
+}
+
 # update remote
 git -C "${CODE_DIR}" remote update ${template_remote}
 
@@ -40,6 +47,8 @@ if [ "${APPLY_DIFF}" != "1" ]; then
     -c core.pager="${PRETTY_DIFF} | less --tabs=4 -RFX" \
     -C "${CODE_DIR}" \
     diff template/${TEMPLATE_VERSION} HEAD -- . ${exclusions}
+  # ---
+  close 0
 fi
 
 # run git diff
@@ -54,10 +63,12 @@ if [ "${APPLY_DIFF}" = "1" ]; then
     | git \
       -C "${CODE_DIR}" \
       apply
+    # ---
+    close 0
   else
     # uncommitted changes
     echo "You have uncommitted changes. Please commit or stash them before continuing."
-    exit 1
+    close 1
   fi
 
 fi
