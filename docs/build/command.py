@@ -40,7 +40,7 @@ DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
 DEFAULT_LIBRARY_DISTRO = DISTRO
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
+    "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
 }
@@ -214,6 +214,7 @@ class DTCommand(DTCommandAbs):
             if parsed.distro:
                 dtslogger.info(f"Using custom distro '{parsed.distro}'")
             else:
+                # TODO: this should be the distro of the shell profile instead
                 parsed.distro = get_distro_version(shell)
             build_args.append(("DISTRO", parsed.distro))
 
