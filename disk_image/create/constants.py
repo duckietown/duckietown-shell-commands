@@ -14,7 +14,7 @@ DOCKER_IMAGE_TEMPLATE = (
 )
 
 MODULES_TO_LOAD = [
-    {"owner": "portainer", "module": "portainer", "tag": "1.24.1-alpine"},
+    {"owner": "duckietown", "module": "portainer"},
     {"owner": "duckietown", "module": "dt-base-environment"},
     {"owner": "duckietown", "module": "dt-commons"},
     {"owner": "duckietown", "module": "dt-device-health"},
