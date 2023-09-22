@@ -20,7 +20,6 @@ max_duckietown_shell_major: int = 99
 duckietown_shell_commands_version = "6.0.0"
 
 
-DISTRO = "ente"
 BILLBOARDS_DCSS_PREFIX = "assets/dts/billboard/content/"
 
 

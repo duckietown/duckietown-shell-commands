@@ -10,7 +10,6 @@ from typing import Tuple, List, Optional, Set
 from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from update import DISTRO
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
 from dtproject import DTProject
@@ -37,7 +36,7 @@ SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
 DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = DISTRO
+DEFAULT_LIBRARY_DISTRO = get_distro_version(None)
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},

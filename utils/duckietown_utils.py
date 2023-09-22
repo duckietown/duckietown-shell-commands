@@ -1,5 +1,6 @@
 import os
-import re
+
+from __shell_commands__ import DISTRO
 
 DEFAULT_OWNER = "duckietown"
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
@@ -34,8 +35,8 @@ def get_robot_configurations(robot_type):
     return configurations[robot_type]
 
 
-def get_distro_version(shell):
-    return next(re.finditer("([a-zA-Z]+)", shell.get_commands_version())).group(1)
+def get_distro_version(_=None) -> str:
+    return DISTRO
 
 
 def get_robot_hardware(robot_configuration):
