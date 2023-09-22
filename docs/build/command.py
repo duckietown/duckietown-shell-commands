@@ -312,7 +312,8 @@ def build_v2(shell: DTShell, args):
                 "LIBRARY_HOSTNAME": parsed.library,
                 "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
                 "DEBUG": "1" if debug else "0",
-                "PRODUCTION_BUILD": "0"
+                "PRODUCTION_BUILD": "0",
+                "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))
             },
             "volumes": volumes,
             "name": container_name,
@@ -323,28 +324,6 @@ def build_v2(shell: DTShell, args):
         )
         logs = docker.run(**args)
         consume_container_logs(logs)
-
-        # start the image optimizer process
-        if build_html and parsed.optimize:
-            dtslogger.info(f"Optimizing media...")
-            container_name: str = f"docs-image-optimizer-{project.name}"
-            args = {
-                "image": jb_image_name,
-                "remove": True,
-                "user": f"{os.getuid()}:{os.getuid()}",
-                "volumes": volumes,
-                "envs": {
-                    "DT_LAUNCHER": "jb-optimize-images",
-                    "DEBUG": "1" if debug else "0"
-                },
-                "name": container_name,
-                "stream": True,
-            }
-            dtslogger.debug(
-                f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
-            )
-            logs = docker.run(**args)
-            consume_container_logs(logs)
 
         # print HTML location
         if build_html:
