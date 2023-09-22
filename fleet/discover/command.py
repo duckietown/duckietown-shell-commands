@@ -65,12 +65,13 @@ class DiscoverListener:
             return
         dtslogger.debug("SERVICE_ADD: %s" % (str(info)))
         txt_str: str = list(info.properties.keys())[0].decode("utf-8") if len(info.properties) else "{}"
-        try:
-            txt: dict = json.loads(txt_str)
-        except json.JSONDecodeError:
-            dtslogger.error(f"An error occurred while decoding the TXT string '{txt_str}'. A JSON string was "
-                            f"expected.")
-            txt: dict = {}
+        txt: dict = {}
+        if len(txt_str.strip()):
+            try:
+                txt: dict = json.loads(txt_str)
+            except json.JSONDecodeError:
+                dtslogger.error(f"An error occurred while decoding the TXT string '{txt_str}'. A JSON string was "
+                                f"expected.")
         self.services[name][server] = {"port": info.port, "txt": txt}
 
     def update_service(self, *args, **kwargs):
