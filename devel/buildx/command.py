@@ -22,7 +22,6 @@ except ImportError:
 
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from duckietown_docker_utils import ENV_REGISTRY
 from dockertown import DockerClient, Image
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
@@ -248,10 +247,17 @@ class DTCommand(DTCommandAbs):
         # ---
 
         # check version of dtproject
-        if parse_version(dtproject.__version__) < (1, 0, 0):
-            dtslogger.error("You need a version of 'dtproject' that is newer than or equal to 1.0.0. "
+        if parse_version(dtproject.__version__) < (1, 0, 2):
+            dtslogger.error("You need a version of 'dtproject' that is newer than or equal to 1.0.2. "
                             f"Detected {dtproject.__version__}. Please, update before continuing.")
             exit(10)
+
+        # CI checks
+        if parsed.ci:
+            is_production: bool = os.environ["DUCKIETOWN_CI_IS_PRODUCTION"] == "1"
+            if is_production:
+                release_check_args: SimpleNamespace = SimpleNamespace(ci=True)
+                shell.include.devel.release.check.command(shell, [], parsed=release_check_args)
 
         # variables
         docker_build_args: dict = {}
@@ -544,7 +550,7 @@ class DTCommand(DTCommandAbs):
 
         # custom pip registry
         docker_build_args["PIP_INDEX_URL"] = pip_index_url_to_use
-        docker_build_args[ENV_REGISTRY] = registry_to_use
+        docker_build_args["DOCKER_REGISTRY"] = project.base_registry or registry_to_use
 
         # custom build arguments
         for key, value in parsed.build_arg:
