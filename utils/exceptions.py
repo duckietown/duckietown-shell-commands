@@ -7,6 +7,7 @@ __all__ = [
     "RecipeProjectNotFound",
     "SecretNotFound",
     "NetworkingError",
+    "UnpinnedDependenciesError"
 ]
 
 from update import parse_version
@@ -47,4 +48,8 @@ class SecretNotFound(UserError):
 
 
 class NetworkingError(UserError):
+    pass
+
+
+class UnpinnedDependenciesError(UserError):
     pass
