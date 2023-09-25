@@ -25,7 +25,7 @@ from disk_image.create.constants import (
 from dt_shell import dtslogger
 from utils.cli_utils import check_program_dependency
 from utils.duckietown_utils import get_distro_version
-from utils.misc_utils import sudo_open
+from utils.misc_utils import sudo_open, indent_block
 from utils.progress_bar import ProgressBar
 
 
@@ -437,8 +437,11 @@ def list_files(path: str, extension: str = "*") -> List[str]:
 def replace_in_file(old: str, new: str, where: str, openfcn: Callable = sudo_open):
     with openfcn(where, "rb") as fin:
         txt = fin.read()
+    txt2 = txt.replace(old.encode("utf-8"), new.encode("utf-8"))
     with openfcn(where, "wb") as fout:
-        fout.write(txt.replace(old.encode("utf-8"), new.encode("utf-8")))
+        fout.write(txt2)
+    dtslogger.debug("Original:\n\n----\n" + indent_block(txt.decode("utf-8")) + "----\n\n\n" +
+                    "Updated:\n\n----\n" + indent_block(txt2.decode("utf-8")) + "----")
 
 
 def copy_file(origin, destination):

@@ -636,6 +636,16 @@ class DTProject:
             msg = f"The project path {path!r} does not exist."
             raise UserError(msg)
 
+        # look for newer (unsupported) versions first
+        metadir = os.path.join(path, "dtproject")
+        # if the directory 'dtproject' exists
+        if os.path.exists(metadir) and os.path.isdir(metadir):
+            msg = f"The path '{path}' appears to contain a Duckietown project of a newer format that this " \
+                  f"version of the shell does not support.\nPlease, upgrade the shell to your current " \
+                  f"distribution as instructed on 'https://docs.duckietown.com/daffy/devmanual-software/' " \
+                  f"before continuing."
+            raise UserError(msg)
+
         metafile = os.path.join(path, ".dtproject")
         # if the file '.dtproject' is missing
         if not os.path.exists(metafile):

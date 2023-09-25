@@ -1,5 +1,5 @@
+from dt_authentication import DuckietownToken
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.duckietown_tokens import get_id_from_token
 
 
 class DTCommand(DTCommandAbs):
@@ -19,5 +19,5 @@ class DTCommand(DTCommandAbs):
             )
             return
         # show token info
-        uid = get_id_from_token(token)
+        uid = DuckietownToken.from_string(token).uid
         shell.sprint("Correctly identified as uid = %s" % uid)
