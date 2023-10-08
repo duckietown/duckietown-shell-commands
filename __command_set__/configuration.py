@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 
 from dt_shell.commands import DTCommandSetConfigurationAbs
 from dt_shell.environments import Python3Environment, ShellCommandEnvironmentAbs
