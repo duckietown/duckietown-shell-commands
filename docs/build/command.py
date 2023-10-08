@@ -10,7 +10,6 @@ from typing import Tuple, List, Optional, Set
 from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from update import DISTRO
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
 from dtproject import DTProject
@@ -37,10 +36,10 @@ SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
 DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = DISTRO
+DEFAULT_LIBRARY_DISTRO = get_distro_version(None)
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
+    "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
 }
@@ -214,6 +213,7 @@ class DTCommand(DTCommandAbs):
             if parsed.distro:
                 dtslogger.info(f"Using custom distro '{parsed.distro}'")
             else:
+                # TODO: this should be the distro of the shell profile instead
                 parsed.distro = get_distro_version(shell)
             build_args.append(("DISTRO", parsed.distro))
 
@@ -303,7 +303,8 @@ class DTCommand(DTCommandAbs):
                     "LIBRARY_HOSTNAME": parsed.library,
                     "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
                     "DEBUG": "1" if debug else "0",
-                    "PRODUCTION_BUILD": "0"
+                    "PRODUCTION_BUILD": "0",
+                    "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))
                 },
                 "volumes": volumes,
                 "name": container_name,
@@ -314,28 +315,6 @@ class DTCommand(DTCommandAbs):
             )
             logs = docker.run(**args)
             consume_container_logs(logs)
-
-            # start the image optimizer process
-            if build_html and parsed.optimize:
-                dtslogger.info(f"Optimizing media...")
-                container_name: str = f"docs-image-optimizer-{project.name}"
-                args = {
-                    "image": jb_image_name,
-                    "remove": True,
-                    "user": f"{os.getuid()}:{os.getuid()}",
-                    "volumes": volumes,
-                    "envs": {
-                        "DT_LAUNCHER": "jb-optimize-images",
-                        "DEBUG": "1" if debug else "0"
-                    },
-                    "name": container_name,
-                    "stream": True,
-                }
-                dtslogger.debug(
-                    f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
-                )
-                logs = docker.run(**args)
-                consume_container_logs(logs)
 
             # print HTML location
             if build_html:

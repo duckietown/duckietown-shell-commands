@@ -10,7 +10,7 @@ class DTCommand(DTCommandAbs):
     help = "Bumps the current project's version"
 
     @staticmethod
-    def command(shell, args):
+    def command(shell, args, **kwargs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -27,6 +27,8 @@ class DTCommand(DTCommandAbs):
             help="Part of the version to bump",
         )
         parsed, _ = parser.parse_known_args(args=args)
+        if "parsed" in kwargs:
+            parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         # make sure that bumpversion is available

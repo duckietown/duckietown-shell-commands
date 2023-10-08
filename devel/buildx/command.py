@@ -23,7 +23,6 @@ except ImportError:
 
 from docker.errors import ImageNotFound
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from duckietown_docker_utils import ENV_REGISTRY
 from dockertown import DockerClient, Image
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
@@ -42,13 +41,16 @@ from utils.docker_utils import (
     get_cloud_builder,
     pull_image,
 )
+import dtproject
 from dtproject import DTProject
 from dtproject.constants import (
     CANONICAL_ARCH,
     ARCH_TO_PLATFORM, DISTRO_KEY,
 )
+from dtproject.utils.misc import dtlabel
+
 from utils.duckietown_utils import DEFAULT_OWNER
-from utils.misc_utils import human_size, human_time, sanitize_hostname
+from utils.misc_utils import human_size, human_time, sanitize_hostname, parse_version
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
@@ -56,6 +58,12 @@ from dockertown.components.buildx.imagetools.models import Manifest
 from dockertown.exceptions import NoSuchManifest, NoSuchImage
 from utils.recipe_utils import RECIPE_STAGE_NAME, MEAT_STAGE_NAME
 from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
+
+
+MIN_FORMAT_PER_DISTRO = {
+    "daffy": 1,
+    "ente": 4,
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -239,6 +247,19 @@ class DTCommand(DTCommandAbs):
             parsed = default_parsed
         # ---
 
+        # check version of dtproject
+        if parse_version(dtproject.__version__) < (1, 0, 4):
+            dtslogger.error("You need a version of 'dtproject' that is newer than or equal to 1.0.4. "
+                            f"Detected {dtproject.__version__}. Please, update before continuing.")
+            exit(10)
+
+        # CI checks
+        if parsed.ci:
+            is_production: bool = os.environ["DUCKIETOWN_CI_IS_PRODUCTION"] == "1"
+            if is_production:
+                release_check_args: SimpleNamespace = SimpleNamespace(ci=True)
+                shell.include.devel.release.check.command(shell, [], parsed=release_check_args)
+
         # variables
         docker_build_args: dict = {}
         labels: dict = {}
@@ -257,6 +278,23 @@ class DTCommand(DTCommandAbs):
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)
+
+        # check format of dtproject
+        if project.distro not in MIN_FORMAT_PER_DISTRO:
+            dtslogger.warning(f"Distro '{project.distro}' not recognized, things might not work properly.")
+        else:
+            min_format_version: int = MIN_FORMAT_PER_DISTRO[project.distro]
+            if project.format.version < min_format_version:
+                dtslogger.error(f"The distro '{project.distro}' requires a project format version "
+                                f"newer than or equal to v{min_format_version}. "
+                                f"Detected v{project.format.version}. Please, upgrade your project first.")
+                exit(11)
+
+        # project-defined build arguments
+        # TODO: if this is implemented as an empty dict in DTProject1to3 then we can simplify and avoid hasattr
+        if hasattr(project, "build_args"):
+            for key, value in project.build_args.items():
+                docker_build_args[key] = value
 
         # show info about project
         if not parsed.quiet:
@@ -399,10 +437,13 @@ class DTCommand(DTCommandAbs):
         labels[dtlabel("template.version")] = project.type_version
 
         # add configuration labels (template v2+)
-        if project_template_ver >= 2:
+        if project.format.version >= 2 and project.format.version <= 3:
             for cfg_name, cfg_data in project.configurations().items():
                 label = dtlabel(f"image.configuration.{cfg_name}")
                 labels[label] = json.dumps(cfg_data)
+        elif project.format.version >= 4:
+            # TODO: use containers layer
+            pass
 
         # create docker client
         host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
@@ -470,7 +511,7 @@ class DTCommand(DTCommandAbs):
 
         # search for launchers (template v2+)
         launchers = []
-        if project_template_ver >= 2:
+        if project.format.version >= 2:
             launchers_dir = os.path.join(parsed.workdir, "launchers")
             files = (
                 [
@@ -492,7 +533,7 @@ class DTCommand(DTCommandAbs):
 
         # development base images
         if parsed.base_tag is not None:
-            docker_build_args[DISTRO_KEY[str(project_template_ver)]] = parsed.base_tag
+            docker_build_args[DISTRO_KEY[str(project.format.version)]] = parsed.base_tag
 
         # loop mode (Experimental)
         if parsed.loop:
@@ -505,7 +546,7 @@ class DTCommand(DTCommandAbs):
 
         # custom pip registry
         docker_build_args["PIP_INDEX_URL"] = pip_index_url_to_use
-        docker_build_args[ENV_REGISTRY] = registry_to_use
+        docker_build_args["DOCKER_REGISTRY"] = project.base_registry or registry_to_use
 
         # custom build arguments
         for key, value in parsed.build_arg:

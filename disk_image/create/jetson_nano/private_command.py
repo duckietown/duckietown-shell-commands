@@ -68,7 +68,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.2.3"
+DISK_IMAGE_VERSION = "1.3.0"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.4.1"
 DEVICE_ARCH = "arm64v8"
@@ -110,11 +110,17 @@ APT_PACKAGES_TO_INSTALL = [
     "cloud-guest-utils",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
     "inotify-tools",
+    # needed to be able to perform `docker login` on the device
+    # TODO: no releases contain this
+    "gnupg2",
+    "pass",
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     "rsyslog"
 ]
+DIND_IMAGE_NAME = "docker:24.0.2-dind"
+DEVICE_PLATFORM = "linux/arm64"
 
 
 class DTCommand(DTCommandAbs):
@@ -634,11 +640,11 @@ class DTCommand(DTCommandAbs):
                 # get local docker client
                 local_docker = docker.from_env()
                 # pull dind image
-                pull_docker_image(local_docker, "docker:dind")
+                pull_docker_image(local_docker, DIND_IMAGE_NAME)
                 # run auxiliary Docker engine
                 remote_docker_dir = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker")
                 remote_docker_engine_container = local_docker.containers.run(
-                    image="docker:dind",
+                    image=DIND_IMAGE_NAME,
                     detach=True,
                     remove=True,
                     auto_remove=True,
@@ -669,7 +675,7 @@ class DTCommand(DTCommandAbs):
                             tag=module["tag"] if "tag" in module else None,
                             arch=DEVICE_ARCH,
                         )
-                        pull_docker_image(remote_docker, image)
+                        pull_docker_image(remote_docker, image, platform=DEVICE_PLATFORM)
                     # ---
                     dtslogger.info("Docker images successfully transferred!")
                 except Exception as e:
@@ -787,7 +793,7 @@ class DTCommand(DTCommandAbs):
                             file_first_line = get_file_first_line(update["destination"])
                             # only files containing a known placeholder will be part of the surgery
                             if file_first_line.startswith(FILE_PLACEHOLDER_SIGNATURE):
-                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE) :]
+                                placeholder = file_first_line[len(FILE_PLACEHOLDER_SIGNATURE):]
                                 # get stats about file
                                 real_bytes, max_bytes = get_file_length(update["destination"])
                                 # saturate file so that it occupies the entire pagefile
