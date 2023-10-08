@@ -66,7 +66,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
         # tag
-        version = project.version_name
+        version = project.distro
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
@@ -74,6 +74,7 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client_OLD(parsed.machine)
         login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=False)
+
         # create defaults
         image = project.image(
             arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version

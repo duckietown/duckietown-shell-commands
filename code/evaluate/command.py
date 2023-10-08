@@ -221,7 +221,12 @@ class DTCommand(DTCommandAbs):
         docker = DockerClient(host=host, debug=debug)
 
         # get built image
-        src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
+        src_name = project.image(
+            arch=parsed.arch,
+            registry=registry_to_use,
+            owner=parsed.username,
+            version=project.distro
+        )
         image: dockertown.Image = docker.image.inspect(src_name)
 
         # evaluate

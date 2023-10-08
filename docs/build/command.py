@@ -220,7 +220,7 @@ class DTCommand(DTCommandAbs):
             # we can use the plain `jupyter-book` environment
             if not parsed.plain:
                 # make an image name for JB
-                jb_image_tag: str = f"{project.safe_version_name}-env"
+                jb_image_tag: str = f"{project.distro}-env"
                 jb_image_name: str = project.image(
                     arch=arch, owner="duckietown", registry=registry_to_use, version=jb_image_tag
                 )

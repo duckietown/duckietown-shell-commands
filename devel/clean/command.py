@@ -60,7 +60,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
         # tag
-        version = project.version_name
+        version = project.distro
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag

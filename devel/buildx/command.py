@@ -277,25 +277,13 @@ class DTCommand(DTCommandAbs):
         recipe: Optional[DTProject] = project.recipe
 
         # tag
-        version = project.version_name
+        version: str = project.distro
 
         # parse template version
         try:
             project_template_ver = int(project.type_version)
         except ValueError:
             project_template_ver = -1
-
-        # check if the git HEAD is detached, in that case we try and get the HEAD tag if any otherwise bail
-        if project.is_detached():
-            head_tag = project.head_version
-            if head_tag:
-                version = head_tag
-            else:
-                dtslogger.error(
-                    "The repository HEAD is detached. Create a branch or check one out "
-                    "before continuing. Aborting."
-                )
-                exit(8)
 
         # override version
         if parsed.tag:
@@ -509,7 +497,7 @@ class DTCommand(DTCommandAbs):
         # loop mode (Experimental)
         if parsed.loop:
             docker_build_args["BASE_IMAGE"] = project.name
-            docker_build_args["BASE_TAG"] = "-".join([project.version_name, parsed.arch])
+            docker_build_args["BASE_TAG"] = "-".join([project.distro, parsed.arch])
             labels[dtlabel("image.loop")] = "1"
             # ---
             msg = "WARNING: Experimental mode 'loop' is enabled!. Use with caution."
@@ -644,7 +632,7 @@ class DTCommand(DTCommandAbs):
                 owner=parsed.username,
                 # NOTE: this is the public default registry
                 registry=DEFAULT_REGISTRY,
-                # NOTE: this is usually the repo's branch name
+                # NOTE: this is the repo's branch name only in CI
                 version=project.version_name,
             )
             buildargs["tags"].append(pimage)
@@ -762,7 +750,7 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             tags_data = [
                 # NOTE: this image tag is modified by the CLI arguments, e.g., X-staging -> X
-                {"registry": registry_to_use, "version": version},
+                {"registry": registry_to_use, "version": project.distro},
                 # NOTE: this image tag is pure (no CLI remapping) and refers to the public registry
                 {"registry": DEFAULT_REGISTRY, "version": project.version_name},
             ]

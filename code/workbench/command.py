@@ -519,7 +519,12 @@ class DTCommand(DTCommandAbs):
         if has_agent:
             # get agent's architecture and image name
             agent_arch = get_endpoint_architecture_from_client_OLD(agent_client)
-            agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
+            agent_image = project.image(
+                arch=agent_arch,
+                registry=parsed.registry,
+                owner=username,
+                version=project.distro
+            )
 
             # docker container specifications for simulator and experiment manager
             if use_challenge:
@@ -546,7 +551,12 @@ class DTCommand(DTCommandAbs):
             bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
 
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
-        vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
+        vnc_image = project.image_vnc(
+            arch=local_arch,
+            registry=parsed.registry,
+            owner=username,
+            version=project.distro
+        )
 
         # define container and network names
         prefix = f"ex-{exercise_name}"
