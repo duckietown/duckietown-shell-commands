@@ -36,7 +36,6 @@ SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
 DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = get_distro_version(None)
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
@@ -133,6 +132,9 @@ class DTCommand(DTCommandAbs):
             help="Whether to run the image optimization step",
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
+
+        # constants
+        DEFAULT_LIBRARY_DISTRO = get_distro_version(shell)
 
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
