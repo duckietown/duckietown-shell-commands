@@ -470,6 +470,13 @@ class DTCommand(DTCommandAbs):
             (["--"] if not cmd_option else []) + container_cmd_arguments
         )
 
+        # environment
+        if parsed.machine == DEFAULT_MACHINE:
+            module_configuration_args += [
+                f"-e=IMPERSONATE_UID={os.getuid()}",
+                # NOTE: it is important to leave the container user's GID so that he can access his old files
+            ]
+
         # docker arguments
         if not parsed.docker_args:
             parsed.docker_args = []
