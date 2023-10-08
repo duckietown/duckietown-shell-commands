@@ -14,7 +14,6 @@ from docker.errors import NotFound
 from dt_shell import dtslogger, UserError
 from dt_shell.config import ShellConfig
 from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import ENV_REGISTRY
 
 from dockertown import DockerClient
 from dockertown.components.image.models import LayerPullStatus
@@ -26,6 +25,9 @@ from .misc_utils import parse_version, hide_string
 from .networking_utils import get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
 
+ENV_REGISTRY: str = "DOCKER_REGISTRY"
+
+# TODO: these are old and not used anymore
 RPI_GUI_TOOLS = "duckietown/rpi-gui-tools:master18"
 RPI_DUCKIEBOT_BASE = "duckietown/rpi-duckiebot-base:master18"
 RPI_DUCKIEBOT_CALIBRATION = "duckietown/rpi-duckiebot-calibration:master18"

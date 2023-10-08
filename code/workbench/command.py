@@ -25,7 +25,6 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 from dtproject import DTProject
 
@@ -344,6 +343,8 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Use the NVIDIA runtime (experimental).",
         )
+
+        from duckietown_docker_utils import continuously_monitor
 
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)

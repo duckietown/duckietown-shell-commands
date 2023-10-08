@@ -14,7 +14,6 @@ from dt_shell.env_checks import check_docker_environment
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version("duckietown-docker-utils-ente", "6.0.78")
         from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
         parser = argparse.ArgumentParser(prog="dts challenges")

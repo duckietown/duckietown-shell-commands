@@ -8,7 +8,6 @@ import requests
 
 from dt_shell import DTCommandAbs, dtslogger, UserError
 from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     get_registry_to_use,
@@ -103,6 +102,8 @@ class DTCommand(DTCommandAbs):
             help="Specify the runtime to use in Docker",
         )
         # ---
+        from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
+
         parsed = parser.parse_args(args)
         username = getpass.getuser()
         duckiebot_name: str = parsed.duckiebot_name
