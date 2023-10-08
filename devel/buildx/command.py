@@ -291,10 +291,8 @@ class DTCommand(DTCommandAbs):
                 exit(11)
 
         # project-defined build arguments
-        # TODO: if this is implemented as an empty dict in DTProject1to3 then we can simplify and avoid hasattr
-        if hasattr(project, "build_args"):
-            for key, value in project.build_args.items():
-                docker_build_args[key] = value
+        for key, value in project.build_args.items():
+            docker_build_args[key] = value
 
         # show info about project
         if not parsed.quiet:
