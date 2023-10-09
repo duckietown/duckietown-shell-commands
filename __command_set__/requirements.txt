@@ -1,7 +1,7 @@
 # no requirements here
 
 # force pyyaml away from specific versions: https://github.com/yaml/pyyaml/issues/724
-pyyaml!=6.0.0,!=5.4.0,!=5.4.1,<6
+pyyaml!=6.0.0,!=5.4.0,!=5.4.1,<7
 
 # generic dependencies
 netifaces==0.11.0
