@@ -40,7 +40,9 @@ ENV DT_MODULE_TYPE="book" \
     DT_LAUNCHER="${LAUNCHER}"
 
 # install library
-# TODO: install library here
+ARG LIBRARY_PATH="${SOURCE_DIR}/lib"
+COPY --from=project . ${LIBRARY_PATH}
+RUN pip3 install ${LIBRARY_PATH}
 
 # store module metadata
 LABEL org.duckietown.label.module.type="book" \
