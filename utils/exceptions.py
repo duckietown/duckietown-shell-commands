@@ -46,5 +46,9 @@ class SecretNotFound(UserError):
     pass
 
 
+class UserAborted(UserError):
+    pass
+
+
 class NetworkingError(UserError):
     pass
