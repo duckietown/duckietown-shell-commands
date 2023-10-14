@@ -238,9 +238,13 @@ class DTCommand(DTCommandAbs):
             # the form includes all licenses
             if "license" in steps:
                 steps.remove("license")
-        # validate hostname
-        if not _validate_hostname(parsed.hostname):
+        # validate hostname and provide suggestion
+        # valid = True, if parsed hostname is valid, or if user accepted the valid suggestion
+        valid, valid_hostname = _validate_hostname(parsed.hostname)
+        if not valid:
             return
+        else:
+            parsed.hostname = valid_hostname  # gets passed on to other services
         # default WiFi
         if parsed.wifi is None:
             if parsed.robot_type in WIRED_ROBOT_TYPES:
@@ -610,7 +614,7 @@ def step_setup(shell, parsed, data):
     params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
     # compile data used to format placeholders
     surgery_data = {
-        "hostname": parsed.hostname,
+        "hostname": parsed.hostname,  # contains value after _validate_hostname
         "robot_type": parsed.robot_type,
         "token": shell.get_dt1_token(),
         "robot_configuration": parsed.robot_configuration,
@@ -717,17 +721,39 @@ def step_setup(shell, parsed, data):
     return {}
 
 
-def _validate_hostname(hostname):
+def _validate_hostname(hostname: str):
     # The proper regex for RFC 952 should be:
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
-    if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
-        dtslogger.error(
-            "The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
-            "It should not start with a digit"
+    pattern = "^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$"
+    if not re.match(pattern, hostname):
+        ### suggest a valid name with the same logic stated above
+        # filter for alphanumeric
+        filtered_alnum = ''.join(c.lower() for c in hostname if c.isalnum())
+        # remove digits at the beginning
+        suggestion = re.sub(r'^\d+', '', filtered_alnum)
+        # just ensure it's a valid suggestion
+        assert re.match(pattern, suggestion), "An error has occured. Please report to the administrators with these error logs."
+
+        granted = ask_confirmation(
+            message=(
+                "The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
+                "It should not start with a digit either."
+            ),
+            question=f'Do you want to use the hostname "{suggestion}" instead?',
         )
-        return False
-    return True
+        if granted:
+            dtslogger.info(
+                f'Proceeding with new valid hostname: "{suggestion}"'
+            )
+            return True, suggestion
+        else:
+            dtslogger.info(
+                "Operation aborted. Please provide a valid hostname and repeat the step."
+            )
+            return False, ""  # no valid hostname chosen
+    # original user input is valid
+    return True, hostname
 
 
 def _interpret_wifi_string(s):
