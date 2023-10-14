@@ -9,7 +9,7 @@ __all__ = [
     "NetworkingError",
 ]
 
-from update import parse_version
+from .misc_utils import parse_version
 
 
 class ShellNeedsUpdate(Exception):
