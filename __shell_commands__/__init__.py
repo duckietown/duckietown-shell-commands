@@ -1,1 +1,0 @@
-DISTRO = "ente"
