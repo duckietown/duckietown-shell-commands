@@ -36,7 +36,6 @@ SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
 DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = get_distro_version(None)
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
@@ -301,7 +300,7 @@ class DTCommand(DTCommandAbs):
                 "envs": {
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
-                    "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
+                    "LIBRARY_DISTRO": get_distro_version(shell),
                     "DEBUG": "1" if debug else "0",
                     "PRODUCTION_BUILD": "0",
                     "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))
