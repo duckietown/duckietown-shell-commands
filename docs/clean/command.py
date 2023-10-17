@@ -22,7 +22,7 @@ CONTAINER_BUILD_CACHE_DIR = "/tmp/jb"
 HOST_BUILD_CACHE_DIR = "/tmp/duckietown/docs/{book}"
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
+    "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
 }
@@ -113,6 +113,8 @@ class DTCommand(DTCommandAbs):
             "volumes": volumes,
             "name": container_name,
             "envs": {
+                "IMPERSONATE_UID": os.getuid(),
+                "IMPERSONATE_GID": os.getgid(),
                 "DT_LAUNCHER": "jb-clean"
             },
             "stream": True

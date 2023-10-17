@@ -299,8 +299,9 @@ class DTCommand(DTCommandAbs):
             args = {
                 "image": jb_image_name,
                 "remove": True,
-                "user": f"{os.getuid()}:{os.getgid()}",
                 "envs": {
+                    "IMPERSONATE_UID": os.getuid(),
+                    "IMPERSONATE_GID": os.getgid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
                     "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
