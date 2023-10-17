@@ -219,9 +219,9 @@ class DTCommand(DTCommandAbs):
                         quiet=not parsed.verbose,
                     )
                     dtslogger.debug(
-                        f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}"
+                        f"Calling command 'devel/build' " f"with arguments: {str(buildx_namespace)}"
                     )
-                    shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+                    shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
                     dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
                 else:
                     if not parsed.build_only:

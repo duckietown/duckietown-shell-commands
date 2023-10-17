@@ -141,8 +141,8 @@ class DTCommand(DTCommandAbs):
             quiet=not parsed.verbose,
             force=True,
         )
-        dtslogger.debug(f"Calling command 'devel/buildx' with arguments: {str(buildx_namespace)}")
-        shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+        dtslogger.debug(f"Calling command 'devel/build' with arguments: {str(buildx_namespace)}")
+        shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
         # cleanup temporary directory
         source_dir.cleanup()
         # ---

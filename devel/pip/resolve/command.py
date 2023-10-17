@@ -173,9 +173,9 @@ class DTCommand(DTCommandAbs):
             force=True,
         )
         dtslogger.debug(
-            f"Calling command 'devel/buildx' with arguments: {str(buildx_namespace)}"
+            f"Calling command 'devel/build' with arguments: {str(buildx_namespace)}"
         )
-        shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+        shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
 
         # recreate image name
         registry_to_use = get_registry_to_use()
