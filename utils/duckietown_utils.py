@@ -1,6 +1,8 @@
 import os
 
 from dt_shell import DTShell
+from dt_shell.constants import Distro
+
 
 DEFAULT_OWNER = "duckietown"
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
@@ -36,6 +38,10 @@ def get_robot_configurations(robot_type):
 
 
 def get_distro_version(shell: DTShell) -> str:
+    return shell.profile.distro.name
+
+
+def get_distro(shell: DTShell) -> Distro:
     return shell.profile.distro
 
 

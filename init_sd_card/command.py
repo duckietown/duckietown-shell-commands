@@ -24,6 +24,7 @@ from utils.duckietown_utils import (
     get_robot_hardware,
     get_robot_types,
     WIRED_ROBOT_TYPES,
+    get_distro_version,
 )
 from utils.exceptions import InvalidUserInput
 from utils.json_schema_form_utils import open_form_from_schema
@@ -623,7 +624,7 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
                     "shell_version": shell_version,
-                    "commands_version": shell.profile.distro,
+                    "commands_version": get_distro_version(shell),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
                 "parameters": params,
