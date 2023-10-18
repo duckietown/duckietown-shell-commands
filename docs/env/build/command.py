@@ -101,7 +101,7 @@ class DTCommand(DTCommandAbs):
         build_args.append(("DISTRO", parsed.distro))
 
         # make an image name for JB
-        jb_image_tag: str = f"{project.safe_version_name}-env"
+        jb_image_tag: str = f"{project.distro}-env"
 
         # by default, we don't add any source to the image
         source_dir = tempfile.TemporaryDirectory()
