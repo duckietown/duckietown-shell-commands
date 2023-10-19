@@ -529,10 +529,8 @@ class DTCommand(DTCommandAbs):
 
             # docker container specifications for simulator and experiment manager
             if use_challenge:
-                # make sure the token is set
-                token = shell.shell_config.token_dt1
-                if token is None:
-                    raise UserError("Please set token using the command 'dts tok set'")
+                # get the token
+                token = shell.profile.secrets.dt_token
                 # get container specs from the challenges server
                 images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
                 sim_spec = images["simulator"]

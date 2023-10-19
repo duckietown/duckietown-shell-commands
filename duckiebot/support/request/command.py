@@ -65,9 +65,7 @@ class DTCommand(DTCommandAbs):
 
         # Set up the tunnel
         robot_id: str = get_robot_id(robot_hostname)
-        dt_token = shell.shell_config.token_dt1
-        if dt_token is None:
-            raise UserError("Please set your Duckietown token using the command 'dts tok set'")
+        dt_token: str = shell.profile.secrets.dt_token
         cred: dict = create_cloudflare_tunnel(robot_id, dt_token)
         tunnel_token: str = cred["tunnel"]["token"]
         tunnel_dns: str = cred["dns"][0]

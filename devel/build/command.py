@@ -181,16 +181,7 @@ class DTCommand(DTCommandAbs):
         if parsed.ci:
             token: str = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
         else:
-            token: Optional[str] = None
-            try:
-                # TODO: fix this
-                token = shell.get_dt1_token()
-            except Exception:
-                dtslogger.warning(
-                    "No Duckietown tokens were set using 'dts tok set', some "
-                    "functionalities might not be available."
-                )
-                pass
+            token: str = shell.profile.secrets.dt_token
 
         # CI builds
         if parsed.ci:
