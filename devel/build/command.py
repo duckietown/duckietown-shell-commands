@@ -7,11 +7,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from typing import Optional, List
 
+import requests
+
 from dt_shell.exceptions import ShellNeedsUpdate
+from utils.hub_utils import HUB_API_URL
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -181,6 +183,7 @@ class DTCommand(DTCommandAbs):
         else:
             token: Optional[str] = None
             try:
+                # TODO: fix this
                 token = shell.get_dt1_token()
             except Exception:
                 dtslogger.warning(
@@ -327,7 +330,9 @@ class DTCommand(DTCommandAbs):
 
         # login client (unless skipped)
         if parsed.login:
+            # TODO: fix this
             copy_docker_env_into_configuration(shell.shell_config)
+            # TODO: fix this
             login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
 
         # pick the right architecture if not set
@@ -639,36 +644,31 @@ class DTCommand(DTCommandAbs):
                 {"registry": DEFAULT_REGISTRY, "version": project.version_name},
             ]
             for tag_data in tags_data:
-                with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
-                    # add build metadata
-                    metadata["build"] = {
-                        "args": copy.deepcopy(buildargs),
-                        "time": build_time,
-                    }
-                    metadata["sha"] = dimage.id
-                    del metadata["build"]["args"]["labels"]
-                    # write to temporary file
-                    json.dump(metadata, fout, sort_keys=True, indent=4)
-                    fout.flush()
-                    # push temporary file
-                    remote_fnames = [
-                        f"docker/image/{metadata['tag']}/latest.json",
-                        f"docker/image/{metadata['tag']}/{dimage.id}.json",
-                    ]
-                    for remote_fname in remote_fnames:
-                        remote_fname = remote_fname.replace(":", "/")
-                        dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
-                        shell.include.data.push.command(
-                            shell,
-                            [],
-                            parsed=SimpleNamespace(
-                                file=[fout.name],
-                                object=[remote_fname],
-                                token=token,
-                                space="public",
-                            ),
-                        )
+                metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                # add build metadata
+                metadata["build"] = {
+                    "args": copy.deepcopy(buildargs),
+                    "time": build_time,
+                }
+                metadata["sha"] = dimage.id
+                del metadata["build"]["args"]["labels"]
+                # define metadata
+                identifier: str = metadata["tag"].replace(":", "/")
+                uri: str = f"docker/image/metadata/{identifier}/{dimage.id}.json"
+                url: str = f"{HUB_API_URL}/{uri}"
+                dtslogger.debug(f"Pushing metadata for image to [{url}]...")
+                response: dict = requests.post(
+                    url,
+                    data=metadata,
+                    headers={"Authorization": f"Token {token}"}
+                ).json()
+                if not response["status"]:
+                    msg: str = "\n".join(response["messages"])
+                    dtslogger.error("An error occurred while pushing the image metadata to the HUB. Error "
+                                    f"reads:\n{msg}")
+                    exit(12)
+                else:
+                    dtslogger.info("Image metadata pushed successfully!")
 
         # perform remove (if needed)
         if parsed.rm:
