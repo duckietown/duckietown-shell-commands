@@ -79,12 +79,6 @@ class DTCommand(DTCommandAbs):
             help="Docker network mode",
         )
 
-        parser.add_argument(
-            "-t",
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
-        )
         parser.add_argument("docker_args", nargs="*", default=[])
 
         # Create a dictionary for the devcontainer.json from the template
@@ -113,12 +107,6 @@ class DTCommand(DTCommandAbs):
         # pick the right architecture
         arch = get_endpoint_architecture(DEFAULT_MACHINE)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
-
-        # tag
-        version = project.distro
-        if parsed.tag:
-            dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
-            version = parsed.tag
 
         # get the module configuration
         # noinspection PyListCreation
@@ -182,7 +170,7 @@ class DTCommand(DTCommandAbs):
             arch=arch,
             registry=registry_to_use,
             owner=parsed.username,
-            version=version,
+            version=project.distro,
         )
 
         DEVCONTAINER_TEMPLATE["image"] = image
