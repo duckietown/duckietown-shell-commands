@@ -9,7 +9,6 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.assets_utils import get_asset_path
 from utils.docker_utils import get_endpoint_architecture
 from dtproject import DTProject
-from utils.duckietown_utils import get_distro_version
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {
@@ -92,12 +91,15 @@ class DTCommand(DTCommandAbs):
         arch: str = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
+        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
+
         # custom distro
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
-            # TODO: this should be the distro of the shell profile instead
-            parsed.distro = get_distro_version(shell)
+            # default distro
+            parsed.distro = DEFAULT_LIBRARY_DISTRO
         build_args.append(("DISTRO", parsed.distro))
 
         # make an image name for JB

@@ -13,7 +13,6 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
 from dtproject import DTProject
-from utils.duckietown_utils import get_distro_version
 from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -133,9 +132,6 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
 
-        # constants
-        DEFAULT_LIBRARY_DISTRO = get_distro_version(shell)
-
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -144,6 +140,9 @@ class DTCommand(DTCommandAbs):
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
+
+        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
 
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
@@ -215,8 +214,8 @@ class DTCommand(DTCommandAbs):
             if parsed.distro:
                 dtslogger.info(f"Using custom distro '{parsed.distro}'")
             else:
-                # TODO: this should be the distro of the shell profile instead
-                parsed.distro = get_distro_version(shell)
+                # default distro
+                parsed.distro = DEFAULT_LIBRARY_DISTRO
             build_args.append(("DISTRO", parsed.distro))
 
             # we can use the plain `jupyter-book` environment
