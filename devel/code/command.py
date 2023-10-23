@@ -196,6 +196,9 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f'DEVCONTAINER_TEMPLATE written to {output_file_path}')
         dtslogger.info("You can now open the devcontainer in your favorite editor")
 
+        # Open the devcontainer in VSCode
+        _run_cmd(["devcontainer", "open"], shell=True)
+
     @staticmethod
     def complete(shell, word, line):
         return []
