@@ -24,9 +24,7 @@ DEVCONTAINER_TEMPLATE = {
     "name": "Duckietown Dev Container",
     "image": "${{localEnv:DOCKER_REGISTRY}}/duckietown/${{localWorkspaceFolderBasename}}:ente-amd64",  # Replace with the actual Docker image tag
     "workspaceFolder": f"{DEFAULT_REMOTE_SYNC_LOCATION}/src/${{localWorkspaceFolderBasename}}",
-    "mounts": [
-        *[f"source={m},target={m},type=bind" for m in DEFAULT_MOUNTS],
-    ],
+    "mounts": [f"source={m},target={m},type=bind" for m in DEFAULT_MOUNTS],
     "containerEnv": {},
     "runArgs": [
         "-it",
