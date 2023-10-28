@@ -215,6 +215,10 @@ class DTCommand(DTCommandAbs):
             container_secret_fpath: str = os.path.join(CONTAINER_SECRETS_DIR, secret_id)
             secrets.append((host_secret_fpath, container_secret_fpath, "ro"))
 
+        # mDNS
+        avahi_socket: str = "/var/run/avahi-daemon/socket"
+        mdns = [(avahi_socket, avahi_socket, "rw")] if os.path.exists(avahi_socket) else []
+
         # launch container
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
@@ -235,6 +239,8 @@ class DTCommand(DTCommandAbs):
                 (parsed.workdir, workdir, "rw"),
                 # secrets
                 *secrets,
+                # mdns
+                *mdns,
             ],
             "publish": [(f"{parsed.bind}:{parsed.port}", VSCODE_PORT, "tcp")],
             "name": container_name,
