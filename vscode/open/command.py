@@ -195,7 +195,18 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("You can now open the devcontainer in your favorite editor")
 
         # Open the devcontainer in VSCode
-        _run_cmd(["devcontainer", "open"], shell=True)
+        try:
+            # _run_cmd(["devcontainer", "build", parsed.workdir], shell=True)
+            _run_cmd(["dts", "devel", "build"], shell=True)
+            _run_cmd(["devcontainer", "open"], shell=True)
+        except subprocess.CalledProcessError as e:
+            # Handle the exception and output a human-friendly message
+            print(f"An error occurred while running 'devcontainer open': {e}")
+            print(f"Return code: {e.returncode}")
+            # You can add more details as needed
+            if e.returncode == 127:
+                print("The 'devcontainer' command is not installed. Please install it by running:\n\n")
+                print("     sudo npm install -g @devcontainers/cli")
 
     @staticmethod
     def complete(shell, word, line):
