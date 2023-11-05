@@ -25,7 +25,6 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 from dtproject import DTProject
 
@@ -345,6 +344,8 @@ class DTCommand(DTCommandAbs):
             help="Use the NVIDIA runtime (experimental).",
         )
 
+        from duckietown_docker_utils import continuously_monitor
+
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -519,14 +520,17 @@ class DTCommand(DTCommandAbs):
         if has_agent:
             # get agent's architecture and image name
             agent_arch = get_endpoint_architecture_from_client_OLD(agent_client)
-            agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
+            agent_image = project.image(
+                arch=agent_arch,
+                registry=parsed.registry,
+                owner=username,
+                version=project.distro
+            )
 
             # docker container specifications for simulator and experiment manager
             if use_challenge:
-                # make sure the token is set
-                token = shell.shell_config.token_dt1
-                if token is None:
-                    raise UserError("Please set token using the command 'dts tok set'")
+                # get the token
+                token = shell.profile.secrets.dt_token
                 # get container specs from the challenges server
                 images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
                 sim_spec = images["simulator"]
@@ -546,7 +550,12 @@ class DTCommand(DTCommandAbs):
             bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
 
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
-        vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
+        vnc_image = project.image_vnc(
+            arch=local_arch,
+            registry=parsed.registry,
+            owner=username,
+            version=project.distro
+        )
 
         # define container and network names
         prefix = f"ex-{exercise_name}"

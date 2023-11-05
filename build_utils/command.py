@@ -7,16 +7,12 @@ from typing import List
 
 from dt_shell import DTCommandAbs, DTShell, UserError
 from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import ENV_REGISTRY
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        from dt_shell import check_package_version
-
-        check_package_version("duckietown-docker-utils-ente", "6.0.78")
-        from duckietown_docker_utils import generic_docker_run
+        from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
         parser = argparse.ArgumentParser()
 

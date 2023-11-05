@@ -84,7 +84,9 @@ class MatrixEngine:
             "stdout": True,
             "stderr": True,
             "environment": {
-                "PYTHONUNBUFFERED": "1"
+                "PYTHONUNBUFFERED": "1",
+                "IMPERSONATE_UID": os.getuid(),
+                "IMPERSONATE_GID": os.getgid(),
             },
             "name": f"dts-matrix-engine"
         }

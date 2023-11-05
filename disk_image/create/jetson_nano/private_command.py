@@ -209,19 +209,6 @@ class DTCommand(DTCommandAbs):
             return
         # check dependencies
         check_cli_tools()
-        # make sure the token is set
-        # noinspection PyBroadException
-        try:
-            shell.get_dt1_token()
-        except Exception:
-            dtslogger.error(
-                "You have not set a token for this shell.\n"
-                "You can get a token from the following URL,\n\n"
-                "\thttps://www.duckietown.org/site/your-token   \n\n"
-                "and set it using the following command,\n\n"
-                "\tdts tok set\n"
-            )
-            return
         # check if the output directory exists, create it if it does not
         if parsed.output is None:
             parsed.output = os.getcwd()

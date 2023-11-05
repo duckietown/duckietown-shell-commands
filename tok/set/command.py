@@ -2,7 +2,6 @@ import webbrowser
 
 import termcolor
 from dt_authentication import InvalidToken, DuckietownToken
-from future import builtins
 
 from dt_shell import DTCommandAbs
 
@@ -38,7 +37,7 @@ Enter token: """.format(
             val_in = args[0]
         else:
             webbrowser.open(link, new=2)
-            val_in = builtins.input(msg)
+            val_in = input(msg)
 
         s = val_in.strip()
         try:

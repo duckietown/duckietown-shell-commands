@@ -5,7 +5,7 @@ import json
 import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
@@ -65,9 +65,7 @@ class DTCommand(DTCommandAbs):
 
         # Set up the tunnel
         robot_id: str = get_robot_id(robot_hostname)
-        dt_token = shell.shell_config.token_dt1
-        if dt_token is None:
-            raise UserError("Please set your Duckietown token using the command 'dts tok set'")
+        dt_token: str = shell.profile.secrets.dt_token
         cred: dict = create_cloudflare_tunnel(robot_id, dt_token)
         tunnel_token: str = cred["tunnel"]["token"]
         tunnel_dns: str = cred["dns"][0]

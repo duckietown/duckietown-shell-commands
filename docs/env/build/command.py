@@ -9,7 +9,6 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.assets_utils import get_asset_path
 from utils.docker_utils import get_endpoint_architecture
 from dtproject import DTProject
-from utils.duckietown_utils import get_distro_version
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {
@@ -92,16 +91,19 @@ class DTCommand(DTCommandAbs):
         arch: str = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
+        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
+
         # custom distro
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
-            # TODO: this should be the distro of the shell profile instead
-            parsed.distro = get_distro_version(shell)
+            # default distro
+            parsed.distro = DEFAULT_LIBRARY_DISTRO
         build_args.append(("DISTRO", parsed.distro))
 
         # make an image name for JB
-        jb_image_tag: str = f"{project.safe_version_name}-env"
+        jb_image_tag: str = f"{project.distro}-env"
 
         # by default, we don't add any source to the image
         source_dir = tempfile.TemporaryDirectory()
@@ -141,8 +143,8 @@ class DTCommand(DTCommandAbs):
             quiet=not parsed.verbose,
             force=True,
         )
-        dtslogger.debug(f"Calling command 'devel/buildx' with arguments: {str(buildx_namespace)}")
-        shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+        dtslogger.debug(f"Calling command 'devel/build' with arguments: {str(buildx_namespace)}")
+        shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
         # cleanup temporary directory
         source_dir.cleanup()
         # ---

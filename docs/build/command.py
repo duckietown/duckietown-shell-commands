@@ -13,8 +13,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
 from dtproject import DTProject
-from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -142,6 +141,9 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
 
+        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
+
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
             dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
@@ -212,14 +214,14 @@ class DTCommand(DTCommandAbs):
             if parsed.distro:
                 dtslogger.info(f"Using custom distro '{parsed.distro}'")
             else:
-                # TODO: this should be the distro of the shell profile instead
-                parsed.distro = get_distro_version(shell)
+                # default distro
+                parsed.distro = DEFAULT_LIBRARY_DISTRO
             build_args.append(("DISTRO", parsed.distro))
 
             # we can use the plain `jupyter-book` environment
             if not parsed.plain:
                 # make an image name for JB
-                jb_image_tag: str = f"{project.safe_version_name}-env"
+                jb_image_tag: str = f"{project.distro}-env"
                 jb_image_name: str = project.image(
                     arch=arch, owner="duckietown", registry=registry_to_use, version=jb_image_tag
                 )
@@ -296,8 +298,9 @@ class DTCommand(DTCommandAbs):
             args = {
                 "image": jb_image_name,
                 "remove": True,
-                "user": f"{os.getuid()}:{os.getgid()}",
                 "envs": {
+                    "IMPERSONATE_UID": os.getuid(),
+                    "IMPERSONATE_GID": os.getgid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
                     "LIBRARY_DISTRO": get_distro_version(shell),

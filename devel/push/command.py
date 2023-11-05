@@ -101,12 +101,14 @@ class DTCommand(DTCommandAbs):
         copy_docker_env_into_configuration(shell.shell_config)
         login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=True)
 
-        version = project.version_name
+        # tag
+        version: str = project.distro
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
 
-        image = project.image(
+        # compile image name
+        image: str = project.image(
             arch=parsed.arch, registry=registry_to_use, owner=parsed.username, version=version
         )
 

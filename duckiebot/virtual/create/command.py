@@ -25,7 +25,7 @@ from utils.duckietown_utils import \
     USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
 
-from ..destroy import DTCommand as DestroyVirtualDuckiebotCommand
+from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
 
 DEVICE_ARCH = "amd64"
 DISK_NAME = "root"

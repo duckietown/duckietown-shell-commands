@@ -24,6 +24,7 @@ from utils.duckietown_utils import (
     get_robot_hardware,
     get_robot_types,
     WIRED_ROBOT_TYPES,
+    get_distro_version,
 )
 from utils.exceptions import InvalidUserInput
 from utils.json_schema_form_utils import open_form_from_schema
@@ -257,19 +258,6 @@ class DTCommand(DTCommandAbs):
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
-        # make sure the token is set
-        # noinspection PyBroadException
-        try:
-            shell.get_dt1_token()
-        except Exception:
-            dtslogger.error(
-                "You have not set a token for this shell.\n"
-                "You can get a token from the following URL,\n\n"
-                "\thttps://www.duckietown.org/site/your-token   \n\n"
-                "and set it using the following command,\n\n"
-                "\tdts tok set\n"
-            )
-            return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -610,7 +598,7 @@ def step_verify(_, parsed, data):
     return {}
 
 
-def step_setup(shell, parsed, data):
+def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     # check if dependencies are met
     ensure_command_is_installed("dd")
     ensure_command_is_installed("sudo")
@@ -623,7 +611,7 @@ def step_setup(shell, parsed, data):
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
         "robot_type": parsed.robot_type,
-        "token": shell.get_dt1_token(),
+        "token": shell.profile.secrets.dt2_token,
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
@@ -640,7 +628,7 @@ def step_setup(shell, parsed, data):
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
                     "shell_version": shell_version,
-                    "commands_version": shell.get_commands_version(),
+                    "commands_version": get_distro_version(shell),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
                 "parameters": params,
@@ -661,7 +649,7 @@ def step_setup(shell, parsed, data):
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f"v{placeholders_version}")
+    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", "v"+placeholders_version)
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
     for surgery_bit in surgery_plan:
