@@ -197,6 +197,7 @@ class DTCommand(DTCommandAbs):
         # Open the devcontainer in VSCode
         try:
             # _run_cmd(["devcontainer", "build", parsed.workdir], shell=True)
+            # TODO: this is not how you do it, you use shell.include.devel.build... instead
             _run_cmd(["dts", "devel", "build"], shell=True)
             _run_cmd(["devcontainer", "open"], shell=True)
         except subprocess.CalledProcessError as e:
