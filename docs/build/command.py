@@ -12,6 +12,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
+from utils.duckietown_utils import get_distro_version
 from dtproject import DTProject
 from dt_shell.exceptions import ShellNeedsUpdate
 
