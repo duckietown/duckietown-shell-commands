@@ -1,5 +1,5 @@
-import argparse
 import os
+import argparse
 from typing import Optional, List, Set
 
 from dt_shell.commands import DTCommandConfigurationAbs

@@ -1,10 +1,9 @@
 import argparse
 import io
-import os
 import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use
+from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from dtproject import DTProject
 from utils.duckietown_utils import DEFAULT_OWNER
 
@@ -13,36 +12,9 @@ class DTCommand(DTCommandAbs):
     help = "Removes the Docker images relative to the current project"
 
     @staticmethod
-    def _parse_args(args):
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to clean",
-        )
-        parser.add_argument(
-            "-a",
-            "--arch",
-            default=None,
-            help="Target architecture for the image to clean",
-        )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=DEFAULT_MACHINE,
-            help="Docker socket or hostname where to clean the image",
-        )
-        parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
-        )
-
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = DTCommand._parse_args(args)
+        parser: argparse.ArgumentParser = DTCommand.parser
+        parsed, _ = parser.parse_known_args(args=args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
