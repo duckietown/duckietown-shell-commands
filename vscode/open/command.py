@@ -32,6 +32,9 @@ DEVCONTAINER_TEMPLATE = {
     ],
     "customizations": {
         "vscode": {
+            "settings":{
+                "ros.distro": "noetic"
+            },
             "extensions": [
                 "ms-iot.vscode-ros",
                 "ms-python.python",
