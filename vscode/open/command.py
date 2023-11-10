@@ -208,8 +208,8 @@ class DTCommand(DTCommandAbs):
             print(f"Return code: {e.returncode}")
             # You can add more details as needed
             if e.returncode == 127:
-                print("The 'devcontainer' command is not installed. Please install it by running:\n\n")
-                print("     sudo npm install -g @devcontainers/cli")
+                print("The 'devcontainer' command is not installed. Please install it from VSCode\n\n")
+                print("by opening the Command Palette (Ctrl+Shift+P) and typing 'Dev Container: Install devcontainer CLI'\n\n")
 
     @staticmethod
     def complete(shell, word, line):
