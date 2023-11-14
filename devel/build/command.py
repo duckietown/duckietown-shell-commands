@@ -673,7 +673,7 @@ def _transfer_image(origin, destination, image, image_size):
     monitor_info = "" if which("pv") else " (install `pv` to see the progress)"
     dtslogger.info(f'Transferring image "{image}": [{origin}] -> [{destination}]{monitor_info}...')
     data_source = ["docker", "-H=%s" % origin, "save", image]
-    data_destination = ["docker", "-H=%s" % destination, "load"]
+    data_destination = ["|", "docker", "-H=%s" % destination, "load"]
     progress_monitor = ["|", "pv", "-cN", "image", "-s", image_size] if which("pv") else []
     cmd = data_source + progress_monitor + data_destination
     start_command_in_subprocess(cmd, nostdout=True)
