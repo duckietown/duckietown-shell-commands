@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional, List, Set
@@ -651,22 +652,29 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Pushing image metadata to [{url}]...")
                 dtslogger.debug(f"Pushing image metadata:\n{pretty_json(metadata, indent=4)}")
                 already_pushed.add(uri)
-                response: dict = requests.post(
-                    url,
-                    json=metadata,
-                    headers={"Authorization": f"Token {token}"}
-                ).json()
-                if not response["success"]:
-                    if response["code"] == 208:
-                        # already reported
-                        dtslogger.warning("The server warned us that this image metadata was already pushed.")
+                response: Optional[dict] = None
+                try:
+                    response = requests.post(
+                        url,
+                        json=metadata,
+                        headers={"Authorization": f"Token {token}"}
+                    ).json()
+                    if not response["success"]:
+                        if response["code"] == 208:
+                            # already reported
+                            dtslogger.warning("The server warned us that this image metadata already exists.")
+                        else:
+                            msg: str = "\n".join(response["messages"])
+                            dtslogger.error("An error occurred while pushing the image metadata to the HUB. "
+                                            f"Error reads:\n{msg}")
+                            exit(12)
                     else:
-                        msg: str = "\n".join(response["messages"])
-                        dtslogger.error("An error occurred while pushing the image metadata to the HUB. "
-                                        f"Error reads:\n{msg}")
-                        exit(12)
-                else:
-                    dtslogger.info("Image metadata pushed successfully!")
+                        dtslogger.info("Image metadata pushed successfully!")
+                except:
+                    dtslogger.error("An error occurred while talking to images metadata server. Error:")
+                    dtslogger.error(f" > Response: {response}")
+                    traceback.print_exc()
+                    exit(13)
 
         # perform remove (if needed)
         if parsed.rm:
