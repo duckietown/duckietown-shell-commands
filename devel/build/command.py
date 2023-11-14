@@ -173,10 +173,7 @@ class DTCommand(DTCommandAbs):
                 multi.execute()
                 return
         if not parsed:
-            parsed, remaining = parser.parse_known_args(args=args)  # FIXME: this ignores other arguments
-
-            if remaining:
-                dtslogger.info(f"I do not know about these arguments: {remaining}")
+            parsed = parser.parse_args(args=args)
         # ---
 
         # define build-args
