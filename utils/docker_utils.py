@@ -5,7 +5,7 @@ import re
 import subprocess
 import traceback
 from os.path import expanduser
-from typing import Tuple, Optional, Union
+from typing import Tuple, Optional, Union, Dict, List
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
@@ -50,16 +50,31 @@ Docker Endpoint:
   CPUs: {NCPU}
 """
 
-CLOUD_BUILDERS = {
-    "arm32v7": ["172.27.0.102:2376"],
-    "arm64v8": ["172.27.0.102:2376"],
+CLOUD_BUILDERS: Dict[str, List[str]] = {
+    "arm32v7": [
+        "172.27.0.102:2376",
+        "172.27.0.250:2376"
+    ],
+    "arm64v8": [
+        "172.27.0.102:2376",
+        "172.27.0.250:2376"
+    ],
     "amd64": ["172.27.0.101:2376"],
 }
 
 
 def get_cloud_builder(arch: str) -> str:
     arch = canonical_arch(arch)
-    return random.choice(CLOUD_BUILDERS[arch])
+    for builder in CLOUD_BUILDERS[arch]:
+        dtslogger.info(f"Attempting to reach cloud builder '{builder}'...")
+        try:
+            get_endpoint_architecture(*builder.split(":"))
+            return builder
+        except:
+            dtslogger.warning(f"Failed to reach cloud builder '{builder}'")
+            dtslogger.debug(f"Error:\n{traceback.format_exc()}")
+    raise RuntimeError(f"No cloud builders could be reached for architecture '{arch}'. "
+                       f"We tried with these: {CLOUD_BUILDERS[arch]}")
 
 
 def get_registry_to_use(quiet: bool = False) -> str:
