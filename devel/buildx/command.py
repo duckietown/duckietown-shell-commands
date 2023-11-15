@@ -7,11 +7,12 @@ import os
 import sys
 import time
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from types import SimpleNamespace
-from typing import Optional, List
+from typing import Optional, List, Set
+
+import requests
 
 from utils.exceptions import ShellNeedsUpdate
+from utils.hub_utils import DTHUB_API_URL
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -50,7 +51,7 @@ from utils.dtproject_utils import (
     ARCH_TO_PLATFORM,
 )
 from utils.duckietown_utils import DEFAULT_OWNER
-from utils.misc_utils import human_size, human_time, sanitize_hostname
+from utils.misc_utils import human_size, human_time, sanitize_hostname, pretty_json
 from utils.multi_command_utils import MultiCommand
 from utils.pip_utils import get_pip_index_url
 
@@ -769,43 +770,50 @@ class DTCommand(DTCommandAbs):
 
         # perform metadata push (if needed)
         if parsed.ci:
+            token = os.environ["DUCKIETOWN_CI_DT_TOKEN"]
             tags_data = [
                 # NOTE: this image tag is modified by the CLI arguments, e.g., X-staging -> X
-                {"registry": registry_to_use, "version": version},
+                {"registry": registry_to_use, "version": project.distro},
                 # NOTE: this image tag is pure (no CLI remapping) and refers to the public registry
                 {"registry": DEFAULT_REGISTRY, "version": project.version_name},
             ]
+            already_pushed: Set[str] = set()
             for tag_data in tags_data:
-                with NamedTemporaryFile("wt") as fout:
-                    metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
-                    # add build metadata
-                    metadata["build"] = {
-                        "args": copy.deepcopy(buildargs),
-                        "time": build_time,
-                    }
-                    metadata["sha"] = dimage.id
-                    del metadata["build"]["args"]["labels"]
-                    # write to temporary file
-                    json.dump(metadata, fout, sort_keys=True, indent=4)
-                    fout.flush()
-                    # push temporary file
-                    remote_fnames = [
-                        f"docker/image/{metadata['tag']}/latest.json",
-                        f"docker/image/{metadata['tag']}/{dimage.id}.json",
-                    ]
-                    for remote_fname in remote_fnames:
-                        remote_fname = remote_fname.replace(":", "/")
-                        dtslogger.debug(f"Pushing metadata file [{remote_fname}]...")
-                        shell.include.data.push.command(
-                            shell,
-                            [],
-                            parsed=SimpleNamespace(
-                                file=[fout.name],
-                                object=[remote_fname],
-                                token=token,
-                                space="public",
-                            ),
-                        )
+                metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                # add build metadata
+                metadata["build"] = {
+                    "args": copy.deepcopy(buildargs),
+                    "time": build_time,
+                }
+                metadata["sha"] = dimage.id
+                del metadata["build"]["args"]["labels"]
+                # define metadata
+                identifier: str = metadata["tag"].replace(":", "/")
+                _, sha256 = dimage.id.split(":")
+                assert _ == "sha256"
+                uri: str = f"docker/image/metadata/{identifier}/sha256/{sha256}.json"
+                if uri in already_pushed:
+                    continue
+                url: str = f"{DTHUB_API_URL}/{uri}"
+                dtslogger.info(f"Pushing image metadata to [{url}]...")
+                dtslogger.debug(f"Pushing image metadata:\n{pretty_json(metadata, indent=4)}")
+                already_pushed.add(uri)
+                response: dict = requests.post(
+                    url,
+                    json=metadata,
+                    headers={"Authorization": f"Token {token}"}
+                ).json()
+                if not response["success"]:
+                    if response["code"] is 208:
+                        # already reported
+                        dtslogger.warning("The server warned us that this image metadata was already pushed.")
+                    else:
+                        msg: str = "\n".join(response["messages"])
+                        dtslogger.error("An error occurred while pushing the image metadata to the HUB. "
+                                        f"Error reads:\n{msg}")
+                        exit(12)
+                else:
+                    dtslogger.info("Image metadata pushed successfully!")
 
         # perform remove (if needed)
         if parsed.rm:
