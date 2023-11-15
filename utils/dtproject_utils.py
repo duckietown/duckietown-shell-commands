@@ -827,6 +827,8 @@ def _parse_configurations(config_file: str) -> dict:
 
 
 def _docker_client(endpoint: Union[None, str, docker.DockerClient]) -> docker.DockerClient:
-    return endpoint \
-        if isinstance(endpoint, docker.DockerClient) \
-        else docker.DockerClient(host=sanitize_docker_baseurl(endpoint))
+    if endpoint is None:
+        return docker.DockerClient()
+    if isinstance(endpoint, str):
+        return docker.DockerClient(host=sanitize_docker_baseurl(endpoint))
+    return endpoint
