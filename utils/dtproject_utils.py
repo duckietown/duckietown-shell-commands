@@ -7,7 +7,7 @@ import subprocess
 import traceback
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional, List, Dict, Tuple, Callable
+from typing import Optional, List, Dict, Tuple, Callable, Union
 
 import docker
 import requests
@@ -826,9 +826,7 @@ def _parse_configurations(config_file: str) -> dict:
         return configurations_content["configurations"]
 
 
-def _docker_client(endpoint):
-    return (
-        endpoint
-        if isinstance(endpoint, docker.DockerClient)
-        else docker.DockerClient(base_url=sanitize_docker_baseurl(endpoint))
-    )
+def _docker_client(endpoint: Union[None, str, docker.DockerClient]) -> docker.DockerClient:
+    return endpoint \
+        if isinstance(endpoint, docker.DockerClient) \
+        else docker.DockerClient(host=sanitize_docker_baseurl(endpoint))
