@@ -831,4 +831,7 @@ def _docker_client(endpoint: Union[None, str, docker.DockerClient]) -> docker.Do
         return docker.DockerClient()
     if isinstance(endpoint, str):
         return docker.DockerClient(host=sanitize_docker_baseurl(endpoint))
+    if not isinstance(endpoint, docker.DockerClient):
+        raise ValueError("The endpoint object passed must be one of [None, str, docker.DockerClient], "
+                         f"{str(endpoint.__class__)} received instead.")
     return endpoint
