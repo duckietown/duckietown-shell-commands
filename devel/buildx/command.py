@@ -779,7 +779,7 @@ class DTCommand(DTCommandAbs):
             ]
             already_pushed: Set[str] = set()
             for tag_data in tags_data:
-                metadata = project.ci_metadata(docker, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
+                metadata = project.ci_metadata(client, arch=parsed.arch, owner=DEFAULT_OWNER, **tag_data)
                 # add build metadata
                 metadata["build"] = {
                     "args": copy.deepcopy(buildargs),
