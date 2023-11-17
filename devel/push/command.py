@@ -13,6 +13,7 @@ from utils.docker_utils import (
     login_client_OLD,
     push_image,
 )
+from cli.command import _run_cmd
 
 
 class DTCommand(DTCommandAbs):
@@ -79,6 +80,12 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
 
+        # Execute pre-push hook
+        if project.format.version >= 4:
+            for shell_command in project.hooks.hooks['pre-push']:
+                dtslogger.debug(f"Executing pre-push hook: {shell_command}")
+                _run_cmd(shell_command)
+
         registry_to_use = get_registry_to_use()
 
         # check if the index is clean
@@ -113,7 +120,14 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker)
+        if push_image(image, docker) is None:
+            dtslogger.error("Pushing image failed!")
+            # Execute post-push-failed hook
+            if project.format.version >= 4:
+                for shell_command in project.hooks.hooks['post-push-failed']:
+                    dtslogger.debug(f"Executing post-push-failed hook: {shell_command}")
+                    _run_cmd(shell_command)
+            exit(1)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
@@ -125,6 +139,11 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pushing release image {image}...")
             push_image(image, docker)
             dtslogger.info("Image successfully pushed!")
+        # Execute post-push hook
+        if project.format.version >= 4:
+            for shell_command in project.hooks.hooks['post-push']:
+                dtslogger.debug(f"Executing post-push hook: {shell_command}")
+                _run_cmd(shell_command)
 
     @staticmethod
     def complete(shell, word, line):
