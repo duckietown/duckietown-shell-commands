@@ -910,7 +910,7 @@ class DTCommand(DTCommandAbs):
                     file=[out_file_path("zip")],
                     object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
                     space="public",
-                    token=shell.get_dt1_token(),
+                    token=shell.profile.secrets.dt_token,
                 ),
             )
             dtslogger.info("Done!")

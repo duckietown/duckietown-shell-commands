@@ -167,13 +167,6 @@ class DTCommand(DTCommandAbs):
             parsed.challenge = challenges[0]
         dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
 
-        # make sure a token was set
-        try:
-            shell.get_dt1_token()
-        except Exception as e:
-            dtslogger.error(str(e))
-            exit(1)
-
         # make sure we have the credentials to push to this registry
         shell_cfg: ShellConfig = read_shell_config()
         if registry_to_push not in shell_cfg.docker_credentials:
