@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import signal
 import time
 from collections import defaultdict
 from typing import List, Set
@@ -186,7 +187,15 @@ class DTCommand(DTCommandAbs):
         #        should DiscoverListener be a subclass of ServiceListener
         ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
 
-        while True:
+        shutdown: bool = False
+
+        def signal_handler(_, __):
+            nonlocal shutdown
+            shutdown = True
+
+        signal.signal(signal.SIGINT, signal_handler)
+
+        while not shutdown:
             if dtslogger.level > logging.DEBUG:
                 listener.print()
             time.sleep(1.0 / REFRESH_HZ)
