@@ -8,6 +8,7 @@ services:
     restart: always
     network_mode: host
     volumes:
+      - portainer-data:/data
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -118,3 +119,4 @@ services:
 
 volumes:
   compose-data:
+  portainer-data:
