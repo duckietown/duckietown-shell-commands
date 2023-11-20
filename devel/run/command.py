@@ -21,6 +21,7 @@ from utils.docker_utils import (
 )
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
+from utils.dtproject_utils import _run_hooks
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
@@ -271,10 +272,7 @@ class DTCommand(DTCommandAbs):
         project = DTProject(parsed.workdir)
 
         # Execute pre-run hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['pre-run']:
-                dtslogger.debug(f"Executing pre-run hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('pre-run', project)
 
         # container name
         if not parsed.name:
@@ -538,10 +536,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Your container is running in detached mode!")
 
         # Execute post-run hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['post-run']:
-                dtslogger.debug(f"Executing post-run hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('post-run', project)
 
     @staticmethod
     def complete(shell, word, line):

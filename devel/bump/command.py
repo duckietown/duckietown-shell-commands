@@ -5,6 +5,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import start_command_in_subprocess
 from dtproject import DTProject
 from cli.command import _run_cmd
+from utils.dtproject_utils import _run_hooks
 
 class DTCommand(DTCommandAbs):
     help = "Bumps the current project's version"
@@ -46,10 +47,7 @@ class DTCommand(DTCommandAbs):
         project = DTProject(parsed.workdir)
 
         # Execute pre-bump hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['pre-bump']:
-                dtslogger.debug(f"Executing pre-bump hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('pre-bump', project)
 
         # check if the index is clean
         if project.is_dirty():
@@ -70,7 +68,5 @@ class DTCommand(DTCommandAbs):
         start_command_in_subprocess(cmd, shell=True)
 
         # Execute post-bump hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['post-bump']:
-                dtslogger.debug(f"Executing post-bump hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('post-bump', project)
+

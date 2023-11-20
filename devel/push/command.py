@@ -14,7 +14,7 @@ from utils.docker_utils import (
     push_image,
 )
 from cli.command import _run_cmd
-
+from utils.dtproject_utils import _run_hooks
 
 class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
@@ -81,10 +81,7 @@ class DTCommand(DTCommandAbs):
         project = DTProject(parsed.workdir)
 
         # Execute pre-push hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['pre-push']:
-                dtslogger.debug(f"Executing pre-push hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('pre-push', project)
 
         registry_to_use = get_registry_to_use()
 
@@ -123,10 +120,7 @@ class DTCommand(DTCommandAbs):
         if push_image(image, docker) is None:
             dtslogger.error("Pushing image failed!")
             # Execute post-push-failed hook
-            if project.format.version >= 4:
-                for shell_command in project.hooks.hooks['post-push-failed']:
-                    dtslogger.debug(f"Executing post-push-failed hook: {shell_command}")
-                    _run_cmd(shell_command)
+            _run_hooks('post-push-failed', project)
             exit(1)
         dtslogger.info("Image successfully pushed!")
         # push release version
@@ -140,10 +134,7 @@ class DTCommand(DTCommandAbs):
             push_image(image, docker)
             dtslogger.info("Image successfully pushed!")
         # Execute post-push hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['post-push']:
-                dtslogger.debug(f"Executing post-push hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('post-push', project)
 
     @staticmethod
     def complete(shell, word, line):

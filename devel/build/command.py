@@ -15,6 +15,7 @@ import requests
 from dt_shell.exceptions import ShellNeedsUpdate
 from utils.hub_utils import HUB_API_URL
 from cli.command import _run_cmd
+from utils.dtproject_utils import _run_hooks
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -139,11 +140,8 @@ class DTCommand(DTCommandAbs):
                 exit(11)
 
         # Execute pre-build hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['pre-build']:
-                dtslogger.debug(f"Executing pre-build hook: {shell_command}")
-                _run_cmd(shell_command)
-                
+        _run_hooks('pre-build', project)
+
         # project-defined build arguments
         for key, value in project.build_args.items():
             docker_build_args[key] = value
@@ -558,11 +556,7 @@ class DTCommand(DTCommandAbs):
         except Exception as e:
             dtslogger.error(f"An error occurred while building the project image:\n{str(e)}")
             # Execute post-build-failed hook
-            if project.format.version >= 4:
-                for shell_command in project.hooks.hooks['post-build-failed']:
-                    dtslogger.debug(f"Executing post-build-failed hook: {shell_command}")
-                    _run_cmd(shell_command)
-            exit(1)
+            _run_hooks('post-build-failed', project)
 
         # get resulting image
         dimage: Image = docker.image.inspect(image)
@@ -686,10 +680,8 @@ class DTCommand(DTCommandAbs):
 
         # ---
         # Execute post-build hook
-        if project.format.version >= 4:
-            for shell_command in project.hooks.hooks['post-build']:
-                dtslogger.debug(f"Executing post-build hook: {shell_command}")
-                _run_cmd(shell_command)
+        _run_hooks('post-build', project)
+
         return True
 
     @staticmethod
