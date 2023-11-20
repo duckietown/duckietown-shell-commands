@@ -11,6 +11,7 @@ from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.assets_utils import get_asset_bin_path
 from dtproject.constants import CANONICAL_ARCH
+from dtproject.dtproject import DTProject
 
 DEFAULT_IMAGE = "duckietown/dt-gui-tools:{distro}-{arch}"
 DEFAULT_RUNTIME = "docker"
@@ -163,8 +164,10 @@ class DTCommand(DTCommandAbs):
         ]
 
 
-def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, shell=False):
-    if shell:
+def _run_cmd(
+        cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
+):
+    if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])
     dtslogger.debug("$ %s" % cmd)
     if get_output:
@@ -180,8 +183,12 @@ def _run_cmd(cmd, get_output=False, print_output=False, suppress_errors=False, s
             print(out)
         return out
     else:
-        try:
-            subprocess.check_call(cmd, shell=shell)
-        except subprocess.CalledProcessError as e:
-            if not suppress_errors:
-                raise e
+        if return_exitcode:
+            res = subprocess.run(cmd, shell=shell)
+            return res.returncode
+        else:
+            try:
+                subprocess.check_call(cmd, shell=shell)
+            except subprocess.CalledProcessError as e:
+                if not suppress_errors:
+                    raise e
