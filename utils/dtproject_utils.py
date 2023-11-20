@@ -3,8 +3,11 @@ from dt_shell import dtslogger
 from cli.command import _run_cmd
 
 def _run_hooks(hook_name : str, project : DTProject):
-    # Execute post-build hook
     if project.format.version >= 4:
+        if len(project.hooks[hook_name]) == 0:
+            dtslogger.debug(f"No {hook_name} hooks defined. Skipping hook execution...")
+            return
+
         for hook in project.hooks[hook_name]:
             dtslogger.debug(f"Executing {hook_name} hook: {hook.command}")
 
