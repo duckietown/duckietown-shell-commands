@@ -3,10 +3,13 @@ import json
 import os
 import subprocess
 
+import yaml
+
 from dt_shell import DTCommandAbs, dtslogger
 
 from dtproject import DTProject
-
+from dtproject.types import ContainerConfiguration, DevContainerConfiguration
+from cli.command import _run_cmd
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     get_endpoint_architecture,
@@ -20,30 +23,7 @@ DEFAULT_REMOTE_SYNC_LOCATION = "/code"
 
 DEFAULT_TRUE = object()
 
-DEVCONTAINER_TEMPLATE = {
-    "name": "Duckietown Dev Container",
-    "image": "${{localEnv:DOCKER_REGISTRY}}/duckietown/${{localWorkspaceFolderBasename}}:ente-amd64",  # Replace with the actual Docker image tag
-    "workspaceFolder": f"{DEFAULT_REMOTE_SYNC_LOCATION}/src/${{localWorkspaceFolderBasename}}",
-    "mounts": [f"source={m},target={m},type=bind" for m in DEFAULT_MOUNTS],
-    "containerEnv": {},
-    "runArgs": [
-        "-it",
-        f"--net={DEFAULT_NETWORK_MODE}",
-    ],
-    "customizations": {
-        "vscode": {
-            "settings":{
-                "ros.distro": "noetic"
-            },
-            "extensions": [
-                "ms-iot.vscode-ros",
-                "ms-python.python",
-                "ms-vscode.cpptools"
-            ]
-        }
-    }
-}
-
+COMPOSE_FILE_TEMPLATE = {'version': '3.8', 'services': {}}
 class DTCommand(DTCommandAbs):
     help = "Runs the current project"
     
@@ -82,7 +62,7 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument("docker_args", nargs="*", default=[])
 
-        # Create a dictionary for the devcontainer.json from the template
+
 
         # add a fake positional argument to avoid missing the first argument starting with `-`
         try:
@@ -102,6 +82,9 @@ class DTCommand(DTCommandAbs):
         # get info about project
         project = DTProject(parsed.workdir)
 
+        container_configuration = ContainerConfiguration()
+        devcontainer_configuration : DevContainerConfiguration = project.devcontainers['default']           # TODO: make choice of devcontainer configurable
+
         # registry
         registry_to_use = get_registry_to_use()
 
@@ -119,8 +102,8 @@ class DTCommand(DTCommandAbs):
 
         if parsed.ros is not None:
             # Add VEHICLE_NAME as an environment variable of the container
-            DEVCONTAINER_TEMPLATE["containerEnv"]["VEHICLE_NAME"] = parsed.ros
-        
+            container_configuration.environment = {'VEHICLE_NAME': parsed.ros}
+
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:
             # check if the mountpoint exists
@@ -145,10 +128,11 @@ class DTCommand(DTCommandAbs):
             root =  proj.path
             # get local and remote paths to code
             local_srcs, destination_srcs = proj.code_paths(root)
+            container_configuration.volumes = []
             # compile mountpoints
             for local_src, destination_src in zip(local_srcs, destination_srcs):
-                # Append to the list of mount points in DEVCONTAINER_TEMPLATE
-                DEVCONTAINER_TEMPLATE["mounts"].append(f"source={local_src},target={destination_src},type=bind")
+                # Append to the list of mount points of the container_configuration
+                container_configuration.volumes.append(f"{local_src}:{destination_src}")
 
             # get local and remote paths to launchers
             local_launchs, destination_launchs = proj.launch_paths(root)
@@ -157,8 +141,8 @@ class DTCommand(DTCommandAbs):
                 destination_launchs = [destination_launchs]
             # compile mountpoints
             for local_launch, destination_launch in zip(local_launchs, destination_launchs):
-                # Append to the list of mount points in DEVCONTAINER_TEMPLATE
-                DEVCONTAINER_TEMPLATE["mounts"].append(f"source={local_launch},target={destination_launch},type=bind")
+                # Append to the list of mount points of the container_configuration
+                container_configuration.volumes.append(f"{local_launch}:{destination_launch}")
                 # make sure the launchers are executable
                 try:
                     _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
@@ -174,7 +158,7 @@ class DTCommand(DTCommandAbs):
             version=project.distro,
         )
 
-        DEVCONTAINER_TEMPLATE["image"] = image
+        container_configuration.image = image
 
         # docker arguments
         if not parsed.docker_args:
@@ -183,18 +167,32 @@ class DTCommand(DTCommandAbs):
         # escape spaces in arguments
         parsed.docker_args = [a.replace(" ", "\\ ") for a in parsed.docker_args]
 
-        DEVCONTAINER_TEMPLATE["runArgs"].extend(parsed.docker_args)
+        # Add the arguments to the container_configuration
+        container_configuration.args = parsed.docker_args
 
-        # Write DEVCONTAINER_TEMPLATE to .devcontainer/devcontainer.json
-        output_file_path = ".devcontainer/devcontainer.json"
+        # Remove the __plain__ and __extends__ keys from the container_configuration
+        container_configuration.__dict__.pop('__plain__', None)
+        container_configuration.__dict__.pop('__extends__', None)
 
-        # Create .devcontainer folder
+        # Configure the devcontainer
+        devcontainer_configuration.dockerComposeFile = "docker-compose.yml" # path to docker-compose file relative to location of devcontainer.json
+
+        # Create docker-compose and devcontainer.json files in .devcontainer folder
         if not os.path.exists('.devcontainer') and not os.path.isdir('.devcontainer'):
             os.mkdir('.devcontainer')
-        with open(output_file_path, 'w') as json_file:
-            json.dump(DEVCONTAINER_TEMPLATE, json_file, indent=4,)
+        compose_file = COMPOSE_FILE_TEMPLATE
 
-        dtslogger.info(f'DEVCONTAINER_TEMPLATE written to {output_file_path}')
+        compose_file["services"]={devcontainer_configuration.service : container_configuration.__dict__}
+
+        with open('.devcontainer/docker-compose.yml', 'w') as yaml_file:
+            yaml.dump(compose_file, yaml_file, indent=4,)
+
+        output_file_path = ".devcontainer/devcontainer.json"
+
+        with open(output_file_path, 'w') as json_file:
+            json.dump(devcontainer_configuration.__dict__, json_file, indent=4,)
+
+        dtslogger.info(f'Devcontainer configuration written to {output_file_path}')
         dtslogger.info("You can now open the devcontainer in your favorite editor")
 
         # Open the devcontainer in VSCode
@@ -215,32 +213,3 @@ class DTCommand(DTCommandAbs):
     def complete(shell, word, line):
         return []
 
-
-def _run_cmd(
-        cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
-):
-    if shell and isinstance(cmd, (list, tuple)):
-        cmd = " ".join([str(s) for s in cmd])
-    dtslogger.debug("$ %s" % cmd)
-    if get_output:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=shell)
-        proc.wait()
-        if proc.returncode != 0:
-            if not suppress_errors:
-                msg = "The command {} returned exit code {}".format(cmd, proc.returncode)
-                dtslogger.error(msg)
-                raise RuntimeError(msg)
-        out = proc.stdout.read().decode("utf-8").rstrip()
-        if print_output:
-            print(out)
-        return out
-    else:
-        if return_exitcode:
-            res = subprocess.run(cmd, shell=shell)
-            return res.returncode
-        else:
-            try:
-                subprocess.check_call(cmd, shell=shell)
-            except subprocess.CalledProcessError as e:
-                if not suppress_errors:
-                    raise e
