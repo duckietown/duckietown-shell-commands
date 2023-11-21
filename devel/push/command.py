@@ -13,7 +13,8 @@ from utils.docker_utils import (
     login_client_OLD,
     push_image,
 )
-
+from cli.command import _run_cmd
+from utils.dtproject_utils import _run_hooks
 
 class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
@@ -79,6 +80,9 @@ class DTCommand(DTCommandAbs):
         shell.include.devel.info.command(shell, [], parsed=parsed)
         project = DTProject(parsed.workdir)
 
+        # Execute pre-push hook
+        _run_hooks('pre-push', project)
+
         registry_to_use = get_registry_to_use()
 
         # check if the index is clean
@@ -113,7 +117,11 @@ class DTCommand(DTCommandAbs):
         )
 
         dtslogger.info(f"Pushing image {image}...")
-        push_image(image, docker)
+        if push_image(image, docker) is None:
+            dtslogger.error("Pushing image failed!")
+            # Execute post-push-failed hook
+            _run_hooks('post-push-failed', project)
+            exit(1)
         dtslogger.info("Image successfully pushed!")
         # push release version
         if project.is_release():
@@ -125,6 +133,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Pushing release image {image}...")
             push_image(image, docker)
             dtslogger.info("Image successfully pushed!")
+        # Execute post-push hook
+        _run_hooks('post-push', project)
 
     @staticmethod
     def complete(shell, word, line):

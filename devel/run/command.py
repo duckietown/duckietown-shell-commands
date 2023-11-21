@@ -21,6 +21,8 @@ from utils.docker_utils import (
 )
 from utils.misc_utils import human_size, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
+from cli.command import _run_cmd
+from utils.dtproject_utils import _run_hooks
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
@@ -269,6 +271,9 @@ class DTCommand(DTCommandAbs):
 
         # get info about project
         project = DTProject(parsed.workdir)
+
+        # Execute pre-run hook
+        _run_hooks('pre-run', project)
 
         # container name
         if not parsed.name:
@@ -531,36 +536,10 @@ class DTCommand(DTCommandAbs):
         if parsed.detach:
             dtslogger.info("Your container is running in detached mode!")
 
+        # Execute post-run hook
+        _run_hooks('post-run', project)
+
     @staticmethod
     def complete(shell, word, line):
         return []
 
-
-def _run_cmd(
-        cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
-):
-    if shell and isinstance(cmd, (list, tuple)):
-        cmd = " ".join([str(s) for s in cmd])
-    dtslogger.debug("$ %s" % cmd)
-    if get_output:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=shell)
-        proc.wait()
-        if proc.returncode != 0:
-            if not suppress_errors:
-                msg = "The command {} returned exit code {}".format(cmd, proc.returncode)
-                dtslogger.error(msg)
-                raise RuntimeError(msg)
-        out = proc.stdout.read().decode("utf-8").rstrip()
-        if print_output:
-            print(out)
-        return out
-    else:
-        if return_exitcode:
-            res = subprocess.run(cmd, shell=shell)
-            return res.returncode
-        else:
-            try:
-                subprocess.check_call(cmd, shell=shell)
-            except subprocess.CalledProcessError as e:
-                if not suppress_errors:
-                    raise e

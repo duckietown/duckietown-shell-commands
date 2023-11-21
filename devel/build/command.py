@@ -14,6 +14,8 @@ import requests
 
 from dt_shell.exceptions import ShellNeedsUpdate
 from utils.hub_utils import HUB_API_URL
+from cli.command import _run_cmd
+from utils.dtproject_utils import _run_hooks
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -136,6 +138,9 @@ class DTCommand(DTCommandAbs):
                                 f"newer than or equal to v{min_format_version}. "
                                 f"Detected v{project.format.version}. Please, upgrade your project first.")
                 exit(11)
+
+        # Execute pre-build hook
+        _run_hooks('pre-build', project)
 
         # project-defined build arguments
         for key, value in project.build_args.items():
@@ -550,7 +555,8 @@ class DTCommand(DTCommandAbs):
                 sys.stdout.flush()
         except Exception as e:
             dtslogger.error(f"An error occurred while building the project image:\n{str(e)}")
-            exit(1)
+            # Execute post-build-failed hook
+            _run_hooks('post-build-failed', project)
 
         # get resulting image
         dimage: Image = docker.image.inspect(image)
@@ -673,6 +679,9 @@ class DTCommand(DTCommandAbs):
                 )
 
         # ---
+        # Execute post-build hook
+        _run_hooks('post-build', project)
+
         return True
 
     @staticmethod
