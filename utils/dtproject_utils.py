@@ -14,7 +14,7 @@ def _run_hooks(hook_name : str, project : DTProject):
             try:
                 failed = _run_cmd(hook.command.split(), return_exitcode=True)
             except FileNotFoundError:
-                dtslogger.error(f"Hook command '{hook.command}' not found! Aborting...")
+                dtslogger.error(f"Hook command '{hook.command}' not found!")
                 failed = True
 
             if failed and hook.required:
