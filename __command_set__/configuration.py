@@ -36,4 +36,4 @@ class DTCommandSetConfiguration(DTCommandSetConfigurationAbs):
         """
         Maximum version of the shell supported in the format (major, minor, patch).
         """
-        return 999, 0, 0
+        return 999, 999, 999

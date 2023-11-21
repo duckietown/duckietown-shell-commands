@@ -4,6 +4,7 @@ __all__ = [
     "InvalidUserInput",
     "RecipeProjectNotFound",
     "SecretNotFound",
+    "UserAborted",
     "NetworkingError",
     "UnpinnedDependenciesError"
 ]
@@ -18,6 +19,10 @@ class RecipeProjectNotFound(UserError):
 
 
 class SecretNotFound(UserError):
+    pass
+
+
+class UserAborted(UserError):
     pass
 
 

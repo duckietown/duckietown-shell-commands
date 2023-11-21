@@ -26,7 +26,7 @@ There is an incremental build system. To clean and run from scratch:
 
 To verify that a token is valid, you can use:
 
-    $ dts tok verify dt1-TOKEN-TO-VERIFY
+    $ dts token verify dt2-TOKEN-TO-VERIFY
     
 This exits with 0 if the token is valid, and writes on standard output the following json:
 

@@ -12,6 +12,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
+from utils.duckietown_utils import get_distro_version
 from dtproject import DTProject
 from dt_shell.exceptions import ShellNeedsUpdate
 
@@ -303,7 +304,7 @@ class DTCommand(DTCommandAbs):
                     "IMPERSONATE_GID": os.getgid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
-                    "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
+                    "LIBRARY_DISTRO": get_distro_version(shell),
                     "DEBUG": "1" if debug else "0",
                     "PRODUCTION_BUILD": "0",
                     "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))

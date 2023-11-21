@@ -10,6 +10,7 @@ docker-compose==1.29.2
 GitPython==3.1.37
 python-dateutil==2.8.2
 pytz==2023.3
+zeroconf==0.122.0
 
 # duckietown dependencies
 duckietown-docker-utils-ente==7.0.1

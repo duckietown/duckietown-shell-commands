@@ -15,29 +15,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        parser: argparse.ArgumentParser = DTCommand.parser
         # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to pip-resolve",
-        )
-        parser.add_argument(
-            "--fix",
-            default=False,
-            action="store_true",
-            help="Fix problems as they are found",
-        )
-        parser.add_argument(
-            "--ci",
-            default=False,
-            action="store_true",
-            help="Overwrites configuration for CI (Continuous Integration)",
-        )
-        parser.add_argument(
-            "-v", "--verbose", default=False, action="store_true", help="Be verbose"
-        )
         parsed, _ = parser.parse_known_args(args=args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)

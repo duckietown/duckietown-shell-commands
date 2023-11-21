@@ -11,21 +11,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args, **kwargs):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to build"
-        )
-        parser.add_argument(
-            "-n", "--dry-run", default=False, action="store_true", help="Don't write any files, just pretend."
-        )
-        parser.add_argument(
-            "part",
-            nargs="?",
-            choices=["major", "minor", "patch"],
-            default="patch",
-            help="Part of the version to bump",
-        )
+        parser: argparse.ArgumentParser = DTCommand.parser
         parsed, _ = parser.parse_known_args(args=args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)

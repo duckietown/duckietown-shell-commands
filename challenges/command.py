@@ -56,7 +56,7 @@ class DTCommand(DTCommandAbs):
             return command_config(shell, rest)
 
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
-        dt1_token = shell.get_dt1_token()
+        token: str = shell.profile.secrets.dt_token
         client = check_docker_environment()
 
         docker_credentials = shell.shell_config.docker_credentials
@@ -124,7 +124,7 @@ class DTCommand(DTCommandAbs):
                 entrypoint=parsed.entrypoint,
                 docker_secret=None,
                 docker_username=None,
-                dt1_token=dt1_token,
+                dt1_token=token,
                 development=development,
                 container_name=container_name,
                 pull=not parsed.no_pull,

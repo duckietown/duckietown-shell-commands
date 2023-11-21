@@ -11,25 +11,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C", "--workdir", default=None, help="Directory containing the project to work on"
-        )
-        parser.add_argument(
-            "-t", "--template", default=None, help="Template to use (default = project's template)"
-        )
-        parser.add_argument(
-            "--brute", default=False, action="store_true", help="Replace everything"
-        )
-        parser.add_argument(
-            "-v",
-            "--version",
-            default=None,
-            type=str,
-            help="Version of the template to use (default = project's template version)",
-        )
-        parser.add_argument("--apply", default=False, action="store_true", help="Whether to apply the diff")
+        parser: argparse.ArgumentParser = DTCommand.parser
         parsed, _ = parser.parse_known_args(args=args)
         # ---
         code_dir = parsed.workdir if parsed.workdir else os.getcwd()
@@ -86,4 +68,4 @@ class DTCommand(DTCommandAbs):
 
 def _run_cmd(cmd):
     print(cmd)
-    return [l for l in subprocess.check_output(cmd).decode("utf-8").split("\n") if l]
+    return [line for line in subprocess.check_output(cmd).decode("utf-8").split("\n") if line]

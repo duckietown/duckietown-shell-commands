@@ -1,4 +1,6 @@
-HUB_SCHEMA: str = "https"
-HUB_HOST: str = "hub.duckietown.com"
-HUB_API_VERSION: str = "v1"
-HUB_API_URL: str = f"{HUB_SCHEMA}://{HUB_HOST}/api/{HUB_API_VERSION}"
+import os
+
+DTHUB_SCHEMA: str = "https"
+DTHUB_HOST: str = os.environ.get("DTHUB_HOST", "hub.duckietown.com")
+DTHUB_API_VERSION: str = "v1"
+DTHUB_API_URL: str = f"{DTHUB_SCHEMA}://{DTHUB_HOST}/api/{DTHUB_API_VERSION}"

@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   portainer:
-    image: docker.io/duckietown/portainer:daffy-${ARCH}
+    image: docker.io/duckietown/portainer:ente-${ARCH}
     container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
