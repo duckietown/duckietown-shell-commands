@@ -27,7 +27,7 @@ DEFAULT_DEVCONTAINER_CONFIG = "default"
 
 COMPOSE_FILE_TEMPLATE = {'version': '3.8', 'services': {}}
 class DTCommand(DTCommandAbs):
-    help = "Runs the current project"
+    help = "Creates a devcontainer for the current project and opens it in VSCode."
     
     @staticmethod
     def command(shell, args: list):
