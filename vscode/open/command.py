@@ -189,6 +189,10 @@ class DTCommand(DTCommandAbs):
         # Configure the devcontainer
         devcontainer_configuration.dockerComposeFile = "docker-compose.yml" # path to docker-compose file relative to location of devcontainer.json
 
+        # Add workspace folder if not specified in the devcontainer_configuration
+        if devcontainer_configuration.workspaceFolder is None:
+            devcontainer_configuration.workspaceFolder = destination_src
+
         # Create docker-compose and devcontainer.json files in .devcontainer folder
         if not os.path.exists('.devcontainer') and not os.path.isdir('.devcontainer'):
             os.mkdir('.devcontainer')
