@@ -154,7 +154,7 @@ class DTCommand(DTCommandAbs):
             root =  proj.path
             # get local and remote paths to code
             local_srcs, destination_srcs = proj.code_paths(root)
-            container_configuration.volumes = []
+            
             # compile mountpoints
             for local_src, destination_src in zip(local_srcs, destination_srcs):
                 # Append to the list of mount points of the container_configuration
