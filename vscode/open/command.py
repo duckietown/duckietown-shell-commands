@@ -204,8 +204,9 @@ class DTCommand(DTCommandAbs):
 
         container_configuration.image = image
 
-        # Configure the devcontainer
-        devcontainer_configuration.dockerComposeFile = "docker-compose.yml" # path to docker-compose file relative to location of devcontainer.json
+        # If devcontainer_configuration.dockerComposeFile is not specified, use the default one
+        if devcontainer_configuration.dockerComposeFile is None:
+            devcontainer_configuration.dockerComposeFile = "docker-compose.yml"
 
         # Add workspace folder if not specified in the devcontainer_configuration
         if devcontainer_configuration.workspaceFolder is None:
@@ -214,13 +215,14 @@ class DTCommand(DTCommandAbs):
         # Create docker-compose and devcontainer.json files in .devcontainer folder
         if not os.path.exists('.devcontainer') and not os.path.isdir('.devcontainer'):
             os.mkdir('.devcontainer')
+
         compose_file = COMPOSE_FILE_TEMPLATE
 
         compose_file["services"]={devcontainer_configuration.container : container_configuration.__dict__}
         # Add the 'sleep infinity' command to the container to keep it alive (https://containers.dev/guide/dockerfile)
         compose_file["services"][devcontainer_configuration.container]["command"] = "sleep infinity"
 
-        with open('.devcontainer/docker-compose.yml', 'w') as yaml_file:
+        with open(f'.devcontainer/{devcontainer_configuration.dockerComposeFile}', 'w') as yaml_file:
             yaml.dump(compose_file, yaml_file, indent=4,)
 
         output_file_path = ".devcontainer/devcontainer.json"
