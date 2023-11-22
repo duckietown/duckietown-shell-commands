@@ -118,17 +118,18 @@ class DTCommand(DTCommandAbs):
         arch = get_endpoint_architecture(DEFAULT_MACHINE)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
-        # get the module configuration
-        # noinspection PyListCreation
-        module_configuration_args = []
-        # apply default module configuration
-        module_configuration_args.append(f"--net={parsed.network_mode}")
-        
-        # Set docker network mode TODO
+        # Set docker network mode
+        if parsed.network_mode is not None:
+            container_configuration.network_mode = parsed.network_mode
 
         if parsed.ros is not None:
-            # Add VEHICLE_NAME as an environment variable of the container
-            container_configuration.environment = {'VEHICLE_NAME': parsed.ros}
+            if isinstance(container_configuration.environment, dict):
+                # It's a dictionary
+                container_configuration.environment['VEHICLE_NAME'] = parsed.ros
+            elif isinstance(container_configuration.environment, list):
+                # It's a list
+                container_configuration.environment = [env for env in container_configuration.environment if not env.startswith('VEHICLE_NAME=')]
+                container_configuration.environment.append(f'VEHICLE_NAME={parsed.ros}')
 
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:
