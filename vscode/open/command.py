@@ -186,20 +186,6 @@ class DTCommand(DTCommandAbs):
 
         container_configuration.image = image
 
-        # docker arguments
-        if not parsed.docker_args:
-            parsed.docker_args = []
-
-        # escape spaces in arguments
-        parsed.docker_args = [a.replace(" ", "\\ ") for a in parsed.docker_args]
-
-        # Add the arguments to the container_configuration
-        container_configuration.args = parsed.docker_args
-
-        # Remove the __plain__ and __extends__ keys from the container_configuration
-        container_configuration.__dict__.pop('__plain__', None)
-        container_configuration.__dict__.pop('__extends__', None)
-
         # Configure the devcontainer
         devcontainer_configuration.dockerComposeFile = "docker-compose.yml" # path to docker-compose file relative to location of devcontainer.json
 
