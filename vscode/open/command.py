@@ -60,6 +60,14 @@ class DTCommand(DTCommandAbs):
             help="Docker network mode",
         )
 
+        parser.add_argument(
+            "--dry-run",
+            dest="dry_run",
+            default=False,
+            action="store_true",
+            help="Generate the docker-compose and devcontainer.json files without building nor running the devcontainer",
+        )
+
         parser.add_argument("docker_args", nargs="*", default=[])
 
 
@@ -196,19 +204,19 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("You can now open the devcontainer in your favorite editor")
 
         # Open the devcontainer in VSCode
-        try:
-            # _run_cmd(["devcontainer", "build", parsed.workdir], shell=True)
-            # TODO: this is not how you do it, you use shell.include.devel.build... instead
-            _run_cmd(["dts", "devel", "build"], shell=True)
-            _run_cmd(["devcontainer", "open"], shell=True)
-        except subprocess.CalledProcessError as e:
-            # Handle the exception and output a human-friendly message
-            print(f"An error occurred while running 'devcontainer open': {e}")
-            print(f"Return code: {e.returncode}")
-            # You can add more details as needed
-            if e.returncode == 127:
-                print("The 'devcontainer' command is not installed. Please install it from VSCode\n\n")
-                print("by opening the Command Palette (Ctrl+Shift+P) and typing 'Dev Container: Install devcontainer CLI'\n\n")
+        if not parsed.dry_run:
+            try:
+                # We cannot pass all the arguments we receive to the 'devel build' command
+                shell.include.devel.build.command(shell, args=["--workdir", parsed.workdir])
+                _run_cmd(["devcontainer", "open"], shell=True)
+            except subprocess.CalledProcessError as e:
+                # Handle the exception and output a human-friendly message
+                print(f"An error occurred while running 'devcontainer open': {e}")
+                print(f"Return code: {e.returncode}")
+                # You can add more details as needed
+                if e.returncode == 127:
+                    print("The 'devcontainer' command is not installed. Please install it from VSCode\n\n")
+                    print("by opening the Command Palette (Ctrl+Shift+P) and typing 'Dev Container: Install devcontainer CLI'\n\n")
 
     @staticmethod
     def complete(shell, word, line):
