@@ -89,9 +89,27 @@ class DTCommand(DTCommandAbs):
 
         # get info about project
         project = DTProject(parsed.workdir)
-
-        container_configuration = ContainerConfiguration()
         devcontainer_configuration : DevContainerConfiguration = project.devcontainers['default']           # TODO: make choice of devcontainer configurable
+        container_configuration : ContainerConfiguration = project.containers[devcontainer_configuration.container]
+        
+        # If the '__extend__' key is present, the container configuration is extended from the one specified in the '__extend__' key
+        extend_from : List = container_configuration.__dict__.get('__extends__', None)
+        dtslogger.debug(f"Container configurations to extend from: {extend_from}")
+
+        if extend_from is not None:
+            for container_name in extend_from:
+                if container_name not in project.containers:
+                    dtslogger.error(f"The container configuration '{container_name}' you want to extend from does not exist in 'containers.yaml'")
+                    return
+
+                dtslogger.debug(f"Extending container configuration from '{container_name}'")
+                container_configuration.__dict__.update(project.containers[container_name].__dict__)
+            container_configuration.__dict__.pop('__extends__', None)
+
+        container_configuration.__dict__.pop('__plain__', None)
+
+        dtslogger.debug(f"Loaded container configurations: {project.containers.__dict__.items()}")
+        dtslogger.debug(f"Using the '{devcontainer_configuration.container}' container configuration: {container_configuration.__dict__.items()}")
 
         # registry
         registry_to_use = get_registry_to_use()
