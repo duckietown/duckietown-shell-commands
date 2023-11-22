@@ -216,9 +216,13 @@ class DTCommand(DTCommandAbs):
             yaml.dump(compose_file, yaml_file, indent=4,)
 
         output_file_path = ".devcontainer/devcontainer.json"
+        
+        # Remove the 'container' and all 'null' keys from the devcontainer_configuration
+        devcontainer_configuration.__dict__.pop('container', None)
+        dtslogger.debug(f"Using the devcontainer configuration: {devcontainer_configuration.__dict__}")
 
-        with open(output_file_path, 'w') as json_file:
-            json.dump(devcontainer_configuration.__dict__, json_file, indent=4,)
+        with open(output_file_path, 'w') as f:
+            json.dump({k: v for k, v in devcontainer_configuration.__dict__.items() if v is not None}, f, indent=4,)
 
         dtslogger.info(f'Devcontainer configuration written to {output_file_path}')
         dtslogger.info("You can now open the devcontainer in your favorite editor")
