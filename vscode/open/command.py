@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+from typing import List
 
 import yaml
 
@@ -22,6 +23,7 @@ DEFAULT_REMOTE_USER = "duckie"
 DEFAULT_REMOTE_SYNC_LOCATION = "/code"
 
 DEFAULT_TRUE = object()
+DEFAULT_DEVCONTAINER_CONFIG = "default"
 
 COMPOSE_FILE_TEMPLATE = {'version': '3.8', 'services': {}}
 class DTCommand(DTCommandAbs):
@@ -68,6 +70,15 @@ class DTCommand(DTCommandAbs):
             help="Generate the docker-compose and devcontainer.json files without building nor running the devcontainer",
         )
 
+        parser.add_argument(
+            "--devconfig",
+            "--devcontainer-config",
+            dest="devcontainer_config",
+            default=DEFAULT_DEVCONTAINER_CONFIG,
+            type=str,
+            help="Name of the devcontainer configuration to use (as defined in `devcontainers.yaml`)",
+        )
+
         parser.add_argument("docker_args", nargs="*", default=[])
 
 
@@ -89,7 +100,13 @@ class DTCommand(DTCommandAbs):
 
         # get info about project
         project = DTProject(parsed.workdir)
-        devcontainer_configuration : DevContainerConfiguration = project.devcontainers['default']           # TODO: make choice of devcontainer configurable
+        
+        try:
+            devcontainer_configuration : DevContainerConfiguration = project.devcontainers[parsed.devcontainer_config]
+        except KeyError as e:
+            dtslogger.error(f"Could not find the {e} configuration in 'devcontainers.yaml'")
+            return
+
         container_configuration : ContainerConfiguration = project.containers[devcontainer_configuration.container]
         
         # If the '__extend__' key is present, the container configuration is extended from the one specified in the '__extend__' key
@@ -155,7 +172,7 @@ class DTCommand(DTCommandAbs):
             root =  proj.path
             # get local and remote paths to code
             local_srcs, destination_srcs = proj.code_paths(root)
-            
+
             # compile mountpoints
             for local_src, destination_src in zip(local_srcs, destination_srcs):
                 # Append to the list of mount points of the container_configuration
