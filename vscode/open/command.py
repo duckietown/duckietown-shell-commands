@@ -243,12 +243,11 @@ class DTCommand(DTCommandAbs):
                 _run_cmd(["devcontainer", "open"], shell=True)
             except subprocess.CalledProcessError as e:
                 # Handle the exception and output a human-friendly message
-                print(f"An error occurred while running 'devcontainer open': {e}")
-                print(f"Return code: {e.returncode}")
-                # You can add more details as needed
+                dtslogger.error(f"An error occurred while running 'devcontainer open': {e}")
+                dtslogger.error(f"Return code: {e.returncode}")
                 if e.returncode == 127:
-                    print("The 'devcontainer' command is not installed. Please install it from VSCode\n\n")
-                    print("by opening the Command Palette (Ctrl+Shift+P) and typing 'Dev Container: Install devcontainer CLI'\n\n")
+                    dtslogger.error("The 'devcontainer' command is not installed. Please install it from VSCode\n\n")
+                    dtslogger.error("by opening the Command Palette (Ctrl+Shift+P) and typing 'Dev Container: Install devcontainer CLI'\n\n")
 
     @staticmethod
     def complete(shell, word, line):
