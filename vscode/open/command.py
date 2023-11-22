@@ -208,7 +208,9 @@ class DTCommand(DTCommandAbs):
             os.mkdir('.devcontainer')
         compose_file = COMPOSE_FILE_TEMPLATE
 
-        compose_file["services"]={devcontainer_configuration.service : container_configuration.__dict__}
+        compose_file["services"]={devcontainer_configuration.container : container_configuration.__dict__}
+        # Add the 'sleep infinity' command to the container to keep it alive (https://containers.dev/guide/dockerfile)
+        compose_file["services"][devcontainer_configuration.container]["command"] = "sleep infinity"
 
         with open('.devcontainer/docker-compose.yml', 'w') as yaml_file:
             yaml.dump(compose_file, yaml_file, indent=4,)
