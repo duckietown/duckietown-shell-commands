@@ -141,9 +141,10 @@ class DTCommand(DTCommandAbs):
             container_configuration.network_mode = parsed.network_mode
 
         if parsed.ros is not None:
-            if not hasattr(container_configuration,'environment'):
-                container_configuration.environment = {}
-            container_configuration.environment['VEHICLE_NAME'] = parsed.ros
+            try:
+                container_configuration.environment['VEHICLE_NAME'] = parsed.ros
+            except AttributeError:
+                container_configuration.environment = {'VEHICLE_NAME': parsed.ros}
 
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:
