@@ -24,6 +24,7 @@ DEFAULT_REMOTE_SYNC_LOCATION = "/code"
 
 DEFAULT_TRUE = object()
 DEFAULT_DEVCONTAINER_CONFIG = "default"
+DEVCONTAINER_DEFAULT_NAME = "dt-devcontainer"
 
 COMPOSE_FILE_TEMPLATE = {'version': '3.8', 'services': {}}
 class DTCommand(DTCommandAbs):
@@ -140,13 +141,9 @@ class DTCommand(DTCommandAbs):
             container_configuration.network_mode = parsed.network_mode
 
         if parsed.ros is not None:
-            if isinstance(container_configuration.environment, dict):
-                # It's a dictionary
-                container_configuration.environment['VEHICLE_NAME'] = parsed.ros
-            elif isinstance(container_configuration.environment, list):
-                # It's a list
-                container_configuration.environment = [env for env in container_configuration.environment if not env.startswith('VEHICLE_NAME=')]
-                container_configuration.environment.append(f'VEHICLE_NAME={parsed.ros}')
+            if not hasattr(container_configuration,'environment'):
+                container_configuration.environment = {}
+            container_configuration.environment['VEHICLE_NAME'] = parsed.ros
 
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:
@@ -218,9 +215,9 @@ class DTCommand(DTCommandAbs):
 
         compose_file = COMPOSE_FILE_TEMPLATE
 
-        compose_file["services"]={devcontainer_configuration.container : container_configuration.__dict__}
+        compose_file["services"]={DEVCONTAINER_DEFAULT_NAME : container_configuration.__dict__}
         # Add the 'sleep infinity' command to the container to keep it alive (https://containers.dev/guide/dockerfile)
-        compose_file["services"][devcontainer_configuration.container]["command"] = "sleep infinity"
+        compose_file["services"][DEVCONTAINER_DEFAULT_NAME]["command"] = "sleep infinity"
 
         with open(f'.devcontainer/{devcontainer_configuration.dockerComposeFile}', 'w') as yaml_file:
             yaml.dump(compose_file, yaml_file, indent=4,)
