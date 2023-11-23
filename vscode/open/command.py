@@ -157,8 +157,11 @@ class DTCommand(DTCommandAbs):
 
             # compile mountpoints
             for local_src, destination_src in zip(local_srcs, destination_srcs):
-                # Append to the list of mount points of the container_configuration
-                container_configuration.volumes.append(f"{local_src}:{destination_src}")
+                try:
+                    # Append to the list of mount points of the container_configuration
+                    container_configuration.volumes.append(f"{local_src}:{destination_src}")
+                except AttributeError:
+                    container_configuration.volumes = [f"{local_src}:{destination_src}"]
 
             # get local and remote paths to launchers
             local_launchs, destination_launchs = proj.launch_paths(root)
@@ -167,8 +170,11 @@ class DTCommand(DTCommandAbs):
                 destination_launchs = [destination_launchs]
             # compile mountpoints
             for local_launch, destination_launch in zip(local_launchs, destination_launchs):
-                # Append to the list of mount points of the container_configuration
-                container_configuration.volumes.append(f"{local_launch}:{destination_launch}")
+                try:
+                    # Append to the list of mount points of the container_configuration
+                    container_configuration.volumes.append(f"{local_launch}:{destination_launch}")
+                except AttributeError:
+                    container_configuration.volumes = [f"{local_launch}:{destination_launch}"]
                 # make sure the launchers are executable
                 try:
                     _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
