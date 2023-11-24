@@ -72,12 +72,16 @@ class DTCommand(DTCommandAbs):
         )
 
         parser.add_argument(
-            "--devconfig",
+            "--devcontainer",
             "--devcontainer-config",
             dest="devcontainer_config",
-            default=DEFAULT_DEVCONTAINER_CONFIG,
+            default=False,
+            const=True,
+            action="store",
+            nargs="?",
             type=str,
-            help="Name of the devcontainer configuration to use (as defined in `devcontainers.yaml`)",
+            help="Connect vscode to a devcontainer of the current project."
+                "Name of the devcontainer configuration to use (as defined in `devcontainers.yaml`)",
         )
 
         parser.add_argument("docker_args", nargs="*", default=[])
@@ -102,10 +106,19 @@ class DTCommand(DTCommandAbs):
         # get info about project
         project = DTProject(parsed.workdir)
         
+       
+        if isinstance(parsed.devcontainer_config, bool):
+            if parsed.devcontainer_config:
+                devcontainer_configuration_name = DEFAULT_DEVCONTAINER_CONFIG
+            else:
+                _run_cmd(["code", "."], shell=True)
+                return
+        elif isinstance(parsed.devcontainer_config, str):
+            devcontainer_configuration_name = parsed.devcontainer_config
         try:
-            devcontainer_configuration : DevContainerConfiguration = project.devcontainers[parsed.devcontainer_config]
-        except KeyError as e:
-            dtslogger.error(f"Could not find the {e} configuration in 'devcontainers.yaml'")
+            devcontainer_configuration : DevContainerConfiguration = project.devcontainers[devcontainer_configuration_name]
+        except KeyError:
+            dtslogger.error(f"The devcontainer configuration '{devcontainer_configuration_name}' does not exist. ")
             return
 
         container_configuration  = project.get_devcontainer(devcontainer_configuration.container)
