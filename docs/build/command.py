@@ -41,6 +41,7 @@ SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
+    "template-ros": {"4", },
 }
 
 
