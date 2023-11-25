@@ -20,6 +20,9 @@ SUPPORTED_PROJECT_TYPES = {
     "template-basic": {
         "4",
     },
+    "template-ros": {
+        "4",
+    },
 }
 
 
