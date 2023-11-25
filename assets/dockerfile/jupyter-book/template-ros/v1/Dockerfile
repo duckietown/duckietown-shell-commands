@@ -41,7 +41,7 @@ ENV DT_MODULE_TYPE="book" \
 
 # install apt dependencies
 COPY --from=project ./dependencies-apt.txt "${REPO_PATH}/"
-RUN dt-apt-install ${REPO_PATH}/dependencies-apt.txt
+RUN dt-apt-install ${REPO_PATH}/dependencies-apt.txt; exit 0
 
 # install python3 dependencies
 ARG PIP_INDEX_URL="https://pypi.org/simple"
