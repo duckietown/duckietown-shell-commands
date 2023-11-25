@@ -391,7 +391,8 @@ class DTCommand(DTCommandAbs):
                     "LIBRARY_HOSTNAME": dns,
                     "LIBRARY_DISTRO": library_distro,
                     "DT_LAUNCHER": "ci-build",
-                    "PRODUCTION_BUILD": str(int(production_build))
+                    "PRODUCTION_BUILD": str(int(production_build)),
+                    "DT_SUPERUSER": "1"
                 },
                 "stream": True
             }

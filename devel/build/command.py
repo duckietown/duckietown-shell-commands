@@ -159,12 +159,6 @@ class DTCommand(DTCommandAbs):
         # tag
         version: str = project.distro
 
-        # parse template version
-        try:
-            project_template_ver = int(project.type_version)
-        except ValueError:
-            project_template_ver = -1
-
         # override version
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
