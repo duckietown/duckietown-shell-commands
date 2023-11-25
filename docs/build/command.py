@@ -350,6 +350,7 @@ class DTCommand(DTCommandAbs):
         else:
             # CI build includes: build HTML, build PDF, image optimization, and artifacts publish
             dns = parsed.publish
+            book_name: str = project.name if project.name.startswith("book-") else f"book-{project.name}"
 
             # download RSA key used to publish artifacts
             token = os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
@@ -387,7 +388,7 @@ class DTCommand(DTCommandAbs):
                     "SSH_KEY": rsa_key,
                     "SSH_HOSTNAME": ssh_hostname,
                     "SSH_USERNAME": SSH_USERNAME,
-                    "BOOK_NAME": project.name,
+                    "BOOK_NAME": book_name,
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": dns,
                     "LIBRARY_DISTRO": library_distro,
