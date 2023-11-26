@@ -651,7 +651,7 @@ class DTCommand(DTCommandAbs):
                     headers={"Authorization": f"Token {token}"}
                 ).json()
                 if not response["success"]:
-                    if response["code"] is 208:
+                    if response["code"] == 208:
                         # already reported
                         dtslogger.warning("The server warned us that this image metadata was already pushed.")
                     else:
