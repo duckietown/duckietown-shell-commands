@@ -238,11 +238,13 @@ class DTCommand(DTCommandAbs):
 def random_virtual_mac_address() -> str:
     """
     Generates a random MAC address of the form:     vv:**:**:**:**:**
-    And while this is not a valid MAC address (because vv is not base16-decodable), it allows us
-    to distinguish between virtual robot IDs and physical robot IDs while giving us the peace of
-    mind that no physical robot can have a MAC address overlapping with a virtual MAC address.
+    And while this is not a valid MAC address (because it is not base16-decodable), it allows us
+    to distinguish between virtual robot IDs and physical robot IDs (using vv:) while giving us
+    the peace of mind that no physical robot can have a MAC address overlapping with a virtual
+    MAC address. Moreover, as we use the full alphabet 0-9a-z, it allows for 36^10 possible virtual
+    MAC addresses.
 
     :return: a fake virtual MAC address
     """
-    r = lambda: random.randint(0, 255)
-    return "vv:%02x:%02x:%02x:%02x:%02x" % (r(), r(), r(), r(), r())
+    c = lambda: random.choice('1234567890abcdefghijklmnopqrstuvwxyz')
+    return "vv:%s%s:%s%s:%s%s:%s%s:%s%s" % (c(), c(), c(), c(), c(), c(), c(), c(), c(), c())
