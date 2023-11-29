@@ -35,7 +35,8 @@ DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
-DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
+DEFAULT_LIBRARY_HOSTNAME = "docs.duckietown.com"
+LIBRARY_HOSTNAME = os.environ.get("DT_LIBRARY_HOSTNAME", DEFAULT_LIBRARY_HOSTNAME)
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
@@ -111,7 +112,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--library",
             type=str,
-            default=DEFAULT_LIBRARY_HOSTNAME,
+            default=LIBRARY_HOSTNAME,
             help="Hostname of the website hosting the library to link to, e.g., 'docs.duckietown.com'",
         )
         parser.add_argument(
@@ -323,15 +324,18 @@ class DTCommand(DTCommandAbs):
             # print HTML location
             if build_html:
                 loc: str = os.path.abspath(html_dir)
-                bar: str = "=" * len(loc)
-                spc: str = " " * len(loc)
+                idx: str = f"file://{loc}/index.html"
+                bar: str = "=" * len(idx)
+                sp1: str = " " * len(idx)
+                sp2: str = " " * (len(idx) - len(loc))
                 dtslogger.info(
                     f"\n\n"
-                    f"====================={bar}=====\n"
-                    f"|                    {spc}    |\n"
-                    f"|    HTML artifacts: {loc}    |\n"
-                    f"|                    {spc}    |\n"
-                    f"====================={bar}=====\n"
+                    f"======================{bar}=====\n"
+                    f"|                     {sp1}    |\n"
+                    f"|    HTML artifacts:  {loc}{sp2}    |\n"
+                    f"|    HTML entrypoint: {idx}    |\n"
+                    f"|                     {sp1}    |\n"
+                    f"======================{bar}=====\n"
                 )
 
             # print PDF location
@@ -394,7 +398,8 @@ class DTCommand(DTCommandAbs):
                     "LIBRARY_DISTRO": library_distro,
                     "DT_LAUNCHER": "ci-build",
                     "PRODUCTION_BUILD": str(int(production_build)),
-                    "DT_SUPERUSER": "1"
+                    "DT_SUPERUSER": "1",
+                    "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ["ADOBE_PDF_VIEWER_CLIENT_ID"]
                 },
                 "stream": True
             }
