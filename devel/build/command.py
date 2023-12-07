@@ -265,10 +265,14 @@ class DTCommand(DTCommandAbs):
         labels[dtlabel("template.version")] = project.type_version
 
         # add configuration labels (template v2+)
-        if project.format.version >= 2 and project.format.version <= 3:
-            for cfg_name, cfg_data in project.configurations().items():
-                label = dtlabel(f"image.configuration.{cfg_name}")
-                labels[label] = json.dumps(cfg_data)
+        if project.format.version < 4:
+            try:
+                for cfg_name, cfg_data in project.configurations().items():
+                    label = dtlabel(f"image.configuration.{cfg_name}")
+                    labels[label] = json.dumps(cfg_data)
+            except NotImplementedError:
+                # configurations were never used in old project formats, this is ok
+                pass
         elif project.format.version >= 4:
             # TODO: use containers layer
             pass
