@@ -303,7 +303,6 @@ class DTCommand(DTCommandAbs):
                 "remove": True,
                 "envs": {
                     "IMPERSONATE_UID": os.getuid(),
-                    "IMPERSONATE_GID": os.getgid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
                     "LIBRARY_DISTRO": get_distro_version(shell),
