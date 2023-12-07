@@ -3,15 +3,19 @@ import json
 import os
 import subprocess
 import traceback
+import webbrowser
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
            "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc", "NotSet",
-           "hide_string"]
+           "hide_string", "SimpleWindowBrowser"]
 
 from typing import Any
 
+from dt_shell import dtslogger
+
 NotSet = object()
+
 
 def human_time(time_secs, compact=False):
     label = lambda s: s[0] if compact else " " + s
@@ -102,3 +106,24 @@ def versiontuple(version: str):
 def hide_string(s: str, k: int = 3) -> str:
     hidden = "*" * (len(s) - k) + s[-k:]
     return hidden
+
+
+class SimpleWindowBrowser:
+    def __init__(self):
+        try:
+            self._browser = webbrowser.get()
+        except webbrowser.Error:
+            dtslogger.warning("We could not found a web browser to open the code editor in. Please, use the "
+                              "URL given above in the web browser you prefer instead.")
+            self._browser = None
+            # with Chrome, we can use --app to open a simple window
+        if isinstance(self._browser, webbrowser.Chrome):
+            self._browser.remote_args = ["--app=%s"]
+
+    def open(self, url: str) -> bool:
+        if self._browser is None:
+            return False
+        try:
+            return self._browser.open(url)
+        except:
+            webbrowser.open(url)

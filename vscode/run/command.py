@@ -6,7 +6,6 @@ import os
 import signal
 import time
 import uuid
-import webbrowser
 from pwd import getpwnam
 from typing import Optional, List, Tuple
 
@@ -29,7 +28,7 @@ from dockertown import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import DEFAULT_REGISTRY, get_endpoint_architecture, sanitize_docker_baseurl
 from utils.duckietown_utils import get_distro_version
-from utils.misc_utils import human_size, sanitize_hostname
+from utils.misc_utils import human_size, sanitize_hostname, SimpleWindowBrowser
 
 VSCODE_PORT = 8088
 CONTAINER_SECRETS_DIR = "/run/secrets"
@@ -323,24 +322,3 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def complete(shell, word, line):
         return []
-
-
-class SimpleWindowBrowser:
-    def __init__(self):
-        try:
-            self._browser = webbrowser.get()
-        except webbrowser.Error:
-            dtslogger.warning("We could not found a web browser to open the code editor in. Please, use the "
-                              "URL given above in the web browser you prefer instead.")
-            self._browser = None
-            # with Chrome, we can use --app to open a simple window
-        if isinstance(self._browser, webbrowser.Chrome):
-            self._browser.remote_args = ["--app=%s"]
-
-    def open(self, url: str) -> bool:
-        if self._browser is None:
-            return False
-        try:
-            return self._browser.open(url)
-        except:
-            webbrowser.open(url)
