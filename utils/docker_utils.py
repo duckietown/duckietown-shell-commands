@@ -758,10 +758,7 @@ if _dockertown_available:
     def ensure_docker_version(client: DockerClient, v: str):
         version = client.version()
         vnow_str = version["Server"]["Version"]
-        # Remove version info after '+' sign (i.e. v1.2.3+f34jd3 -> v1.2.3)
-        vnow_str = vnow_str.split("+")[0]
         vnow = parse_version(vnow_str)
-        
         if v.endswith("+"):
             vneed_str = v.rstrip("+")
             vneed = parse_version(vneed_str)
