@@ -91,7 +91,7 @@ class DTCommand(DTCommandAbs):
             registry=registry_to_use,
             owner="duckietown",
             extra="jupyter-lab",
-            version=project.distro
+            version=project.version_name
         )
 
         # impersonate
