@@ -179,7 +179,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(
                 "You have not set a token for this shell.\n"
                 "You can get a token from the following URL,\n\n"
-                "\thttps://www.duckietown.org/site/your-token   \n\n"
+                "\thttps://hub.duckietown.com/token   \n\n"
                 "and set it using the following command,\n\n"
                 "\tdts tok set\n"
             )

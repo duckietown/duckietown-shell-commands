@@ -259,7 +259,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(
                 "You have not set a token for this shell.\n"
                 "You can get a token from the following URL,\n\n"
-                "\thttps://www.duckietown.org/site/your-token   \n\n"
+                "\thttps://hub.duckietown.com/token   \n\n"
                 "and set it using the following command,\n\n"
                 "\tdts tok set\n"
             )
@@ -330,11 +330,11 @@ class DTCommand(DTCommandAbs):
                 'Skipping "license" step. You are implicitly agreeing to the following:\n'
                 + extra
                 + "   - Duckietown Terms and Conditions:\t"
-                "https://www.duckietown.org/about/terms-and-conditions\n"
+                "https://duckietown.com/terms-and-conditions/\n"
                 "   - Duckietown Software License:\t"
-                "https://www.duckietown.org/about/sw-license\n"
+                "https://duckietown.com/sw-license/\n"
                 "   - Duckietown Privacy Policy:\t\t"
-                "https://www.duckietown.org/about/privacy",
+                "https://duckietown.com/privacy/",
             )
         # prepare data
         data = {
@@ -363,11 +363,11 @@ def step_license(_, parsed, __):
     answer = ask_confirmation(
         f"\nBy proceeding you agree to the following,\n"
         f"   - Duckietown Terms and Conditions:\t"
-        f"https://www.duckietown.org/about/terms-and-conditions\n"
+        f"https://duckietown.com/terms-and-conditions/\n"
         f"   - Duckietown Software License:\t"
-        f"https://www.duckietown.org/about/sw-license\n"
+        f"https://duckietown.com/sw-license/\n"
         f"   - Duckietown Privacy Policy:\t\t"
-        f"https://www.duckietown.org/about/privacy",
+        f"https://duckietown.com/privacy/",
         question="Do you accept?",
     )
     if not answer:

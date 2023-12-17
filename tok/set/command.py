@@ -14,7 +14,7 @@ from dt_shell import DTShell
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        link = "https://www.duckietown.org/site/your-token"
+        link = "https://hub.duckietown.com/token"
         example = "dt1-7vEuJsaxeXXXXX-43dzqWFnWd8KBa1yev1g3UKnzVxZkkTbfSJnxzuJjWaANeMf4y6XSXBWTpJ7vWXXXX"
         msg = """
 Please enter your Duckietown token.
@@ -23,9 +23,7 @@ It looks something like this:
 
     {example}
 
-To find your token, first login to duckietown.org, and open the page:
-
-    {link}
+To find your token, go to the page {link}
 
 
 Enter token: """.format(
