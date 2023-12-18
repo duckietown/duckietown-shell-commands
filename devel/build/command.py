@@ -28,7 +28,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dockertown import DockerClient, Image
 from termcolor import colored
 from utils.buildx_utils import install_buildx, DOCKER_INFO, ensure_buildx_version
-from utils.cli_utils import ask_confirmation
+from utils.cli_utils import ask_confirmation, start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DEFAULT_REGISTRY,
@@ -46,7 +46,7 @@ from utils.docker_utils import (
 
 import dtproject
 from dtproject import DTProject
-from dtproject.constants import ARCH_TO_PLATFORM, DISTRO_KEY
+from dtproject.constants import ARCH_TO_PLATFORM, DISTRO_KEY, BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH
 from dtproject.utils.misc import dtlabel
 
 from utils.duckietown_utils import DEFAULT_OWNER
@@ -322,9 +322,38 @@ class DTCommand(DTCommandAbs):
             login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
 
         # pick the right architecture if not set
+        endpoint_arch: str = get_endpoint_architecture(parsed.machine)
         if parsed.arch is None:
-            parsed.arch = get_endpoint_architecture(parsed.machine)
+            parsed.arch = endpoint_arch
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
+
+        # print info about multiarch
+        msg = "Building an image for {} on an {} endpoint.".format(parsed.arch, endpoint_arch)
+        dtslogger.info(msg)
+
+        # register bin_fmt in the target machine (if needed)
+        if not parsed.no_multiarch:
+            compatible_archs = BUILD_COMPATIBILITY_MAP[CANONICAL_ARCH[endpoint_arch]]
+            if parsed.arch not in compatible_archs:
+                dtslogger.info("Configuring machine for multiarch...")
+                machine: str = "" if parsed.machine is None else f"-H={parsed.machine}"
+                try:
+                    start_command_in_subprocess([
+                        "docker",
+                        machine,
+                        "run",
+                        "--rm",
+                        "--privileged",
+                        "multiarch/qemu-user-static:register",
+                        "--reset",
+                    ])
+                    dtslogger.info("Multiarch Enabled!")
+                except:
+                    msg = "Multiarch cannot be enabled on the target machine. This might create issues."
+                    dtslogger.warning(msg)
+            else:
+                msg = "Running an image for {} on {}. Multiarch not needed".format(parsed.arch, endpoint_arch)
+                dtslogger.info(msg)
 
         # architecture target
         docker_build_args["ARCH"] = parsed.arch
