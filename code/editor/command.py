@@ -212,6 +212,7 @@ class DTCommand(DTCommandAbs):
                         tag=vscode_image_tag,
                         file=project.vscode_dockerfile,
                         recipe=recipe.path if recipe else None,
+                        force=recipe is not None,
                         recipe_version=parsed.recipe_version,
                         build_arg=build_args,
                         pull=not parsed.no_pull,
