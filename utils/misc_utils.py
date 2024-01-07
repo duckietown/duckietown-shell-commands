@@ -65,7 +65,10 @@ def sudo_open(path, mode, *_, **__):
 
 
 def parse_version(v: str) -> tuple:
-    return tuple(int(_) for _ in v.split("."))
+    parts = v.split("+")
+    # Take the part before the '+' sign if it exists
+    main_part = parts[0].split(".")
+    return tuple(int(_) for _ in main_part)
 
 
 def render_version(t: tuple) -> str:
