@@ -163,15 +163,8 @@ def command_config(shell: DTShell, args: List[str]):
 
     if server not in shell.shell_config.docker_credentials:
         shell.shell_config.docker_credentials[server] = {}
-    if username is not None:
-        shell.shell_config.docker_username = username
-        shell.shell_config.docker_credentials[server]["username"] = username
-    if password is not None:
-        shell.shell_config.docker_password = password
-        shell.shell_config.docker_credentials[server]["secret"] = password
+
+    shell.shell_config.docker_credentials[server]["username"] = username
+    shell.shell_config.docker_credentials[server]["secret"] = password
 
     shell.save_config()
-    # if username is None and password is None:
-    #     msg = "You should pass at least one parameter."
-    #     msg += "\n\n" + parser.format_help()
-    #     raise UserError(msg)
