@@ -155,8 +155,10 @@ def get_client(endpoint=None) -> DockerClient:
             DockerClient(host=sanitize_docker_baseurl(endpoint))
 
 
-def get_client_OLD(endpoint=None) -> DockerClientOLD:
-    if endpoint is None:
+def get_client_OLD(endpoint: Union[None, str, DockerClientOLD] = None) -> DockerClientOLD:
+    if isinstance(endpoint, DockerClientOLD):
+        return endpoint
+    elif endpoint is None:
         client = dockerOLD.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
@@ -299,7 +301,7 @@ def pull_image(image: str, endpoint: Union[None, str, DockerClient] = None, prog
 
 
 # TODO: this should be removed
-def pull_image_OLD(image: str, endpoint: str = None, progress=True):
+def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
     layers = set()
     pulled = set()

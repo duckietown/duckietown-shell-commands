@@ -40,7 +40,8 @@ class DiscoverListener:
     def __init__(self, args):
         self.args = args
 
-    def process_service_name(self, name):
+    @staticmethod
+    def process_service_name(name):
         name = name.replace("._duckietown._tcp.local.", "")
         service_parts = name.split("::")
         if len(service_parts) != 3 or service_parts[0] != "DT":

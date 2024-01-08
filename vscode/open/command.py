@@ -22,7 +22,8 @@ DEFAULT_TRUE = object()
 
 DEVCONTAINER_TEMPLATE = {
     "name": "Duckietown Dev Container",
-    "image": "${{localEnv:DOCKER_REGISTRY}}/duckietown/${{localWorkspaceFolderBasename}}:ente-amd64",  # Replace with the actual Docker image tag
+    # Replace with the actual Docker image tag
+    "image": "${{localEnv:DOCKER_REGISTRY}}/duckietown/${{localWorkspaceFolderBasename}}:ente-amd64",
     "workspaceFolder": f"{DEFAULT_REMOTE_SYNC_LOCATION}/src/${{localWorkspaceFolderBasename}}",
     "mounts": [f"source={m},target={m},type=bind" for m in DEFAULT_MOUNTS],
     "containerEnv": {},
@@ -40,6 +41,7 @@ DEVCONTAINER_TEMPLATE = {
         }
     }
 }
+
 
 class DTCommand(DTCommandAbs):
     help = "Runs the current project"
@@ -139,13 +141,15 @@ class DTCommand(DTCommandAbs):
             # get project info
             proj = DTProject(project_path)
             
-            root =  proj.path
+            root = proj.path
             # get local and remote paths to code
             local_srcs, destination_srcs = proj.code_paths(root)
             # compile mountpoints
             for local_src, destination_src in zip(local_srcs, destination_srcs):
                 # Append to the list of mount points in DEVCONTAINER_TEMPLATE
-                DEVCONTAINER_TEMPLATE["mounts"].append(f"source={local_src},target={destination_src},type=bind")
+                DEVCONTAINER_TEMPLATE["mounts"].append(
+                    f"source={local_src},target={destination_src},type=bind"
+                )
 
             # get local and remote paths to launchers
             local_launchs, destination_launchs = proj.launch_paths(root)
@@ -155,7 +159,9 @@ class DTCommand(DTCommandAbs):
             # compile mountpoints
             for local_launch, destination_launch in zip(local_launchs, destination_launchs):
                 # Append to the list of mount points in DEVCONTAINER_TEMPLATE
-                DEVCONTAINER_TEMPLATE["mounts"].append(f"source={local_launch},target={destination_launch},type=bind")
+                DEVCONTAINER_TEMPLATE["mounts"].append(
+                    f"source={local_launch},target={destination_launch},type=bind"
+                )
                 # make sure the launchers are executable
                 try:
                     _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)

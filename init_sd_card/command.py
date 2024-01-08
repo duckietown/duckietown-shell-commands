@@ -728,12 +728,13 @@ def _validate_hostname(hostname: str):
         # remove digits at the beginning
         suggestion = re.sub(r'^\d+', '', filtered_alnum)
         # just ensure it's a valid suggestion
-        assert re.match(pattern, suggestion), "An error has occured. Please report to the administrators with these error logs."
+        assert re.match(pattern, suggestion), \
+            "An error has occured. Please report to the administrators with these error logs."
 
         granted = ask_confirmation(
             message=(
-                "The hostname can only contain alphanumeric symbols [a-z,0-9]. No capital letters are allowed. "
-                "It should not start with a digit either."
+                "The hostname can only contain alphanumeric symbols [a-z,0-9]. "
+                "No capital letters are allowed. It should not start with a digit either."
             ),
             question=f'Do you want to use the hostname "{suggestion}" instead?',
         )

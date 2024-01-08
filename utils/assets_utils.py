@@ -56,5 +56,6 @@ __all__ = [
     "get_schema_html_filepath",
     "load_dtproject",
     "load_template",
-    "get_asset_path"
+    "get_asset_path",
+    "get_asset_bin_path",
 ]

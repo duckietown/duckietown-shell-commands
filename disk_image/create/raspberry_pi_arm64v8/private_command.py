@@ -126,7 +126,6 @@ APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     # "initramfs-tools"
 ]
-DEFAULT_DOCKER_REGISTRY = "docker.io"
 
 
 class DTCommand(DTCommandAbs):

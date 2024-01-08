@@ -1361,9 +1361,10 @@ def launch_agent(
         # when we run remotely, use /launch/<project> as root
         root = recipe.path if agent_is_local else f"/launch/{recipe.name}"
         # get local and remote paths to launchers
-        local_launch, destination_launch = recipe.launch_paths(root)
-        if agent_is_remote or os.path.exists(local_launch):
-            agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+        local_launch_dirs, destination_launch_dirs = recipe.launch_paths(root)
+        for local_launch_dir, destination_launch_dir in zip(local_launch_dirs, destination_launch_dirs):
+            if agent_is_remote or os.path.exists(local_launch_dir):
+                agent_volumes[local_launch_dir] = {"bind": destination_launch_dir, "mode": "rw"}
 
     # - mount assets (from project (aka meat))
     if agent_is_local:

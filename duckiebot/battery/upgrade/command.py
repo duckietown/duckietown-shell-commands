@@ -32,6 +32,7 @@ class ExitCode(IntEnum):
     FIRMWARE_NEEDS_UPDATE = 6
     GENERIC_ERROR = 9
 
+
 ENV_KEY_PCB_VERSION = "PCB_VERSION"
 PCB_VERSION_ID_EXIT_CODE_NONE = 0
 
@@ -88,7 +89,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Container '{HEALTH_CONTAINER_NAME}' not found.")
 
         def start_container_and_try_blocking_until_healthy(
-            container: Container,
+            _container: Container,
             msg_before: str = "Starting container...",
             msg_after: str = "Container started.",
             timeout_secs: int = 120,
@@ -100,26 +101,26 @@ class DTCommand(DTCommandAbs):
 
             dtslogger.info(msg_before)
             sleep(10)  # verified multiple times, this wait time is needed
-            container.start()
+            _container.start()
 
             def try_getting_health_status():
                 try:
-                    container.reload()
-                    return container.attrs.get("State").get("Health").get("Status")
+                    _container.reload()
+                    return _container.attrs.get("State").get("Health").get("Status")
                 except:
                     return None
 
             health_enabled = try_getting_health_status()
             if health_enabled is not None:
                 dtslogger.info(
-                    f'Waiting for container "{container.name}" to become '
+                    f'Waiting for container "{_container.name}" to become '
                     "healthy. It may take up to 2 minutes."
                 )
                 healthy = False
                 secs = 0
                 while not healthy and secs < timeout_secs:
                     dtslogger.debug(
-                        f'Container "{container.name}" not yet healthy. ' "Checking every second..."
+                        f'Container "{_container.name}" not yet healthy. ' "Checking every second..."
                     )
                     try:
                         healthy = "healthy" == try_getting_health_status()
@@ -213,7 +214,7 @@ class DTCommand(DTCommandAbs):
             # re-activate device-health
             if device_health:
                 start_container_and_try_blocking_until_healthy(
-                    container=device_health,
+                    _container=device_health,
                     msg_before="Re-engaging battery (this might take a while)...",
                     msg_after="Battery returned to work!",
                 )
@@ -270,7 +271,7 @@ class DTCommand(DTCommandAbs):
                     # re-activate device-health
                     if device_health:
                         start_container_and_try_blocking_until_healthy(
-                            container=device_health,
+                            _container=device_health,
                             msg_before="Re-engaging battery (this might take a while)...",
                             msg_after="Battery returned to work!",
                         )
@@ -307,7 +308,7 @@ class DTCommand(DTCommandAbs):
                 # re-activate device-health
                 if device_health:
                     start_container_and_try_blocking_until_healthy(
-                        container=device_health,
+                        _container=device_health,
                         msg_before="Re-engaging battery (this might take a while)...",
                         msg_after="Battery returned to work!",
                     )
@@ -330,8 +331,8 @@ class DTCommand(DTCommandAbs):
                         dtslogger.debug("Removing container 'dts-battery-firmware-upgrade-dryrun'...")
                         container.remove()
                         container = None
-                    except APIError as e:
-                        dtslogger.error(str(e))
+                    except APIError as e1:
+                        dtslogger.error(str(e1))
                         exit(1)
 
                 exit_code = e.exit_status
@@ -420,7 +421,7 @@ class DTCommand(DTCommandAbs):
         # re-activate device-health
         if device_health:
             start_container_and_try_blocking_until_healthy(
-                container=device_health,
+                _container=device_health,
                 msg_before="Re-engaging battery (this might take a while)...",
                 msg_after="Battery returned to work happier than ever!",
             )

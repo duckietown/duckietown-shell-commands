@@ -88,7 +88,8 @@ class DTCommand(DTCommandAbs):
             "--jetsonnano",
             action="store_true",
             default=False,
-            help="If you would like your submission to be run a Jetson Nano computer. Default is False. (Not Tested)",
+            help="If you would like your submission to be run a Jetson Nano computer. "
+                 "Default is False. (Not Tested)",
         )
         group.add_argument("--max_vel", help="the max velocity for the duckiebot", default=0.7)
         group.add_argument("--challenge", help="Specific challenge to evaluate")

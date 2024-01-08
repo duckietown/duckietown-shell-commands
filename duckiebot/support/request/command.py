@@ -1,6 +1,7 @@
 import argparse
 import atexit
 import json
+from typing import Optional
 
 import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
@@ -68,10 +69,14 @@ class DTCommand(DTCommandAbs):
         dt_token: str = shell.profile.secrets.dt_token
         cred: dict = create_cloudflare_tunnel(robot_id, dt_token)
 
+        tunnel_token: str = "NOTSET"
+        tunnel_dns: str = "NOTSET"
+        tunnel_name: str = "NOTSET"
+
         try:
-            tunnel_token: str = cred["tunnel"]["token"]
-            tunnel_dns: str = cred["dns"][0]
-            tunnel_name: str = cred["tunnel"]["credentials_file"]["TunnelName"]
+            tunnel_token = cred["tunnel"]["token"]
+            tunnel_dns = cred["dns"][0]
+            tunnel_name = cred["tunnel"]["credentials_file"]["TunnelName"]
         except Exception as e:
             dtslogger.error("An error occurred while parsing the response from the Duckietown API")
             dtslogger.debug(f"Error:\n{str(e)}")
