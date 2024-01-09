@@ -1,10 +1,9 @@
 import argparse
 import atexit
 import json
-from typing import Optional
 
 import requests
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
 from dt_shell.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname, pretty_json

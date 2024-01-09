@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 from utils.docker_utils import (
     get_client_OLD,
     get_endpoint_architecture,
@@ -45,7 +46,8 @@ class DTCommand(DTCommandAbs):
 
         # spin up docker client
         docker = get_client_OLD(parsed.machine)
-        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=False)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        login_client_OLD(docker, credentials, registry_to_use, raise_on_error=False)
 
         # create defaults
         image = project.image(

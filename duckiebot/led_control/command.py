@@ -6,9 +6,8 @@ import subprocess
 
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import remove_if_running, pull_if_not_exist
+from utils.docker_utils import remove_if_running, pull_if_not_exist, get_client_OLD
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -73,7 +72,7 @@ LED control:
 
 
 def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
-    client = check_docker_environment()
+    client = get_client_OLD()
     container_name = "led_gui_%s" % hostname
     remove_if_running(client, container_name)
 
@@ -131,7 +130,7 @@ def run_gui_controller(hostname, image, duckiebot_ip, network_mode):
 # if it's the CLI may as well run it on the robot itself.
 def run_cli_controller(hostname, image, duckiebot_ip, network_mode, sim):
     if sim:
-        duckiebot_client = check_docker_environment()
+        duckiebot_client = get_client_OLD()
     else:
         duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
     container_name = "led_cli_%s" % hostname

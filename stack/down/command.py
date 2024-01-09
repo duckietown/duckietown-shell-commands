@@ -1,7 +1,6 @@
 import argparse
 import os
 import pathlib
-from shutil import which
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service

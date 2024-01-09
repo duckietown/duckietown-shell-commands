@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 
 from dtproject import DTProject
 from utils.docker_utils import (
@@ -50,8 +51,9 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client_OLD(parsed.machine)
 
-        copy_docker_env_into_configuration(shell.shell_config)
-        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=True)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        copy_docker_env_into_configuration(credentials)
+        login_client_OLD(docker, credentials, registry_to_use, raise_on_error=True)
 
         # tag
         version: str = project.distro

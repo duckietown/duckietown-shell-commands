@@ -4,8 +4,6 @@ import os
 from types import SimpleNamespace
 from typing import Optional, List
 
-from dt_shell.config import read_shell_config, ShellConfig
-
 from utils.challenges_utils import get_registry_from_challenges_server, get_challenges_server_to_use
 from dt_shell.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
@@ -168,15 +166,14 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Evaluating against challenge '{parsed.challenge}'...")
 
         # make sure we have the credentials to push to this registry
-        shell_cfg: ShellConfig = read_shell_config()
-        if registry_to_push not in shell_cfg.docker_credentials:
+        if not shell.profile.secrets.docker_credentials.contains(registry_to_push):
             dtslogger.error(
                 f"You have no credentials set for registry '{registry_to_push}', "
                 f"please use the command 'dts challenges config' fisrt"
             )
             exit(1)
-        registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
-        del registry_creds["secret"]
+        registry_creds: dict = shell.profile.secrets.docker_credentials.get(registry_to_push).dump()
+        del registry_creds["password"]
 
         # reuse username from credentials if none is given
         if parsed.username is None:

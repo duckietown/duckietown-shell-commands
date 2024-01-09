@@ -8,7 +8,6 @@ import docker
 
 import pytz
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.env_checks import check_docker_environment
 
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
@@ -16,7 +15,7 @@ from utils.docker_utils import (
     pull_if_not_exist,
     pull_image_OLD,
     remove_if_running,
-    get_registry_to_use,
+    get_registry_to_use, get_client_OLD,
 )
 
 from utils.duckietown_utils import get_distro_version
@@ -53,7 +52,7 @@ class DTCommand(DTCommandAbs):
         # compile image name
         # let's assume that if they specified an image name that we don't want to add the registry to it
         # this is need for dts exercises lab for example
-        client = check_docker_environment()
+        client = get_client_OLD()
         if parsed.image is None:
             REGISTRY = get_registry_to_use()
             image = REGISTRY + "/" + DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)

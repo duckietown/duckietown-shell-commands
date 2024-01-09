@@ -245,7 +245,7 @@ class DTCommand(DTCommandAbs):
                 "hostname": socket.gethostname(),
                 "user": getpass.getuser(),
                 "shell_version": shell_version,
-                "commands_version": shell.get_commands_version(),
+                "commands_version": shell.profile.distro.branch,
             },
             "modules": [
                 DOCKER_IMAGE_TEMPLATE(

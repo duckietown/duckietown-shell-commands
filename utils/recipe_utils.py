@@ -4,7 +4,7 @@ import time
 
 from dt_shell import dtslogger
 from dt_shell import UserError
-from dt_shell import version_check
+from dt_shell.checks.version import get_url
 from dt_shell.constants import DTShellConstants
 from dt_shell.utils import run_cmd
 
@@ -94,7 +94,7 @@ def recipe_needs_update(repository: str, branch: str, location: str) -> bool:
         dtslogger.info("Fetching remote SHA from github.com ...")
         remote_url: str = f"https://api.github.com/repos/{repository}/branches/{branch}"
         try:
-            content = version_check.get_url(remote_url)
+            content = get_url(remote_url)
             data = json.loads(content)
             remote_sha = data["commit"]["sha"]
         except Exception as e:

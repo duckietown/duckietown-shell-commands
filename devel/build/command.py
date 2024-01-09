@@ -14,6 +14,7 @@ from typing import Optional, List, Set
 import requests
 
 from dt_shell.exceptions import ShellNeedsUpdate
+from dt_shell.profile import DockerCredentials
 from utils.hub_utils import DTHUB_API_URL
 
 # NOTE: this is to avoid breaking the user workspace
@@ -37,11 +38,11 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_endpoint_ncpus,
     get_registry_to_use,
-    login_client,
     sanitize_docker_baseurl,
     ensure_docker_version,
     get_cloud_builder,
     pull_image,
+    login_client,
 )
 
 import dtproject
@@ -316,10 +317,9 @@ class DTCommand(DTCommandAbs):
 
         # login client (unless skipped)
         if parsed.login:
-            # TODO: fix this
-            copy_docker_env_into_configuration(shell.shell_config)
-            # TODO: fix this
-            login_client(docker, shell.shell_config, registry_to_use, raise_on_error=parsed.ci)
+            credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+            copy_docker_env_into_configuration(credentials)
+            login_client(docker, credentials, registry_to_use, raise_on_error=parsed.ci)
 
         # pick the right architecture if not set
         endpoint_arch: str = get_endpoint_architecture(parsed.machine)
