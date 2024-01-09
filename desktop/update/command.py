@@ -1,6 +1,7 @@
 import argparse
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     get_client_OLD,
@@ -82,7 +83,8 @@ class DTCommand(DTCommandAbs):
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client_OLD()
-        login_client_OLD(client, shell.shell_config, registry_to_use, raise_on_error=False)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        login_client_OLD(client, credentials, registry_to_use, raise_on_error=False)
         # do update
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")

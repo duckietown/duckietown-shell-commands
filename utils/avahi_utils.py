@@ -26,7 +26,8 @@ def wait_for_service(target_service: str, target_hostname: str = None, timeout: 
     while workspace.data is None:
         time.sleep(0.5)
         if (timeout > 0) and (time.time() - stime > timeout):
-            msg = f"No devices matched the search criteria (service={target_service}, hostname={target_hostname})."
+            msg = f"No devices matched the search criteria " \
+                  f"(service={target_service}, hostname={target_hostname})."
             zeroconf.close()
             raise TimeoutError(msg)
     zeroconf.close()
@@ -39,7 +40,8 @@ class DiscoverListener:
         self.service_in_callback = service_in_callback
         self.service_out_callback = service_out_callback
 
-    def _process_service(self, zeroconf, type, sname):
+    @staticmethod
+    def _process_service(zeroconf, type, sname):
         name = sname.replace("._duckietown._tcp.local.", "")
         service_parts = name.split("::")
         if len(service_parts) != 3 or service_parts[0] != "DT":

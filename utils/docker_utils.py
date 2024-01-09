@@ -1,7 +1,6 @@
 import os
-import platform
-import random
 import re
+import platform
 import subprocess
 import traceback
 from os.path import expanduser
@@ -12,12 +11,12 @@ import docker as dockerOLD
 from docker import DockerClient as DockerClientOLD
 from docker.errors import NotFound
 from dt_shell import dtslogger, UserError
-from dt_shell.config import ShellConfig
-from dt_shell.env_checks import check_docker_environment
 
 from dockertown import DockerClient
 from dockertown.components.image.models import LayerPullStatus
 from dockertown.exceptions import NoSuchImage
+
+from dt_shell.profile import DockerCredentials, GenericCredentials
 from dtproject.constants import CANONICAL_ARCH
 from dtproject.utils.misc import canonical_arch
 from .cli_utils import start_command_in_subprocess
@@ -148,15 +147,17 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
 
 def get_client(endpoint=None) -> DockerClient:
     if endpoint is None:
-        return dockertown.docker
+        return DockerClient()
     else:
         # create client
         return endpoint if isinstance(endpoint, DockerClient) else \
             DockerClient(host=sanitize_docker_baseurl(endpoint))
 
 
-def get_client_OLD(endpoint=None) -> DockerClientOLD:
-    if endpoint is None:
+def get_client_OLD(endpoint: Union[None, str, DockerClientOLD] = None) -> DockerClientOLD:
+    if isinstance(endpoint, DockerClientOLD):
+        return endpoint
+    elif endpoint is None:
         client = dockerOLD.from_env(timeout=DEFAULT_API_TIMEOUT)
     else:
         # create client
@@ -194,30 +195,29 @@ def get_remote_client(duckiebot_ip: str, port: str = DEFAULT_DOCKER_TCP_PORT) ->
     return client
 
 
-def copy_docker_env_into_configuration(
-        shell_config: ShellConfig, registry: Optional[str] = None, quiet: bool = False
-):
+def copy_docker_env_into_configuration(credentials: DockerCredentials, registry: Optional[str] = None,
+                                       quiet: bool = False):
     registry = registry or get_registry_to_use(quiet)
     try:
         env_username, env_password = get_docker_auth_from_env()
     except AuthNotFound:
         pass
     else:
-        shell_config.docker_credentials[registry] = {"username": env_username, "secret": env_password}
+        credentials.set(registry, GenericCredentials(username=env_username, password=env_password))
 
 
 class CouldNotLogin(Exception):
     pass
 
 
-def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registry: str, raise_on_error: bool):
+def login_client_OLD(client: DockerClientOLD, credentials: DockerCredentials, registry: str,
+                     raise_on_error: bool):
     """Raises CouldNotLogin"""
-    if registry not in shell_config.docker_credentials:
+    if not credentials.contains(registry):
         msg = f"Cannot find {registry!r} in available config credentials.\n"
-        msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
+        msg += f"I have credentials for {list(credentials.keys())}\n"
         msg += (
-            f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
-            f"--docker-password ...\n"
+            f"Use:\n  dts config docker credentials set --username ... --password ... [server]\n"
         )
         msg += "\nfor each of the servers"
 
@@ -229,14 +229,11 @@ def login_client_OLD(client: DockerClientOLD, shell_config: ShellConfig, registr
             dtslogger.warn("I will try to continue because raise_on_error = False.")
 
     else:
-        reg_credentials = shell_config.docker_credentials[registry]
-        docker_username = reg_credentials["username"]
-        docker_password = reg_credentials["secret"]
-
+        creds = credentials.get(registry)
         _login_client_OLD(
             client,
-            username=docker_username,
-            password=docker_password,
+            username=creds.username,
+            password=creds.password,
             registry=registry,
             raise_on_error=raise_on_error,
         )
@@ -299,7 +296,7 @@ def pull_image(image: str, endpoint: Union[None, str, DockerClient] = None, prog
 
 
 # TODO: this should be removed
-def pull_image_OLD(image: str, endpoint: str = None, progress=True):
+def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
     layers = set()
     pulled = set()
@@ -418,7 +415,7 @@ def run_image_on_duckiebot(image_name, duckiebot_name, env=None, volumes=None):
 
 def record_bag(duckiebot_name, duration):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    local_client = check_docker_environment()
+    local_client = get_client_OLD()
     dtslogger.info("Starting bag recording...")
     parameters = {
         "image": RPI_DUCKIEBOT_BASE,
@@ -440,7 +437,7 @@ def record_bag(duckiebot_name, duration):
 
 def run_image_on_localhost(image_name, duckiebot_name, container_name, env=None, volumes=None):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    local_client = check_docker_environment()
+    local_client = get_client_OLD()
 
     env_vars = default_env(duckiebot_name, duckiebot_ip)
 
@@ -533,7 +530,7 @@ def start_rqt_image_view(duckiebot_name=None):
     dtslogger.info(
         """{}\nOpening a camera feed by running xhost+ and running rqt_image_view...""".format("*" * 20)
     )
-    local_client = check_docker_environment()
+    local_client = get_client_OLD()
 
     local_client.images.pull(RPI_GUI_TOOLS)
     env_vars = {"QT_X11_NO_MITSHM": 1}
@@ -572,7 +569,7 @@ def start_rqt_image_view(duckiebot_name=None):
 
 def start_gui_tools(duckiebot_name):
     duckiebot_ip = get_duckiebot_ip(duckiebot_name)
-    local_client = check_docker_environment()
+    local_client = get_client_OLD()
     operating_system = platform.system()
 
     local_client.images.pull(RPI_GUI_TOOLS)
@@ -695,88 +692,73 @@ def remove_escapes(s):
     return escape.sub("", s)
 
 
-try:
-    import dockertown
+def login_client(client: DockerClient, credentials: DockerCredentials, registry: str, raise_on_error: bool):
+    """Raises CouldNotLogin"""
+    if not credentials.contains(registry):
+        msg = f"Cannot find {registry!r} in available config credentials.\n"
+        msg += f"I have credentials for {list(credentials.keys())}\n"
+        msg += (
+            f"Use:\n  dts config docker credentials set --username ... --password ... [server]\n"
+        )
+        msg += "\nfor each of the servers"
 
-    _dockertown_available: bool = True
-except ImportError:
-    dtslogger.warning("Some functionalities are disabled until you update your shell to v5.4.0+")
-    _dockertown_available: bool = False
-
-if _dockertown_available:
-    from dockertown import DockerClient
-
-
-    def login_client(client: DockerClient, shell_config: ShellConfig, registry: str, raise_on_error: bool):
-        """Raises CouldNotLogin"""
-        if registry not in shell_config.docker_credentials:
-            msg = f"Cannot find {registry!r} in available config credentials.\n"
-            msg += f"I have credentials for {list(shell_config.docker_credentials)}\n"
-            msg += (
-                f"Use:\n  dts challenges config --docker-server ... --docker-username ... "
-                f"--docker-password ...\n"
-            )
-            msg += "\nfor each of the servers"
-
-            if raise_on_error:
-                dtslogger.error(msg)
-                raise CouldNotLogin(f"Could not login to {registry!r}.")
-            else:
-                dtslogger.warn(msg)
-                dtslogger.warn("I will try to continue because raise_on_error = False.")
-
+        if raise_on_error:
+            dtslogger.error(msg)
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
         else:
-            reg_credentials = shell_config.docker_credentials[registry]
-            docker_username = reg_credentials["username"]
-            docker_password = reg_credentials["secret"]
+            dtslogger.warn(msg)
+            dtslogger.warn("I will try to continue because raise_on_error = False.")
 
-            _login_client(
-                client,
-                username=docker_username,
-                password=docker_password,
-                registry=registry,
-                raise_on_error=raise_on_error,
-            )
+    else:
+        creds = credentials.get(registry)
 
-
-    def _login_client(
-            client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
-    ):
-        """Raises CouldNotLogin"""
-        password_hidden = hide_string(password)
-        dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
-        # noinspection PyBroadException
-        try:
-            # TODO: add silent=True to dockertown/dockertown
-            client.login(server=registry, username=username, password=password)
-        except BaseException:
-            if raise_on_error:
-                traceback.print_exc()
-                raise CouldNotLogin(f"Could not login to {registry!r}.")
+        _login_client(
+            client,
+            username=creds.username,
+            password=creds.password,
+            registry=registry,
+            raise_on_error=raise_on_error,
+        )
 
 
-    def ensure_docker_version(client: DockerClient, v: str):
-        version = client.version()
-        vnow_str = version["Server"]["Version"]
-        vnow = parse_version(vnow_str)
-        if v.endswith("+"):
-            vneed_str = v.rstrip("+")
-            vneed = parse_version(vneed_str)
-            if vnow < vneed:
-                msg = f"""
-    
-                Detected Docker Engine {vnow_str} but this command needs Docker Engine >= {vneed_str}.
-                Please, update your Docker Engine before continuing.
-    
-                """
-                raise UserError(msg)
-        else:
-            vneed = parse_version(v)
-            if vnow != vneed:
-                msg = f"""
-    
-                Detected Docker Engine {vnow_str} but this command needs Docker Engine == {v}.
-                Please, install the correct version before continuing.
-    
-                """
-                raise UserError(msg)
+def _login_client(
+        client: DockerClient, registry: str, username: str, password: str, raise_on_error: bool = True
+):
+    """Raises CouldNotLogin"""
+    password_hidden = hide_string(password)
+    dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}`")
+    # noinspection PyBroadException
+    try:
+        # TODO: add silent=True to dockertown/dockertown
+        client.login(server=registry, username=username, password=password)
+    except BaseException:
+        if raise_on_error:
+            traceback.print_exc()
+            raise CouldNotLogin(f"Could not login to {registry!r}.")
+
+
+def ensure_docker_version(client: DockerClient, v: str):
+    version = client.version()
+    vnow_str = version["Server"]["Version"]
+    vnow = parse_version(vnow_str)
+    if v.endswith("+"):
+        vneed_str = v.rstrip("+")
+        vneed = parse_version(vneed_str)
+        if vnow < vneed:
+            msg = f"""
+
+            Detected Docker Engine {vnow_str} but this command needs Docker Engine >= {vneed_str}.
+            Please, update your Docker Engine before continuing.
+
+            """
+            raise UserError(msg)
+    else:
+        vneed = parse_version(v)
+        if vnow != vneed:
+            msg = f"""
+
+            Detected Docker Engine {vnow_str} but this command needs Docker Engine == {v}.
+            Please, install the correct version before continuing.
+
+            """
+            raise UserError(msg)

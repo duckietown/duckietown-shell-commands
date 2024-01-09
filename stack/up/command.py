@@ -1,7 +1,6 @@
 import argparse
 import os
 import pathlib
-from shutil import which
 
 import yaml
 from docker.errors import NotFound

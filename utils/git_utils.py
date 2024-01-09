@@ -53,7 +53,7 @@ def clone_unlinked_repo(repo: str, branch: str, destination: str, name: str = No
         dtslogger.debug(f"Moving '{project_path}' to '{mv_dir}' ...")
         try:
             os.rename(project_path, mv_dir)
-        except OSError as e:
+        except OSError:
             raise UserError(f"The '{repo}' repo already exists in '{mv_dir}'.")
         return mv_dir
 

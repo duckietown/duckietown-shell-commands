@@ -3,7 +3,6 @@ import argparse
 import docker
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.env_checks import check_docker_environment
 from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
@@ -119,8 +118,6 @@ class DTCommand(DTCommandAbs):
 
         parsed = parser.parse_args(args)
 
-        check_docker_environment()
-
         if parsed.demo_name is None:
             if parsed.package_name is not None:
                 msg = "You must specify a --demo_name together with the --package_name option."
@@ -161,7 +158,7 @@ class DTCommand(DTCommandAbs):
 
         duckiebot_ip = get_duckiebot_ip(duckiebot_name)
         if parsed.local:
-            duckiebot_client = check_docker_environment()
+            duckiebot_client = docker.from_env()
         else:
             duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
 

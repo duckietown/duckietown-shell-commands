@@ -41,7 +41,7 @@ def format_matrix(
         for col_format, col in zip(zip(*table_format), zip(*table))
     ]
     # add header separator
-    print_table = [print_table[0], ["-" * l for l in col_widths]] + print_table[1:]
+    print_table = [print_table[0], ["-" * ln for ln in col_widths]] + print_table[1:]
     # print table
     return row_delim.join(
         col_delim.join(fmt(format, cell, width) for format, cell, width in zip(row_format, row, col_widths))

@@ -3,6 +3,7 @@ import argparse
 from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 from utils.docker_utils import (
     get_client_OLD,
     get_endpoint_architecture,
@@ -61,7 +62,8 @@ class DTCommand(DTCommandAbs):
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client_OLD(hostname)
-        login_client_OLD(client, shell.shell_config, registry_to_use, raise_on_error=False)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        login_client_OLD(client, credentials, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update

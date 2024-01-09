@@ -41,9 +41,9 @@ def check_enough_disk(value: Union[str, float]) -> Optional[bool]:
             return True
         else:
             return False
-    except Exception as e:
+    except Exception as exc:
         dtslogger.warning(
-            ("Unable to determine whether sufficient disk space is present. " f"Error details: {e}")
+            f"Unable to determine whether sufficient disk space is present. Error details: {exc}"
         )
 
 
@@ -70,9 +70,9 @@ if __name__ == "__main__":
         test_val = sys.argv[1]
 
         # usage example
-        res = check_enough_disk(test_val)
-        if res is not None:
-            print(f"Enough disk space for <{test_val} Bytes>? [{res}]")
+        result = check_enough_disk(test_val)
+        if result is not None:
+            print(f"Enough disk space for <{test_val} Bytes>? [{result}]")
 
     except Exception as e:
         print(f"Error testing. Details: {e}")
