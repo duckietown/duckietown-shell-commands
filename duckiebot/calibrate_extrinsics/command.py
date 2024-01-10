@@ -1,7 +1,5 @@
 import argparse
 
-from past.builtins import raw_input
-
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import (
     bind_duckiebot_data_dir,
@@ -57,7 +55,7 @@ Calibrate:
         image = CALIBRATE_IMAGE.format(distro=distro, arch=arch)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
-        raw_input(f"{'*' * 20}\nPlace the Duckiebot on the calibration pattern and press ENTER.")
+        input(f"{'*' * 20}\nPlace the Duckiebot on the calibration pattern and press ENTER.")
         dtslogger.info("Running extrinsics calibration...")
 
         env = default_env(parsed.duckiebot, duckiebot_ip)
@@ -77,7 +75,7 @@ Calibrate:
         dtslogger.info("Done!")
 
         if not parsed.no_verification:
-            raw_input(f"{'*' * 20}\nPlace the Duckiebot in a lane and press ENTER.")
+            input(f"{'*' * 20}\nPlace the Duckiebot in a lane and press ENTER.")
             dtslogger.info("Running extrinsics calibration validation...")
 
             duckiebot_client.containers.run(
