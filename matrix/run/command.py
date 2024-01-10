@@ -116,6 +116,12 @@ class DTCommand(DTCommandAbs):
             help="Do not attempt to update the engine container image"
         )
         parser.add_argument(
+            "--expose-ports",
+            default=False,
+            action="store_true",
+            help="Expose all the ports with the host"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
