@@ -1,5 +1,6 @@
 import glob
 import os
+import platform
 import re
 import sys
 from typing import List, Optional
@@ -67,7 +68,18 @@ def get_path_to_binary(version: str):
     app_dir = get_path_to_install(version)
     if app_dir is None:
         return None
-    return os.path.join(app_dir, f"{APP_NAME}.x86_64")
+    system: str = platform.system()
+    ext: str
+    if system == "Linux":
+        ext = "x86_64"
+    elif system == "Darwin":
+        ext = "app"
+    elif system == "Windows":
+        ext = "exe"
+    else:
+        raise ValueError(f"Unknown platform '{system}'")
+    # ---
+    return os.path.join(app_dir, f"{APP_NAME}.{ext}")
 
 
 def is_version_released(version: str, os_family: str = None) -> bool:
