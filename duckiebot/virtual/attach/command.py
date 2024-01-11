@@ -6,7 +6,7 @@ import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.git_utils import clone_repository
-
+from utils.networking_utils import get_duckiebot_ip
 class DTCommand(DTCommandAbs):
 
     help = "Connects a terminal to a Virtual Duckiebot"
@@ -15,9 +15,14 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts duckiebot virtual attach"
         parser = argparse.ArgumentParser(prog=prog)
+        default_listen_addr = "172.17.0.1"
+        default_fdm_addr = "172.17.0.1"
+
         # define arguments
         parser.add_argument("robot", nargs=1, help="Name of the Robot to connect to")
         parser.add_argument("--gazebo", action="store_true", help="Connect to the Gazebo simulation instead of the Duckiematrix (available for Duckiedrones only)")
+        parser.add_argument("--listen-addr", default=default_listen_addr, help=f"Address of the host machine (default: {default_listen_addr})")
+        parser.add_argument("--fdm-address", help="Address of the FDM (Flight Dynamics Model) to connect to (default: <robot>.local)")
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments
@@ -29,20 +34,31 @@ class DTCommand(DTCommandAbs):
         except docker.errors.NotFound:
             dtslogger.error(f"No running virtual robot found with name '{parsed.robot}'")
             return
+        repo_name = "duckietown/vehicle_gateway"
+        destination_dir = "/tmp"
+
         # Clone the GitHub repository `duckietown/vehicle_gateway` to a temporary folder
-        dtslogger.info("Cloning the GitHub repository `duckietown/vehicle_gateway` to a temporary folder")
-        
+        dtslogger.info(f"Cloning the GitHub repository {repo_name} to {destination_dir}")
+
         # If the repo is already cloned, delete it
-        if os.path.exists("/tmp/vehicle_gateway"):
-            run(["rm", "-rf", "/tmp/vehicle_gateway"])
-        repo_dir = clone_repository("duckietown/vehicle_gateway", "ente", "/tmp")
+        full_repo_path = os.path.join(destination_dir + "/vehicle_gateway")
+        if os.path.exists(full_repo_path):
+            run(["rm", "-rf", full_repo_path])
+
+        repo_dir = clone_repository(repo_name, "ente", destination_dir)
 
         # Run the command `docker compose up` in the `repo_dir` folder, with environment variables VEH set to parsed.robot and ROS_IP set to the hostname of the local machine + .local
         hostname: str = run(["hostname"], stdout=PIPE).stdout.decode("utf-8")
         # Remove the newline character from the hostname
         hostname = hostname.splitlines()[0]
 
-        _ENV = {'VEH': parsed.robot, 'ROS_IP': hostname+'.local', 'DISPLAY': os.environ['DISPLAY']}
+        _ENV = {
+            "VEH": parsed.robot,
+            "ROS_IP": hostname + ".local",
+            "DISPLAY": os.environ["DISPLAY"],
+            "LISTEN_ADDR": parsed.listen_addr,
+            "FDM_ADDR": parsed.fdm_address if parsed.fdm_address else get_duckiebot_ip(parsed.robot),
+        }
 
         dtslogger.info(f"Running the command `docker compose up` in the {repo_dir} folder, with environment variables {_ENV}")
         # Enable the X server connection by running `xhost +local:root`
@@ -54,4 +70,3 @@ class DTCommand(DTCommandAbs):
             print(e.stderr)
         # Disable the X server connection by running `xhost -local:root`
         run(["xhost", "-local:root"])
-        
