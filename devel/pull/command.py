@@ -2,6 +2,7 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 from utils.docker_utils import (
     get_client_OLD,
     get_endpoint_architecture,
@@ -17,37 +18,9 @@ class DTCommand(DTCommandAbs):
     help = "Pulls the images relative to the current project"
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to push",
-        )
-        parser.add_argument(
-            "-a",
-            "--arch",
-            default=None,
-            help="Target architecture for the image to push",
-        )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=None,
-            help="Docker socket or hostname from where to push the image",
-        )
-        parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
-        )
-
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = DTCommand._parse_args(args)
+        parser: argparse.ArgumentParser = DTCommand.parser
+        parsed, _ = parser.parse_known_args(args=args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
@@ -66,14 +39,16 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
         # tag
-        version = project.version_name
+        version = project.distro
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
 
         # spin up docker client
         docker = get_client_OLD(parsed.machine)
-        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=False)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        login_client_OLD(docker, credentials, registry_to_use, raise_on_error=False)
+
         # create defaults
         image = project.image(
             arch=parsed.arch, registry=registry_to_use, owner=DEFAULT_OWNER, version=version

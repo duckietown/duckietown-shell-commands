@@ -128,8 +128,8 @@ class DTCommand(DTCommandAbs):
             quiet=parsed.quiet,
             build_arg=build_arg,
         )
-        dtslogger.debug(f"Building with 'devel/buildx' using args: {buildx_namespace}")
-        return shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+        dtslogger.debug(f"Building with 'devel/build' using args: {buildx_namespace}")
+        return shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
 
     @staticmethod
     def complete(shell, word, line):

@@ -3,10 +3,10 @@ import atexit
 import json
 
 import requests
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
-from utils.exceptions import ShellNeedsUpdate
-from utils.misc_utils import sanitize_hostname
+from dt_shell.exceptions import ShellNeedsUpdate
+from utils.misc_utils import sanitize_hostname, pretty_json
 from utils.networking_utils import get_duckiebot_ip
 
 # NOTE: this is to avoid breaking the user workspace
@@ -65,13 +65,22 @@ class DTCommand(DTCommandAbs):
 
         # Set up the tunnel
         robot_id: str = get_robot_id(robot_hostname)
-        dt_token = shell.shell_config.token_dt1
-        if dt_token is None:
-            raise UserError("Please set your Duckietown token using the command 'dts tok set'")
+        dt_token: str = shell.profile.secrets.dt_token
         cred: dict = create_cloudflare_tunnel(robot_id, dt_token)
-        tunnel_token: str = cred["tunnel"]["token"]
-        tunnel_dns: str = cred["dns"][0]
-        tunnel_name: str = cred["tunnel"]["credentials_file"]["TunnelName"]
+
+        tunnel_token: str = "NOTSET"
+        tunnel_dns: str = "NOTSET"
+        tunnel_name: str = "NOTSET"
+
+        try:
+            tunnel_token = cred["tunnel"]["token"]
+            tunnel_dns = cred["dns"][0]
+            tunnel_name = cred["tunnel"]["credentials_file"]["TunnelName"]
+        except Exception as e:
+            dtslogger.error("An error occurred while parsing the response from the Duckietown API")
+            dtslogger.debug(f"Error:\n{str(e)}")
+            dtslogger.debug(f"API response:\n{pretty_json(cred, indent=4)}")
+            exit(1)
 
         # Set up docker
         robot_client = get_remote_client(robot_ip)
@@ -122,14 +131,18 @@ class DTCommand(DTCommandAbs):
 def create_cloudflare_tunnel(robot_id: str, dt_token: str) -> dict:
     creation_url: str = f"{API_CREATE_URL}?robot={robot_id}&service=ssh"
     try:
-        cred_response = requests.get(creation_url, headers={"Authorization": f"Token {dt_token}"})
-        cred = cred_response.json()
-        dtslogger.debug(f"Tunnel endpoint returned: \n\n {cred}")
+        tunnel_response = requests.get(creation_url, headers={"Authorization": f"Token {dt_token}"})
+        tunnel = tunnel_response.json()
+        dtslogger.debug(f"Tunnel endpoint returned:\n{pretty_json(tunnel, indent=4)}")
 
-        return cred["result"]
+        # TODO: update API endpoint to return code outside of "errors"
+        # if not tunnel["success"]:
+        #
+
+        return tunnel["result"]
 
     except ConnectionError as e:
-        dtslogger.error(f"There was a problem reaching the DT API: {e}")
+        dtslogger.error(f"There was a problem reaching the Duckietown API: {e}")
 
 
 def get_robot_id(hostname: str) -> str:

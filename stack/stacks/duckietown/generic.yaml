@@ -2,12 +2,13 @@ version: '3.2'
 services:
 
   portainer:
-    image: docker.io/portainer/portainer:1.24.1-alpine
+    image: docker.io/duckietown/portainer:ente-${ARCH}
     container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
     network_mode: host
     volumes:
+      - portainer-data:/data
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -118,3 +119,4 @@ services:
 
 volumes:
   compose-data:
+  portainer-data:

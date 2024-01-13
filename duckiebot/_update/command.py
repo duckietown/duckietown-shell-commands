@@ -230,7 +230,6 @@ class DTCommand(DTCommandAbs):
         max_checkpoints = 12
         checkpoint_every_sec = 10
         first_contact_time = None
-        code_status = {}
         code_api_url = functools.partial(DTCommand.get_code_api_url, parsed, code_api_port)
         dtslogger.info("Waiting for the dt-code-api module...")
         while True:

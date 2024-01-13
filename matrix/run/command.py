@@ -4,7 +4,7 @@ import time
 from typing import Optional, Callable
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from matrix.engine.run import MatrixEngine
+from ..engine.run.command import MatrixEngine
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
@@ -114,6 +114,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
+            "--expose-ports",
+            default=False,
+            action="store_true",
+            help="Expose all the ports with the host"
         )
         parser.add_argument(
             "-vv",

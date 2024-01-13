@@ -8,13 +8,12 @@ from typing import List
 
 from cli.command import _run_cmd
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment
+from utils.docker_utils import get_client_OLD
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args: List[str]):
-        check_package_version("duckietown-docker-utils-ente", "6.0.78")
         from duckietown_docker_utils import generic_docker_run, ENV_REGISTRY
 
         parser = argparse.ArgumentParser(prog="dts challenges")
@@ -51,14 +50,9 @@ class DTCommand(DTCommandAbs):
             # move over to the custom workdir
             os.chdir(parsed.workdir)
 
-        if action == "config":
-            rest = list(rest)
-            rest.remove("config")
-            return command_config(shell, rest)
-
         # dtslogger.info(str(dict(args=args, parsed=parsed, rest=rest)))
-        dt1_token = shell.get_dt1_token()
-        client = check_docker_environment()
+        token: str = shell.profile.secrets.dt_token
+        client = get_client_OLD()
 
         docker_credentials = shell.shell_config.docker_credentials
 
@@ -125,7 +119,7 @@ class DTCommand(DTCommandAbs):
                 entrypoint=parsed.entrypoint,
                 docker_secret=None,
                 docker_username=None,
-                dt1_token=dt1_token,
+                dt1_token=token,
                 development=development,
                 container_name=container_name,
                 pull=not parsed.no_pull,
@@ -144,35 +138,3 @@ class DTCommand(DTCommandAbs):
             msg = f"Execution of docker image failed. Return code: {gdr.retcode}."
             msg += f"\n\nThe log is available at {logname}"
             raise UserError(msg)
-
-
-def command_config(shell: DTShell, args: List[str]):
-    parser = argparse.ArgumentParser(prog="dts challenges config")
-    parser.add_argument(
-        "--docker-registry", "--docker-server", dest="server", help="Docker server", default="docker.io"
-    )
-    parser.add_argument("--docker-username", dest="username", help="Docker username", required=True)
-    parser.add_argument(
-        "--docker-password", dest="password", help="Docker password or Docker token", required=True
-    )
-    parsed = parser.parse_args(args)
-
-    username = parsed.username
-    password = parsed.password
-
-    server = parsed.server
-
-    if server not in shell.shell_config.docker_credentials:
-        shell.shell_config.docker_credentials[server] = {}
-    if username is not None:
-        shell.shell_config.docker_username = username
-        shell.shell_config.docker_credentials[server]["username"] = username
-    if password is not None:
-        shell.shell_config.docker_password = password
-        shell.shell_config.docker_credentials[server]["secret"] = password
-
-    shell.save_config()
-    # if username is None and password is None:
-    #     msg = "You should pass at least one parameter."
-    #     msg += "\n\n" + parser.format_help()
-    #     raise UserError(msg)

@@ -25,12 +25,10 @@ import requests
 from docker import DockerClient
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from duckietown_docker_utils import continuously_monitor
 from requests import ReadTimeout
 from dtproject import DTProject
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import ensure_command_is_installed, start_command_in_subprocess
 from utils.docker_utils import (
     get_registry_to_use,
@@ -38,7 +36,7 @@ from utils.docker_utils import (
     pull_if_not_exist,
     pull_image_OLD,
     remove_if_running,
-    get_endpoint_architecture_from_client_OLD,
+    get_endpoint_architecture_from_client_OLD, get_client_OLD,
 )
 from utils.exceptions import InvalidUserInput
 from utils.misc_utils import sanitize_hostname, indent_block
@@ -345,6 +343,8 @@ class DTCommand(DTCommandAbs):
             help="Use the NVIDIA runtime (experimental).",
         )
 
+        from duckietown_docker_utils import continuously_monitor
+
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -452,7 +452,7 @@ class DTCommand(DTCommandAbs):
         #     raise Exception(msg) from e
 
         # get the local docker client
-        local_client = check_docker_environment()
+        local_client = get_client_OLD()
 
         # get local architecture
         local_arch: str = get_endpoint_architecture_from_client_OLD(local_client)
@@ -519,14 +519,17 @@ class DTCommand(DTCommandAbs):
         if has_agent:
             # get agent's architecture and image name
             agent_arch = get_endpoint_architecture_from_client_OLD(agent_client)
-            agent_image = project.image(registry=parsed.registry, arch=agent_arch, owner=username)
+            agent_image = project.image(
+                arch=agent_arch,
+                registry=parsed.registry,
+                owner=username,
+                version=project.distro
+            )
 
             # docker container specifications for simulator and experiment manager
             if use_challenge:
-                # make sure the token is set
-                token = shell.shell_config.token_dt1
-                if token is None:
-                    raise UserError("Please set token using the command 'dts tok set'")
+                # get the token
+                token: str = shell.profile.secrets.dt_token
                 # get container specs from the challenges server
                 images = get_challenge_images(challenge=challenge, step=settings.step, token=token)
                 sim_spec = images["simulator"]
@@ -546,7 +549,12 @@ class DTCommand(DTCommandAbs):
             bridge_image = docker_image(BRIDGE_IMAGE, parsed.registry)
 
         ros_image = docker_image(ROSCORE_IMAGE, parsed.registry)
-        vnc_image = project.image(registry=parsed.registry, arch=local_arch, owner=username, extra="vnc")
+        vnc_image = project.image_vnc(
+            arch=local_arch,
+            registry=parsed.registry,
+            owner=username,
+            version=project.distro
+        )
 
         # define container and network names
         prefix = f"ex-{exercise_name}"
@@ -1352,9 +1360,10 @@ def launch_agent(
         # when we run remotely, use /launch/<project> as root
         root = recipe.path if agent_is_local else f"/launch/{recipe.name}"
         # get local and remote paths to launchers
-        local_launch, destination_launch = recipe.launch_paths(root)
-        if agent_is_remote or os.path.exists(local_launch):
-            agent_volumes[local_launch] = {"bind": destination_launch, "mode": "rw"}
+        local_launch_dirs, destination_launch_dirs = recipe.launch_paths(root)
+        for local_launch_dir, destination_launch_dir in zip(local_launch_dirs, destination_launch_dirs):
+            if agent_is_remote or os.path.exists(local_launch_dir):
+                agent_volumes[local_launch_dir] = {"bind": destination_launch_dir, "mode": "rw"}
 
     # - mount assets (from project (aka meat))
     if agent_is_local:

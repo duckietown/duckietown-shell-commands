@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   portainer:
-    image: docker.io/portainer/portainer:1.24.1-alpine
+    image: docker.io/duckietown/portainer:ente-${ARCH}
     container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
@@ -11,6 +11,21 @@ services:
       - portainer-data:/data
       # docker socket
       - /var/run/docker.sock:/var/run/docker.sock
+
+  dtps:
+    image: ${REGISTRY}/duckietown/dtps-switchboard:latest
+    container_name: dtps
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      RUST_LOG: "warn,dtps_http=debug"
+    # TODO: this should be shared between containers
+    tmpfs:
+      - /dtps
+    command: --tcp-port 11511 --tcp-host 0.0.0.0 --unix-path /dtps/nodes/switchboard
+    volumes:
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   dashboard:
     image: ${REGISTRY}/duckietown/dt-device-dashboard:ente-${ARCH}
@@ -103,6 +118,8 @@ services:
     network_mode: host
     privileged: true
     pid: host
+    environment:
+      DT_SUPERUSER: 1
     volumes:
       - /data:/data
       # avahi socket
@@ -111,10 +128,12 @@ services:
       - /tmp:/tmp
 
   car-interface:
-    image: ${REGISTRY}/duckietown/dt-car-interface:ente-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
     container_name: car-interface
     restart: unless-stopped
     network_mode: host
+    environment:
+      DT_LAUNCHER: default-duckiebot
     volumes:
       - /data:/data
       # avahi socket

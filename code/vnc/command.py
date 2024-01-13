@@ -5,7 +5,7 @@ from typing import Optional
 
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -156,8 +156,8 @@ class DTCommand(DTCommandAbs):
                     verbose=parsed.verbose,
                     quiet=not parsed.verbose,
                 )
-                dtslogger.debug(f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}")
-                shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+                dtslogger.debug(f"Calling command 'devel/build' " f"with arguments: {str(buildx_namespace)}")
+                shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
                 dtslogger.info(f"VNC for project '{project.name}' successfully built!")
             else:
                 if not parsed.build_only:

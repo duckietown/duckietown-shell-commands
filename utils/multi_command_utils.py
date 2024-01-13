@@ -69,7 +69,8 @@ class MultiCommand(object):
             sys.stdout = _sys_stdout
             dtslogger.setLevel(_log_level)
 
-    def _log(self, msg):
+    @staticmethod
+    def _log(msg):
         dtslogger.setLevel(logging.INFO)
         dtslogger.info(msg)
         dtslogger.setLevel(logging.ERROR)

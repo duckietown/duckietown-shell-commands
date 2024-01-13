@@ -1,11 +1,13 @@
 import argparse
 import logging
 import os
+import platform
 import subprocess
 import time
 from threading import Thread
-from typing import Optional
+from typing import Optional, Dict
 
+import yaml
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
@@ -17,10 +19,21 @@ from utils.duckietown_utils import get_distro_version
 DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-amd64"
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 
-DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {
-    "network_mode": "host"
-}
+DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {}
 MAX_RENDERERS = 4
+
+DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
+    "world-control-out-port": 7501,
+    "matrix-control-out-port": 7502,
+    "matrix-data-out-port": 17510,
+    "matrix-data-in-port": 17511,
+    "world-data-out-port": 17512,
+    "world-data-in-port": 17513,
+    "robot-data-out-port": 17514,
+    "robot-data-in-port": 17515,
+    "layer-data-out-port": 17516,
+    "layer-data-in-port": 17517,
+}
 
 
 class MatrixEngine:
@@ -84,8 +97,11 @@ class MatrixEngine:
             "stdout": True,
             "stderr": True,
             "environment": {
-                "PYTHONUNBUFFERED": "1"
+                "PYTHONUNBUFFERED": "1",
+                "IMPERSONATE_UID": os.getuid(),
+                "IMPERSONATE_GID": os.getgid(),
             },
+            "ports": {},
             "name": f"dts-matrix-engine"
         }
         engine_config.update(DUCKIEMATRIX_ENGINE_IMAGE_CONFIG)
@@ -122,6 +138,30 @@ class MatrixEngine:
         # debug mode
         if dtslogger.level <= logging.DEBUG:
             engine_config["command"] += ["--debug"]
+        # (MacOS only) privileged mode
+        if platform.system() == "Darwin":
+            engine_config["privileged"] = True
+        # (MacOS only) expose ports defined in the connector_ports layer
+        if platform.system() == "Darwin" or parsed.expose_ports:
+            connector_ports: Dict[str, int] = {}
+            if map_dir is not None:
+                # we are using a custom map
+                connector_ports_fpath: str = os.path.join(map_dir, "connector_ports.yaml")
+                if os.path.isfile(connector_ports_fpath):
+                    with open(connector_ports_fpath, "rt") as fin:
+                        connector_ports = yaml.safe_load(fin).get("connector_ports", {})
+            else:
+                # we are using the sandbox map
+                connector_ports = DEFAULT_STATIC_NETWORK_PORTS
+            # add ports to the engine configuration
+            for name, port in connector_ports.items():
+                # expose port to the host
+                engine_config["ports"][f"{port}/tcp"] = port
+                # configure the engine to use this port
+                engine_config["command"] += [f"--{name}", str(port)]
+        # (Linux only) use network mode host
+        if platform.system() == "Linux" and not parsed.expose_ports:
+            engine_config["network_mode"] = "host"
         # run engine container
         dtslogger.debug(engine_config)
         self.config = engine_config
@@ -279,6 +319,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Do not attempt to update the engine container image"
+        )
+        parser.add_argument(
+            "--expose-ports",
+            default=False,
+            action="store_true",
+            help="Expose all the ports with the host"
         )
         parser.add_argument(
             "-vv",

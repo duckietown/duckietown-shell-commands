@@ -111,13 +111,9 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
         # get the token if it is set
-        token = parsed.token
+        token: str = parsed.token
         if token is None:
-            # noinspection PyBroadException
-            try:
-                token = shell.get_dt1_token()
-            except Exception:
-                pass
+            token = shell.profile.secrets.dt_token
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)

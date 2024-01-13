@@ -10,12 +10,11 @@ from typing import Tuple, List, Optional, Set
 from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
-from update import DISTRO
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
-from dtproject import DTProject
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dtproject import DTProject
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -36,13 +35,14 @@ DCSS_RSA_SECRET_SPACE = "private"
 SSH_USERNAME = "duckie"
 CLOUD_BUILD_ARCH = "amd64"
 
-DEFAULT_LIBRARY_HOSTNAME = "staging-docs.duckietown.com"
-DEFAULT_LIBRARY_DISTRO = DISTRO
+DEFAULT_LIBRARY_HOSTNAME = "docs.duckietown.com"
+LIBRARY_HOSTNAME = os.environ.get("DT_LIBRARY_HOSTNAME", DEFAULT_LIBRARY_HOSTNAME)
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
+    "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
+    "template-ros": {"4", },
 }
 
 
@@ -112,7 +112,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--library",
             type=str,
-            default=DEFAULT_LIBRARY_HOSTNAME,
+            default=LIBRARY_HOSTNAME,
             help="Hostname of the website hosting the library to link to, e.g., 'docs.duckietown.com'",
         )
         parser.add_argument(
@@ -143,6 +143,9 @@ class DTCommand(DTCommandAbs):
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
+
+        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
 
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
@@ -214,13 +217,14 @@ class DTCommand(DTCommandAbs):
             if parsed.distro:
                 dtslogger.info(f"Using custom distro '{parsed.distro}'")
             else:
-                parsed.distro = get_distro_version(shell)
+                # default distro
+                parsed.distro = DEFAULT_LIBRARY_DISTRO
             build_args.append(("DISTRO", parsed.distro))
 
             # we can use the plain `jupyter-book` environment
             if not parsed.plain:
                 # make an image name for JB
-                jb_image_tag: str = f"{project.safe_version_name}-env"
+                jb_image_tag: str = f"{project.distro}-env"
                 jb_image_name: str = project.image(
                     arch=arch, owner="duckietown", registry=registry_to_use, version=jb_image_tag
                 )
@@ -297,13 +301,14 @@ class DTCommand(DTCommandAbs):
             args = {
                 "image": jb_image_name,
                 "remove": True,
-                "user": f"{os.getuid()}:{os.getgid()}",
                 "envs": {
+                    "IMPERSONATE_UID": os.getuid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
-                    "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
+                    "LIBRARY_DISTRO": get_distro_version(shell),
                     "DEBUG": "1" if debug else "0",
-                    "PRODUCTION_BUILD": "0"
+                    "PRODUCTION_BUILD": "0",
+                    "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))
                 },
                 "volumes": volumes,
                 "name": container_name,
@@ -315,40 +320,21 @@ class DTCommand(DTCommandAbs):
             logs = docker.run(**args)
             consume_container_logs(logs)
 
-            # start the image optimizer process
-            if build_html and parsed.optimize:
-                dtslogger.info(f"Optimizing media...")
-                container_name: str = f"docs-image-optimizer-{project.name}"
-                args = {
-                    "image": jb_image_name,
-                    "remove": True,
-                    "user": f"{os.getuid()}:{os.getuid()}",
-                    "volumes": volumes,
-                    "envs": {
-                        "DT_LAUNCHER": "jb-optimize-images",
-                        "DEBUG": "1" if debug else "0"
-                    },
-                    "name": container_name,
-                    "stream": True,
-                }
-                dtslogger.debug(
-                    f"Calling docker.run with arguments:\n" f"{json.dumps(args, indent=4, sort_keys=True)}\n"
-                )
-                logs = docker.run(**args)
-                consume_container_logs(logs)
-
             # print HTML location
             if build_html:
                 loc: str = os.path.abspath(html_dir)
-                bar: str = "=" * len(loc)
-                spc: str = " " * len(loc)
+                idx: str = f"file://{loc}/index.html"
+                bar: str = "=" * len(idx)
+                sp1: str = " " * len(idx)
+                sp2: str = " " * (len(idx) - len(loc))
                 dtslogger.info(
                     f"\n\n"
-                    f"====================={bar}=====\n"
-                    f"|                    {spc}    |\n"
-                    f"|    HTML artifacts: {loc}    |\n"
-                    f"|                    {spc}    |\n"
-                    f"====================={bar}=====\n"
+                    f"======================{bar}=====\n"
+                    f"|                     {sp1}    |\n"
+                    f"|    HTML artifacts:  {loc}{sp2}    |\n"
+                    f"|    HTML entrypoint: {idx}    |\n"
+                    f"|                     {sp1}    |\n"
+                    f"======================{bar}=====\n"
                 )
 
             # print PDF location
@@ -367,6 +353,7 @@ class DTCommand(DTCommandAbs):
         else:
             # CI build includes: build HTML, build PDF, image optimization, and artifacts publish
             dns = parsed.publish
+            book_name: str = project.name if project.name.startswith("book-") else f"book-{project.name}"
 
             # download RSA key used to publish artifacts
             token = os.environ.get("DUCKIETOWN_CI_DT_TOKEN", None)
@@ -404,12 +391,14 @@ class DTCommand(DTCommandAbs):
                     "SSH_KEY": rsa_key,
                     "SSH_HOSTNAME": ssh_hostname,
                     "SSH_USERNAME": SSH_USERNAME,
-                    "BOOK_NAME": project.name,
+                    "BOOK_NAME": book_name,
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": dns,
                     "LIBRARY_DISTRO": library_distro,
                     "DT_LAUNCHER": "ci-build",
-                    "PRODUCTION_BUILD": str(int(production_build))
+                    "PRODUCTION_BUILD": str(int(production_build)),
+                    "DT_SUPERUSER": "1",
+                    "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ["ADOBE_PDF_VIEWER_CLIENT_ID"]
                 },
                 "stream": True
             }

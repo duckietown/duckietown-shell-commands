@@ -3,7 +3,7 @@ from shutil import which
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import start_command_in_subprocess
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:

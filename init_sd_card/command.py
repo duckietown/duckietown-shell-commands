@@ -24,6 +24,7 @@ from utils.duckietown_utils import (
     get_robot_hardware,
     get_robot_types,
     WIRED_ROBOT_TYPES,
+    get_distro_version,
 )
 from utils.exceptions import InvalidUserInput
 from utils.json_schema_form_utils import open_form_from_schema
@@ -57,7 +58,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "3.0.7"},
-        "jetson_nano_4gb": {"stable": "1.2.3", "experimental": "1.2.3"},
+        "jetson_nano_4gb": {"stable": "1.3.0", "experimental": "1.3.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -81,7 +82,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_nano_4gb": {
             # - stable
-            "1.2.3": "1.1",
+            "1.3.0": "1.1",
             # - experimental
             "-----": "1.1",
         },
@@ -100,7 +101,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-raspios-bullseye-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
+        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
@@ -244,28 +245,19 @@ class DTCommand(DTCommandAbs):
             # the form includes all licenses
             if "license" in steps:
                 steps.remove("license")
-        # validate hostname
-        if not _validate_hostname(parsed.hostname):
+        # validate hostname and provide suggestion
+        # 'valid' is True if parsed hostname is valid, or if user accepted the valid suggestion
+        valid, valid_hostname = _validate_hostname(parsed.hostname)
+        if not valid:
             return
+        else:
+            parsed.hostname = valid_hostname  # gets passed on to other services
         # default WiFi
         if parsed.wifi is None:
             if parsed.robot_type in WIRED_ROBOT_TYPES:
                 parsed.wifi = ""
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
-        # make sure the token is set
-        # noinspection PyBroadException
-        try:
-            shell.get_dt1_token()
-        except Exception:
-            dtslogger.error(
-                "You have not set a token for this shell.\n"
-                "You can get a token from the following URL,\n\n"
-                "\thttps://www.duckietown.org/site/your-token   \n\n"
-                "and set it using the following command,\n\n"
-                "\tdts tok set\n"
-            )
-            return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -333,11 +325,11 @@ class DTCommand(DTCommandAbs):
                 'Skipping "license" step. You are implicitly agreeing to the following:\n'
                 + extra
                 + "   - Duckietown Terms and Conditions:\t"
-                "https://www.duckietown.org/about/terms-and-conditions\n"
+                "https://duckietown.com/terms-and-conditions/\n"
                 "   - Duckietown Software License:\t"
-                "https://www.duckietown.org/about/sw-license\n"
+                "https://duckietown.com/sw-license/\n"
                 "   - Duckietown Privacy Policy:\t\t"
-                "https://www.duckietown.org/about/privacy",
+                "https://duckietown.com/privacy/",
             )
         # prepare data
         data = {
@@ -366,11 +358,11 @@ def step_license(_, parsed, __):
     answer = ask_confirmation(
         f"\nBy proceeding you agree to the following,\n"
         f"   - Duckietown Terms and Conditions:\t"
-        f"https://www.duckietown.org/about/terms-and-conditions\n"
+        f"https://duckietown.com/terms-and-conditions/\n"
         f"   - Duckietown Software License:\t"
-        f"https://www.duckietown.org/about/sw-license\n"
+        f"https://duckietown.com/sw-license/\n"
         f"   - Duckietown Privacy Policy:\t\t"
-        f"https://www.duckietown.org/about/privacy",
+        f"https://duckietown.com/privacy/",
         question="Do you accept?",
     )
     if not answer:
@@ -606,7 +598,7 @@ def step_verify(_, parsed, data):
     return {}
 
 
-def step_setup(shell, parsed, data):
+def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     # check if dependencies are met
     ensure_command_is_installed("dd")
     ensure_command_is_installed("sudo")
@@ -617,9 +609,9 @@ def step_setup(shell, parsed, data):
     params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
     # compile data used to format placeholders
     surgery_data = {
-        "hostname": parsed.hostname,
+        "hostname": parsed.hostname,  # contains value after _validate_hostname
         "robot_type": parsed.robot_type,
-        "token": shell.get_dt1_token(),
+        "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
@@ -636,7 +628,7 @@ def step_setup(shell, parsed, data):
                     "hostname": socket.gethostname(),
                     "user": getpass.getuser(),
                     "shell_version": shell_version,
-                    "commands_version": shell.get_commands_version(),
+                    "commands_version": get_distro_version(shell),
                     "init_sd_card_version": INIT_SD_CARD_VERSION,
                 },
                 "parameters": params,
@@ -657,7 +649,7 @@ def step_setup(shell, parsed, data):
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
     # get disk image placeholders
     placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental)
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", f"v{placeholders_version}")
+    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", "v"+placeholders_version)
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
     for surgery_bit in surgery_plan:
@@ -724,15 +716,40 @@ def step_setup(shell, parsed, data):
     return {}
 
 
-def _validate_hostname(hostname):
+def _validate_hostname(hostname: str):
     # The proper regex for RFC 952 should be:
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
-    if not re.match("^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$", hostname):
-        dtslogger.error("The hostname can only contain alphanumeric symbols [a-z,0-9]. "
-                        "No capital letters are allowed. It should not start with a digit.")
-        return False
-    return True
+    pattern = "^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$"
+    if not re.match(pattern, hostname):
+        # suggest a valid name with the same logic stated above
+        # filter for alphanumeric
+        filtered_alnum = ''.join(c.lower() for c in hostname if c.isalnum())
+        # remove digits at the beginning
+        suggestion = re.sub(r'^\d+', '', filtered_alnum)
+        # just ensure it's a valid suggestion
+        assert re.match(pattern, suggestion), \
+            "An error has occured. Please report to the administrators with these error logs."
+
+        granted = ask_confirmation(
+            message=(
+                "The hostname can only contain alphanumeric symbols [a-z,0-9]. "
+                "No capital letters are allowed. It should not start with a digit either."
+            ),
+            question=f'Do you want to use the hostname "{suggestion}" instead?',
+        )
+        if granted:
+            dtslogger.info(
+                f'Proceeding with new valid hostname: "{suggestion}"'
+            )
+            return True, suggestion
+        else:
+            dtslogger.info(
+                "Operation aborted. Please provide a valid hostname and repeat the step."
+            )
+            return False, ""  # no valid hostname chosen
+    # original user input is valid
+    return True, hostname
 
 
 def _interpret_wifi_string(s):

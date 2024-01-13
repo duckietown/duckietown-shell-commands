@@ -6,7 +6,7 @@ from typing import Optional, List
 from code.workbench.command import SettingsFile, SettingsFile_from_yaml
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.secrets_utils import SecretsManager
 
 # NOTE: this is to avoid breaking the user workspace
@@ -219,9 +219,9 @@ class DTCommand(DTCommandAbs):
                         quiet=not parsed.verbose,
                     )
                     dtslogger.debug(
-                        f"Calling command 'devel/buildx' " f"with arguments: {str(buildx_namespace)}"
+                        f"Calling command 'devel/build' " f"with arguments: {str(buildx_namespace)}"
                     )
-                    shell.include.devel.buildx.command(shell, [], parsed=buildx_namespace)
+                    shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
                     dtslogger.info(f"VSCode for project '{project.name}' successfully built!")
                 else:
                     if not parsed.build_only:

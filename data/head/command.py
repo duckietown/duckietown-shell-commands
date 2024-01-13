@@ -79,13 +79,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
         if space:
             parsed.space = space
 
-        # get the token if it is set
-        token = None
-        # noinspection PyBroadException
-        try:
-            token = shell.get_dt1_token()
-        except Exception:
-            pass
+        # get the token
+        token: str = shell.profile.secrets.dt_token
 
         # create storage client
         client = DataClient(token)

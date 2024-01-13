@@ -3,6 +3,7 @@ import argparse
 from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 from utils.docker_utils import (
     get_client_OLD,
     get_endpoint_architecture,
@@ -11,6 +12,7 @@ from utils.docker_utils import (
     pull_image_OLD,
 )
 from utils.duckietown_utils import get_distro_version
+from utils.exceptions import UserAborted
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
@@ -18,7 +20,7 @@ DEFAULT_STACK = "duckietown"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
-    "{registry}/duckietown/dt-core:{distro}-{arch}",
+    # "{registry}/duckietown/dt-core:{distro}-{arch}",
     # "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
     # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
     # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
@@ -45,9 +47,14 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         hostname = sanitize_hostname(parsed.robot)
         registry_to_use = get_registry_to_use()
-        # clean duckiebot
+        # clean duckiebot and offer user abort option
         if not parsed.no_clean:
-            shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
+            try:
+                shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
+            except UserAborted as e:
+                dtslogger.info(e)
+                return
+
         # compile image names
         arch = get_endpoint_architecture(hostname)
         distro = get_distro_version(shell)
@@ -55,7 +62,8 @@ class DTCommand(DTCommandAbs):
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]
         client = get_client_OLD(hostname)
-        login_client_OLD(client, shell.shell_config, registry_to_use, raise_on_error=False)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        login_client_OLD(client, credentials, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # do update

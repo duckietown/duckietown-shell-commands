@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -e
+
+if [ "$#" -eq 0 ]; then
+    >&2 echo "ERROR: You need to pass one or more dependencies list files as arguments to dt-pip3-install.";
+    exit 1;
+fi
+
+PACKAGES_LISTS=$*
+PACKAGES_LIST=/tmp/pip3-dependencies-list.combined
+
+# add empty line to the end of all files
+sed -i -e '$a\' ${PACKAGES_LISTS}
+
+# combined all dependencies lists into a single file
+cat ${PACKAGES_LISTS} > ${PACKAGES_LIST}
+
+# check if there are packages listed
+PACKAGES=$(awk -F: '/^[^#]/ { print $1 }' $PACKAGES_LIST | uniq)
+HAS_PACKAGES=$(echo $PACKAGES | sed '/^\s*#/d;/^\s*$/d' | wc -l)
+
+# install packages (if any)
+if [ $HAS_PACKAGES -eq 1 ]; then
+  # print out packages
+  echo -e "The packages list as sent to 'pip' is:\n"
+  echo ${PACKAGES} | sed '/^\s*#/d;/^\s*$/d' | sed 's/ /\n/g' | sed 's/^/     /' | uniq
+  echo ""
+  # install packages
+  echo "Installing packages via PIP3..."
+  python3 -m pip install -r ${PACKAGES_LIST}
+  echo "PIP3 packages installed."
+else
+  echo "No packages to install via PIP3."
+fi
+
+# cleanup
+rm ${PACKAGES_LIST}

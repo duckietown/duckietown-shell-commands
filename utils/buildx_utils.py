@@ -51,6 +51,8 @@ def install_buildx(version: str = DEFAULT_BUILDX_VERSION):
 def ensure_buildx_version(client: DockerClient, v: str):
     version = client.buildx.version()
     vnow_str = version["version"]
+    if "-" in vnow_str:
+        vnow_str = vnow_str[:vnow_str.index("-")]
     vnow = parse_version(vnow_str)
     if v.endswith("+"):
         vneed_str = v.rstrip("+")

@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import signal
 import time
 from collections import defaultdict
 from typing import List, Set
@@ -34,13 +35,13 @@ class DiscoverListener:
         "DT::ROBOT_TYPE",
         "DT::ROBOT_CONFIGURATION",
         "DT::ROBOT_HARDWARE",
-        "DT::DASHBOARD",
     ]
 
     def __init__(self, args):
         self.args = args
 
-    def process_service_name(self, name):
+    @staticmethod
+    def process_service_name(name):
         name = name.replace("._duckietown._tcp.local.", "")
         service_parts = name.split("::")
         if len(service_parts) != 3 or service_parts[0] != "DT":
@@ -66,8 +67,14 @@ class DiscoverListener:
         if info is None:
             return
         dtslogger.debug("SERVICE_ADD: %s" % (str(info)))
-        txt = json.loads(list(info.properties.keys())[0].decode("utf-8")) if len(info.properties) \
-            else dict()
+        txt_str: str = list(info.properties.keys())[0].decode("utf-8") if len(info.properties) else "{}"
+        txt: dict = {}
+        if len(txt_str.strip()):
+            try:
+                txt: dict = json.loads(txt_str)
+            except json.JSONDecodeError:
+                dtslogger.error(f"An error occurred while decoding the TXT string '{txt_str}'. "
+                                f"A JSON string was expected.")
         self.services[name][server] = {"port": info.port, "txt": txt}
 
     def update_service(self, *args, **kwargs):
@@ -181,7 +188,15 @@ class DTCommand(DTCommandAbs):
         #        should DiscoverListener be a subclass of ServiceListener
         ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
 
-        while True:
+        shutdown: bool = False
+
+        def signal_handler(_, __):
+            nonlocal shutdown
+            shutdown = True
+
+        signal.signal(signal.SIGINT, signal_handler)
+
+        while not shutdown:
             if dtslogger.level > logging.DEBUG:
                 listener.print()
             time.sleep(1.0 / REFRESH_HZ)

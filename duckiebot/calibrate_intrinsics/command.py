@@ -5,9 +5,8 @@ import socket
 import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
+from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, get_client_OLD
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -61,7 +60,7 @@ Calibrate:
                 "The exception reads: %s" % e
             )
 
-        client = check_docker_environment()
+        client = get_client_OLD()
         container_name = "dts-calibrate-intrinsics-%s" % parsed.hostname
         remove_if_running(client, container_name)
         env = {
@@ -88,7 +87,8 @@ Calibrate:
 
         dtslogger.info(
             "When the window opens you will be able to perform the calibration.\n "
-            "Follow the instructions on the official book at https://docs.duckietown.com.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.com/ente/"
+            "opmanual-duckiebot/operations/calibration_camera/index.html#intrinsic-calibration.\n "
             "Press [Q] to close the window."
         )
 

@@ -2,11 +2,11 @@ import argparse
 import os
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
+from dt_shell.profile import DockerCredentials
 
 from dtproject import DTProject
 from utils.docker_utils import (
     copy_docker_env_into_configuration,
-    DEFAULT_MACHINE,
     get_client_OLD,
     get_endpoint_architecture,
     get_registry_to_use,
@@ -19,56 +19,9 @@ class DTCommand(DTCommandAbs):
     help = "Push the images relative to the current project"
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-C",
-            "--workdir",
-            default=os.getcwd(),
-            help="Directory containing the project to push",
-        )
-        parser.add_argument(
-            "-a",
-            "--arch",
-            default=None,
-            help="Target architecture for the image to push",
-        )
-        parser.add_argument(
-            "-H",
-            "--machine",
-            default=DEFAULT_MACHINE,
-            help="Docker socket or hostname from where to push the image",
-        )
-        parser.add_argument(
-            "--ci",
-            default=False,
-            action="store_true",
-            help="Overwrites configuration for CI (Continuous Integration) push",
-        )
-        parser.add_argument(
-            "-f",
-            "--force",
-            default=False,
-            action="store_true",
-            help="Whether to force the push when the git index is not clean",
-        )
-        parser.add_argument(
-            "-u",
-            "--username",
-            default="duckietown",
-            help="the docker registry username to tag the image with",
-        )
-        parser.add_argument(
-            "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
-        )
-
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = DTCommand._parse_args(args)
+        parser: argparse.ArgumentParser = DTCommand.parser
+        parsed, _ = parser.parse_known_args(args=args)
         if "parsed" in kwargs:
             parsed.__dict__.update(kwargs["parsed"].__dict__)
         # ---
@@ -98,15 +51,18 @@ class DTCommand(DTCommandAbs):
         # spin up docker client
         docker = get_client_OLD(parsed.machine)
 
-        copy_docker_env_into_configuration(shell.shell_config)
-        login_client_OLD(docker, shell.shell_config, registry_to_use, raise_on_error=True)
+        credentials: DockerCredentials = shell.profile.secrets.docker_credentials
+        copy_docker_env_into_configuration(credentials)
+        login_client_OLD(docker, credentials, registry_to_use, raise_on_error=True)
 
-        version = project.version_name
+        # tag
+        version: str = project.distro
         if parsed.tag:
             dtslogger.info(f"Overriding version {version!r} with {parsed.tag!r}")
             version = parsed.tag
 
-        image = project.image(
+        # compile image name
+        image: str = project.image(
             arch=parsed.arch, registry=registry_to_use, owner=parsed.username, version=version
         )
 

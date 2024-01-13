@@ -5,10 +5,8 @@ import os
 from types import SimpleNamespace
 from typing import Optional, List
 
-from dt_shell.config import read_shell_config, ShellConfig
-
 from utils.challenges_utils import get_registry_from_challenges_server, get_challenges_server_to_use
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 from utils.misc_utils import sanitize_hostname
 
 # NOTE: this is to avoid breaking the user workspace
@@ -119,22 +117,14 @@ class DTCommand(DTCommandAbs):
             project.ensure_recipe_exists()
             project.ensure_recipe_updated()
 
-        # make sure a token was set
-        try:
-            shell.get_dt1_token()
-        except Exception as e:
-            dtslogger.error(str(e))
-            exit(1)
-
         # make sure we have the credentials to push to this registry
-        shell_cfg: ShellConfig = read_shell_config()
-        if registry_to_push not in shell_cfg.docker_credentials:
+        if not shell.profile.secrets.docker_credentials.contains(registry_to_push):
             dtslogger.error(
                 f"You have no credentials set for registry '{registry_to_push}', "
                 f"please use the command 'dts challenges config' fisrt"
             )
             exit(1)
-        registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
+        registry_creds: dict = shell.profile.secrets.docker_credentials.get(registry_to_push).dump()
         registry_username = registry_creds["username"]
 
         # sanitize hostname
@@ -174,7 +164,12 @@ class DTCommand(DTCommandAbs):
             exit(1)
 
         # get built image
-        src_name = project.image(arch=parsed.arch, owner=parsed.username, registry=registry_to_use)
+        src_name = project.image(
+            arch=parsed.arch,
+            registry=registry_to_use,
+            owner=parsed.username,
+            version=project.distro
+        )
         image: dockertown.Image = docker.image.inspect(src_name)
 
         # tag the image for aido_submission
@@ -190,9 +185,9 @@ class DTCommand(DTCommandAbs):
         docker.login(
             server=registry_to_use,
             username=registry_username,
-            password=registry_creds["secret"],
+            password=registry_creds["password"],
         )
-        del registry_creds["secret"]
+        del registry_creds["password"]
 
         # push image
         dtslogger.info(f"Pushing submission image '{agent_image_full}'...")

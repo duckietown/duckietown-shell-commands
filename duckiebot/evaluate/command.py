@@ -7,8 +7,6 @@ import time
 import requests
 
 from dt_shell import DTCommandAbs, dtslogger, UserError
-from dt_shell.env_checks import check_docker_environment
-from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     get_registry_to_use,
@@ -17,6 +15,7 @@ from utils.docker_utils import (
     remove_if_running,
     stop_container,
     pull_if_not_exist,
+    get_client_OLD,
 )
 from utils.networking_utils import get_duckiebot_ip
 from dt_shell import DTShell
@@ -89,7 +88,8 @@ class DTCommand(DTCommandAbs):
             "--jetsonnano",
             action="store_true",
             default=False,
-            help="If you would like your submission to be run a Jetson Nano computer. Default is False. (Not Tested)",
+            help="If you would like your submission to be run a Jetson Nano computer. "
+                 "Default is False. (Not Tested)",
         )
         group.add_argument("--max_vel", help="the max velocity for the duckiebot", default=0.7)
         group.add_argument("--challenge", help="Specific challenge to evaluate")
@@ -103,11 +103,12 @@ class DTCommand(DTCommandAbs):
             help="Specify the runtime to use in Docker",
         )
         # ---
+        from duckietown_docker_utils import continuously_monitor, ENV_REGISTRY
+
         parsed = parser.parse_args(args)
         username = getpass.getuser()
         duckiebot_name: str = parsed.duckiebot_name
         tmpdir = f"/tmp/{username}/{parsed.duckiebot_name}"
-        dir_home_guest = os.path.expanduser("~")
         dir_fake_home = os.path.join(tmpdir, f"fake-{username}-home")
         if not os.path.exists(dir_fake_home):
             os.makedirs(dir_fake_home)
@@ -142,7 +143,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Attempting to run remotely on this machine")
             arch = "amd64"
             machine = "unix:///var/run/docker.sock"
-            client = check_docker_environment()
+            client = get_client_OLD()
 
         bridge_image = f"{parsed.bridge_image}-{arch}"
         agent_container_name = "agent"

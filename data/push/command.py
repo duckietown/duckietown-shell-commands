@@ -129,18 +129,9 @@ Where <space> can be one of {str(VALID_SPACES)}.
             exit(8)
         # sanitize file path
         parsed.file = os.path.abspath(parsed.file)
-        # get the token if it is not given
-        token = None
-        if parsed.token is None:
-            # get the token if it is set
-            # noinspection PyBroadException
-            try:
-                token = shell.get_dt1_token()
-            except Exception:
-                pass
-        else:
-            # the user provided a token, use that one
-            token = parsed.token
+        token: str = parsed.token
+        if token is None:
+            token = shell.profile.secrets.dt_token
         token_star = "*" * (len(token) - 3) + token[-3:]
         dtslogger.debug(f"Using token: {token_star}")
         # create storage client

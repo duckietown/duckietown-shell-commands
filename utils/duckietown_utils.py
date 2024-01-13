@@ -1,5 +1,8 @@
 import os
-import re
+
+from dt_shell import DTShell
+from dt_shell.constants import Distro
+
 
 DEFAULT_OWNER = "duckietown"
 WIRED_ROBOT_TYPES = ["watchtower", "traffic_light", "duckietown"]
@@ -34,8 +37,14 @@ def get_robot_configurations(robot_type):
     return configurations[robot_type]
 
 
-def get_distro_version(shell):
-    return next(re.finditer("([a-zA-Z]+)", shell.get_commands_version())).group(1)
+def get_distro_version(shell: DTShell) -> str:
+    # TODO: the commands should have no business in what the distro of the profile is,
+    #  DTProjects now define their own distro
+    return shell.profile.distro.name
+
+
+def get_distro(shell: DTShell) -> Distro:
+    return shell.profile.distro
 
 
 def get_robot_hardware(robot_configuration):

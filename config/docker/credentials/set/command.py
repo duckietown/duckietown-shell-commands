@@ -9,12 +9,6 @@ from utils.secrets_utils import SecretsManager
 class DTCommand(DTCommandAbs):
     help = "Configure docker registry credentials"
 
-    usage = f"""
-Usage:
-
-    dts config docker credentials set --username <your-docker-username> --password <your-docker-access-token> [optional-docker-server]
-"""
-
     @staticmethod
     def command(shell, args, **kwargs):
         parser = argparse.ArgumentParser(
@@ -61,23 +55,5 @@ Usage:
         # - store secrets
         secret_value: dict = {"username": username, "secret": password}
         SecretsManager.set(secret_key, secret_value)
-
-        # ---
-
-        # => Legacy credentials store
-        if server not in shell.shell_config.docker_credentials:
-            shell.shell_config.docker_credentials[server] = {}
-
-        if username is None and password is None:
-            dtslogger.warning(DTCommand.usage)
-            exit(4)
-
-        if username is not None:
-            shell.shell_config.docker_credentials[server]["username"] = username
-        if password is not None:
-            shell.shell_config.docker_credentials[server]["secret"] = password
-
-        shell.save_config()
-        # <= Legacy credentials store
 
         dtslogger.info("Docker access credentials stored!")

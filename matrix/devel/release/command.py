@@ -85,17 +85,9 @@ class DTCommand(DTCommandAbs):
         os_family = meta["operating_system_family"].lower()
 
         # make sure we have a token
-        token = None
-        if parsed.token is None:
-            # get the token if it is set
-            # noinspection PyBroadException
-            try:
-                token = shell.get_dt1_token()
-            except Exception:
-                pass
-        else:
-            # the user provided a token, use that one
-            token = parsed.token
+        token: str = parsed.token
+        if token is None:
+            token = shell.profile.secrets.dt_token
 
         # check whether the same version was already released
         if is_version_released(release_version, os_family):

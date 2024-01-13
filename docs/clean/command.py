@@ -9,7 +9,7 @@ from dtproject import DTProject
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
 from utils.duckietown_utils import get_distro_version
-from utils.exceptions import ShellNeedsUpdate
+from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -22,7 +22,7 @@ CONTAINER_BUILD_CACHE_DIR = "/tmp/jb"
 HOST_BUILD_CACHE_DIR = "/tmp/duckietown/docs/{book}"
 
 SUPPORTED_PROJECT_TYPES = {
-    "template-book": {"2", },
+    "template-book": {"2", "4"},
     "template-library": {"2", },
     "template-basic": {"4", },
 }
@@ -113,6 +113,8 @@ class DTCommand(DTCommandAbs):
             "volumes": volumes,
             "name": container_name,
             "envs": {
+                "IMPERSONATE_UID": os.getuid(),
+                "IMPERSONATE_GID": os.getgid(),
                 "DT_LAUNCHER": "jb-clean"
             },
             "stream": True

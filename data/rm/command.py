@@ -80,13 +80,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
         parsed.object = object_path
         if space:
             parsed.space = space
-        # get the token if it is set
-        token = None
-        # noinspection PyBroadException
-        try:
-            token = shell.get_dt1_token()
-        except Exception:
-            pass
+        # get the token
+        token: str = shell.profile.secrets.dt_token
         # create storage client
         client = DataClient(token)
         storage = client.storage(parsed.space)
