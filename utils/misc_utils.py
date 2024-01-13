@@ -65,8 +65,19 @@ def sudo_open(path, mode, *_, **__):
     return proc.stdout if mode == "r" else proc.stdin
 
 
+def get_first_numeric_part(s: str) -> int:
+    c = ''
+    for i in s:
+        if i.isdigit():
+            c += i
+        else:
+            break
+    if not c:
+        return 0
+    return int(c)
+        
 def parse_version(v: str) -> tuple:
-    return tuple(int(_) for _ in v.split("."))
+    return tuple(get_first_numeric_part(_) for _ in v.split("."))
 
 
 def render_version(t: tuple) -> str:
