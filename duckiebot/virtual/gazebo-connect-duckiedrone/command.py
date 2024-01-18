@@ -14,7 +14,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot virtual attach"
+        prog = "dts duckiebot virtual gazebo-connect-duckiedrone"
         parser = argparse.ArgumentParser(prog=prog)
         default_listen_addr = "172.17.0.1"
 
