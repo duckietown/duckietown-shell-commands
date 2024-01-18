@@ -1,6 +1,7 @@
 import argparse
 import os
-from subprocess import PIPE, run, CalledProcessError
+import socket
+from subprocess import run, CalledProcessError
 
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -16,11 +17,9 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot virtual attach"
         parser = argparse.ArgumentParser(prog=prog)
         default_listen_addr = "172.17.0.1"
-        default_fdm_addr = "172.17.0.1"
 
         # define arguments
         parser.add_argument("robot", nargs=1, help="Name of the Robot to connect to")
-        parser.add_argument("--gazebo", action="store_true", help="Connect to the Gazebo simulation instead of the Duckiematrix (available for Duckiedrones only)")
         parser.add_argument("--listen-addr", default=default_listen_addr, help=f"Address of the host machine (default: {default_listen_addr})")
         parser.add_argument("--fdm-address", help="Address of the FDM (Flight Dynamics Model) to connect to (default: <robot>.local)")
         # parse arguments
@@ -48,9 +47,7 @@ class DTCommand(DTCommandAbs):
         repo_dir = clone_repository(repo_name, "ente", destination_dir)
 
         # Run the command `docker compose up` in the `repo_dir` folder, with environment variables VEH set to parsed.robot and ROS_IP set to the hostname of the local machine + .local
-        hostname: str = run(["hostname"], stdout=PIPE).stdout.decode("utf-8")
-        # Remove the newline character from the hostname
-        hostname = hostname.splitlines()[0]
+        hostname = socket.gethostname()
 
         _ENV = {
             "VEH": parsed.robot,
