@@ -63,7 +63,8 @@ from .image_analyzer import EXTRA_INFO_SEPARATOR, ImageAnalyzer
 
 MIN_FORMAT_PER_DISTRO = {
     "daffy": 1,
-    "ente": 4,
+    # TODO: bump template-library to v4 and bring this back to '4'
+    "ente": 2,
 }
 
 
