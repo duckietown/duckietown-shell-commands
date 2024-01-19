@@ -261,82 +261,6 @@ class DTCommand(DTCommandAbs):
     help = f'Runs the {APP_NAME} engine'
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-m",
-            "--map",
-            default=None,
-            type=str,
-            help="Directory containing the map to load"
-        )
-        parser.add_argument(
-            "--sandbox",
-            default=False,
-            action="store_true",
-            help="Run in a sandbox map"
-        )
-        parser.add_argument(
-            "-n",
-            "--renderers",
-            default=1,
-            type=int,
-            help="(Advanced) Number of renderers to run"
-        )
-        parser.add_argument(
-            "--gym",
-            "--simulation",
-            dest="simulation",
-            default=False,
-            action="store_true",
-            help="Run in simulation mode"
-        )
-        parser.add_argument(
-            "-t", "-dt",
-            "--delta-t",
-            default=None,
-            type=float,
-            help="Time step (gym mode only)",
-        )
-        parser.add_argument(
-            "--link",
-            dest="links",
-            nargs=2,
-            action="append",
-            default=[],
-            metavar=("matrix", "world"),
-            help="Link robots inside the matrix to robots outside",
-        )
-        parser.add_argument(
-            "--build-assets",
-            default=False,
-            action="store_true",
-            help="Build assets and exit"
-        )
-        parser.add_argument(
-            "--no-pull",
-            default=False,
-            action="store_true",
-            help="Do not attempt to update the engine container image"
-        )
-        parser.add_argument(
-            "--expose-ports",
-            default=False,
-            action="store_true",
-            help="Expose all the ports with the host"
-        )
-        parser.add_argument(
-            "-vv",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Run in verbose mode"
-        )
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False) \
             -> Optional[MatrixEngine]:
         if use_defaults:
@@ -355,7 +279,7 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args, **kwargs):
         parsed = kwargs.get("parsed", None)
         if parsed is None:
-            parsed = DTCommand._parse_args(args)
+            parsed = DTCommand.parser.parse_args(args)
         # ---
         engine = DTCommand.make_engine(shell, parsed)
         if engine is None:
