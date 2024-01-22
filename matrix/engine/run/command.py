@@ -264,7 +264,7 @@ class DTCommand(DTCommandAbs):
     def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False) \
             -> Optional[MatrixEngine]:
         if use_defaults:
-            defaults = DTCommand._parse_args([])
+            defaults = DTCommand.parser.parse_args([])
             defaults.__dict__.update(parsed.__dict__)
             parsed = defaults
         # create engine
