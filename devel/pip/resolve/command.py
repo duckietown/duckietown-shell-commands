@@ -185,7 +185,7 @@ class DTCommand(DTCommandAbs):
         for i, dep in deps.items():
             found: bool = (
                 len(specs.intersection(set(map(lambda s: s[0], dep.specs)))) > 0
-            )
+            ) or (dep.vcs == "git" and dep.revision is not None)
             if not found:
                 raise UnpinnedDependenciesError(
                     f"Dependency '{dep.name}' at {deps_file}:{i} is not{extras} pinned using "
