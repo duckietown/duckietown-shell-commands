@@ -264,7 +264,7 @@ class DTCommand(DTCommandAbs):
         # show info about project
         if not parsed.quiet:
             dtslogger.info("Project workspace: {}".format(parsed.workdir))
-            shell.include.devel.info.command(shell, args)
+            shell.include.devel.info.command(shell, args, parsed=parsed)
 
         # recipe
         if parsed.recipe is not None:
