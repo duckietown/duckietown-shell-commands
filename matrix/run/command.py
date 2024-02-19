@@ -252,7 +252,8 @@ class DTCommand(DTCommandAbs):
                                    f"or, navigate to the path using Finder.")
                     subprocess.call(["open", app_location])
                     # wait for the engine to terminate
-                    engine.join()
+                    if run_engine:
+                        engine.join()
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
