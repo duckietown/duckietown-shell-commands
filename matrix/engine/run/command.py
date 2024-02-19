@@ -153,6 +153,12 @@ class MatrixEngine:
             else:
                 # we are using the sandbox map
                 connector_ports = DEFAULT_STATIC_NETWORK_PORTS
+
+            # on MacOS, we HAVE TO declare the ports manually for the networking to work
+            if platform.system() == "Darwin":
+                for name, port in DEFAULT_STATIC_NETWORK_PORTS.items():
+                    if name not in connector_ports:
+                        connector_ports[name] = port
             # add ports to the engine configuration
             for name, port in connector_ports.items():
                 # expose port to the host
