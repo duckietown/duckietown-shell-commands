@@ -1,6 +1,9 @@
+import time
+from pathlib import Path
+
 import argparse
 import subprocess
-import time
+import platform
 from typing import Optional, Callable
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
@@ -10,7 +13,8 @@ from utils.duckiematrix_utils import \
     get_most_recent_version_installed, \
     get_path_to_binary
 
-EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
+EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
+IS_MACOS: bool = platform.system() == "Darwin"
 
 
 class DTCommand(DTCommandAbs):
@@ -138,8 +142,8 @@ class DTCommand(DTCommandAbs):
             parsed = DTCommand._parse_args(args)
         # ---
         # check for conflicting arguments
-        run_engine = parsed.standalone
-        run_renderer = True
+        run_engine: bool = parsed.standalone
+        run_renderer: bool = True
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
@@ -237,23 +241,36 @@ class DTCommand(DTCommandAbs):
                         engine.stop()
                         return
 
-                # run the app
-                dtslogger.info("Launching Renderer...")
-                app_cmd = [app_bin] + app_config
-                dtslogger.debug(f"$ > {app_cmd}")
-                time.sleep(2)
-                renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
-                # this is how we terminate the renderer
+                # on MacOS, we open the location of the app
+                if IS_MACOS:
+                    app_location: str = str(Path(app_bin).parent)
+                    dtslogger.info(f"\n===================\n"
+                                   f"  The Duckiematrix app is located at:\n\n\t{app_location}/\n\n"
+                                   f"===================")
+                    dtslogger.info(f"Finder should open this location automatically now.\n"
+                                   f"         If it doesn't, use the command `open {app_location}` from your terminal "
+                                   f"or, navigate to the path using Finder.")
+                    subprocess.call(["open", app_location])
+                    # wait for the engine to terminate
+                    engine.join()
+                else:
+                    # run the app
+                    dtslogger.info("Launching Renderer...")
+                    app_cmd = [app_bin] + app_config
+                    dtslogger.debug(f"$ > {app_cmd}")
+                    time.sleep(2)
+                    renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                    # this is how we terminate the renderer
 
-                def terminate_renderer(*_):
-                    # noinspection PyBroadException
-                    try:
-                        renderer.kill()
-                    except Exception:
-                        pass
+                    def terminate_renderer(*_):
+                        # noinspection PyBroadException
+                        try:
+                            renderer.kill()
+                        except Exception:
+                            pass
 
-                # wait for the renderer to terminate
-                join_renderer(renderer, parsed.verbose)
+                    # wait for the renderer to terminate
+                    join_renderer(renderer, parsed.verbose)
             else:
                 # wait for the engine to terminate
                 engine.join()
