@@ -82,7 +82,7 @@ class DTCommand(DTCommandAbs):
         with open(json_fp, "rt") as fin:
             meta = json.loads(fin.read())
         release_version = meta["version"]
-        os_family = meta["operating_system_family"].lower()
+        os_family = meta["target"]["operating_system_family"].lower()
 
         # make sure we have a token
         token: str = parsed.token
