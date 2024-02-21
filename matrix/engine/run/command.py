@@ -141,8 +141,11 @@ class MatrixEngine:
         # (MacOS only) privileged mode
         if platform.system() == "Darwin":
             engine_config["privileged"] = True
-        # (MacOS only) expose ports defined in the connector_ports layer
-        if platform.system() == "Darwin" or parsed.expose_ports:
+        # configure ports
+        expose_ports: bool = parsed.expose_ports or platform.system() == "Darwin"
+        static_ports: bool = parsed.static_ports
+        # expose ports defined in the connector_ports layer + static ports
+        if expose_ports or static_ports:
             connector_ports: Dict[str, int] = {}
             if map_dir is not None:
                 # we are using a custom map
@@ -151,18 +154,17 @@ class MatrixEngine:
                     with open(connector_ports_fpath, "rt") as fin:
                         connector_ports = yaml.safe_load(fin).get("connector_ports", {})
             else:
-                # we are using the sandbox map
+                # we are using an embedded map
                 connector_ports = DEFAULT_STATIC_NETWORK_PORTS
-
-            # on MacOS, we HAVE TO declare the ports manually for the networking to work
-            if platform.system() == "Darwin":
-                for name, port in DEFAULT_STATIC_NETWORK_PORTS.items():
-                    if name not in connector_ports:
-                        connector_ports[name] = port
+            # add ports that are not already defined
+            for name, port in DEFAULT_STATIC_NETWORK_PORTS.items():
+                if (name not in connector_ports) or static_ports:
+                    connector_ports[name] = port
             # add ports to the engine configuration
             for name, port in connector_ports.items():
                 # expose port to the host
-                engine_config["ports"][f"{port}/tcp"] = port
+                if expose_ports:
+                    engine_config["ports"][f"{port}/tcp"] = port
                 # configure the engine to use this port
                 engine_config["command"] += [f"--{name}", str(port)]
         # (Linux only) use network mode host
