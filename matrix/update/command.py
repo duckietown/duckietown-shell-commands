@@ -16,6 +16,13 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
+            "-f",
+            "--force",
+            default=None,
+            action="store_true",
+            help="Force reinstall when the same version is already installed",
+        )
+        parser.add_argument(
             "-v",
             "--version",
             default=None,
@@ -36,6 +43,7 @@ class DTCommand(DTCommandAbs):
             [],
             parsed=SimpleNamespace(
                 version=parsed.version,
+                force=parsed.force,
                 update=True,
             )
         )
