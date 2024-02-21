@@ -187,7 +187,6 @@ class DTCommand(DTCommandAbs):
             )
             exit(1)
         registry_creds: dict = shell_cfg.docker_credentials[registry_to_push]
-        del registry_creds["secret"]
 
         # reuse username from credentials if none is given
         if parsed.username is None:
