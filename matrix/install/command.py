@@ -34,6 +34,13 @@ class DTCommand(DTCommandAbs):
             help="Update if already installed",
         )
         parser.add_argument(
+            "-f",
+            "--force",
+            default=None,
+            action="store_true",
+            help="Force reinstall when the same version is already installed",
+        )
+        parser.add_argument(
             "-v",
             "--version",
             default=None,
@@ -62,11 +69,15 @@ class DTCommand(DTCommandAbs):
             return
         # get latest version available on the DCSS
         latest = get_latest_version()
-        # make sure the same version is not already installed
+        # make sure the same version is not already installed (unless forced)
         app_dir = os.path.join(APP_RELEASES_DIR, f"v{latest}")
         if os.path.isdir(app_dir):
-            dtslogger.info("You already have the latest version installed.")
-            return
+            if not parsed.force:
+                dtslogger.info("You already have the latest version installed.")
+                return
+            else:
+                dtslogger.info(f"Removing installed version 'v{latest}'...")
+                subprocess.check_call(["rm", "-rf", app_dir])
         # download
         dtslogger.info(f"Downloading version v{latest}...")
         os.makedirs(app_dir)
