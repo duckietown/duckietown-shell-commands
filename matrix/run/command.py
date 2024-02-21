@@ -126,6 +126,12 @@ class DTCommand(DTCommandAbs):
             help="Expose all the ports with the host"
         )
         parser.add_argument(
+            "--static-ports",
+            default=False,
+            action="store_true",
+            help="Assign default values to all the ports"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,
