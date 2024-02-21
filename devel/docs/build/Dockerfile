@@ -19,12 +19,13 @@ RUN python3 -m pip install \
     sphinx-rtd-theme \
     sphinx-autobuild \
     pygments==2.5.2 \
+    jinja2==3.0 \
     mock
 
 COPY assets/docs /docs
 
 RUN cd "/" \
-    && git clone https://github.com/AleksandarPetrov/napoleon \
+    && git clone https://github.com/duckietown/napoleon \
     && cd /napoleon \
     && python3 setup.py install -f
 
