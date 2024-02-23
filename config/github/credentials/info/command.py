@@ -2,7 +2,6 @@ import argparse
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.misc_utils import hide_string
-from utils.secrets_utils import SecretsManager, Secret
 
 
 class DTCommand(DTCommandAbs):
@@ -24,19 +23,19 @@ class DTCommand(DTCommandAbs):
         # ---
 
         secret_key: str = "github/credentials/token"
-        if not SecretsManager.has(secret_key):
+        if not shell.profile.secrets.contains(secret_key):
             dtslogger.warning(
                 "\nNo github credentials found.\n"
-                "Please see how one could be configured using:\n\n"
-                "\tdts config github credentials set --help\n"
+                "Please, set it first using the command:\n\n"
+                "\tdts config github credentials set --username <username> --token <token>\n"
             )
             return False
 
-        credentials: Secret = SecretsManager.get(secret_key)
-        secret: str = credentials["secret"] if parsed.show else hide_string(credentials["secret"])
+        credentials: dict = shell.profile.secrets.get(secret_key)
+        token: str = credentials["token"] if parsed.show else hide_string(credentials["token"])
 
         dtslogger.info(
             f"GitHub credentials:\n\n"
             f"\tusername:   {credentials['username']}\n"
-            f"\t  secret:   {secret}\n"
+            f"\t  secret:   {token}\n"
         )
