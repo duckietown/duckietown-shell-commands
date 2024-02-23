@@ -15,7 +15,6 @@ from urllib3.exceptions import InsecureRequestWarning
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.constants import DTShellConstants
 from dt_shell.exceptions import ShellNeedsUpdate
-from utils.secrets_utils import SecretsManager, Secret
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -203,14 +202,13 @@ class DTCommand(DTCommandAbs):
         # secrets to share
         secrets: List[Tuple[str, str, str]] = []
         for secret_id in parsed.mount_secret:
-            if not SecretsManager.has(secret_id):
+            if not shell.profile.secrets.contains(secret_id):
                 dtslogger.error(
                     f"Secret '{secret_id}' not set. Please, follow the instructions on how to set "
                     f"this secret before continuing."
                 )
                 return
-            secret: Secret = SecretsManager.get(secret_id)
-            host_secret_fpath: str = secret.temporary_json_file
+            host_secret_fpath: str = shell.profile.secrets.as_temporary_json_file(secret_id)
             container_secret_fpath: str = os.path.join(CONTAINER_SECRETS_DIR, secret_id)
             secrets.append((host_secret_fpath, container_secret_fpath, "ro"))
 

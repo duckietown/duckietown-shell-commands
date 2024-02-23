@@ -1,9 +1,9 @@
 import argparse
 
 from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.profile import GenericCredentials
 from utils.docker_utils import DEFAULT_REGISTRY
 from utils.misc_utils import hide_string
-from utils.secrets_utils import SecretsManager, Secret
 
 
 class DTCommand(DTCommandAbs):
@@ -32,21 +32,20 @@ class DTCommand(DTCommandAbs):
 
         # ---
 
-        secret_key: str = f"docker/credentials/{server}"
-        if not SecretsManager.has(secret_key):
+        if not shell.profile.secrets.docker_credentials.contains(server):
             dtslogger.warning(
-                "\nNo docker credentials available.\n"
-                "Please see how one could be configured using:\n\n"
-                "\tdts config docker credentials set --help\n"
+                f"\nNo docker credentials available for server '{server}'.\n"
+                "Please, set it first using the command:\n\n"
+                "\tdts config docker credentials set [registry] --username <username> --password <password>\n"
             )
             return False
 
-        credentials: Secret = SecretsManager.get(secret_key)
-        secret: str = credentials["secret"] if parsed.show else hide_string(credentials["secret"])
+        credentials: GenericCredentials = shell.profile.secrets.docker_credentials.get(server)
+        secret: str = credentials.password if parsed.show else hide_string(credentials.password)
 
         dtslogger.info(
             f"Docker credentials:\n\n"
             f"\tregistry:   {server}\n"
-            f"\tusername:   {credentials['username']}\n"
-            f"\t  secret:   {secret}\n"
+            f"\tusername:   {credentials.username}\n"
+            f"\tpassword:   {secret}\n"
         )

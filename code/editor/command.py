@@ -7,7 +7,6 @@ from code.workbench.command import SettingsFile, SettingsFile_from_yaml
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
 from utils.duckietown_utils import get_distro_version
 from dt_shell.exceptions import ShellNeedsUpdate
-from utils.secrets_utils import SecretsManager
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -241,7 +240,7 @@ class DTCommand(DTCommandAbs):
         # gather secrets to share with the container
         secrets: List[str] = []
         for secret_id in settings.editor.get("secrets", []):
-            if not SecretsManager.has(secret_id):
+            if not shell.profile.secrets.contains(secret_id):
                 dtslogger.error(
                     f"Secret '{secret_id}' is not set. This project requires that you set this "
                     f"secret. Please, follow the proper instructions on how to do so."
