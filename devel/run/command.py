@@ -26,6 +26,8 @@ from .configuration import DEFAULT_TRUE
 
 LAUNCHER_FMT = "dt-launcher-%s"
 DEFAULT_MOUNTS = ["/var/run/avahi-daemon/socket", "/data"]
+REMOTE_USER = "duckie"
+REMOTE_GROUP = "duckie"
 
 
 class DTCommand(DTCommandAbs):
@@ -198,7 +200,8 @@ class DTCommand(DTCommandAbs):
                 proj = DTProject(project_path)
                 rcode: str = parsed.sync_destination
                 # (experimental): when we run remotely, use <rcode>/<project> as root
-                root = os.path.join(rcode, proj.name) if parsed.machine != DEFAULT_MACHINE else proj.path
+                local: bool = parsed.machine == DEFAULT_MACHINE
+                root = os.path.join(rcode, proj.name) if not local else proj.path
                 # get local and remote paths to code
                 local_srcs, destination_srcs = proj.code_paths(root)
                 # compile mountpoints
@@ -212,12 +215,13 @@ class DTCommand(DTCommandAbs):
                 # compile mountpoints
                 for local_launch, destination_launch in zip(local_launchs, destination_launchs):
                     mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
-                    # make sure the launchers are executable
-                    try:
-                        _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
-                    except Exception:
-                        dtslogger.warning("An error occurred while making the launchers executable. "
-                                          "Things might not work as expected.")
+                    # make sure the launchers are executable (local only)
+                    if local:
+                        try:
+                            _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
+                        except Exception:
+                            dtslogger.warning("An error occurred while making the launchers executable. "
+                                              "Things might not work as expected.")
 
         # create image name
         image = project.image(
@@ -360,7 +364,7 @@ class DTCommand(DTCommandAbs):
                 )
             # run rsync
             for project_path in projects_to_sync:
-                cmd = f"rsync --archive {project_path} {remote_path}"
+                cmd = f"rsync --archive --delete --chown={REMOTE_USER}:{REMOTE_GROUP} {project_path} {remote_path}"
                 _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
 
