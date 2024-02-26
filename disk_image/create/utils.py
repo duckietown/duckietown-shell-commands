@@ -25,7 +25,6 @@ from disk_image.create.constants import (
     PARTITION_MOUNTPOINT,
 )
 from utils.cli_utils import ensure_command_is_installed
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sudo_open, indent_block
 from utils.progress_bar import ProgressBar
 
@@ -366,7 +365,7 @@ def get_validator_fcn(validators, partition, path):
 
 def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
     # get version
-    distro = get_distro_version(shell)
+    distro: str = shell.profile.distro.name
     modules = {
         DOCKER_IMAGE_TEMPLATE(
             owner=module["owner"],

@@ -14,7 +14,6 @@ from utils.duckiematrix_utils import \
     remote_zip_obj, \
     get_latest_version
 
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import versiontuple
 
 
@@ -57,8 +56,7 @@ class DTCommand(DTCommandAbs):
             parsed = DTCommand._parse_args(args)
         # ---
         if versiontuple(dt_data_api.__version__) < (1, 0, 1):
-            cmds_distro = get_distro_version(shell)
-            dtslogger.error(f"You need to have the library dt-data-api-{cmds_distro}>=1.0.1, "
+            dtslogger.error(f"You need to have the library dt-data-api>=1.0.1, "
                             f"the version {dt_data_api.__version__} was found instead.")
             return
         # make sure the app is not already installed

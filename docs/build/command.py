@@ -12,7 +12,6 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture, sanitize_docker_baseurl, \
     get_cloud_builder
-from utils.duckietown_utils import get_distro_version
 from dtproject import DTProject
 from dt_shell.exceptions import ShellNeedsUpdate
 
@@ -144,9 +143,6 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
 
-        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
-        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
-
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
             dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
@@ -206,6 +202,13 @@ class DTCommand(DTCommandAbs):
         arch: str = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
+        # custom distro
+        if parsed.distro:
+            dtslogger.info(f"Using custom distro '{parsed.distro}'")
+        else:
+            # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+            parsed.distro = project.distro if project.format.version >= 4 else shell.profile.distro.name
+
         # find (or build) the book environment image to run
         if parsed.image is not None:
             # custom JB given, just use it
@@ -213,12 +216,6 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Using custom image: {jb_image_name}")
         else:
             # JB environment not provided, we need to build our own (unless --plain)
-            # custom distro
-            if parsed.distro:
-                dtslogger.info(f"Using custom distro '{parsed.distro}'")
-            else:
-                # default distro
-                parsed.distro = DEFAULT_LIBRARY_DISTRO
             build_args.append(("DISTRO", parsed.distro))
 
             # we can use the plain `jupyter-book` environment
@@ -305,7 +302,7 @@ class DTCommand(DTCommandAbs):
                     "IMPERSONATE_UID": os.getuid(),
                     "BOOK_BRANCH_NAME": project.version_name,
                     "LIBRARY_HOSTNAME": parsed.library,
-                    "LIBRARY_DISTRO": get_distro_version(shell),
+                    "LIBRARY_DISTRO": parsed.distro,
                     "DEBUG": "1" if debug else "0",
                     "PRODUCTION_BUILD": "0",
                     "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))

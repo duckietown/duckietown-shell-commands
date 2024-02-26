@@ -18,12 +18,11 @@ from utils.docker_utils import (
     get_registry_to_use, get_client_OLD,
 )
 
-from utils.duckietown_utils import get_distro_version
 from utils.git_utils import get_last_commit
 from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
 
-DEFAULT_IMAGE_FMT = "duckietown/dt-gui-tools:{}-{}"
+DEFAULT_IMAGE_FMT = "{}/duckietown/dt-gui-tools:{}-{}"
 AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 
 
@@ -54,8 +53,9 @@ class DTCommand(DTCommandAbs):
         # this is need for dts exercises lab for example
         client = get_client_OLD()
         if parsed.image is None:
-            REGISTRY = get_registry_to_use()
-            image = REGISTRY + "/" + DEFAULT_IMAGE_FMT.format(get_distro_version(shell), arch)
+            registry: str = get_registry_to_use()
+            distro: str = shell.profile.distro.name
+            image = DEFAULT_IMAGE_FMT.format(registry, distro, arch)
         else:
             image = parsed.image
 

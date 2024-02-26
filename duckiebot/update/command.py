@@ -11,7 +11,6 @@ from utils.docker_utils import (
     login_client_OLD,
     pull_image_OLD,
 )
-from utils.duckietown_utils import get_distro_version
 from utils.exceptions import UserAborted
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
@@ -57,7 +56,7 @@ class DTCommand(DTCommandAbs):
 
         # compile image names
         arch = get_endpoint_architecture(hostname)
-        distro = get_distro_version(shell)
+        distro: str = shell.profile.distro.name
         images = [
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]

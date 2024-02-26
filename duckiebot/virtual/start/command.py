@@ -6,7 +6,7 @@ from dockertown import DockerClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.utils import pull_docker_image
-from utils.duckietown_utils import get_distro_version, USER_DATA_DIR
+from utils.duckietown_utils import USER_DATA_DIR
 
 DISK_NAME = "root"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
@@ -32,7 +32,7 @@ class DTCommand(DTCommandAbs):
             "-t",
             "--tag",
             type=str,
-            default=get_distro_version(shell),
+            default=shell.profile.distro.name,
             help="Tag of the robot runtime image to use"
         )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to start")

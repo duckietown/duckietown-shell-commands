@@ -7,7 +7,6 @@ import uuid
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import DEFAULT_MACHINE
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.assets_utils import get_asset_bin_path
 from dtproject.constants import CANONICAL_ARCH
@@ -115,7 +114,7 @@ class DTCommand(DTCommandAbs):
         image = (
             parsed.image
             if parsed.image
-            else DEFAULT_IMAGE.format(distro=get_distro_version(shell), arch=endpoint_arch)
+            else DEFAULT_IMAGE.format(distro=shell.profile.distro.name, arch=endpoint_arch)
         )
         # print info
         dtslogger.info("Running command [%s]..." % " ".join(parsed.command))

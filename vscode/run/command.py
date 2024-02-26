@@ -26,7 +26,6 @@ except ImportError:
 from dockertown import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import DEFAULT_REGISTRY, get_endpoint_architecture, sanitize_docker_baseurl
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import human_size, sanitize_hostname, SimpleWindowBrowser
 
 VSCODE_PORT = 8088
@@ -175,8 +174,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
         # create defaults
-        version = parsed.tag or get_distro_version(shell)
-        image = parsed.image or f"{DEFAULT_REGISTRY}/duckietown/dt-vscode:{version}-{parsed.arch}"
+        version: str = parsed.tag or shell.profile.distro.name
+        image: str = parsed.image or f"{DEFAULT_REGISTRY}/duckietown/dt-vscode:{version}-{parsed.arch}"
 
         # pull image (if needed)
         if parsed.pull:

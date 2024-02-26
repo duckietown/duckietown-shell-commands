@@ -10,7 +10,6 @@ from utils.docker_utils import (
     login_client_OLD,
     pull_image_OLD,
 )
-from utils.duckietown_utils import get_distro_version
 from utils.disk_space_utils import (
     check_enough_disk,
     num_bytes_to_simple_friendly_str,
@@ -77,8 +76,8 @@ class DTCommand(DTCommandAbs):
         registry_to_use = get_registry_to_use()
 
         # compile image names
-        arch = get_endpoint_architecture(DEFAULT_MACHINE)
-        distro = get_distro_version(shell)
+        arch: str = get_endpoint_architecture(DEFAULT_MACHINE)
+        distro: str = shell.profile.distro.name
         images = [
             img.format(registry=registry_to_use, distro=distro, arch=arch) for img in OTHER_IMAGES_TO_UPDATE
         ]

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import Optional
 
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use
-from utils.duckietown_utils import get_distro_version
 from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -127,7 +126,7 @@ class DTCommand(DTCommandAbs):
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
-            parsed.distro = get_distro_version(shell)
+            parsed.distro = shell.profile.distro.name
         build_args.append(("DISTRO", parsed.distro))
 
         # avoid weird silence

@@ -37,12 +37,6 @@ def get_robot_configurations(robot_type):
     return configurations[robot_type]
 
 
-def get_distro_version(shell: DTShell) -> str:
-    # TODO: the commands should have no business in what the distro of the profile is,
-    #  DTProjects now define their own distro
-    return shell.profile.distro.name
-
-
 def get_distro(shell: DTShell) -> Distro:
     return shell.profile.distro
 
