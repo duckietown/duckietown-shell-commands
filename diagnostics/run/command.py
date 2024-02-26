@@ -3,7 +3,7 @@ import json
 import argparse
 import subprocess
 
-from utils.duckietown_utils import get_robot_types, get_distro_version
+from utils.duckietown_utils import get_robot_types
 from utils.avahi_utils import wait_for_service
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.misc_utils import sanitize_hostname
@@ -175,7 +175,7 @@ class DTCommand(DTCommandAbs):
             "--volume={storage_folder:s}:{storage_folder:s}".format(storage_folder=STORAGE_FOLDER),
         ]
         # create image name
-        image = DIAGNOSTICS_IMAGE.format(version=get_distro_version(shell), arch=image_arch)
+        image = DIAGNOSTICS_IMAGE.format(version=shell.profile.distro.name, arch=image_arch)
         # mount option
         if parsed.target == "unix://" + DOCKER_SOCKET:
             options += ["-v", "{:s}:{:s}".format(DOCKER_SOCKET, DOCKER_SOCKET)]

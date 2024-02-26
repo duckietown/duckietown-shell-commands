@@ -14,7 +14,6 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD
 from utils.duckiematrix_utils import \
     APP_NAME
-from utils.duckietown_utils import get_distro_version
 
 DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-amd64"
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
@@ -87,7 +86,7 @@ class MatrixEngine:
         # compile engine image name
         engine_image = DUCKIEMATRIX_ENGINE_IMAGE_FMT.format(
             registry=docker_registry,
-            distro=get_distro_version(shell)
+            distro=shell.profile.distro.name
         )
         # engine container configuration
         engine_config = {

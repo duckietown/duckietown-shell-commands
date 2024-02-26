@@ -12,7 +12,6 @@ from docker.models.containers import Container
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client_OLD, get_endpoint_architecture, pull_image_OLD
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
@@ -137,7 +136,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Battery released!")
         # compile upgrade image name
         arch = get_endpoint_architecture(hostname)
-        distro = get_distro_version(shell)
+        distro: str = shell.profile.distro.name
         image = UPGRADE_IMAGE.format(distro=distro, arch=arch)
         dtslogger.info("Checking battery...")
         dtslogger.debug(f"Running image '{image}'")

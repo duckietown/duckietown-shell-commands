@@ -18,11 +18,7 @@ from disk_image.create.utils import \
     replace_in_file,\
     pull_docker_image
 from utils.docker_utils import get_registry_to_use
-from utils.duckietown_utils import \
-    get_distro_version,\
-    get_robot_types,\
-    get_robot_configurations, \
-    USER_DATA_DIR
+from utils.duckietown_utils import get_robot_types, get_robot_configurations, USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
 
 from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
@@ -62,7 +58,7 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to create")
         # get version
-        distro = get_distro_version(shell)
+        distro: str = shell.profile.distro.name
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments

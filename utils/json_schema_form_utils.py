@@ -13,7 +13,6 @@ from dt_shell import DTShell, dtslogger
 
 from utils.assets_utils import load_schema, get_schema_icon_filepath, get_schema_html_filepath
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
-from utils.duckietown_utils import get_distro_version
 from utils.misc_utils import indent_block, pretty_json
 
 UTILITY_DASHBORD_IMAGE = "{registry}/duckietown/jsonschema-form:{distro}-{arch}"
@@ -42,7 +41,7 @@ def open_form(
     footer_fpath: Optional[str] = None,
 ) -> Optional[dict]:
     values: Optional[dict] = None
-    distro: str = get_distro_version(shell)
+    distro: str = shell.profile.distro.name
     registry: str = get_registry_to_use()
     # copy schema object
     data: dict = copy.deepcopy(schema)

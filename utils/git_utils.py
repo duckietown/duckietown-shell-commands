@@ -11,7 +11,6 @@ from dt_shell import dtslogger, DTShell
 from dt_shell.exceptions import UserError
 from dt_shell.utils import run_cmd
 
-from utils.duckietown_utils import get_distro_version
 
 
 @dataclass
@@ -118,7 +117,7 @@ def get_last_commit(user: str, repo: str, branch: str) -> CommitInfo:
 
 def check_up_to_date(shell: DTShell, repo: str) -> UpdateResult:
     dtslogger.debug("Checking for updated exercises")
-    ci = get_last_commit("duckietown", repo, get_distro_version(shell))
+    ci = get_last_commit("duckietown", repo, shell.profile.distro.name)
 
     cmd = "git", "merge-base", "--is-ancestor", ci.sha, "HEAD"
     try:

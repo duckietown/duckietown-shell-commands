@@ -20,7 +20,6 @@ from utils.docker_utils import (
     get_remote_client,
     pull_image_OLD,
 )
-from utils.duckietown_utils import get_distro_version
 from utils.networking_utils import get_duckiebot_ip
 from utils.progress_bar import ProgressBar
 
@@ -100,7 +99,7 @@ class DTCommand(DTCommandAbs):
             container_name = "code-api"
 
         # define code-api image name
-        distro = get_distro_version(shell)
+        distro: str = shell.profile.distro.name
         code_api_image = f"duckietown/dt-code-api:{distro}-{endpoint_arch}"
         dtslogger.debug(f"Working with code-api image `{code_api_image}`")
         version_str = ""

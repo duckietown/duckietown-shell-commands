@@ -11,7 +11,6 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
 from dtproject import DTProject
-from utils.duckietown_utils import get_distro_version
 from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -111,7 +110,8 @@ class DTCommand(DTCommandAbs):
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
-            parsed.distro = get_distro_version(shell)
+            # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+            parsed.distro = project.distro if project.format.version >= 4 else shell.profile.distro.name
 
         # create docker client
         docker = dockertown.DockerClient(debug=debug)
@@ -122,7 +122,6 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         # use plain JupyterBook
-        parsed.distro = parsed.distro or project.distro
         tag: str = f"{parsed.distro}-{arch}"
         jb_image_name: str = f"{registry_to_use}/duckietown/dt-jupyter-book:{tag}"
         dtslogger.debug(f"Using JupyterBook image '{jb_image_name}'")

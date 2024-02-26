@@ -94,15 +94,12 @@ class DTCommand(DTCommandAbs):
         arch: str = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
-        # the distro is by default the one given by the project, in compatibility mode we use the shell distro
-        DEFAULT_LIBRARY_DISTRO = project.distro if project.format.version >= 4 else shell.profile.distro.name
-
         # custom distro
         if parsed.distro:
             dtslogger.info(f"Using custom distro '{parsed.distro}'")
         else:
-            # default distro
-            parsed.distro = DEFAULT_LIBRARY_DISTRO
+            # the distro is by default the one given by the project, in compatibility mode we use the shell distro
+            parsed.distro = project.distro if project.format.version >= 4 else shell.profile.distro.name
         build_args.append(("DISTRO", parsed.distro))
 
         # make an image name for JB
