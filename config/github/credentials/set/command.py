@@ -2,7 +2,6 @@ import argparse
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.cli_utils import ask_confirmation
-from utils.secrets_utils import SecretsManager
 
 
 class DTCommand(DTCommandAbs):
@@ -37,12 +36,11 @@ Usage:
 
         # ---
 
-        # set secrets
         secret_key: str = "github/credentials/token"
         # - overwrite?
-        if SecretsManager.has(secret_key):
+        if shell.profile.secrets.contains(secret_key):
             overwrite: bool = ask_confirmation(
-                "A set of credentials for GitHub is already stored, if you continue, the "
+                "A set of credentials for GitHub is already stored. If you continue, the "
                 "old credentials will be overwritten.",
                 default="y",
             )
@@ -51,7 +49,7 @@ Usage:
                 return False
 
         # - store secrets
-        secret_value: dict = {"username": username, "secret": token}
-        SecretsManager.set(secret_key, secret_value)
+        secret: dict = {"username": username, "token": token}
+        shell.profile.secrets.set(secret_key, secret)
 
         dtslogger.info("GitHub access credentials stored!")

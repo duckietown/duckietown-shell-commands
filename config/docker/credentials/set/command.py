@@ -1,9 +1,9 @@
 import argparse
 
 from dt_shell import DTCommandAbs, dtslogger
+from dt_shell.profile import GenericCredentials
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import DEFAULT_REGISTRY
-from utils.secrets_utils import SecretsManager
 
 
 class DTCommand(DTCommandAbs):
@@ -39,10 +39,8 @@ class DTCommand(DTCommandAbs):
 
         # ---
 
-        # set secrets
-        secret_key: str = f"docker/credentials/{server}"
         # - overwrite?
-        if SecretsManager.has(secret_key):
+        if shell.profile.secrets.docker_credentials.contains(server):
             overwrite: bool = ask_confirmation(
                 "A set of credentials for this Docker registry is already stored, if you continue, the "
                 "old credentials will be overwritten.",
@@ -53,7 +51,7 @@ class DTCommand(DTCommandAbs):
                 return False
 
         # - store secrets
-        secret_value: dict = {"username": username, "secret": password}
-        SecretsManager.set(secret_key, secret_value)
+        secret: GenericCredentials = GenericCredentials(username=username, password=password)
+        shell.profile.secrets.docker_credentials.set(server, secret)
 
         dtslogger.info("Docker access credentials stored!")
