@@ -39,7 +39,7 @@ LIBRARY_HOSTNAME = os.environ.get("DT_LIBRARY_HOSTNAME", DEFAULT_LIBRARY_HOSTNAM
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
-    "template-library": {"2", },
+    "template-library": {"2", "4"},
     "template-basic": {"4", },
     "template-ros": {"4", },
 }
@@ -143,6 +143,14 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
 
+        # make sure the project is not still templated
+        if "<" in project.name:
+            dtslogger.error(
+                "This project is still templated. Please update the placeholders before proceeding. For example, "
+                f"the project name is still the placeholder value '{project.name}'."
+            )
+            return False
+
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
             dtslogger.error(f"Project of type '{project.type}' not supported. Only projects of type "
@@ -228,7 +236,7 @@ class DTCommand(DTCommandAbs):
 
                 # build jb (unless skipped)
                 if not parsed.no_build:
-                    shell.include.docs.env.build.command(shell, args=[], parsed=SimpleNamespace(
+                    env_build: bool = shell.include.docs.env.build.command(shell, args=[], parsed=SimpleNamespace(
                         workdir=parsed.workdir,
                         machine=parsed.machine,
                         distro=parsed.distro,
@@ -236,6 +244,11 @@ class DTCommand(DTCommandAbs):
                         no_pull=parsed.no_pull,
                         verbose=parsed.verbose,
                     ))
+                    if env_build in [True, None]:
+                        dtslogger.info(f"Environment image for '{project.name}' built successfully")
+                    else:
+                        dtslogger.error(f"Failed to build environment image for '{project.name}'")
+                        return False
                 else:
                     if not parsed.build_only:
                         dtslogger.info(
