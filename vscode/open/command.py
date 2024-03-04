@@ -2,14 +2,13 @@ import argparse
 import json
 import os
 import subprocess
-from typing import List
 
 import yaml
 
 from dt_shell import DTCommandAbs, dtslogger
 
 from dtproject import DTProject
-from dtproject.types import ContainerConfiguration, DevContainerConfiguration
+from dtproject.types import DevContainerConfiguration
 from cli.command import _run_cmd
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -143,6 +142,16 @@ class DTCommand(DTCommandAbs):
             except AttributeError:
                 container_configuration.environment = {'VEHICLE_NAME': parsed.ros}
 
+        # Impersonate the user inside the container to avoid permission issues
+        try:
+            container_configuration.environment['IMPERSONATE_UID'] = os.getuid()
+            container_configuration.environment['IMPERSONATE_GID'] = os.getgid()
+        except AttributeError:
+            container_configuration.environment = {'IMPERSONATE_UID': os.getuid(), 'IMPERSONATE_GID': os.getgid()}
+            
+        devcontainer_configuration["remoteUser"] = DEFAULT_REMOTE_USER
+        
+            
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:
             # check if the mountpoint exists
@@ -220,6 +229,8 @@ class DTCommand(DTCommandAbs):
         compose_file = COMPOSE_FILE_TEMPLATE
 
         compose_file["services"]={DEVCONTAINER_DEFAULT_NAME : container_configuration.__dict__}
+        devcontainer_configuration.service = DEVCONTAINER_DEFAULT_NAME
+
         # Add the 'sleep infinity' command to the container to keep it alive (https://containers.dev/guide/dockerfile)
         compose_file["services"][DEVCONTAINER_DEFAULT_NAME]["command"] = "sleep infinity"
 
