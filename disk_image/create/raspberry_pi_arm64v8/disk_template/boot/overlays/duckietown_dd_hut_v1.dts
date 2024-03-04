@@ -1,0 +1,27 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    overlay-name = "Duckietown DD-HUT v1";
+    compatible = "brcm,bcm2711";
+
+    fragment@0 {
+        // This represents the path to the parent node (the i2c bus),
+        //target-path = "/soc/i2c@7e804000";
+
+        // we could use also one of the aliases defined in /proc/device-tree/aliases, such as `i2c`
+        target = <&i2c_arm>
+
+        __overlay__ {
+            mux@77 {
+                compatible = "ti,tca9548a", "ti,tca9548", "nxp,pca9548";
+                vcc-pullup-supply = <0x4b>;
+                status = "okay";
+                #address-cells = <0x1>;
+                #size-cells = <0x0>;
+                vcc-supply = <0x4b>;
+                reg = <0x77>;
+            };
+        };
+    };
+};
