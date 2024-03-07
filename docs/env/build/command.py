@@ -15,7 +15,7 @@ SUPPORTED_PROJECT_TYPES = {
         "2", "4",
     },
     "template-library": {
-        "2",
+        "2", "4",
     },
     "template-basic": {
         "4",
@@ -72,6 +72,14 @@ class DTCommand(DTCommandAbs):
         parsed.workdir = os.path.abspath(parsed.workdir)
         project: DTProject = DTProject(parsed.workdir)
 
+        # make sure the project is not still templated
+        if "<" in project.name:
+            dtslogger.error(
+                "This project is still templated. Please update the placeholders before proceeding. For example, "
+                f"the project name is still the placeholder value '{project.name}'."
+            )
+            return False
+
         # make sure we are building the right project type
         if project.type not in SUPPORTED_PROJECT_TYPES:
             dtslogger.error(
@@ -101,6 +109,10 @@ class DTCommand(DTCommandAbs):
             # the distro is by default the one given by the project, in compatibility mode we use the shell distro
             parsed.distro = project.distro if project.format.version >= 4 else shell.profile.distro.name
         build_args.append(("DISTRO", parsed.distro))
+
+        # for library projects we have to specify the distribution for dt-jupyter-book
+        if project.type == "template-library":
+            build_args.append(("BASE_TAG", parsed.distro))
 
         # make an image name for JB
         jb_image_tag: str = f"{project.distro}-env"
