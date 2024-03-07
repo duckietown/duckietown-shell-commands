@@ -139,6 +139,9 @@ run_on_configuration_boot() {
     # remove `booting` service
     rm -f /etc/avahi/services/dt.booting.service
 
+    # Add the hut i2c mux to the kernel device tree
+    dtc -I dts -O dtb -@ -o /boot/overlays/duckietown_dd_hut_v1.dtbo /boot/overlays/duckietown_dd_hut_v1.dts
+
     echo "Setting up completed!"
 }
 
