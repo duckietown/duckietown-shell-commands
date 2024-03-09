@@ -205,7 +205,7 @@ else
         touch "$CONFIGURATION_BOOT_EVIDENCE_FILE"
         reboot
     else
-        echo "$SETUP_BOOT_EVIDENCE_FILE doe NOT exist, run setup boot sequence"
+        echo "$SETUP_BOOT_EVIDENCE_FILE does NOT exist, run setup boot sequence"
         run_on_setup_boot 2>&1 | tee /data/logs/setup_boot_init.log
         # mark robot as 'setup'
         touch "$SETUP_BOOT_EVIDENCE_FILE"
