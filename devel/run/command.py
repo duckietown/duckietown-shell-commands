@@ -206,7 +206,7 @@ class DTCommand(DTCommandAbs):
                 local_srcs, destination_srcs = proj.code_paths(root)
                 # compile mountpoints
                 for local_src, destination_src in zip(local_srcs, destination_srcs):
-                    mount_option += ["-v", "{:s}:{:s}".format(local_src, destination_src)]
+                    mount_option += ["-v", "{:s}:{:s}:ro".format(local_src, destination_src)]
                 # get local and remote paths to launchers
                 local_launchs, destination_launchs = proj.launch_paths(root)
                 if isinstance(local_launchs, str):
@@ -233,6 +233,7 @@ class DTCommand(DTCommandAbs):
         )
 
         # get info about docker endpoint
+        # TODO: this can be moved to a separate function or command
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(
             ["docker", "-H=%s" % parsed.machine, "info", "--format", "{{json .}}"],
