@@ -1,28 +1,25 @@
 import argparse
+import os
+import platform
+import socket
+import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import (
-    bind_duckiebot_data_dir,
-    default_env,
-    get_remote_client,
-    remove_if_running,
-    pull_if_not_exist,
-    check_if_running,
-    get_endpoint_architecture,
-)
-from utils.duckietown_utils import get_distro_version
-from utils.misc_utils import sanitize_hostname
+from utils.cli_utils import start_command_in_subprocess
+from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, get_client
 from utils.networking_utils import get_duckiebot_ip
 
 
-CALIBRATE_IMAGE = "duckietown/dt-core:{distro}-{arch}"
+ARCH = "amd64"
+BRANCH = "daffy"
+DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
 
 
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
 
-        prog = "dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME"
+        prog = "dts duckiebot calibrate_extrisics DUCKIEBOT_NAME"
         usage = """
 Calibrate:
 
@@ -30,62 +27,89 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot to calibrate")
+        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
-            "--no_verification",
+            "--base_image",
+            dest="image",
+            default=DEFAULT_IMAGE,
+        )
+        parser.add_argument(
+            "--debug",
             action="store_true",
             default=False,
-            help="If you don't have a lane you can skip the verification step",
+            help="Will enter you into the running container",
         )
+
         parsed = parser.parse_args(args)
-        # ---
-        hostname = sanitize_hostname(parsed.duckiebot)
-        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot)
+        duckiebot_ip = get_duckiebot_ip(parsed.hostname)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
-        calibration_container_name = "extrinsic_calibration"
-        validation_container_name = "extrinsic_calibration_validation"
-        remove_if_running(duckiebot_client, calibration_container_name)
-        remove_if_running(duckiebot_client, validation_container_name)
-
-        check_if_running(duckiebot_client, "duckiebot-interface")
-
-        arch = get_endpoint_architecture(hostname)
-        distro = get_distro_version(shell)
-        image = CALIBRATE_IMAGE.format(distro=distro, arch=arch)
-        dtslogger.info(f"Target architecture automatically set to {arch}.")
-
-        input(f"{'*' * 20}\nPlace the Duckiebot on the calibration pattern and press ENTER.")
-        dtslogger.info("Running extrinsics calibration...")
-
-        env = default_env(parsed.duckiebot, duckiebot_ip)
-
-        pull_if_not_exist(duckiebot_client, image)
-
-        duckiebot_client.containers.run(
-            image=image,
-            name=calibration_container_name,
-            privileged=True,
-            network_mode="host",
-            volumes=bind_duckiebot_data_dir(),
-            command="dt-launcher-calibrate-extrinsics",
-            environment=env,
-            remove=True,
-        )
-        dtslogger.info("Done!")
-
-        if not parsed.no_verification:
-            input(f"{'*' * 20}\nPlace the Duckiebot in a lane and press ENTER.")
-            dtslogger.info("Running extrinsics calibration validation...")
-
-            duckiebot_client.containers.run(
-                image=image,
-                name=validation_container_name,
-                privileged=True,
-                network_mode="host",
-                volumes=bind_duckiebot_data_dir(),
-                command="dt-launcher-validate-extrinsics",
-                environment=env,
-                remove=True,
+        # is the interface running?
+        try:
+            duckiebot_containers = duckiebot_client.containers.list()
+            interface_container_found = False
+            for c in duckiebot_containers:
+                if "duckiebot-interface" in c.name:
+                    interface_container_found = True
+            if not interface_container_found:
+                dtslogger.error("The  duckiebot-interface is not running on the Duckiebot")
+                exit()
+        except Exception as e:
+            dtslogger.warn(
+                "We could not verify that the duckiebot-interface module is running. "
+                "The exception reads: %s" % e
             )
-            dtslogger.info("Done!")
+
+        client = get_client()
+        container_name = "dts-calibrate-extrisics-%s" % parsed.hostname
+        remove_if_running(client, container_name)
+        env = {
+            "VEHICLE_NAME": parsed.hostname,
+            "QT_X11_NO_MITSHM": 1,
+        }
+
+        subprocess.call(["xhost", "+"])
+
+        if "darwin" in platform.system().lower():
+            env.update(
+                {
+                    "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
+                    "ROS_MASTER": parsed.hostname,
+                    "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
+                }
+            )
+            volumes = {"/tmp/.X11-unix": {"bind": "/tmp/.X11-unix", "mode": "rw"}}
+        else:
+            env["DISPLAY"] = os.environ["DISPLAY"]
+            volumes = {"/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}}
+
+        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
+
+        dtslogger.info(
+            "When the window opens you will be able to perform the calibration.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.com/daffy/"
+            "opmanual-duckiebot/operations/calibration_camera/index.html#extrinsic-camera-calibration.\n "
+        )
+
+        params = {
+            "image": parsed.image,
+            "name": container_name,
+            "network_mode": "host",
+            "environment": env,
+            "privileged": True,
+            "stdin_open": True,
+            "tty": True,
+            "detach": True,
+            "remove": True,
+            "auto_remove": True,
+            "command": "dt-launcher-extrinsic-calibration",
+            "volumes": volumes,
+        }
+
+        pull_if_not_exist(client, parsed.image)
+
+        client.containers.run(**params)
+
+        if parsed.debug:
+            attach_cmd = "docker attach %s" % container_name
+            start_command_in_subprocess(attach_cmd)
