@@ -36,7 +36,7 @@ class DTCommand(DTCommandAbs):
             "-s", "--stack", type=str, default=DEFAULT_STACK, help="Name of the Stack to update"
         )
         parser.add_argument(
-            "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
+            "-k", "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
         )
 
         parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
