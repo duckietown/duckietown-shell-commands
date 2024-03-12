@@ -25,6 +25,23 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+  duckiebot-interface:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: duckiebot-interface
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    pid: host
+    environment:
+      DT_SUPERUSER: 1
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+      # nvargus socket
+      - /tmp:/tmp
+
   dashboard:
     image: ${REGISTRY}/duckietown/dt-device-dashboard:ente-${ARCH}
     container_name: dashboard
@@ -117,23 +134,6 @@ services:
       - /data:/data
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  duckiebot-interface:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: duckiebot-interface
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    pid: host
-    environment:
-      DT_SUPERUSER: 1
-    volumes:
-      - dtps:/dtps
-      - /data:/data
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      # nvargus socket
-      - /tmp:/tmp
 
   rosbridge-websocket:
     image: ${REGISTRY}/duckietown/dt-rosbridge-websocket:ente-${ARCH}
