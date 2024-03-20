@@ -13,4 +13,4 @@ pytz==2023.3
 zeroconf==0.122.0
 
 # duckietown dependencies
-duckietown-docker-utils-ente==6.1.1
+duckietown-docker-utils-daffy==6.1.1
