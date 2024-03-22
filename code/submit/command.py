@@ -131,7 +131,11 @@ class DTCommand(DTCommandAbs):
             exit(1)
 
         # make sure we have the credentials to push to this registry
-        shell_cfg: ShellConfig = read_shell_config()
+        try:
+            shell_cfg: ShellConfig = read_shell_config()
+        except TypeError:
+            shell_cfg: ShellConfig = read_shell_config(shell)
+
         if registry_to_push not in shell_cfg.docker_credentials:
             dtslogger.error(
                 f"You have no credentials set for registry '{registry_to_push}', "
