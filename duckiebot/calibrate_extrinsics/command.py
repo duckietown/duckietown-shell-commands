@@ -19,7 +19,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
 
-        prog = "dts duckiebot calibrate_extrisics DUCKIEBOT_NAME"
+        prog = "dts duckiebot calibrate_extrinsics DUCKIEBOT_NAME"
         usage = """
 Calibrate:
 
@@ -27,7 +27,7 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("hostname", default=None, help="Name of the Duckiebot to calibrate")
+        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot to calibrate")
         parser.add_argument(
             "--base_image",
             dest="image",
