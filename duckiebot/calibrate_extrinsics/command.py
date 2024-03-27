@@ -27,7 +27,11 @@ Calibrate:
 """
 
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
-        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot to calibrate")
+        parser.add_argument(
+            "duckiebot",
+            default=None,
+            help="Name of the Duckiebot to calibrate",
+            )
         parser.add_argument(
             "--base_image",
             dest="image",
@@ -41,7 +45,7 @@ Calibrate:
         )
 
         parsed = parser.parse_args(args)
-        duckiebot_ip = get_duckiebot_ip(parsed.hostname)
+        duckiebot_ip = get_duckiebot_ip(parsed.duckiebot)
         duckiebot_client = get_remote_client(duckiebot_ip)
 
         # is the interface running?
@@ -61,10 +65,10 @@ Calibrate:
             )
 
         client = get_client()
-        container_name = "dts-calibrate-extrisics-%s" % parsed.hostname
+        container_name = "dts-calibrate-extrisics-%s" % parsed.duckiebot
         remove_if_running(client, container_name)
         env = {
-            "VEHICLE_NAME": parsed.hostname,
+            "VEHICLE_NAME": parsed.duckiebot,
             "QT_X11_NO_MITSHM": 1,
         }
 
@@ -74,7 +78,7 @@ Calibrate:
             env.update(
                 {
                     "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
-                    "ROS_MASTER": parsed.hostname,
+                    "ROS_MASTER": parsed.duckiebot,
                     "ROS_MASTER_URI": "http://%s:11311" % duckiebot_ip,
                 }
             )
