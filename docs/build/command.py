@@ -313,7 +313,8 @@ def build_v2(shell: DTShell, args):
                 "LIBRARY_DISTRO": DEFAULT_LIBRARY_DISTRO,
                 "DEBUG": "1" if debug else "0",
                 "PRODUCTION_BUILD": "0",
-                "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize))
+                "OPTIMIZE_IMAGES": str(int(build_html and parsed.optimize)),
+                "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ.get("ADOBE_PDF_VIEWER_CLIENT_ID", "ERROR_NO_CLIENT_ID"),
             },
             "volumes": volumes,
             "name": container_name,
@@ -398,7 +399,7 @@ def build_v2(shell: DTShell, args):
                 "LIBRARY_DISTRO": library_distro,
                 "DT_LAUNCHER": "ci-build",
                 "PRODUCTION_BUILD": str(int(production_build)),
-                "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ["ADOBE_PDF_VIEWER_CLIENT_ID"]
+                "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ.get("ADOBE_PDF_VIEWER_CLIENT_ID", "ERROR_NO_CLIENT_ID"),
             },
             "stream": True
         }
