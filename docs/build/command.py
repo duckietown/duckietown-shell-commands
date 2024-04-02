@@ -397,7 +397,8 @@ def build_v2(shell: DTShell, args):
                 "LIBRARY_HOSTNAME": dns,
                 "LIBRARY_DISTRO": library_distro,
                 "DT_LAUNCHER": "ci-build",
-                "PRODUCTION_BUILD": str(int(production_build))
+                "PRODUCTION_BUILD": str(int(production_build)),
+                "ADOBE_PDF_VIEWER_CLIENT_ID": os.environ["ADOBE_PDF_VIEWER_CLIENT_ID"]
             },
             "stream": True
         }
