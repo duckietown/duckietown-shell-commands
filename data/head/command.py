@@ -1,3 +1,5 @@
+from typing import Optional
+
 import argparse
 import yaml
 
@@ -7,6 +9,12 @@ from utils.misc_utils import indent_block
 from dt_data_api import DataClient
 
 VALID_SPACES = ["user", "public", "private"]
+
+URL = {
+    "user": None,
+    "public": "https://public.duckietown.com/{0}",
+    "private": None,
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -92,5 +100,10 @@ Where <space> can be one of {str(VALID_SPACES)}.
 
         # if we got here, the download is completed
         json_str: str = yaml.dump(metadata, indent=4, sort_keys=True)
-        dtslogger.info("Metadata:\n\n")
+        dtslogger.info("Metadata:\n")
         print(indent_block(json_str), "\n")
+
+        # print the URL
+        url_fmt: Optional[str] = URL[parsed.space]
+        if url_fmt:
+            print(f"URL: {url_fmt.format(parsed.object)}\n")
