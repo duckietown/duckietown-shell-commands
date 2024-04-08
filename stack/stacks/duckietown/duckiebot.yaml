@@ -13,7 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   dtps:
-    image: ${REGISTRY}/duckietown/dtps-switchboard:latest
+    image: ${REGISTRY}/duckietown/dtps-switchboard:release
     container_name: dtps
     restart: unless-stopped
     network_mode: host
@@ -25,15 +25,16 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  duckiebot-interface:
+  driver-camera:
     image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: duckiebot-interface
+    container_name: driver-camera
     restart: unless-stopped
     network_mode: host
     privileged: true
     pid: host
     environment:
       DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-camera
     volumes:
       - dtps:/dtps
       - /data:/data
@@ -41,6 +42,111 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       # nvargus socket
       - /tmp:/tmp
+
+  driver-tof:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-tof
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-tof
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-imu:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-imu
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-imu
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-power-button:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-power-button
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-power-button
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-wheel-encoders:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-wheel-encoders
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-wheel-encoders
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-wheels:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-wheels
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: actuator-wheels
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-leds:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-leds
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: actuator-leds
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-display:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-display
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: actuator-display
+    volumes:
+      - dtps:/dtps
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   dashboard:
     image: ${REGISTRY}/duckietown/dt-device-dashboard:ente-${ARCH}
@@ -129,6 +235,18 @@ services:
     container_name: ros
     restart: unless-stopped
     network_mode: host
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  ros-interface:
+    image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
+    container_name: ros-interface
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_SUPERUSER: 1
     volumes:
       - dtps:/dtps
       - /data:/data
