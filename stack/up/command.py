@@ -1,3 +1,5 @@
+from typing import Set
+
 import argparse
 import os
 import pathlib
@@ -91,13 +93,17 @@ class DTCommand(DTCommandAbs):
         endpoint_arch = get_endpoint_architecture(parsed.machine)
         dtslogger.info(f'Detected device architecture is "{endpoint_arch}".')
         # pull images
+        processed: Set[str] = set()
         if parsed.pull:
             with open(stack_file, "r") as fin:
                 stack_content = yaml.safe_load(fin)
             for service in stack_content["services"].values():
                 image_name = service["image"].replace("${ARCH}", endpoint_arch)
                 image_name = image_name.replace("${REGISTRY}", registry_to_use)
+                if image_name in processed:
+                    continue
                 dtslogger.info(f"Pulling image `{image_name}`...")
+                processed.add(image_name)
                 try:
                     pull_image_OLD(image_name, parsed.machine)
                 except NotFound:
@@ -108,7 +114,9 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Running stack [{stack}]...")
         print("------>")
         # collect arguments
-        docker_arguments = []
+        docker_arguments = [
+            "--remove-orphans",
+        ]
         # get copy of environment
         env = {}
         env.update(os.environ)
