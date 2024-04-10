@@ -1,16 +1,14 @@
-import argparse
 import json
 import logging
 import os
-from types import SimpleNamespace
-from typing import Optional, List, Union, Dict, Set
+from typing import Optional, List, Union, Dict, Set, Tuple
 
-from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+import argparse
+from dockertown import DockerClient
 from requirements.requirement import Requirement
 
-from dockertown import DockerClient
+from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dtproject import DTProject
-from utils.assets_utils import get_asset_path
 from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use,
@@ -20,8 +18,7 @@ from utils.docker_utils import (
 from utils.exceptions import UnpinnedDependenciesError
 from utils.misc_utils import sanitize_hostname, indent_block
 
-
-Raw = Comment = str
+Raw = RawUnpinned = RawPinned = Comment = str
 
 STRICT_SPECS: Set[str] = {
     "==",
@@ -82,12 +79,6 @@ class DTCommand(DTCommandAbs):
         host: Optional[str] = sanitize_docker_baseurl(parsed.machine)
         docker = DockerClient(host=host, debug=debug)
 
-        # get Dockerfile from our assets
-        assets_path = get_asset_path("dockerfile", "pip-resolver", "v1")
-        dockerfile_path = get_asset_path(
-            "dockerfile", "pip-resolver", "v1", "Dockerfile"
-        )
-
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
@@ -97,64 +88,34 @@ class DTCommand(DTCommandAbs):
             parsed.arch = get_endpoint_architecture(parsed.machine)
             dtslogger.info(f"Target architecture automatically set to {parsed.arch}.")
 
-        # make an image name
-        image_tag: str = f"{project.safe_version_name}-pip-resolver"
-
-        # build environment (this is the step that performs the resolution)
-        dtslogger.info(
-            f"Building pip-resolver environment image for project '{project.name}'..."
-        )
-        buildx_namespace: SimpleNamespace = SimpleNamespace(
-            workdir=parsed.workdir,
-            machine=parsed.machine,
-            arch=parsed.arch,
-            file=dockerfile_path,
-            username="duckietown",
-            tag=image_tag,
-            build_context=[
-                ("assets", assets_path),
-                ("project", project.path),
-            ],
-            pull=not parsed.no_pull,
-            verbose=parsed.verbose,
-            quiet=not parsed.verbose,
-            force=True,
-        )
-        dtslogger.debug(
-            f"Calling command 'devel/build' with arguments: {str(buildx_namespace)}"
-        )
-        shell.include.devel.build.command(shell, [], parsed=buildx_namespace)
-
         # recreate image name
         registry_to_use = get_registry_to_use()
-        image = project.image(
+        image: str = project.image(
             arch=parsed.arch,
             registry=registry_to_use,
             owner="duckietown",
-            extra="pip-resolver",
+            # extra="pip-resolver",
             version=project.distro
         )
 
         # run pip freeze
-        dtslogger.info(f"Exporting list of resolved dependencies...")
-        args = {
-            "image": image,
-            "remove": True,
-        }
-        dtslogger.debug(
-            f"Calling docker.run with arguments:\n"
-            f"{json.dumps(args, indent=4, sort_keys=True)}\n"
-        )
-        logs: str = docker.run(**args)
-        lines: List[str] = logs.splitlines()
+        dtslogger.info(f"Exporting list of resolved dependencies from image '{image}'...")
+        pinned: List[str] = DTCommand._pip_freeze(docker, image)
 
-        # extract pip-freeze output
-        s, e = lines.index("PIP-FREEZE:BEGIN"), lines.index("PIP-FREEZE:END")
-        pinned: List[str] = lines[s + 1 : e]
+        # get dependencies from the base image
+        base_image: Optional[str] = DTCommand._base_image(project, registry_to_use, parsed.arch)
+        inherited: List[RawPinned] = []
+        if base_image is not None:
+            dtslogger.info(f"Exporting list of resolved dependencies from base image '{base_image}'...")
+            inherited = DTCommand._pip_freeze(docker, base_image)
 
+        computed: Set[RawPinned] = set()
         for deps_file, wanted in deps_files.items():
             # combine pinned list with dependencies list
-            resolved: List[str] = DTCommand._resolve_deps(wanted, pinned)
+            resolved: List[str]
+
+            resolved, others = DTCommand._resolve_deps(wanted, pinned, inherited)
+            computed = computed.intersection(others) if len(computed) > 0 else others
 
             # in-place edit
             if parsed.in_place:
@@ -166,9 +127,42 @@ class DTCommand(DTCommandAbs):
                 content: str = "\n".join(resolved)
                 print(f"\n{deps_file}:\n{sep}\n{indent_block(content)}\n{sep}\n")
 
+        # print out / save computed dependencies
+        if parsed.in_place:
+            deps_file = "dependencies-py3.computed.txt"
+            DTCommand._write_deps_file(project, deps_file, sorted(computed), must_exist=False)
+            dtslogger.info(f"File '{deps_file}' modified")
+        else:
+            sep: str = "-" * 30
+            content: str = "\n".join(computed)
+            print(f"\nComputed dependencies (installed but not explicitly listed):"
+                  f"\n{sep}\n{indent_block(content)}\n{sep}\n")
+
     @staticmethod
     def complete(shell, word, line):
         return []
+
+    @staticmethod
+    def _pip_freeze(docker: DockerClient, image: str) -> List[RawPinned]:
+        # run pip freeze
+        args = {
+            "image": image,
+            "remove": True,
+            "envs": {
+                "DT_LAUNCHER": "pip-freeze",
+            },
+        }
+        dtslogger.debug(
+            f"Calling docker.run with arguments:\n"
+            f"{json.dumps(args, indent=4, sort_keys=True)}\n"
+        )
+        logs: str = docker.run(**args)
+        lines: List[str] = logs.splitlines()
+        # extract pip-freeze output
+        s, e = lines.index("PIP-FREEZE:BEGIN"), lines.index("PIP-FREEZE:END")
+        pinned: List[RawPinned] = lines[s + 1:e]
+        # ---
+        return pinned
 
     @staticmethod
     def _check_pinned(deps_file: str, wanted: List[str], strict: bool):
@@ -193,7 +187,7 @@ class DTCommand(DTCommandAbs):
                 )
 
     @staticmethod
-    def _resolve_deps(wanted: List[str], pinned: List[str]) -> List[str]:
+    def _resolve_deps(wanted: List[str], pinned: List[str], inherited: List[str]) -> Tuple[List[str], Set[str]]:
         resolved: List[Raw] = []
         wanted: List[Union[Comment, Requirement]] = [
             (w if DTCommand._is_comment(w) else Requirement.parse(w)) for w in wanted
@@ -201,6 +195,8 @@ class DTCommand(DTCommandAbs):
         pinned: Dict[Raw, Union[Comment, Requirement]] = {
             p: (p if DTCommand._is_comment(p) else Requirement.parse(p)) for p in pinned
         }
+        inherited: Set[RawUnpinned] = {Requirement.parse(p).name.lower().strip() for p in inherited}
+        unmatched: Set[RawPinned] = set(pinned.keys())
         for dep in wanted:
             # keep comments
             if isinstance(dep, Comment):
@@ -213,6 +209,7 @@ class DTCommand(DTCommandAbs):
                 if rdep.name.lower().strip() == rdep1.name.lower().strip():
                     resolved.append(dep1)
                     found = True
+                    unmatched.remove(dep1)
                     break
             # make sure we always have a match
             if not found:
@@ -220,8 +217,12 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(msg)
                 dtslogger.debug(f"pip-freeze: {pinned}")
                 raise UserError(msg)
+        # remove unmatched dependencies that are inherited
+        unmatched = {
+            u for u in unmatched if Requirement.parse(u).name.lower().strip() not in inherited
+        }
         # ---
-        return resolved
+        return resolved, unmatched
 
     @staticmethod
     def _is_comment(s: str) -> bool:
@@ -232,7 +233,13 @@ class DTCommand(DTCommandAbs):
         return len(deps) - len(list(filter(DTCommand._is_comment, deps)))
 
     @staticmethod
-    def _write_deps_file(project: DTProject, deps_file: str, deps: List[str]):
+    def _base_image(project: DTProject, registry: str, arch: str) -> Optional[str]:
+        if project.base_organization != "duckietown":
+            return None
+        return f"{registry}/{project.base_organization}/{project.base_repository}:{project.distro}-{arch}"
+
+    @staticmethod
+    def _write_deps_file(project: DTProject, deps_file: str, deps: List[str], must_exist: bool = True):
         # no deps no file change
         ndeps: int = DTCommand._count_deps(deps)
         if ndeps <= 0:
@@ -241,7 +248,7 @@ class DTCommand(DTCommandAbs):
         content: str = "\n".join(deps) + "\n"
         # file location
         fpath: str = os.path.join(project.path, deps_file)
-        if not os.path.exists(fpath) or not os.path.isfile(fpath):
+        if must_exist and (not os.path.exists(fpath) or not os.path.isfile(fpath)):
             raise UserError(
                 f"The file '{deps_file}' was not found in '{project.path}' though the project "
                 f"is set to receive {ndeps} dependencies from that file. This should not have "
