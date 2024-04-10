@@ -20,6 +20,7 @@ services:
     environment:
       RUST_LOG: "warn,dtps_http=debug"
     command: --tcp-port 11511 --tcp-host 0.0.0.0 --unix-path /dtps/switchboard.sock
+    privileged: true
     volumes:
       - dtps:/dtps
       # avahi socket
