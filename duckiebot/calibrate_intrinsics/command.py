@@ -7,7 +7,7 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist
+from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, pull_image
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -40,26 +40,20 @@ Calibrate:
             default=False,
             help="Will enter you into the running container",
         )
+        parser.add_argument(
+            "--no-pull",
+            action="store_true",
+            default=False,
+            help="Do not pull calibration code image",
+        )
+        parser.add_argument(
+            "--keep",
+            action="store_true",
+            default=False,
+            help="Do not remove the calibration image once done. Useful for debugging",
+        )
 
         parsed = parser.parse_args(args)
-        duckiebot_ip = get_duckiebot_ip(parsed.hostname)
-        duckiebot_client = get_remote_client(duckiebot_ip)
-
-        # is the interface running?
-        try:
-            duckiebot_containers = duckiebot_client.containers.list()
-            interface_container_found = False
-            for c in duckiebot_containers:
-                if "duckiebot-interface" in c.name:
-                    interface_container_found = True
-            if not interface_container_found:
-                dtslogger.error("The  duckiebot-interface is not running on the Duckiebot")
-                exit()
-        except Exception as e:
-            dtslogger.warn(
-                "We could not verify that the duckiebot-interface module is running. "
-                "The exception reads: %s" % e
-            )
 
         client = check_docker_environment()
         container_name = "dts-calibrate-intrinsics-%s" % parsed.hostname
@@ -72,6 +66,7 @@ Calibrate:
         subprocess.call(["xhost", "+"])
 
         if "darwin" in platform.system().lower():
+            duckiebot_ip = get_duckiebot_ip(parsed.hostname)
             env.update(
                 {
                     "DISPLAY": "%s:0" % socket.gethostbyname(socket.gethostname()),
@@ -84,15 +79,6 @@ Calibrate:
             env["DISPLAY"] = os.environ["DISPLAY"]
             volumes = {"/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}}
 
-        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
-
-        dtslogger.info(
-            "When the window opens you will be able to perform the calibration.\n "
-            "Follow the instructions on the official book at https://docs.duckietown.com/daffy/"
-            "opmanual-duckiebot/operations/calibration_camera/index.html#intrinsic-calibration.\n "
-            "Press [Q] to close the window."
-        )
-
         params = {
             "image": parsed.image,
             "name": container_name,
@@ -102,13 +88,25 @@ Calibrate:
             "stdin_open": True,
             "tty": True,
             "detach": True,
-            "remove": True,
-            "auto_remove": True,
+            "remove": not parsed.keep,
             "command": "dt-launcher-intrinsic-calibration",
             "volumes": volumes,
         }
 
-        pull_if_not_exist(client, parsed.image)
+        if not parsed.no_pull:
+            dtslogger.info("Pulling image %s ..." % parsed.image)
+            pull_image(parsed.image, client)
+        else:
+            pull_if_not_exist(client, parsed.image)
+
+        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
+
+        dtslogger.info(
+            "When the window opens you will be able to perform the calibration.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.com/daffy/"
+            "opmanual-duckiebot/operations/calibration_camera/index.html#intrinsic-calibration.\n "
+            "Press [Q] to close the window."
+        )
 
         client.containers.run(**params)
 
