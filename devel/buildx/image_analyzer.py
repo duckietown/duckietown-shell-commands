@@ -80,11 +80,11 @@ class ImageAnalyzer(object):
             exit(codens + 2)
 
         # find image tags
-        image_names = []
+        image_names = set()
         for line in reversed(lines):
             if line.startswith("naming to"):
                 image_name = line[10:].split(" ")[0]
-                image_names.append(image_name)
+                image_names.add(image_name)
 
         print()
         ImageAnalyzer.about()
@@ -224,7 +224,7 @@ class ImageAnalyzer(object):
         )
         print()
         print("=" * SEPARATORS_LENGTH)
-        print("Final image name: %s" % ("\n" + " " * 18).join(image_names))
+        print("Final image name(s): %s" % ("\n" + " " * 18).join(image_names))
         print("Base image size: %s" % size_fmt(base_image_size))
         print("Final image size: %s" % size_fmt(final_image_size))
         print("Your image added %s to the base image." % size_fmt(final_image_size - base_image_size))
