@@ -7,6 +7,7 @@ __all__ = [
     "RecipeProjectNotFound",
     "SecretNotFound",
     "NetworkingError",
+    "UnpinnedDependenciesError",
 ]
 
 
@@ -41,4 +42,8 @@ class UserAborted(UserError):
 
 
 class NetworkingError(UserError):
+    pass
+
+
+class UnpinnedDependenciesError(UserError):
     pass
