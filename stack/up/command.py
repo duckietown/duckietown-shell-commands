@@ -118,7 +118,9 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Running stack [{stack}]...")
         print("------>")
         # collect arguments
-        docker_arguments = []
+        docker_arguments = [
+            "--remove-orphans",
+        ]
         # get copy of environment
         env = {}
         env.update(os.environ)
