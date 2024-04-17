@@ -49,14 +49,14 @@ Calibrate:
             duckiebot_containers = duckiebot_client.containers.list()
             interface_container_found = False
             for c in duckiebot_containers:
-                if "duckiebot-interface" in c.name:
+                if "driver-camera" in c.name:
                     interface_container_found = True
             if not interface_container_found:
-                dtslogger.error("The  duckiebot-interface is not running on the Duckiebot")
+                dtslogger.error("The camera driver is not running on the Duckiebot")
                 exit()
         except Exception as e:
             dtslogger.warn(
-                "We could not verify that the duckiebot-interface module is running. "
+                "We could not verify that the camera driver module is running. "
                 "The exception reads: %s" % e
             )
 
