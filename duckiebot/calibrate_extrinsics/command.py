@@ -6,7 +6,7 @@ import subprocess
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, get_client
+from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, get_client, pull_image
 from utils.networking_utils import get_duckiebot_ip
 
 
@@ -42,6 +42,12 @@ Calibrate:
             action="store_true",
             default=False,
             help="Will enter you into the running container",
+        )
+        parser.add_argument(
+            "--no-pull",
+            action="store_true",
+            default=False,
+            help="Do not pull calibration code image",
         )
 
         parsed = parser.parse_args(args)
@@ -110,7 +116,11 @@ Calibrate:
             "volumes": volumes,
         }
 
-        pull_if_not_exist(client, parsed.image)
+        if not parsed.no_pull:
+            dtslogger.info("Pulling image %s ..." % parsed.image)
+            pull_image(parsed.image, client)
+        else:
+            pull_if_not_exist(client, parsed.image)
 
         client.containers.run(**params)
 
