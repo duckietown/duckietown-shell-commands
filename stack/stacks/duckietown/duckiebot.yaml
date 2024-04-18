@@ -13,7 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   dashboard:
-    image: ${REGISTRY}/duckietown/dt-device-dashboard:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-device-dashboard:v4.1.0-${ARCH}
     container_name: dashboard
     restart: unless-stopped
     network_mode: host
@@ -28,7 +28,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   files-api:
-    image: ${REGISTRY}/duckietown/dt-files-api:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-files-api:v4.1.0-${ARCH}
     container_name: files-api
     restart: always
     network_mode: host
@@ -39,7 +39,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   code-api:
-    image: ${REGISTRY}/duckietown/dt-code-api:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-code-api:v4.1.0-${ARCH}
     container_name: code-api
     restart: always
     network_mode: host
@@ -52,7 +52,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-proxy:
-    image: ${REGISTRY}/duckietown/dt-device-proxy:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-device-proxy:v4.2.0-${ARCH}
     container_name: device-proxy
     restart: always
     network_mode: host
@@ -62,7 +62,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-health:
-    image: ${REGISTRY}/duckietown/dt-device-health:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-device-health:v4.2.0-${ARCH}
     container_name: device-health
     restart: always
     network_mode: host
@@ -74,7 +74,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-online:
-    image: ${REGISTRY}/duckietown/dt-device-online:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-device-online:v4.3.0-${ARCH}
     container_name: device-online
     restart: always
     network_mode: host
@@ -87,7 +87,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   ros:
-    image: ${REGISTRY}/duckietown/dt-ros-commons:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-ros-commons:v4.3.0-${ARCH}
     container_name: ros
     restart: unless-stopped
     network_mode: host
@@ -97,7 +97,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   duckiebot-interface:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:v4.3.0-${ARCH}
     container_name: duckiebot-interface
     restart: unless-stopped
     network_mode: host
@@ -111,7 +111,7 @@ services:
       - /tmp:/tmp
 
   car-interface:
-    image: ${REGISTRY}/duckietown/dt-car-interface:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-car-interface:v4.1.0-${ARCH}
     container_name: car-interface
     restart: unless-stopped
     network_mode: host
@@ -121,7 +121,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   rosbridge-websocket:
-    image: ${REGISTRY}/duckietown/dt-rosbridge-websocket:daffy-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-rosbridge-websocket:v4.1.0-${ARCH}
     container_name: rosbridge-websocket
     restart: unless-stopped
     network_mode: host
