@@ -93,14 +93,6 @@ Calibrate:
             env["DISPLAY"] = os.environ["DISPLAY"]
             volumes = {"/var/run/avahi-daemon/socket": {"bind": "/var/run/avahi-daemon/socket", "mode": "rw"}}
 
-        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
-
-        dtslogger.info(
-            "When the window opens you will be able to perform the calibration.\n "
-            "Follow the instructions on the official book at https://docs.duckietown.com/daffy/"
-            "opmanual-duckiebot/operations/calibration_camera/index.html#extrinsic-camera-calibration.\n "
-        )
-
         params = {
             "image": parsed.image,
             "name": container_name,
@@ -121,6 +113,14 @@ Calibrate:
             pull_image(parsed.image, client)
         else:
             pull_if_not_exist(client, parsed.image)
+
+        dtslogger.info("Running %s on localhost with environment vars: %s" % (container_name, env))
+
+        dtslogger.info(
+            "When the window opens you will be able to perform the calibration.\n "
+            "Follow the instructions on the official book at https://docs.duckietown.com/daffy/"
+            "opmanual-duckiebot/operations/calibration_camera/index.html#extrinsic-camera-calibration.\n "
+        )
 
         client.containers.run(**params)
 
