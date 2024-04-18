@@ -11,8 +11,8 @@ from utils.networking_utils import get_duckiebot_ip
 
 
 ARCH = "amd64"
-BRANCH = "daffy"
-DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
+VERSION = "v4.1.1"
+DEFAULT_IMAGE = f"duckietown/dt-gui-tools:{VERSION}-{ARCH}"
 
 
 class DTCommand(DTCommandAbs):

@@ -7,13 +7,13 @@ import subprocess
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dt_shell.env_checks import check_docker_environment
 from utils.cli_utils import start_command_in_subprocess
-from utils.docker_utils import get_remote_client, remove_if_running, pull_if_not_exist, pull_image
+from utils.docker_utils import remove_if_running, pull_if_not_exist, pull_image
 from utils.networking_utils import get_duckiebot_ip
 
 
 ARCH = "amd64"
-BRANCH = "daffy"
-DEFAULT_IMAGE = "duckietown/dt-gui-tools:" + BRANCH + "-" + ARCH
+VERSION = "v4.1.1"
+DEFAULT_IMAGE = f"duckietown/dt-gui-tools:{VERSION}-{ARCH}"
 
 
 class DTCommand(DTCommandAbs):
