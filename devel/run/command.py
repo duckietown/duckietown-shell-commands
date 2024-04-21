@@ -63,9 +63,9 @@ class DTCommand(DTCommandAbs):
             dtslogger.error("You cannot both -m/--mount and --no-mount at the same time.")
             exit(1)
 
-        # mount
+        # we mount the code inside the container by default unless we are using --cloud
         if parsed.mount is DEFAULT_TRUE:
-            parsed.mount = True
+            parsed.mount = not parsed.cloud
 
         # no-mount
         if parsed.no_mount:
@@ -99,9 +99,9 @@ class DTCommand(DTCommandAbs):
             else:
                 parsed.machine = DEFAULT_MACHINE
 
-        # when we run against a remote machine, we need to sync the code
+        # when we run against a remote machine, we need to sync the code (unless we are using --cloud)
         if parsed.machine != DEFAULT_MACHINE:
-            parsed.sync = True
+            parsed.sync = not parsed.cloud
 
         # x-docker runtime
         if parsed.use_x_docker:
