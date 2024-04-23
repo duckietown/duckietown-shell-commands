@@ -368,7 +368,7 @@ class DTCommand(DTCommandAbs):
                 )
             # run rsync
             for project_path in projects_to_sync:
-                cmd = f"rsync --archive --delete --chown={REMOTE_USER}:{REMOTE_GROUP} {project_path} {remote_path}"
+                cmd = f"rsync --archive --delete --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} {project_path} {remote_path}"
                 _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
 
