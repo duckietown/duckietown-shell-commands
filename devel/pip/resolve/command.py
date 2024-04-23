@@ -1,13 +1,17 @@
 import json
 import logging
 import os
+from itertools import chain
 from typing import Optional, List, Union, Dict, Set, Tuple
 
 import argparse
+import requests
+
 from dockertown import DockerClient
 from requirements.requirement import Requirement
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
+from dt_shell.database import DTShellDatabase
 from dtproject import DTProject
 from utils.docker_utils import (
     get_endpoint_architecture,
@@ -28,6 +32,7 @@ GOOD_SPECS: Set[str] = {
     "<=",
     "<",
 }
+REGISTRY_JSON_URL: str = "https://pypi.org/pypi/{package}/json"
 
 
 class DTCommand(DTCommandAbs):
@@ -126,6 +131,49 @@ class DTCommand(DTCommandAbs):
                 sep: str = "-" * 30
                 content: str = "\n".join(resolved)
                 print(f"\n{deps_file}:\n{sep}\n{indent_block(content)}\n{sep}\n")
+
+        # computed mock list
+        cache: DTShellDatabase = shell.profile.database("known_python_packages")
+        explicit: List[RawUnpinned] = [
+            Requirement.parse(d).name for d in chain(*deps_files.values())
+            if not d.startswith("#") and len(d.strip()) > 0
+        ]
+        valid: List[RawUnpinned] = cache.get("valid", [])
+        mocked: List[RawPinned] = cache.get("mocked", [])
+        for package in computed:
+            r: Requirement = Requirement.parse(package)
+            # check if the package (without pinned version is available), otherwise add it to the mock list
+            # - we have seen this package before
+            if r.name in valid:
+                continue
+            # - we have explicitly requested it
+            if r.name in explicit:
+                valid.append(r.name)
+                continue
+            # - check with the registry
+            url: str = REGISTRY_JSON_URL.format(package=r.name)
+            dtslogger.info(f" GET: {url}")
+            response: requests.Response = requests.get(url)
+            if response.status_code == 200:
+                valid.append(r.name)
+                continue
+            elif response.status_code == 404:
+                # add to mocked
+                mocked.append(package)
+            else:
+                raise ValueError(f"The registry return the unexpected following response:\n\n{response}")
+
+        # update cache
+        cache.update({
+            "valid": valid,
+            "mocked": mocked,
+        })
+
+        # write mock list to file
+        if len(mocked):
+            mock_deps_file: str = "dependencies-py3.mock.txt"
+            DTCommand._write_deps_file(project, mock_deps_file, sorted(mocked), must_exist=False)
+            dtslogger.info(f"File '{mock_deps_file}' modified")
 
         # print out / save computed dependencies
         if parsed.in_place:
