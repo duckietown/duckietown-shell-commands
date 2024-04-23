@@ -202,29 +202,35 @@ class DTCommand(DTCommandAbs):
                 # (experimental): when we run remotely, use <rcode>/<project> as root
                 local: bool = parsed.machine == DEFAULT_MACHINE
                 root = os.path.join(rcode, proj.name) if not local else proj.path
-                # get local and remote paths to code
-                local_srcs, destination_srcs = proj.code_paths(root)
-                # compile mountpoints
-                for local_src, destination_src in zip(local_srcs, destination_srcs):
-                    if parsed.read_write:
-                        mount_option += ["-v", "{:s}:{:s}:rw".format(local_src, destination_src)]
-                    else:
-                        mount_option += ["-v", "{:s}:{:s}:ro".format(local_src, destination_src)]
-                # get local and remote paths to launchers
-                local_launchs, destination_launchs = proj.launch_paths(root)
-                if isinstance(local_launchs, str):
-                    local_launchs = [local_launchs]
-                    destination_launchs = [destination_launchs]
-                # compile mountpoints
-                for local_launch, destination_launch in zip(local_launchs, destination_launchs):
-                    mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
-                    # make sure the launchers are executable (local only)
-                    if local:
-                        try:
-                            _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
-                        except Exception:
-                            dtslogger.warning("An error occurred while making the launchers executable. "
-                                              "Things might not work as expected.")
+
+                # mount code
+                if not parsed.no_mount_code:
+                    # get local and remote paths to code
+                    local_srcs, destination_srcs = proj.code_paths(root)
+                    # compile mountpoints
+                    for local_src, destination_src in zip(local_srcs, destination_srcs):
+                        if parsed.read_write:
+                            mount_option += ["-v", "{:s}:{:s}:rw".format(local_src, destination_src)]
+                        else:
+                            mount_option += ["-v", "{:s}:{:s}:ro".format(local_src, destination_src)]
+
+                # mount launchers
+                if not parsed.no_mount_launchers:
+                    # get local and remote paths to launchers
+                    local_launchs, destination_launchs = proj.launch_paths(root)
+                    if isinstance(local_launchs, str):
+                        local_launchs = [local_launchs]
+                        destination_launchs = [destination_launchs]
+                    # compile mountpoints
+                    for local_launch, destination_launch in zip(local_launchs, destination_launchs):
+                        mount_option += ["-v", "{:s}:{:s}".format(local_launch, destination_launch)]
+                        # make sure the launchers are executable (local only)
+                        if local:
+                            try:
+                                _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
+                            except Exception:
+                                dtslogger.warning("An error occurred while making the launchers executable. "
+                                                  "Things might not work as expected.")
 
         # create image name
         image = project.image(
@@ -328,9 +334,11 @@ class DTCommand(DTCommandAbs):
         )
 
         # environment
-        if parsed.machine == DEFAULT_MACHINE:
+        if parsed.machine == DEFAULT_MACHINE and not parsed.no_impersonate:
+            host_uid: int = os.getuid()
+            dtslogger.info(f"Impersonating host user with UID {host_uid}")
             module_configuration_args += [
-                f"-e=IMPERSONATE_UID={os.getuid()}",
+                f"-e=IMPERSONATE_UID={host_uid}",
                 # NOTE: it is important to leave the container user's GID so that he can access his old files
             ]
 
@@ -368,7 +376,7 @@ class DTCommand(DTCommandAbs):
                 )
             # run rsync
             for project_path in projects_to_sync:
-                cmd = f"rsync --archive --delete --chown={REMOTE_USER}:{REMOTE_GROUP} {project_path} {remote_path}"
+                cmd = f"rsync --archive --delete --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} {project_path} {remote_path}"
                 _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
 
