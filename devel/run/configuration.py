@@ -94,6 +94,24 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Whether NOT TO mount the current project into the container"
         )
         parser.add_argument(
+            "--no-mount-code",
+            default=False,
+            action="store_true",
+            help="Whether NOT TO mount the current project's code into the container"
+        )
+        parser.add_argument(
+            "--no-mount-launchers",
+            default=False,
+            action="store_true",
+            help="Whether NOT TO mount the current project's launchers into the container"
+        )
+        parser.add_argument(
+            "--no-impersonate",
+            default=False,
+            action="store_true",
+            help="Do not impersonate the host user inside the container"
+        )
+        parser.add_argument(
             "--cloud", default=False, action="store_true", help="Run the image on the cloud"
         )
         parser.add_argument(
