@@ -163,9 +163,8 @@ class DTCommand(DTCommandAbs):
         # apply default module configuration
         module_configuration_args.append(f"--net={parsed.network_mode}")
         # environment
-        if parsed.ros is not None:
-            # parsed.ros = parsed.ros if parsed.ros.endswith('.local') else f'{parsed.ros}.local'
-            module_configuration_args.append(f"-e=VEHICLE_NAME={parsed.ros}")
+        if parsed.robot is not None:
+            module_configuration_args.append(f"-e=VEHICLE_NAME={parsed.robot}")
         # parse arguments
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
         mount_option = []

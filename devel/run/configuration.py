@@ -39,9 +39,9 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         )
         parser.add_argument(
             "-R",
-            "--ros",
+            "--robot",
             default=None,
-            help="Hostname of the machine hosting the ROS Master node",
+            help="Name of the robot we want this project to connect to",
         )
         parser.add_argument("-n", "--name", default=None, help="Name of the container")
         parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
