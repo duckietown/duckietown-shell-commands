@@ -8,8 +8,6 @@
 #   MODE
 #
 
-set -x
-
 declare -A MODES=(
     ["conservative"]=":!assets :!code :!html :!docs :!launchers :!packages :!dependencies* :!configurations.yaml :!.dtproject :!dtproject/self.yaml :!.github :!.bumpversion.cfg :!README.md :!LICENSE.pdf" \
     ["brute"]="" \
