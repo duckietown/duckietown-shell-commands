@@ -108,11 +108,14 @@ class DTCommand(DTCommandAbs):
         pinned: List[str] = DTCommand._pip_freeze(docker, image)
 
         # get dependencies from the base image
-        base_image: Optional[str] = DTCommand._base_image(project, registry_to_use, parsed.arch)
         inherited: List[RawPinned] = []
+        base_image: Optional[str] = DTCommand._base_image(project, registry_to_use, parsed.arch)
         if base_image is not None:
-            dtslogger.info(f"Exporting list of resolved dependencies from base image '{base_image}'...")
-            inherited = DTCommand._pip_freeze(docker, base_image)
+            if not parsed.ignore_base:
+                dtslogger.info(f"Exporting list of resolved dependencies from base image '{base_image}'...")
+                inherited = DTCommand._pip_freeze(docker, base_image)
+            else:
+                dtslogger.info(f"Dependencies from the base image '{base_image}' ignored as requested")
 
         computed: Set[RawPinned] = set()
         for deps_file, wanted in deps_files.items():

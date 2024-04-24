@@ -38,6 +38,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Whether to skip updating the base image from the registry",
         )
         parser.add_argument(
+            "--ignore-base",
+            default=False,
+            action="store_true",
+            help="Whether to ignore the dependencies provided by the base image",
+        )
+        parser.add_argument(
             "-i",
             "--in-place",
             default=False,
