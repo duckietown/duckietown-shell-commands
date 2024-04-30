@@ -100,7 +100,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi_64": f"dt-raspios-bullseye-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
@@ -497,7 +497,7 @@ def step_flash(_, parsed, data):
 
         device = None
         while device is None:
-            msg = "Type the name of your device: "
+            msg = "Type the name of the device of choice (from the list above): "
             txt = input(msg)
             if len(txt.strip()) > 0:
                 device = txt
