@@ -206,32 +206,35 @@ class ImageAnalyzer(object):
         cached_layers = min(tot_layers, cached_layers)
 
         # print info about the whole image
-        print()
-        print(
-            "Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t"
-            % (
-                tc.colored(" " * 2, "white", "on_white"),
-                "EMPTY LAYER",
-                tc.colored(" " * 2, "white", "on_blue"),
-                "BASE LAYER",
-                tc.colored(" " * 2, "white", "on_green"),
-                size_fmt(LAYER_SIZE_YELLOW, precision=1),
-                tc.colored(" " * 2, "white", "on_yellow"),
-                size_fmt(LAYER_SIZE_RED, precision=1),
-                tc.colored(" " * 2, "white", "on_red"),
-                size_fmt(LAYER_SIZE_RED, precision=1),
+        if tot_layers > 1:
+            print()
+            print(
+                "Legend: %s %s\t%s %s\t%s < %s\t%s < %s\t%s > %s\t"
+                % (
+                    tc.colored(" " * 2, "white", "on_white"),
+                    "EMPTY LAYER",
+                    tc.colored(" " * 2, "white", "on_blue"),
+                    "BASE LAYER",
+                    tc.colored(" " * 2, "white", "on_green"),
+                    size_fmt(LAYER_SIZE_YELLOW, precision=1),
+                    tc.colored(" " * 2, "white", "on_yellow"),
+                    size_fmt(LAYER_SIZE_RED, precision=1),
+                    tc.colored(" " * 2, "white", "on_red"),
+                    size_fmt(LAYER_SIZE_RED, precision=1),
+                )
             )
-        )
-        print()
-        print("=" * SEPARATORS_LENGTH)
+            print()
+            print("=" * SEPARATORS_LENGTH)
+
         print("Final image name: %s" % ("\n" + " " * 18).join(image_names))
-        print("Base image size: %s" % size_fmt(base_image_size))
-        print("Final image size: %s" % size_fmt(final_image_size))
-        print("Your image added %s to the base image." % size_fmt(final_image_size - base_image_size))
-        print(EXTRA_INFO_SEPARATOR)
-        print("Layers total: {:d}".format(tot_layers))
-        print(" - Built: {:d}".format(tot_layers - cached_layers))
-        print(" - Cached: {:d}".format(cached_layers))
+        if tot_layers > 1:
+            print("Base image size: %s" % size_fmt(base_image_size))
+            print("Final image size: %s" % size_fmt(final_image_size))
+            print("Your image added %s to the base image." % size_fmt(final_image_size - base_image_size))
+            print(EXTRA_INFO_SEPARATOR)
+            print("Layers total: {:d}".format(tot_layers))
+            print(" - Built: {:d}".format(tot_layers - cached_layers))
+            print(" - Cached: {:d}".format(cached_layers))
         if extra_info is not None and len(extra_info) > 0:
             print(EXTRA_INFO_SEPARATOR)
             print(extra_info)
