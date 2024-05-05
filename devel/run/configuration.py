@@ -106,6 +106,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Whether NOT TO mount the current project's launchers into the container"
         )
         parser.add_argument(
+            "--no-mount-libraries",
+            default=False,
+            action="store_true",
+            help="Whether NOT TO mount the current project's libraries into the container"
+        )
+        parser.add_argument(
             "--no-impersonate",
             default=False,
             action="store_true",

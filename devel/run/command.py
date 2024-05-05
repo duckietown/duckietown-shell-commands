@@ -1,3 +1,5 @@
+import glob
+
 import argparse
 import json
 import os
@@ -230,6 +232,22 @@ class DTCommand(DTCommandAbs):
                             except Exception:
                                 dtslogger.warning("An error occurred while making the launchers executable. "
                                                   "Things might not work as expected.")
+
+                # mount libraries explicitly to support symlinks (local only)
+                if not parsed.no_mount_libraries and local:
+                    # get local and remote paths to code
+                    local_srcs, destination_srcs = proj.code_paths(root)
+                    for local_src, destination_src in zip(local_srcs, destination_srcs):
+                        local_src = os.path.abspath(local_src)
+                        # itearate over libraries
+                        for local_lib in glob.glob(os.path.join(local_src, "libraries", "*")):
+                            lib_name = os.path.basename(local_lib)
+                            if os.path.islink(local_lib):
+                                local_mountpoint = os.path.join(local_src, "libraries", f"__{lib_name}")
+                                os.makedirs(local_mountpoint, exist_ok=True)
+                                real_local_lib = os.path.realpath(local_lib)
+                                destination_lib: str = os.path.join(destination_src, "libraries", f"__{lib_name}")
+                                mount_option += ["-v", "{:s}:{:s}".format(real_local_lib, destination_lib)]
 
         # create image name
         image = project.image(
