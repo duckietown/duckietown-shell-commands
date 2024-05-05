@@ -49,10 +49,12 @@ class DTCommand(DTCommandAbs):
             except ValueError:
                 template_version = parsed.version
         # treat projects with a repository differently
-        if project.base_repository:
+        if os.path.isdir(os.path.join(project.path, ".git")):
+            dtslogger.info("Detected GIT repository at the root of this project, using 'git diff'...")
             # use git diff to perform the update
             DTCommand._repository_project(project.path, template, template_version, parsed)
         else:
+            dtslogger.info("This project does not have a GIT project at its root, using 'rsync'...")
             # use rsync to re-apply the template to the project directory
             DTCommand._non_repository_project(project.path, template, template_version, parsed)
 
