@@ -79,6 +79,8 @@ otg_mode=1
 
 [pi4]
 dtoverlay=vc4-fkms-v3d
+dtoverlay=duckietown_dd_hut_v1
+
 # Run as fast as firmware / board allows
 arm_boost=1
 
