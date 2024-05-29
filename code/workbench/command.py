@@ -41,7 +41,7 @@ from utils.docker_utils import (
 )
 from utils.dtproject_utils import DTProject
 from utils.exceptions import InvalidUserInput
-from utils.misc_utils import sanitize_hostname, indent_block
+from utils.misc_utils import sanitize_hostname, indent_block, get_user_login
 from utils.networking_utils import get_duckiebot_ip
 from utils.yaml_utils import load_yaml
 
@@ -197,6 +197,12 @@ class DTCommand(DTCommandAbs):
 
         parser.add_argument(
             "-C", "--workdir", default=os.getcwd(), help="Directory containing the project to bring up"
+        )
+        parser.add_argument(
+            "-u",
+            "--username",
+            default=get_user_login(),
+            help="The docker registry username to use",
         )
 
         parser.add_argument(
@@ -369,7 +375,7 @@ class DTCommand(DTCommandAbs):
 
         # get information about the host user
         uid = os.getuid()
-        username = getpass.getuser()
+        username = parsed.username
         auto_remove = not parsed.keep
 
         # make sense of the '--logs' options
