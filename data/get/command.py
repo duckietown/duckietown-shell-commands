@@ -80,6 +80,10 @@ Where <space> can be one of {str(VALID_SPACES)}.
             exit(1)
         # parse args
         space, object_path = (arg1, arg2) if arg2 != "_" else (None, arg1)
+        
+        # Strip leading and trailing [] from space:
+        space = space[1:-1] if space and space.startswith("[") and space.endswith("]") else space
+        
         # make sure that the space is given in at least one form
         if space is None and parsed.space is None:
             dtslogger.error("You must specify a storage space for the object.")
