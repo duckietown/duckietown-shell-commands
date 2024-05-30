@@ -32,6 +32,7 @@ MODULES_TO_LOAD = [
     {"owner": "duckietown", "module": "dt-drone-interface"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
     {"owner": "duckietown", "module": "dt-vscode"},
+    {"owner": "duckietown", "module": "dtps-switchboard", "tag": "release"},
 ]
 
 CLI_TOOLS_NEEDED = [
