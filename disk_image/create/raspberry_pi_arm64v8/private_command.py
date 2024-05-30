@@ -60,21 +60,10 @@ from disk_image.create.utils import (
 #   SD card was then dumped into an .img file and uploaded to S3
 # -----------------------------------------
 
-
-# TODO:
-#  - fix camera
-#       you need to add the following to /boot/firmware/usercfg.txt
-#
-#            start_x=1
-#            disable_camera_led=0
-#            gpu_mem=128
-#
-#
-
 DISK_IMAGE_PARTITION_TABLE = {"boot": 1, "rootfs": 2}
 ROOT_PARTITION = "rootfs"
 DISK_IMAGE_SIZE_GB = 10
-DISK_IMAGE_VERSION = "3.0.7"
+DISK_IMAGE_VERSION = "3.0.8"
 OS_VERSION = "04.04.2022"
 DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
@@ -120,6 +109,8 @@ APT_PACKAGES_TO_INSTALL = [
     "sysprof",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
     "inotify-tools",
+    "rake",
+    "git",
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
@@ -248,7 +239,7 @@ class DTCommand(DTCommandAbs):
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
             "input_url": INPUT_DISK_IMAGE_URL,
-            "base_type": "Ubuntu",
+            "base_type": "Raspberry Pi OS",
             "base_version": OS_VERSION,
             "environment": {
                 "hostname": socket.gethostname(),
