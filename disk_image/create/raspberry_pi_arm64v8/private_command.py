@@ -532,6 +532,11 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             f"apt autoremove --yes",
+                        )                        
+                        # upgrade kernel
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "apt install --reinstall raspberrypi-bootloader raspberrypi-kernel",
                         )
                     except Exception as e:
                         raise e
