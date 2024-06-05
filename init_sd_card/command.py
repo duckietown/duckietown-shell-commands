@@ -497,7 +497,7 @@ def step_flash(_, parsed, data):
 
         device = None
         while device is None:
-            msg = "Type the name of your device: "
+            msg = "Type the name of the device of choice (from the list above): "
             txt = input(msg)
             if len(txt.strip()) > 0:
                 device = txt
