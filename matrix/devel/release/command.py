@@ -118,7 +118,8 @@ class DTCommand(DTCommandAbs):
                 object=[zip_remote],
                 token=token,
                 space=DCSS_SPACE_NAME,
-                exclude="duckiematrix_BackUpThisFolder_ButDontShipItWithYourGame/*",
+                exclude="duckiematrix_BackUpThisFolder_ButDontShipItWithYourGame/*,"
+                        "duckiematrix_BurstDebugInformation_DoNotShip/*",
                 compress=True
             )
         )
