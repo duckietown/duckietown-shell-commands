@@ -53,29 +53,19 @@ from disk_image.create.utils import (
 
 # NOTE: -----------------------------------
 #   The input image is raspberry pi OS 2022.04.04, it was downloaded, flashed to an SD card and:
+#       - cmd: `rfkill unblock wlan`
 #       - cmd: `sudo apt update`
-#       - cmd: `sudo apt full-upgrade`
-#       - cmd: `sudo apt install rsync docker.io docker-compose inotify-tools`
+#       - cmd: `sudo apt full-upgrade -y`
+#       - cmd: `sudo apt install -y rsync docker.io docker-compose inotify-tools rsync nano emacs htop i2c-tools libraspberrypi-bin docker.io avahi-daemon libnss-mdns docker-compose sysprof`
 #       - cmd: `sudo apt autoremove`
 #   SD card was then dumped into an .img file and uploaded to S3
 # -----------------------------------------
 
-
-# TODO:
-#  - fix camera
-#       you need to add the following to /boot/firmware/usercfg.txt
-#
-#            start_x=1
-#            disable_camera_led=0
-#            gpu_mem=128
-#
-#
-
 DISK_IMAGE_PARTITION_TABLE = {"boot": 1, "rootfs": 2}
 ROOT_PARTITION = "rootfs"
-DISK_IMAGE_SIZE_GB = 10
-DISK_IMAGE_VERSION = "3.0.7"
-OS_VERSION = "04.04.2022"
+DISK_IMAGE_SIZE_GB = 15
+DISK_IMAGE_VERSION = "3.0.8"
+OS_VERSION = "12.03.2024"
 DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
 DISK_IMAGE_NAME = f"raspios-bullseye-lite-v{OS_VERSION}-{DEVICE_ARCH}"
@@ -106,21 +96,8 @@ SUPPORTED_STEPS: List[Optional[str]] = [
 ]
 MANDATORY_STEPS = ["create", "mount", "unmount"]
 
-APT_PACKAGES_TO_INSTALL = [
-    "rsync",
-    "nano",
-    "emacs",
-    "htop",
-    "i2c-tools",
-    "libraspberrypi-bin",
-    "docker.io",
-    "avahi-daemon",
-    "libnss-mdns",
-    "docker-compose",
-    "sysprof",
-    # provides the command `inotifywait`, used to monitor inode events on trigger sockets
-    "inotify-tools",
-]
+APT_PACKAGES_TO_INSTALL = []
+
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     # "initramfs-tools"
@@ -248,7 +225,7 @@ class DTCommand(DTCommandAbs):
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
             "input_url": INPUT_DISK_IMAGE_URL,
-            "base_type": "Ubuntu",
+            "base_type": "Raspberry Pi OS",
             "base_version": OS_VERSION,
             "environment": {
                 "hostname": socket.gethostname(),
@@ -541,7 +518,7 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             f"apt autoremove --yes",
-                        )
+                        )                        
                     except Exception as e:
                         raise e
                     # unomunt bind /dev
