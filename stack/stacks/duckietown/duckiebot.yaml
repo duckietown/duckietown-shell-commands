@@ -239,6 +239,11 @@ services:
     container_name: device-online
     restart: always
     network_mode: host
+    # needed to run threads in Python3.12 (https://forums.docker.com/t/runtimeerror-cant-start-new-thread/138142/2)
+    privileged: true
+    environment:
+      # needed to talk to the docker daemon socket
+      DT_SUPERUSER: 1
     volumes:
       - /data:/data
       # dtps sockets
