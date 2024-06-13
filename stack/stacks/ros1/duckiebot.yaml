@@ -9,6 +9,7 @@ services:
     pid: host
     environment:
       DT_LAUNCHER: sensor-camera
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -21,6 +22,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: sensor-tof
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -33,6 +35,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: sensor-imu
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -45,6 +48,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: sensor-power-button
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -57,6 +61,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: sensor-wheel-encoders
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -69,6 +74,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: actuator-wheels
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -81,6 +87,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: actuator-leds
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -93,6 +100,7 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: actuator-display
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -112,6 +120,8 @@ services:
     container_name: ros1-rosbridge-websocket
     restart: unless-stopped
     network_mode: host
+    environment:
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
