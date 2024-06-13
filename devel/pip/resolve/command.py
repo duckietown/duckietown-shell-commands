@@ -141,8 +141,8 @@ class DTCommand(DTCommandAbs):
             Requirement.parse(d).name for d in chain(*deps_files.values())
             if not d.startswith("#") and len(d.strip()) > 0
         ]
-        valid: List[RawUnpinned] = cache.get("valid", [])
-        mocked: List[RawPinned] = cache.get("mocked", [])
+        valid: Set[RawUnpinned] = set(cache.get("valid", []))
+        mocked: Set[RawPinned] = set(cache.get("mocked", []))
         for package in computed:
             r: Requirement = Requirement.parse(package)
             # check if the package (without pinned version is available), otherwise add it to the mock list
@@ -151,25 +151,38 @@ class DTCommand(DTCommandAbs):
                 continue
             # - we have explicitly requested it
             if r.name in explicit:
-                valid.append(r.name)
+                valid.add(r.name)
                 continue
             # - check with the registry
             url: str = REGISTRY_JSON_URL.format(package=r.name)
             dtslogger.info(f" GET: {url}")
             response: requests.Response = requests.get(url)
             if response.status_code == 200:
-                valid.append(r.name)
+                # parse JSON
+                data: dict = response.json()
+                releases: dict = data.get("releases", {})
+                specs: List[Tuple[str, str]] = r.specs
+                assert len(specs) == 1
+                assert specs[0][0] == "=="
+                version: str = specs[0][1]
+                if version not in releases:
+                    # add to mocked
+                    mocked.add(package)
+                    dtslogger.warning(f"Package '{r.name}' with version '{version}' not found in the registry. "
+                                      f"Must be an homonym. Adding to mocked.")
+                else:
+                    valid.add(r.name)
                 continue
             elif response.status_code == 404:
                 # add to mocked
-                mocked.append(package)
+                mocked.add(package)
             else:
                 raise ValueError(f"The registry return the unexpected following response:\n\n{response}")
 
         # update cache
         cache.update({
-            "valid": valid,
-            "mocked": mocked,
+            "valid": list(valid),
+            "mocked": list(mocked),
         })
 
         # write mock list to file
