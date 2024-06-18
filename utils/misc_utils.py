@@ -4,6 +4,8 @@ import os
 import subprocess
 import traceback
 import webbrowser
+import random
+import string
 from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
@@ -138,3 +140,7 @@ class SimpleWindowBrowser:
             return self._browser.open(url)
         except:
             webbrowser.open(url)
+
+
+def random_string(length=6):
+    return ''.join(random.choices(string.ascii_lowercase, k=length))
