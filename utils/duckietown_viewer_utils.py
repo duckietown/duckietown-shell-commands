@@ -5,9 +5,11 @@ import re
 import subprocess
 import sys
 import time
+from threading import Thread
 from types import SimpleNamespace
 from typing import List, Optional, Union, Dict
 
+import dockertown
 import requests
 from dockertown import Container
 from dockertown import DockerClient
@@ -168,8 +170,9 @@ def ensure_duckietown_viewer_installed(log_prefix: str = None):
     dtslogger.info(f"{log_prefix}Installation completed successfully!")
 
 
-def launch_viewer(robot: str, app: str, window_args: Optional[WindowArgs] = None) -> 'DuckietownViewerInstance':
-    viewer = DuckietownViewerInstance()
+def launch_viewer(robot: str, app: str, *, verbose: bool = False, window_args: Optional[WindowArgs] = None) \
+        -> 'DuckietownViewerInstance':
+    viewer = DuckietownViewerInstance(verbose=verbose)
     viewer.start(robot, app, window_args=window_args)
     return viewer
 
@@ -184,7 +187,9 @@ class DuckietownViewerInstance:
         "extrinsics_calibrator",
     ]
 
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
+        self._verbose: bool = verbose
+        # internal state
         self._backend: Optional[Container] = None
         self._frontend: Optional[subprocess.Popen] = None
         self._backend_ip: Optional[str] = None
@@ -246,6 +251,20 @@ class DuckietownViewerInstance:
                 dtslogger.warning(f"Could not stop container '{container_name}'")
 
         dt_shell.shell.on_shutdown(_stop_container)
+
+        # in verbose mode we attach a log reader to the container
+        if self._verbose:
+            def _consume_container_logs():
+                # consume logs
+                print(dockertown.__version__)
+                for (stream, line) in container.logs(follow=True, stream=True):
+                    line = line.decode("utf-8")
+                    print(line, end="")
+
+            # start log reader
+            log_reader = Thread(target=_consume_container_logs, daemon=True)
+            log_reader.start()
+
         # save container
         self._backend = container
 

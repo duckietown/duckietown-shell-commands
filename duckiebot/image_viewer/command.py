@@ -22,4 +22,11 @@ class DTCommand(DTCommandAbs):
         # make sure the app is installed
         ensure_duckietown_viewer_installed()
         # launch viewer
-        launch_viewer(parsed.robot, "image_viewer", window_args={"width": VIEWER_WINDOW_WIDTH})
+        launch_viewer(
+            parsed.robot,
+            "image_viewer",
+            verbose=parsed.vv,
+            window_args={
+                "width": VIEWER_WINDOW_WIDTH
+            },
+        )

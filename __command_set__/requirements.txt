@@ -14,5 +14,6 @@ zeroconf==0.122.0
 
 # duckietown dependencies
 duckietown-docker-utils-ente==7.0.1
-dtproject==1.0.8
-dockertown==0.2.5
+dtproject==1.0.10
+dockertown==0.2.6
+
