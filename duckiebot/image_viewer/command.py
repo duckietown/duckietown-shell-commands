@@ -1,4 +1,5 @@
 from dt_shell import DTCommandAbs, DTShell
+from utils.assets_utils import get_asset_icon_path
 from utils.duckietown_viewer_utils import \
     ensure_duckietown_viewer_installed, launch_viewer
 
@@ -7,6 +8,7 @@ LAUNCHER_NAME = "image_viewer"
 
 
 VIEWER_WINDOW_WIDTH = 702
+ICON_ASSET = "icon-image-viewer.png"
 
 
 class DTCommand(DTCommandAbs):
@@ -27,6 +29,7 @@ class DTCommand(DTCommandAbs):
             "image_viewer",
             verbose=parsed.vv,
             window_args={
-                "width": VIEWER_WINDOW_WIDTH
+                "width": VIEWER_WINDOW_WIDTH,
+                "icon": get_asset_icon_path(ICON_ASSET),
             },
         )
