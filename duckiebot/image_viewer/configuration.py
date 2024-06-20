@@ -37,4 +37,4 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         Alternative names for this command.
         """
-        return []
+        return ["image_view"]
