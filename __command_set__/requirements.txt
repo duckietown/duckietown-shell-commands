@@ -4,7 +4,7 @@
 pyyaml!=6.0.0,!=5.4.0,!=5.4.1,<7
 
 # generic dependencies
-netifaces==0.11.0
+netifaces-plus==0.12.2
 docker==6.1.3
 docker-compose==1.29.2
 GitPython==3.1.37
@@ -17,3 +17,6 @@ duckietown-docker-utils-ente==7.0.1
 dtproject==1.0.10
 dockertown==0.2.6
 
+# dtps, kvstore, and robot protocols
+dtps-http==1.3.10
+duckietown-messages==0.0.19
