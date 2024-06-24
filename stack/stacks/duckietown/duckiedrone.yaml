@@ -22,6 +22,23 @@ services:
     command: --tcp-port 11511 --tcp-host 0.0.0.0 --unix-path /dtps/switchboard.sock
     privileged: true
     volumes:
+      # dtps sockets
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  kvstore:
+    image: ${REGISTRY}/duckietown/dt-commons:ente-${ARCH}
+    container_name: kvstore
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: kv-store
+    volumes:
+      - /data:/data
+      # dtps sockets
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket

@@ -45,6 +45,10 @@ def get_asset_path(kind: str, name: str, version: str, *path) -> str:
     return os.path.join(ASSETS_DIR, kind, name, version, *path)
 
 
+def get_asset_icon_path(name: str) -> str:
+    return os.path.join(ASSETS_DIR, "icons", name)
+
+
 def get_asset_bin_path(name: str) -> str:
     return os.path.join(ASSETS_DIR, "bin", name)
 
@@ -58,4 +62,5 @@ __all__ = [
     "load_template",
     "get_asset_path",
     "get_asset_bin_path",
+    "get_asset_icon_path",
 ]

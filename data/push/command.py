@@ -175,6 +175,15 @@ Where <space> can be one of {str(VALID_SPACES)}.
             dtslogger.debug(f"$ {zip_cmd}")
             subprocess.check_call(zip_cmd, cwd=parsed.file)
 
+        # compress file
+        if os.path.isfile(parsed.file) and parsed.compress:
+            ctx_mgr = TempZipFile()
+            object_fpath = ctx_mgr.fpath
+            dtslogger.info(f"Compressing '{parsed.file}' to temporary file '{object_fpath}'...")
+            zip_cmd = ["zip", "-9", object_fpath, os.path.basename(parsed.file)]
+            dtslogger.debug(f"$ {zip_cmd}")
+            subprocess.check_call(zip_cmd, cwd=os.path.dirname(parsed.file))
+
         # upload file
         with ctx_mgr:
             dtslogger.info(f"Uploading {object_fpath} -> [{parsed.space}]:{parsed.object}")
