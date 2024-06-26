@@ -41,7 +41,7 @@ def get_os_family() -> str:
     elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
         return "windows"
     elif sys.platform.startswith('darwin'):
-        return "macosx"
+        return "macos"
 
 
 def get_latest_version(os_family: str = None) -> Optional[str]:
@@ -92,7 +92,7 @@ def get_path_to_binary(version: str):
     ext: str
     if system == "linux":
         ext = "AppImage"
-    elif system == "macosx":
+    elif system == "macos":
         ext = "app"
     elif system == "windows":
         ext = "exe"
@@ -181,10 +181,11 @@ class DuckietownViewerInstance:
     _BACKEND_DOCKER_IMAGE = "{registry}/duckietown/dt-duckietown-viewer:{distro}"
     _BACKEND_REMOTE_PORT = 8000
     _KNOWN_APPS = [
-        "joystick",
+        "extrinsics_calibrator",
         "image_viewer",
         "intrinsics_calibrator",
-        "extrinsics_calibrator",
+        "keyboard_controller",
+        "led_controller"
     ]
 
     def __init__(self, verbose: bool = False):

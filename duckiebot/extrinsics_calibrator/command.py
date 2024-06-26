@@ -4,12 +4,11 @@ from utils.duckietown_viewer_utils import \
     ensure_duckietown_viewer_installed, launch_viewer
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
-LAUNCHER_NAME = "image_viewer"
-VIEWER_WINDOW_WIDTH = 702
-ICON_ASSET = "icon-image-viewer.png"
+LAUNCHER_NAME = "extrinsics_calibrator"
+ICON_ASSET = "icon-extrinsics-calibrator.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the image viewer using the Duckietown Viewer app"
+    help = "Runs the extrinsics calibrator using the Duckietown Viewer app"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -22,10 +21,9 @@ class DTCommand(DTCommandAbs):
         # launch viewer
         launch_viewer(
             parsed.robot,
-            "image_viewer",
+            "extrinsics_calibrator",
             verbose=parsed.vv,
             window_args={
-                "icon": get_asset_icon_path(ICON_ASSET),
-                "width": VIEWER_WINDOW_WIDTH
+                "icon": get_asset_icon_path(ICON_ASSET)
             },
         )
