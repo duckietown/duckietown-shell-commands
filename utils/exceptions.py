@@ -6,29 +6,34 @@ __all__ = [
     "SecretNotFound",
     "UserAborted",
     "NetworkingError",
-    "UnpinnedDependenciesError"
+    "UnpinnedDependenciesError",
+    "NoTracebackException",
 ]
-
-
-class InvalidUserInput(UserError):
-    pass
-
-
-class RecipeProjectNotFound(UserError):
-    pass
-
-
-class SecretNotFound(UserError):
-    pass
 
 
 class UserAborted(UserError):
     pass
 
 
-class NetworkingError(UserError):
+class InvalidUserInput(UserError):
     pass
 
 
-class UnpinnedDependenciesError(UserError):
+class NoTracebackException(UserError):
+    pass
+
+
+class RecipeProjectNotFound(NoTracebackException):
+    pass
+
+
+class SecretNotFound(NoTracebackException):
+    pass
+
+
+class NetworkingError(NoTracebackException):
+    pass
+
+
+class UnpinnedDependenciesError(NoTracebackException):
     pass
