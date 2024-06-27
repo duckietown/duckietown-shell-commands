@@ -94,22 +94,6 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  driver-power-button:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-power-button
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-power-button
-    volumes:
-      - /data:/data
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
   driver-flight-controller:
     image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
     container_name: driver-flight-controller

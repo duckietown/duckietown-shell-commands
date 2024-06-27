@@ -9,6 +9,7 @@ services:
     pid: host
     environment:
       DT_LAUNCHER: sensor-camera
+      DT_SUPERUSER: 1
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -20,6 +21,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
+      DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof
     volumes:
       - /data/ramdisk/dtps:/dtps
@@ -32,6 +34,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
+      DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-imu
     volumes:
       - /data/ramdisk/dtps:/dtps
@@ -44,6 +47,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
+      DT_SUPERUSER: 1
       DT_LAUNCHER: flight-controller
     volumes:
       - /data/ramdisk/dtps:/dtps
