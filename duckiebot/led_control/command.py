@@ -8,7 +8,7 @@ LAUNCHER_NAME = "led_controller"
 ICON_ASSET = "icon-led-control.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the led controller"
+    help = "Runs the LED controller"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
