@@ -9,7 +9,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         Alternative names for this command.
         """
-        return []
+        return ["led_controller"]
 
     @classmethod
     def environment(cls, *args, **kwargs) -> Optional[ShellCommandEnvironmentAbs]:
@@ -23,7 +23,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         The parser this command will use.
         """
-        parser = argparse.ArgumentParser("dts duckiebot keyboard_controller")
+        parser = argparse.ArgumentParser("dts duckiebot led_control")
         parser.add_argument(
             "-vv",
             default=False,

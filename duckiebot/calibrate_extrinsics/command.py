@@ -5,10 +5,10 @@ from utils.duckietown_viewer_utils import \
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
 LAUNCHER_NAME = "extrinsics_calibrator"
-ICON_ASSET = "icon-extrinsics-calibrator.png"
+ICON_ASSET = "icon-calibrate-extrinsics.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the extrinsics calibrator using the Duckietown Viewer app"
+    help = "Runs the extrinsics calibrator"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):

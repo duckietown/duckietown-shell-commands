@@ -5,10 +5,10 @@ from utils.duckietown_viewer_utils import \
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
 LAUNCHER_NAME = "keyboard_controller"
-ICON_ASSET = "icon-keyboard-controller.png"
+ICON_ASSET = "icon-keyboard-control.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the keyboard controller using the Duckietown Viewer app"
+    help = "Runs the keyboard controller"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):

@@ -9,7 +9,7 @@ VIEWER_WINDOW_WIDTH = 702
 ICON_ASSET = "icon-image-viewer.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the image viewer using the Duckietown Viewer app"
+    help = "Runs the image viewer"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):

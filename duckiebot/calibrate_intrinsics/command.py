@@ -4,11 +4,11 @@ from utils.duckietown_viewer_utils import \
     ensure_duckietown_viewer_installed, launch_viewer
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
-LAUNCHER_NAME = "led_controller"
-ICON_ASSET = "icon-led-controller.png"
+LAUNCHER_NAME = "intrinsics_calibrator"
+ICON_ASSET = "icon-calibrate-intrinsics.png"
 
 class DTCommand(DTCommandAbs):
-    help = "Runs the led controller using the Duckietown Viewer app"
+    help = "Runs the intrinsics calibrator"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -21,7 +21,7 @@ class DTCommand(DTCommandAbs):
         # launch viewer
         launch_viewer(
             parsed.robot,
-            "led_controller",
+            "intrinsics_calibrator",
             verbose=parsed.vv,
             window_args={
                 "icon": get_asset_icon_path(ICON_ASSET)

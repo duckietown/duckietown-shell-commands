@@ -9,7 +9,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         Alternative names for this command.
         """
-        return []
+        return ["extrinsics_calibrator"]
 
     @classmethod
     def environment(cls, *args, **kwargs) -> Optional[ShellCommandEnvironmentAbs]:
@@ -23,7 +23,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         The parser this command will use.
         """
-        parser = argparse.ArgumentParser("dts duckiebot extrinsics_calibrator")
+        parser = argparse.ArgumentParser("dts duckiebot calibrate_extrinsics")
         parser.add_argument(
             "-vv",
             default=False,
