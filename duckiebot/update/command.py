@@ -17,7 +17,7 @@ from utils.kvstore_utils import KVStore
 from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
-NO_DISTRO_MEANS = "daffy"
+WHEN_NO_DISTRO = "daffy"
 DEFAULT_STACK = "duckietown"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
@@ -58,7 +58,11 @@ class DTCommand(DTCommandAbs):
         rdistro: Optional[str] = None
         kv: KVStore = KVStore(parsed.robot)
         if kv.is_available():
-            rdistro = kv.get(str, "robot/distro", NO_DISTRO_MEANS)
+            rdistro = kv.get(str, "robot/distro", WHEN_NO_DISTRO)
+        else:
+            dtslogger.warning(f"Could not get the distro from robot '{parsed.robot}'. Assuming '{WHEN_NO_DISTRO}'")
+            rdistro = WHEN_NO_DISTRO
+
         if rdistro is not None:
             dtslogger.info(f"Detected distro '{rdistro}' on robot '{parsed.robot}'")
             if rdistro != distro:
@@ -93,7 +97,10 @@ class DTCommand(DTCommandAbs):
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
         # set the distro on the robot
-        kv.set("robot/distro", distro, persist=True, fail_quietly=True)
+        if kv.is_available():
+            kv.set("robot/distro", distro, persist=True, fail_quietly=True)
+        else:
+            dtslogger.warning(f"Could not set the distro '{distro}' on robot '{parsed.robot}'")
 
         # call `stack up` command
         success = shell.include.stack.up.command(
