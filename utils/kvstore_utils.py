@@ -6,6 +6,7 @@ import requests
 
 from dt_shell import dtslogger
 from duckietown_messages.base import BaseMessage
+from utils.exceptions import NoTracebackException
 from utils.networking_utils import best_host_for_robot
 
 KVSTORE_URL = "http://{host}:{port}/{path}/"
@@ -13,6 +14,10 @@ KVSTORE_DEFAULT_PORT = 11411
 
 T = TypeVar("T")
 NOTSET = object()
+
+
+class KVStoreUnreachable(NoTracebackException):
+    pass
 
 
 class KVStore:
@@ -28,14 +33,20 @@ class KVStore:
     @lru_cache
     def is_available(self) -> bool:
         url = self._url("dtps")
-        response = requests.get(url)
-        return response.status_code == 200
+        try:
+            response = requests.get(url)
+            return response.status_code == 200
+        except requests.exceptions.ConnectionError:
+            return False
 
     def has(self, key: str) -> bool:
         url = self._url(f"data/{key}")
         dtslogger.debug(f"KVStore[{self._robot}]: Probing key '{key}' for existence...")
         dtslogger.debug(f"$ HEAD {url}")
-        response = requests.head(url)
+        try:
+            response = requests.head(url)
+        except requests.exceptions.ConnectionError:
+            raise KVStoreUnreachable(f"KVStore at '{url}' is unreachable")
         dtslogger.debug(f" << {response.status_code}: {response.text}")
         return response.status_code == 200
 
