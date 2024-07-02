@@ -18,7 +18,7 @@ from dt_data_api import DataClient
 
 import dt_shell
 from dt_shell import dtslogger, DTShell, UserError
-from utils.docker_utils import get_client, get_registry_to_use
+from utils.docker_utils import get_client, get_registry_to_use, pull_image
 from utils.duckietown_utils import USER_DATA_DIR, get_distro
 from utils.misc_utils import versiontuple, random_string
 from utils.networking_utils import get_duckiebot_ip
@@ -220,6 +220,7 @@ class DuckietownViewerInstance:
             registry=get_registry_to_use(),
             distro=get_distro(dt_shell.shell).name
         )
+        pull_image(image, docker)
         dtslogger.debug(f"Using image '{image}'")
         # create container
         container_name: str = f"duckietown-viewer-backend-{random_string()}"
