@@ -13,7 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   kvstore:
-    image: ${REGISTRY}/duckietown/dt-commons:ente-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-kvstore:v0.2.0-${ARCH}
     container_name: kvstore
     restart: unless-stopped
     network_mode: host
