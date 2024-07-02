@@ -208,6 +208,9 @@ class DTCommand(DTCommandAbs):
             # - data/config/robot_configuration
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_configuration"), "wt") as fout:
                 fout.write(parsed.configuration)
+            # - data/config/robot_distro
+            with open(os.path.join(vbot_root_dir, "data", "config", "robot_distro"), "wt") as fout:
+                fout.write(shell.profile.distro.name)
             # - data/stats/MAC/eth0
             with open(os.path.join(vbot_root_dir, "data", "stats", "MAC", "eth0"), "wt") as fout:
                 fout.write(random_virtual_mac_address())

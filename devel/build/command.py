@@ -358,6 +358,8 @@ class DTCommand(DTCommandAbs):
 
         # architecture target
         docker_build_args["ARCH"] = parsed.arch
+        if "BASE_TAG" in docker_build_args:
+            docker_build_args["BASE_TAG"] = docker_build_args["BASE_TAG"].replace("${ARCH}", parsed.arch)
 
         # create defaults
         image = project.image(

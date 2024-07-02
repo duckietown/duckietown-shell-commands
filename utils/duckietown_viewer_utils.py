@@ -133,19 +133,23 @@ def mark_as_latest_version(token: str, version: str, os_family: str):
 def ensure_duckietown_viewer_installed(log_prefix: str = None):
     shell: DTShell = dt_shell.shell
     log_prefix = log_prefix or " > "
+
     # make sure the app is not already installed
-    installed_version = get_most_recent_version_installed()
+    installed_version: Optional[str] = get_most_recent_version_installed()
     if installed_version is not None:
         return
-    # get latest version available on the DCSS
-    latest = get_latest_version()
 
-    # make sure the same version is not already installed (unless forced)
+    # get latest version available on the DCSS
+    latest: Optional[str] = get_latest_version()
+    if latest is None:
+        dtslogger.error(f"{log_prefix}No version available for installation.")
+        return
+
+    # download new version
     app_dir = os.path.join(APP_RELEASES_DIR, f"v{latest}")
 
-    # download
     dtslogger.info(f"{log_prefix}Downloading version v{latest}...")
-    os.makedirs(app_dir)
+    os.makedirs(app_dir, exist_ok=True)
     zip_remote = remote_zip_obj(latest)
     zip_local = os.path.join(app_dir, f"v{latest}.zip")
     shell.include.data.get.command(
