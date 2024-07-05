@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+PIN=$1
+INTERVAL=$2
+
+function set_SIGINT_RECEIVED {
+    # turn off and exit
+    sudo pinctrl set ${PIN} dl
+    exit 0
+}
+
+trap set_SIGINT_RECEIVED INT
+
+sudo pinctrl set ${PIN} op
+
+# this script is used to blink a GPIO LED on a Raspberry Pi
+while true; do
+    sudo pinctrl set ${PIN} dh
+    sleep ${INTERVAL}
+    sudo pinctrl set ${PIN} dl
+    sleep ${INTERVAL}
+done

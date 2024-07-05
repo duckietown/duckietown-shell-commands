@@ -1,0 +1,10 @@
+network:
+  version: 2
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: true
+      access-points:
+        # - default Duckietown network
+        "duckietown":
+          password: "quackquack"

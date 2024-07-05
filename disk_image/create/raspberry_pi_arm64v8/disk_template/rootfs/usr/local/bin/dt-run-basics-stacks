@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+STACK_NAME="basics"
+STACK_FILE="/data/stacks/available/${STACK_NAME}.yaml"
+ENABLED_STACK_FILE="/data/stacks/enabled/${STACK_NAME}.yaml"
+
+# install stack
+echo "Installing stack '${STACK_NAME}'..."
+ln -s "${STACK_FILE}" "${ENABLED_STACK_FILE}"
+echo "Stack '${STACK_NAME}' is now enabled!"
+
+DOCKER_SOCKET=unix:///var/run/docker.sock
+
+echo "Launching stack '${STACK_NAME}'..."
+set -e
+docker-compose \
+    --host "${DOCKER_SOCKET}" \
+    --project-name "${STACK_NAME}" \
+    --file "${STACK_FILE}" \
+    "$@" \
+    up \
+        -d
+echo "Stack '${STACK_NAME}' is now up!"

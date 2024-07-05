@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Returns the contents of a file or a default value if the file is '
+                                                 'empty/non-existent')
+    parser.add_argument('file', type=str, help='The file to read')
+    parser.add_argument('default', type=str, help='The default value to return if the file is empty/non-existent')
+    parser.add_argument('--allow-empty', action='store_true', default=False,
+                        help='Return the default value only if the file does not exist, empty files are allowed')
+    args = parser.parse_args()
+
+    try:
+        with open(args.file, 'rt') as f:
+            contents = f.read()
+            if not contents and not args.allow_empty:
+                print(args.default)
+            else:
+                print(contents)
+    except FileNotFoundError:
+        print(args.default)
+
+
+if __name__ == '__main__':
+    main()

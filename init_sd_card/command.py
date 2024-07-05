@@ -32,9 +32,9 @@ from utils.progress_bar import ProgressBar
 from .constants import (
     LIST_DEVICES_CMD,
     TIPS_AND_TRICKS,
-    WPA_EAP_NETWORK_CONFIG,
-    WPA_OPEN_NETWORK_CONFIG,
-    WPA_PSK_NETWORK_CONFIG,
+    NETPLAN_OPEN_NETWORK_CONFIG,
+    NETPLAN_WPA_EAP_NETWORK_CONFIG,
+    NETPLAN_WPA_PSK_NETWORK_CONFIG,
 )
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
@@ -56,7 +56,7 @@ ROOT_PARTITIONS = ["root", "APP"]
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
-        "raspberry_pi_64": {"stable": "2.0.0", "experimental": "3.0.8"},
+        "raspberry_pi_64": {"stable": "4.0.0", "experimental": "4.0.0"},
         "jetson_nano_4gb": {"stable": "1.3.0", "experimental": "1.3.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
     }
@@ -75,9 +75,9 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "raspberry_pi_64": {
             # - stable
-            "2.0.0": "1.1",
+            "4.0.0": "2.0",
             # - experimental
-            "3.0.8": "1.1",
+            "-----": "2.0",
         },
         "jetson_nano_4gb": {
             # - stable
@@ -100,7 +100,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
 def BASE_DISK_IMAGE(robot_configuration, experimental=False):
     board_to_disk_image = {
         "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-raspios-bullseye-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
+        "raspberry_pi_64": f"dt-raspios-bookworm-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
     }
@@ -609,11 +609,12 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
+        "country": parsed.country,
         "robot_type": parsed.robot_type,
         "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
-        "wpa_networks": _get_wpa_networks(parsed),
-        "wpa_country": parsed.country,
+        "robot_distro": shell.profile.distro.name,
+        "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
         "sanitize_files": None,
         "stats": json.dumps(
             {
@@ -751,7 +752,7 @@ def _validate_hostname(hostname: str):
     return True, hostname
 
 
-def _interpret_wifi_string(s):
+def _interpret_wifi_string(s) -> List[Wifi]:
     results = []
     if len(s.strip()) == 0:
         return []
@@ -779,29 +780,33 @@ def _interpret_wifi_string(s):
     return results
 
 
-def _get_wpa_networks(parsed):
+def _get_netplan_wifi_configuration(parsed) -> str:
     networks = _interpret_wifi_string(parsed.wifi)
-    wpa_networks = ""
+    wifis = []
+
     for connection in networks:
         # EAP-secured network
         if connection.username is not None:
-            wpa_networks += WPA_EAP_NETWORK_CONFIG.format(
-                cname=connection.name,
+            wifi = NETPLAN_WPA_EAP_NETWORK_CONFIG.format(
                 ssid=connection.ssid,
                 username=connection.username,
                 password=connection.password,
             )
-            continue
         # PSK-secured network
-        if connection.psk is not None:
-            wpa_networks += WPA_PSK_NETWORK_CONFIG.format(
-                cname=connection.name, ssid=connection.ssid, psk=connection.psk
+        elif connection.psk is not None:
+            wifi = NETPLAN_WPA_PSK_NETWORK_CONFIG.format(
+                ssid=connection.ssid,
+                psk=connection.psk
             )
-            continue
         # open network
-        wpa_networks += WPA_OPEN_NETWORK_CONFIG.format(cname=connection.name, ssid=connection.ssid)
+        else:
+            wifi = NETPLAN_OPEN_NETWORK_CONFIG.format(
+                ssid=connection.ssid
+            )
+        # ---
+        wifis.append(wifi)
     # ---
-    return wpa_networks
+    return "\n".join(wifis)
 
 
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):

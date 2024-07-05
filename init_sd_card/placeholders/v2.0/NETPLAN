@@ -1,0 +1,9 @@
+network:
+  version: 2
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: true
+      access-points:
+        # These are the wifi networks that were provided through the init_sd_card command
+        {netplan_wifi_networks}

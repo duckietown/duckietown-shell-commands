@@ -24,10 +24,7 @@ from disk_image.create.constants import (
     TMP_WORKDIR,
     DISK_IMAGE_STATS_LOCATION,
     DOCKER_IMAGE_TEMPLATE,
-    MODULES_TO_LOAD,
     DATA_STORAGE_DISK_IMAGE_DIR,
-    AUTOBOOT_STACKS_DIR,
-    DEFAULT_STACK,
 )
 
 from disk_image.create.utils import (
@@ -50,32 +47,50 @@ from disk_image.create.utils import (
     get_validator_fcn,
 )
 
+MODULES_TO_LOAD = [
+    {"owner": "duckietown", "module": "portainer"},
+    {"owner": "duckietown", "module": "dt-kvstore", "tag": "v0.2.0-arm64v8"},
+]
+DEFAULT_STACK = "robot"
 
 # NOTE: -----------------------------------
-#   The input image is raspberry pi OS 2022.04.04, it was downloaded, flashed to an SD card and:
+#   The input image is:
+#       Raspberry Pi OS
+#       date: 15mar2024
+#       sha: 58a3ec57402c86332e67789a6b8f149aeeb4e7bb0a16c9388a66ea6e07012e45
+#   The image was downloaded, flashed to an SD card and:
 #       - cmd: `rfkill unblock wlan`
 #       - cmd: `sudo apt update`
 #       - cmd: `sudo apt full-upgrade -y`
-#       - cmd: `sudo apt install -y rsync docker.io docker-compose inotify-tools rsync nano emacs htop i2c-tools libraspberrypi-bin docker.io avahi-daemon libnss-mdns docker-compose sysprof`
+#       - cmd: `sudo apt install docker.io docker-compose inotify-tools emacs i2c-tools libraspberrypi-bin raspi-config sysprof`
 #       - cmd: `sudo apt autoremove`
+#       - cmd: `exit`
+#       - re-login (let's history settle)
+#       - cmd: `rm ~/.bash_history`
 #   SD card was then dumped into an .img file and uploaded to S3
 # -----------------------------------------
 
-DISK_IMAGE_PARTITION_TABLE = {"boot": 1, "rootfs": 2}
+DISK_IMAGE_PARTITION_TABLE = {"bootfs": 1, "rootfs": 2, "configfs": 3}
+DISK_IMAGE_PARTITION_MOUNTPOINT = {"bootfs": "/boot", "rootfs": "/", "configfs": "/config"}
+AVAILABLE_STACKS_DIR = "/data/stacks/available"
 ROOT_PARTITION = "rootfs"
-DISK_IMAGE_SIZE_GB = 15
-DISK_IMAGE_VERSION = "3.0.8"
-OS_VERSION = "12.03.2024"
+CONFIG_PARTITION = "configfs"
+DEFAULT_HOSTNAME = "robot"
+DEFAULT_COUNTRY = "US"
+DISK_IMAGE_SIZE_GB = 6
+DISK_IMAGE_VERSION = "4.0.0"
+PLACEHOLDERS_VERSION = "2.0"
+OS_VERSION = "01jul2024"
 DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
-DISK_IMAGE_NAME = f"raspios-bullseye-lite-v{OS_VERSION}-{DEVICE_ARCH}"
+DISK_IMAGE_NAME = f"raspios-bookworm-lite-v{OS_VERSION}-{DEVICE_ARCH}"
 INPUT_DISK_IMAGE_URL = (
     f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/disk_template/"
     f"{DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
-    f"{ROOT_PARTITION}:/data/autoboot/*.yaml":
-        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
+    f"{ROOT_PARTITION}:/data/stacks/available/*.yaml":
+        lambda *a, **kwa: validator_autoboot_stack(*a, **kwa, modules=MODULES_TO_LOAD, stack=DEFAULT_STACK),
     f"{ROOT_PARTITION}:/data/config/calibrations/*/default.yaml":
         lambda *a, **kwa: validator_yaml_syntax(*a, **kwa),
 }
@@ -87,6 +102,7 @@ SUPPORTED_STEPS: List[Optional[str]] = [
     "create",
     "mount",
     "resize",
+    "partition",
     "upgrade",
     "docker",
     "setup",
@@ -96,7 +112,9 @@ SUPPORTED_STEPS: List[Optional[str]] = [
 ]
 MANDATORY_STEPS = ["create", "mount", "unmount"]
 
-APT_PACKAGES_TO_INSTALL = []
+APT_PACKAGES_TO_INSTALL = [
+    "netplan.io",
+]
 
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
@@ -268,7 +286,8 @@ class DTCommand(DTCommandAbs):
             for step in SUPPORTED_STEPS[: SUPPORTED_STEPS.index(parsed.cache_target) + 1]:
                 if step in MANDATORY_STEPS:
                     continue
-                parsed.steps.remove(step)
+                if step in parsed.steps:
+                    parsed.steps.remove(step)
             using_cached_step = True
 
         # ---
@@ -434,6 +453,54 @@ class DTCommand(DTCommandAbs):
             cache_step("resize")
             dtslogger.info("Step END: resize\n")
         # Step: resize
+        # <------
+        #
+        # ------>
+        # Step: partition
+        if "partition" in parsed.steps:
+            dtslogger.info("Step BEGIN: partition")
+            # make sure that the disk is mounted
+            if not sd_card.is_mounted():
+                dtslogger.error(f"The disk {out_file_path('img')} is not mounted.")
+                return
+            # get config partition id
+            config_device = sd_card.partition_device(CONFIG_PARTITION)
+            # create new partition
+            run_cmd(
+                "(" +
+                # Add a new partition
+                "echo n;" +
+                # Primary partition
+                "echo p;" +
+                # Partition number
+                "echo 3;" +
+                # First sector (Accept default: 2048)
+                "echo ;" +
+                # Last sector (Accept default: 8191)
+                "echo ;" +
+                # Change partition type
+                "echo t;" +
+                # Partition number
+                "echo 3;" +
+                # Partition type 'FAT32 (LBA)' is 0c
+                "echo 0c;" +
+                # Write changes
+                "echo w;" +
+                f") | sudo fdisk {sd_card.loopdev}",
+                shell=True
+            )
+            # make file system (FAT32 and 4096 bytes of block size (needed for comfortable surgery))
+            run_cmd(["sudo", "mkfs", "-t", "fat", "-F", "32", "-S", "4096", config_device])
+            # label file system
+            run_cmd(["sudo", "fatlabel", config_device, CONFIG_PARTITION])
+            # force reload partitions
+            run_cmd(["sudo", "partprobe"])
+            # show info about disk
+            dtslogger.debug("\n" + run_cmd(["sudo", "fdisk", "-l", sd_card.loopdev], True))
+            # ---
+            cache_step("partition")
+            dtslogger.info("Step END: partition\n")
+        # Step: partition
         # <------
         #
         # ------>
@@ -661,14 +728,14 @@ class DTCommand(DTCommandAbs):
                             dtslogger.info(f"- Creating directory [{update['relative']}]")
                             # create destination
                             run_cmd(["sudo", "mkdir", "-p", update["destination"]])
-                        # copy stacks (APP only)
+                        # copy stacks (root only)
                         if partition == ROOT_PARTITION:
                             for stack in list_files(STACKS_DIR, "yaml"):
                                 origin = os.path.join(STACKS_DIR, stack)
                                 destination = os.path.join(
-                                    PARTITION_MOUNTPOINT(partition), AUTOBOOT_STACKS_DIR.lstrip("/"), stack
+                                    PARTITION_MOUNTPOINT(partition), AVAILABLE_STACKS_DIR.lstrip("/"), stack
                                 )
-                                relative = os.path.join(AUTOBOOT_STACKS_DIR, stack)
+                                relative = os.path.join(AVAILABLE_STACKS_DIR, stack)
                                 # validate file
                                 validator = _get_validator_fcn(partition, relative)
                                 if validator:
@@ -720,6 +787,7 @@ class DTCommand(DTCommandAbs):
                                     {
                                         "partition": partition,
                                         "partition_id": DISK_IMAGE_PARTITION_TABLE[partition],
+                                        "mountpoint": DISK_IMAGE_PARTITION_MOUNTPOINT[partition],
                                         "path": update["relative"],
                                         "placeholder": placeholder,
                                         "offset_bytes": None,
@@ -772,6 +840,81 @@ class DTCommand(DTCommandAbs):
                 # update surgery plan
                 surgery_plan[i]["offset_bytes"] = placeholders[full_placeholder]
             dtslogger.info("All files located successfully!")
+
+            # perform surgery with empty data, the placeholders will remain valid to be used again but the SD card
+            # will be usable without another surgery as long as the robot provides an initialization procedure
+            # compile data used to format placeholders
+            surgery_data = {
+                "hostname": DEFAULT_HOSTNAME,
+                "country": DEFAULT_COUNTRY,
+                "token": "",
+                "robot_type": "",
+                "robot_configuration": "",
+                "robot_distro": shell.profile.distro.name,
+                "netplan_wifi_networks": "{}",
+                "sanitize_files": None,
+                "stats": "",
+            }
+            # compile list of files to sanitize at first boot
+            sanitize = map(lambda _s: os.path.join(_s["mountpoint"], _s["path"].lstrip("/")), surgery_plan)
+            surgery_data["sanitize_files"] = "\n".join(map(lambda _f: f'dt-sanitize-file "{_f}"', sanitize))
+            # get disk image placeholders
+            placeholders_dir = os.path.join(COMMAND_DIR, "..", "..", "..", "init_sd_card", "placeholders",
+                                            f"v{PLACEHOLDERS_VERSION}")
+            # perform surgery
+            dtslogger.info("Performing default data surgery on the image disk...")
+            for surgery_bit in surgery_plan:
+                dtslogger.info("Performing surgery on [{partition}]:{path}.".format(**surgery_bit))
+                # get placeholder info
+                placeholder = surgery_bit["placeholder"]
+                placeholder_file = os.path.join(placeholders_dir, placeholder)
+                # make sure that the placeholder exists
+                if not os.path.isfile(placeholder_file):
+                    print(placeholder_file)
+                    dtslogger.error(f"The placeholder {placeholder} is not recognized.")
+                    raise FileNotFoundError(placeholder_file)
+                # load placeholder file format
+                with open(placeholder_file, "rt") as fin:
+                    placeholder_fmt = fin.read()
+                # create real (unmasked) content
+                content = placeholder_fmt.format(**surgery_data).encode()
+                used_bytes = len(content)
+                block_size = surgery_bit["length_bytes"]
+                block_offset = surgery_bit["offset_bytes"]
+                # make sure the content does not exceed the block size
+                if used_bytes > block_size:
+                    dtslogger.error(
+                        "File [{partition}]:{path} exceeding ".format(**surgery_bit)
+                        + f"budget of {block_size} bytes (by {used_bytes - block_size} bytes)."
+                    )
+                    exit(7)
+                # create masked content (content is padded with new lines)
+                masked_content = content + b"\n" * (block_size - used_bytes)
+                # debug only
+                assert len(masked_content) == block_size
+                block_usage = int(100 * (used_bytes / float(block_size)))
+                dtslogger.debug(
+                    "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
+                    + "into [{partition}]:{path}.".format(**surgery_bit)
+                )
+                # apply change
+                dd_cmd = [
+                    "dd",
+                    "of={}".format(out_file_path("img")),
+                    "bs=1",
+                    "count={}".format(block_size),
+                    "seek={}".format(block_offset),
+                    "conv=notrunc",
+                ]
+                # launch dd
+                dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                dtslogger.debug(f"$ {dd_cmd}")
+                # write
+                dd.stdin.write(masked_content)
+                dd.stdin.flush()
+                dd.stdin.close()
+                dd.wait()
+            dtslogger.info("Surgery completed!")
             # ---
             cache_step("setup")
             dtslogger.info("Step END: setup\n")
@@ -792,6 +935,7 @@ class DTCommand(DTCommandAbs):
                 "version": DISK_IMAGE_VERSION,
                 "disk_image": os.path.basename(out_file_path("img")),
                 "sha256": disk_image_sha256,
+                "distro": shell.profile.distro.name,
                 "surgery_plan": surgery_plan,
             }
             with open(out_file_path("json"), "wt") as fout:

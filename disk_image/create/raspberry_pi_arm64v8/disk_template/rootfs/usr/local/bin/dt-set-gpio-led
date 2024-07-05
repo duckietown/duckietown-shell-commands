@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+PIN=$1
+VALUE=$2
+
+sudo pinctrl set ${PIN} op
+
+if [ "${VALUE}" == "1" ]; then
+  sudo pinctrl set ${PIN} dh
+else
+  sudo pinctrl set ${PIN} dl
+fi
