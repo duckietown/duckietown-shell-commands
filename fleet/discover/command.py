@@ -1,15 +1,18 @@
 import argparse
+import asyncio
 import json
 import logging
 import os
 import signal
 import time
 from collections import defaultdict
-from typing import List, Set
+from threading import Thread
+from typing import List, Set, Tuple
 
 from dt_shell import DTCommandAbs, dtslogger
 from utils.duckietown_utils import get_robot_types
 from utils.table_utils import fill_cell, format_matrix
+from utils.udp_responder_utils import UDPScanner, PongPacket
 
 REFRESH_HZ = 1.0
 
@@ -37,8 +40,10 @@ class DiscoverListener:
         "DT::ROBOT_HARDWARE",
     ]
 
-    def __init__(self, args):
+    def __init__(self, args, notes: List[str] = None):
         self.args = args
+        self._notes: List[str] = notes or []
+        self._external: List[dict] = []
 
     @staticmethod
     def process_service_name(name):
@@ -56,6 +61,11 @@ class DiscoverListener:
         if not name:
             return
         del self.services[name][server]
+
+    def add_external(self, name: str, hardware: str, rtype: str, model: str, status: str, hostname: str):
+        self._external.append(
+            {"name": name, "hardware": hardware, "type": rtype, "model": model, "status": status, "hostname": hostname}
+        )
 
     def add_service(self, zeroconf, type, sname):
         dtslogger.debug("SERVICE_ADD: %s (%s)" % (str(sname), str(type)))
@@ -81,41 +91,69 @@ class DiscoverListener:
         pass
 
     def print(self):
-        # clear terminal
-        os.system("cls" if os.name == "nt" else "clear")
         # get all discovered hostnames
-        hostnames: Set[str] = set()
+        devices: Set[str] = set()
+
+        # add externally discovered hostnames
+        devices.update([x["name"] for x in self._external])
 
         for service in self.supported_services:
             hostnames_for_service: List[str] = list(self.services[service])
-            hostnames.update(hostnames_for_service)
-        # create hostname -> robot_type map
-        hostname_to_type = defaultdict(lambda: "ND")
-        for device_hostname in self.services["DT::ROBOT_TYPE"]:
-            dev = self.services["DT::ROBOT_TYPE"][device_hostname]
+            devices.update(hostnames_for_service)
+
+        # create device -> robot_type map
+        device_to_type = defaultdict(lambda: "ND")
+        # - from external (UDP responder scan)
+        for x in self._external:
+            device_to_type[x["name"]] = x["type"]
+        # - from mDNS
+        for device in self.services["DT::ROBOT_TYPE"]:
+            dev = self.services["DT::ROBOT_TYPE"][device]
             if len(dev["txt"]) and "type" in dev["txt"]:
                 try:
-                    hostname_to_type[device_hostname] = dev["txt"]["type"]
+                    device_to_type[device] = dev["txt"]["type"]
                 except:  # XXX: complain a bit
                     pass
-        # create hostname -> robot_configuration map
-        hostname_to_config = defaultdict(lambda: "ND")
-        for device_hostname in self.services["DT::ROBOT_CONFIGURATION"]:
-            dev = self.services["DT::ROBOT_CONFIGURATION"][device_hostname]
+
+        # create device -> robot_configuration map
+        device_to_config = defaultdict(lambda: "ND")
+        # - from external (UDP responder scan)
+        for x in self._external:
+            device_to_config[x["name"]] = x["model"]
+        # - from mDNS
+        for device in self.services["DT::ROBOT_CONFIGURATION"]:
+            dev = self.services["DT::ROBOT_CONFIGURATION"][device]
             if len(dev["txt"]) and "configuration" in dev["txt"]:
                 try:
-                    hostname_to_config[device_hostname] = dev["txt"]["configuration"]
+                    device_to_config[device] = dev["txt"]["configuration"]
                 except:
                     pass
-        # create hostname -> robot_hardware map
-        hostname_to_hardware = defaultdict(lambda: "physical")
-        for device_hostname in self.services["DT::ROBOT_HARDWARE"]:
-            dev = self.services["DT::ROBOT_HARDWARE"][device_hostname]
+
+        # create device -> robot_hardware map
+        device_to_hardware = defaultdict(lambda: "physical")
+        # - from external (UDP responder scan)
+        for x in self._external:
+            device_to_hardware[x["name"]] = x["hardware"]
+        # - from mDNS
+        for device in self.services["DT::ROBOT_HARDWARE"]:
+            dev = self.services["DT::ROBOT_HARDWARE"][device]
             if len(dev["txt"]) and "hardware" in dev["txt"]:
                 try:
-                    hostname_to_hardware[device_hostname] = dev["txt"]["hardware"]
+                    device_to_hardware[device] = dev["txt"]["hardware"]
                 except:
                     pass
+
+        # create device -> hostname map
+        device_to_hostname = defaultdict(lambda: "ND")
+        # - from external (UDP responder scan)
+        for x in self._external:
+            device_to_hostname[x["name"]] = x["hostname"]
+        # - from mDNS
+        for device in devices:
+            # only overwrite an IP address if we have talked to this device via mDNS
+            if device in self.services["DT::ROBOT_TYPE"]:
+                device_to_hostname[device] = f"{device}.local"
+
         # prepare table
         columns = [
             "Status",  # Booting [yellow], Ready [green]
@@ -130,29 +168,34 @@ class DiscoverListener:
         header = ["Hardware", "Type", "Model"] + columns + ["Hostname"]
         data = []
 
-        for device_hostname in list(sorted(hostnames)):
+        for device in list(sorted(devices)):
             # filter by robot type
-            robot_type = hostname_to_type[device_hostname]
-            robot_configuration = hostname_to_config[device_hostname]
-            robot_hardware = hostname_to_hardware[device_hostname]
+            robot_type = device_to_type[device]
+            robot_configuration = device_to_config[device]
+            robot_hardware = device_to_hardware[device]
+            robot_hostname = device_to_hostname[device]
             if self.args.filter_type and robot_type != self.args.filter_type:
                 continue
             # prepare status list
             statuses = []
             for column in columns:
-                text, color, bg_color = column_to_text_and_color(column, device_hostname, self.services)
+                text, color, bg_color = column_to_text_and_color(column, device, self.services)
                 column_txt = fill_cell(text, len(column), color, bg_color)
                 statuses.append(column_txt)
             # prepare row
             row = (
-                [device_hostname, robot_hardware, robot_type, robot_configuration]
+                [device, robot_hardware, robot_type, robot_configuration]
                 + statuses
-                + [str(device_hostname) + ".local"]
+                + [robot_hostname]
             )
             data.append(row)
 
+        # clear terminal
+        os.system("cls" if os.name == "nt" else "clear")
+
         # print table
-        print("NOTE: Only devices flashed using duckietown-shell-commands v4.1.0+ are supported.\n")
+        if self._notes:
+            print("NOTES: " + "\n       ".join(self._notes) + "\n")
         print(format_matrix(header, data, "{:^{}}", "{:<{}}", "{:>{}}", "\n", " | "))
 
 
@@ -178,21 +221,49 @@ class DTCommand(DTCommandAbs):
             choices=get_robot_types(),
             help="Filter devices by type",
         )
+        parser.add_argument(
+            "--brute",
+            default=False,
+            action="store_true",
+            help="Discover devices on all network interfaces (gateway only by default)",
+        )
+        parser.add_argument(
+            "--no-mdns",
+            default=False,
+            action="store_true",
+            help="Do not use mDNS to discover devices",
+        )
 
         parsed = parser.parse_args(args)
 
+        # notes
+        notes = []
+
+        if parsed.no_mdns:
+            notes.append("mDNS discovery is disabled. Device discovery will be slower.")
+
         # perform discover
         zeroconf = Zeroconf()
-        listener = DiscoverListener(args=parsed)
-        # FIXME: @afdaniele - wrong type - listener supposed to be ServiceListener
-        #        should DiscoverListener be a subclass of ServiceListener
-        ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
+        listener = DiscoverListener(args=parsed, notes=notes)
+
+        if not parsed.no_mdns:
+            # FIXME: @afdaniele - wrong type - listener supposed to be ServiceListener
+            #        should DiscoverListener be a subclass of ServiceListener
+            ServiceBrowser(zeroconf, "_duckietown._tcp.local.", listener)
+
+        def add_external(addr: Tuple[str, int], pong: PongPacket):
+            listener.add_external(pong.name, pong.hardware, pong.type, pong.configuration, "ND", addr[0])
+
+        scanner = UDPScanner(parsed.brute)
+        t = Thread(target=asyncio.run, args=(scanner.scan(callback=add_external),))
+        t.start()
 
         shutdown: bool = False
 
         def signal_handler(_, __):
             nonlocal shutdown
             shutdown = True
+            scanner.stop()
 
         signal.signal(signal.SIGINT, signal_handler)
 
