@@ -19,10 +19,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args):
-        prog = "dts duckiebot virtual list"
-        _ = argparse.ArgumentParser(prog=prog)
-        # define arguments
-        # (none)
         # open connection to docker
         local_docker = docker.from_env()
         # find all robots on disk
