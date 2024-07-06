@@ -1,4 +1,4 @@
-from dt_shell import DTCommandAbs, DTShell
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 
 class DTCommand(DTCommandAbs):
@@ -16,7 +16,7 @@ class DTCommand(DTCommandAbs):
         #   args    is a list of arguments passed to the command
         #
         # PUT YOUR CODE HERE
-        print(
+        dtslogger.info(
             'You called the "%s" command, level %d, with arguments %r' % (
                 DTCommand.name,
                 DTCommand.level,

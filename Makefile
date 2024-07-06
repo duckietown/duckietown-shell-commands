@@ -12,7 +12,6 @@ upload:
 	git push --tags
 	git push
 
-
 black:
 	black -l 110 .
 
