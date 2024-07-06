@@ -988,6 +988,7 @@ class DTCommand(DTCommandAbs):
                     file=[out_file_path("zip")],
                     object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
                     space="public",
+                    compress=False
                 ),
             )
             dtslogger.info("Done!")
