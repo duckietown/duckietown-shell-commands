@@ -4,7 +4,7 @@
     <name replace-wildcards="yes">DT::ROBOT_TYPE::%h</name>
     <service>
         <type>_duckietown._tcp</type>
-        <txt-record>{{"type": "NOTSET"}}</txt-record>
+        <txt-record>{"type": "NOTSET"}</txt-record>
         <port>0</port>
     </service>
 </service-group>
