@@ -13,14 +13,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   kvstore:
-    image: ${REGISTRY}/duckietown/dt-kvstore:v0.2.0-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-kvstore:v0.2.1-${ARCH}
     container_name: kvstore
     restart: unless-stopped
     network_mode: host
     privileged: true
     environment:
       DT_SUPERUSER: 1
-      DT_LAUNCHER: kv-store
     volumes:
       - /data:/data
       # dtps sockets
