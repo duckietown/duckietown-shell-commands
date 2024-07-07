@@ -115,9 +115,9 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  driver-leds:
+  driver-lights:
     image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-leds
+    container_name: driver-lights
     restart: unless-stopped
     network_mode: host
     privileged: true
