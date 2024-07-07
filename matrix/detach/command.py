@@ -24,7 +24,7 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Requesting robot '{parsed.robot}' to detach from the Duckiematrix...")
             # set the configuration first, then the connection, order matters here to avoid robots acting on an old cfg
             kv.set("hil/configuration", hil_cfg)
-            kv.set("hil/connection/configuration", hil_conn)
+            kv.set("hil/connection", hil_conn)
             dtslogger.info("Request sent, robot should now detach.")
         except BaseException as e:
             dtslogger.error("An error occurred while contacting the robot.\n"
