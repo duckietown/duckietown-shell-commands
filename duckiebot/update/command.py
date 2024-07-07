@@ -1,5 +1,5 @@
 import argparse
-from typing import Optional
+from typing import Optional, List
 
 from docker.errors import NotFound
 
@@ -56,6 +56,7 @@ class DTCommand(DTCommandAbs):
         hostname = sanitize_hostname(parsed.robot)
         registry_to_use = get_registry_to_use()
         distro: str = shell.profile.distro.name
+        stacks: List[str] = parsed.stacks.split(",")
 
         # check whether the robot is using a different distro
         rdistro: Optional[str]
@@ -75,7 +76,14 @@ class DTCommand(DTCommandAbs):
                 )
                 if parsed.force:
                     dtslogger.warning("Forced!")
-                    # TODO: when the distro is different, we have to bring all the stacks down first, some containers were moved between stacks and this causes issues
+                    # take stack down
+                    for stack in stacks:
+                        success = shell.include.stack.down.command(
+                            shell,
+                            ["--machine", parsed.robot, stack],
+                        )
+                        if not success:
+                            return
                 else:
                     dtslogger.warning("You can use the -f/--force flag to force the operation "
                                       "(if you know what you are doing).")
@@ -100,14 +108,9 @@ class DTCommand(DTCommandAbs):
         login_client_OLD(client, credentials, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
-        # set the distro on the robot
-        if kv.is_available():
-            kv.set("robot/distro", distro, persist=True, fail_quietly=True)
-        else:
-            dtslogger.warning(f"Could not set the distro '{distro}' on robot '{parsed.robot}'")
 
         # call `stack up` command for all stacks to update
-        for stack in parsed.stacks.split(","):
+        for stack in stacks:
             dtslogger.info(f"Updating stack `{stack}`...")
             success = shell.include.stack.up.command(
                 shell,
@@ -124,6 +127,12 @@ class DTCommand(DTCommandAbs):
             except NotFound:
                 dtslogger.error(f"Image '{image}' not found on registry '{registry_to_use}'. Aborting.")
                 return
+
+        # set the distro on the robot
+        if kv.is_available():
+            kv.set("robot/distro", distro, persist=True, fail_quietly=True)
+        else:
+            dtslogger.warning(f"Could not set the distro '{distro}' on robot '{parsed.robot}'")
 
         # clean duckiebot (again)
         if not parsed.no_clean:
