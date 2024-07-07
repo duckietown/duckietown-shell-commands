@@ -63,9 +63,23 @@ class KVStore:
         response = requests.get(url)
         dtslogger.debug(f" << {response.status_code}: {response.text}")
         # decode the response
-        native: Union[dict, list, str, int, float, bool, bytes] = cbor2.loads(response.content)
+        native: Union[dict, list, str, int, float, bool, bytes]
+        # - json
+        if response.headers["Content-Type"] == "application/json":
+            native = response.json()
+        # - cbor
+        elif response.headers["Content-Type"] == "application/cbor":
+            native = cbor2.loads(response.content)
+        # - text
+        elif response.headers["Content-Type"] == "text/plain":
+            native = response.text
+        # - others
+        else:
+            msg = f"Unsupported content type '{response.headers['Content-Type']}'"
+            raise ValueError(msg)
+        # ---
         if not isinstance(native, cls):
-            msg = f"Expected value of type '{cls}' but got '{native.__class__.__name__}' instead"
+            msg = f"Expected value of type '{cls}' but got '{native.__class__.__name__}' instead. Value: {native}"
             raise ValueError(msg)
         return native
 
