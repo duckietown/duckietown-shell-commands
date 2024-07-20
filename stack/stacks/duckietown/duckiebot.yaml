@@ -62,7 +62,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-health:
-    image: ${REGISTRY}/duckietown/dt-device-health:v4.2.0-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-device-health:v4.2.1-${ARCH}
     container_name: device-health
     restart: always
     network_mode: host
