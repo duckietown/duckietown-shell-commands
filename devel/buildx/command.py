@@ -725,7 +725,12 @@ class DTCommand(DTCommandAbs):
                 manifest_images.append(manifest_image)
             # update manifest
             dtslogger.debug(f"Creating manifest '{manifest}' with images: {manifest_images}")
-            docker.buildx.imagetools.create(tags=[manifest], sources=manifest_images)
+            try:
+                docker.buildx.imagetools.create(tags=[manifest], sources=manifest_images)
+            except Exception as e:
+                dtslogger.error(f"An error occurred while creating the manifest:\n{str(e)}")
+                exit(11)
+            dtslogger.debug(f"Manifest '{manifest}' created")
             # get manifest
             dmanifest = docker.manifest.inspect(manifest)
 
