@@ -28,7 +28,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         )
         parser.add_argument(
             "robot",
-            help="Name of the Robot to control"
+            help="Name of the robot to control"
         )
         return parser
 
@@ -37,4 +37,4 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         Alternative names for this command.
         """
-        return ["joystick_control", "joystick", "jc", "joy"]
+        return ["keyboard_controller", "joystick_control", "joystick", "jc", "joy"]

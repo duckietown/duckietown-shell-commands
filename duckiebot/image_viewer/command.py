@@ -5,15 +5,11 @@ from utils.duckietown_viewer_utils import \
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
 LAUNCHER_NAME = "image_viewer"
-
-
 VIEWER_WINDOW_WIDTH = 702
 ICON_ASSET = "icon-image-viewer.png"
 
-
 class DTCommand(DTCommandAbs):
-
-    help = f'Runs the image viewer using the Duckietown Viewer app'
+    help = "Runs the image viewer"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -29,7 +25,7 @@ class DTCommand(DTCommandAbs):
             "image_viewer",
             verbose=parsed.vv,
             window_args={
-                "width": VIEWER_WINDOW_WIDTH,
                 "icon": get_asset_icon_path(ICON_ASSET),
+                "width": VIEWER_WINDOW_WIDTH
             },
         )
