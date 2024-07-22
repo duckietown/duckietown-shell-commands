@@ -5,6 +5,13 @@ from utils.duckietown_viewer_utils import \
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
 LAUNCHER_NAME = "keyboard_controller"
+
+VIEWER_WINDOW_WIDTH = 550
+VIEWER_WINDOW_HEIGHT = 600
+ICON_ASSET = "icon-keyboard-controller.png"
+
+# NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
+LAUNCHER_NAME = "keyboard_controller"
 ICON_ASSET = "icon-keyboard-control.png"
 
 class DTCommand(DTCommandAbs):
@@ -21,9 +28,11 @@ class DTCommand(DTCommandAbs):
         # launch viewer
         launch_viewer(
             parsed.robot,
-            "keyboard_controller",
+            LAUNCHER_NAME,
             verbose=parsed.vv,
             window_args={
-                "icon": get_asset_icon_path(ICON_ASSET)
+                "width": VIEWER_WINDOW_WIDTH,
+                "height": VIEWER_WINDOW_HEIGHT,
+                "icon": get_asset_icon_path(ICON_ASSET),
             },
         )

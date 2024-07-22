@@ -1,0 +1,10 @@
+network:
+  version: 2
+  wifis:
+    wlan0:
+      dhcp4: true
+      optional: true
+      access-points:
+        # Add your WiFi networks here. This is an example, modify it to match your network configuration
+        "my-ssid":
+          password: "my-password"

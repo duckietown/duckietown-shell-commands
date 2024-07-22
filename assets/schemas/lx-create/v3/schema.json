@@ -32,7 +32,7 @@
                 "type": "string",
                 "title": "Option",
                 "enum": [
-                    "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR4"
+                    "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR"
                 ]
             }
         },

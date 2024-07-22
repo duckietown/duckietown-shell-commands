@@ -1,17 +1,6 @@
 version: '3.2'
 services:
 
-  portainer:
-    image: docker.io/duckietown/portainer:ente-${ARCH}
-    container_name: portainer
-    command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
-    restart: always
-    network_mode: host
-    volumes:
-      - portainer-data:/data
-      # docker socket
-      - /var/run/docker.sock:/var/run/docker.sock
-
   dtps:
     image: ${REGISTRY}/duckietown/dtps-switchboard:release
     container_name: dtps
@@ -22,22 +11,6 @@ services:
     command: --tcp-port 11511 --tcp-host 0.0.0.0 --unix-path /dtps/switchboard.sock
     privileged: true
     volumes:
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  kvstore:
-    image: ${REGISTRY}/duckietown/dt-commons:ente-${ARCH}
-    container_name: kvstore
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: kv-store
-    volumes:
-      - /data:/data
       # dtps sockets
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -142,9 +115,9 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  driver-leds:
+  driver-lights:
     image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-leds
+    container_name: driver-lights
     restart: unless-stopped
     network_mode: host
     privileged: true
@@ -274,4 +247,3 @@ services:
 
 volumes:
   compose-data:
-  portainer-data:

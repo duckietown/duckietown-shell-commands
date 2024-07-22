@@ -30,36 +30,25 @@ You can use --no-steps to exclude some steps:
 
 LIST_DEVICES_CMD = "lsblk -p --output NAME,TYPE,SIZE,VENDOR | grep --color=never 'disk\|TYPE'"
 
-WPA_OPEN_NETWORK_CONFIG = """
-network={{
-  id_str="{cname}"
-  ssid="{ssid}"
-  key_mgmt=NONE
-}}
+
+# NOTE: This is a chunk of a netplan configuration file, the padding is important
+NETPLAN_OPEN_NETWORK_CONFIG = """
+        "{ssid}": {{}}
 """
 
-WPA_PSK_NETWORK_CONFIG = """
-network={{
-  id_str="{cname}"
-  ssid="{ssid}"
-  psk="{psk}"
-  key_mgmt=WPA-PSK
-}}
+# NOTE: This is a chunk of a netplan configuration file, the padding is important
+NETPLAN_WPA_PSK_NETWORK_CONFIG = """
+        "{ssid}":
+          password: "{psk}"
 """
 
-WPA_EAP_NETWORK_CONFIG = """
-network={{
-    id_str="{cname}"
-    ssid="{ssid}"
-    key_mgmt=WPA-EAP
-    group=CCMP TKIP
-    pairwise=CCMP TKIP
-    eap=PEAP
-    proto=RSN
-    identity="{username}"
-    password="{password}"
-    phase1="peaplabel=0"
-    phase2="auth=MSCHAPV2"
-    priority=1
-}}
+# NOTE: This is a chunk of a netplan configuration file, the padding is important
+NETPLAN_WPA_EAP_NETWORK_CONFIG = """
+        "{ssid}":
+          auth:
+            key-management: eap
+            identity: "{username}"
+            password: "{password}"
+            method: peap
+            phase2-auth: MSCHAPV2
 """

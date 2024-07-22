@@ -1,5 +1,5 @@
 import argparse
-from typing import Optional
+from typing import Optional, List
 
 from docker.errors import NotFound
 
@@ -18,7 +18,7 @@ from utils.misc_utils import sanitize_hostname
 from utils.robot_utils import log_event_on_robot
 
 WHEN_NO_DISTRO = "daffy"
-DEFAULT_STACK = "duckietown"
+DEFAULT_STACKS = "robot/basics,duckietown"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
@@ -36,10 +36,13 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
-            "-s", "--stack", type=str, default=DEFAULT_STACK, help="Name of the Stack to update"
+            "-s", "--stacks", type=str, default=DEFAULT_STACKS, help="Name of the stacks to update (comma-separated)"
         )
         parser.add_argument(
             "-k", "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
+        )
+        parser.add_argument(
+            "-d", "--deep-clean", action="store_true", default=False, help="Deep cleans the SD card before updating"
         )
         parser.add_argument(
             "-f", "--force", action="store_true", default=False, help="Force the operation when not recommended"
@@ -53,9 +56,10 @@ class DTCommand(DTCommandAbs):
         hostname = sanitize_hostname(parsed.robot)
         registry_to_use = get_registry_to_use()
         distro: str = shell.profile.distro.name
+        stacks: List[str] = parsed.stacks.split(",")
 
         # check whether the robot is using a different distro
-        rdistro: Optional[str] = None
+        rdistro: Optional[str]
         kv: KVStore = KVStore(parsed.robot)
         if kv.is_available():
             rdistro = kv.get(str, "robot/distro", WHEN_NO_DISTRO)
@@ -72,6 +76,14 @@ class DTCommand(DTCommandAbs):
                 )
                 if parsed.force:
                     dtslogger.warning("Forced!")
+                    # take stack down
+                    for stack in stacks:
+                        success = shell.include.stack.down.command(
+                            shell,
+                            ["--machine", parsed.robot, stack],
+                        )
+                        if not success:
+                            return
                 else:
                     dtslogger.warning("You can use the -f/--force flag to force the operation "
                                       "(if you know what you are doing).")
@@ -79,7 +91,7 @@ class DTCommand(DTCommandAbs):
                     return
 
         # clean duckiebot and offer user abort option
-        if not parsed.no_clean:
+        if parsed.deep_clean:
             try:
                 shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all"])
             except UserAborted as e:
@@ -96,27 +108,32 @@ class DTCommand(DTCommandAbs):
         login_client_OLD(client, credentials, registry_to_use, raise_on_error=False)
         # it looks like the update is going to happen, mark the event
         log_event_on_robot(parsed.robot, "duckiebot/update")
-        # set the distro on the robot
-        if kv.is_available():
-            kv.set("robot/distro", distro, persist=True, fail_quietly=True)
-        else:
-            dtslogger.warning(f"Could not set the distro '{distro}' on robot '{parsed.robot}'")
 
-        # call `stack up` command
-        success = shell.include.stack.up.command(
-            shell,
-            ["--machine", parsed.robot, "--detach", "--pull", parsed.stack],
-        )
-        if not success:
-            return
+        # call `stack up` command for all stacks to update
+        for stack in stacks:
+            dtslogger.info(f"Updating stack `{stack}`...")
+            success = shell.include.stack.up.command(
+                shell,
+                ["--machine", parsed.robot, "--detach", "--pull", stack],
+            )
+            if not success:
+                return
+
         # update non-active images
         for image in images:
             dtslogger.info(f"Pulling image `{image}`...")
             try:
                 pull_image_OLD(image, client)
             except NotFound:
-                dtslogger.error(f"Image '{image}' not found on registry '{registry_to_use}'. " f"Aborting.")
+                dtslogger.error(f"Image '{image}' not found on registry '{registry_to_use}'. Aborting.")
                 return
+
+        # set the distro on the robot
+        if kv.is_available():
+            kv.set("robot/distro", distro, persist=True, fail_quietly=True)
+        else:
+            dtslogger.warning(f"Could not set the distro '{distro}' on robot '{parsed.robot}'")
+
         # clean duckiebot (again)
         if not parsed.no_clean:
             shell.include.duckiebot.clean.command(shell, [parsed.robot, "--all", "--yes", "--untagged"])

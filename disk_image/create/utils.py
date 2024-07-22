@@ -9,8 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Callable
-from typing import List
+from typing import Callable, Dict, List
 
 import yaml
 from dt_shell import dtslogger
@@ -23,6 +22,7 @@ from disk_image.create.constants import (
     FILE_PLACEHOLDER_SIGNATURE,
     MODULES_TO_LOAD,
     PARTITION_MOUNTPOINT,
+    DEFAULT_STACK,
 )
 from utils.cli_utils import ensure_command_is_installed
 from utils.misc_utils import sudo_open, indent_block
@@ -243,8 +243,8 @@ def disk_template_partitions(disk_template_dir):
     )
 
 
-def disk_template_objects(disk_template_dir, partition, filter_type):
-    partition_template_dir = os.path.join(disk_template_dir, partition)
+def disk_template_objects(disk_template_dir, partition, filter_type) -> List[Dict[str, str]]:
+    partition_template_dir = str(os.path.join(disk_template_dir, partition))
     # check if we know about this partition
     if not os.path.isdir(partition_template_dir):
         raise ValueError(f'Partition "{partition}" not found in disk template.')
@@ -258,10 +258,10 @@ def disk_template_objects(disk_template_dir, partition, filter_type):
     return [
         {
             "origin": f,
-            "destination": os.path.join(
-                PARTITION_MOUNTPOINT(partition), os.path.relpath(f, partition_template_dir)
-            ),
-            "relative": "/" + os.path.relpath(f, partition_template_dir),
+            "destination": str(os.path.join(
+                PARTITION_MOUNTPOINT(partition), str(os.path.relpath(f, partition_template_dir))
+            )),
+            "relative": str("/" + os.path.relpath(f, partition_template_dir)),
         }
         for f in glob_star
         if filter_lambda(f)
@@ -364,6 +364,7 @@ def get_validator_fcn(validators, partition, path):
 
 
 def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
+    stack: str = kwargs.get("stack", DEFAULT_STACK)
     # get version
     distro: str = shell.profile.distro.name
     modules = {
@@ -375,7 +376,7 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
             arch=kwargs.get("arch", DEFAULT_DEVICE_ARCH),
             registry=kwargs.get("registry", DEFAULT_DOCKER_REGISTRY),
         )
-        for module in MODULES_TO_LOAD
+        for module in kwargs.get("modules", MODULES_TO_LOAD)
     }
     # load stack content
     content = yaml.load(open(local_path, "rt"), yaml.SafeLoader)
@@ -406,11 +407,13 @@ def validator_autoboot_stack(shell, local_path, remote_path, **kwargs):
             continue
         # no images found
         modules_list = "\n\t".join(modules)
+        candidates_list = "\n\t".join(candidates)
         msg = (
-            f"The 'duckietown' stack '{remote_path}' requires the "
+            f"The '{stack}' stack ({remote_path}) requires the "
             f"Docker image '{srv_image}' for the service '{srv_name}' but "
             f"no candidates were found in the list of modules to load. "
-            f"List of modules to load is:\n\t{modules_list}"
+            f"List of modules to load is:\n\t{modules_list}\n"
+            f"List of candidates:\n\t{candidates_list}\n"
         )
         dtslogger.error(msg)
         raise ValueError(msg)
@@ -440,6 +443,7 @@ def replace_in_file(old: str, new: str, where: str, openfcn: Callable = sudo_ope
     txt2 = txt.replace(old.encode("utf-8"), new.encode("utf-8"))
     with openfcn(where, "wb") as fout:
         fout.write(txt2)
+        fout.flush()
     dtslogger.debug("Original:\n\n----\n" + indent_block(txt.decode("utf-8")) + "----\n\n\n" +
                     "Updated:\n\n----\n" + indent_block(txt2.decode("utf-8")) + "----")
 

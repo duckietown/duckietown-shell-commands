@@ -1,15 +1,11 @@
 import argparse
-from dt_shell.commands import DTCommandConfigurationAbs
-from dt_shell.environments import ShellCommandEnvironmentAbs
 from typing import Optional, List
 
+from dt_shell.commands import DTCommandConfigurationAbs
+from dt_shell.environments import ShellCommandEnvironmentAbs
+
+
 class DTCommandConfiguration(DTCommandConfigurationAbs):
-    @classmethod
-    def aliases(cls) -> List[str]:
-        """
-        Alternative names for this command.
-        """
-        return ["keyboard_controller"]
 
     @classmethod
     def environment(cls, *args, **kwargs) -> Optional[ShellCommandEnvironmentAbs]:
@@ -32,6 +28,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         )
         parser.add_argument(
             "robot",
-            help="Name of the robot to connect to"
+            help="Name of the robot to control"
         )
         return parser
+
+    @classmethod
+    def aliases(cls) -> List[str]:
+        """
+        Alternative names for this command.
+        """
+        return ["keyboard_controller", "joystick_control", "joystick", "jc", "joy"]

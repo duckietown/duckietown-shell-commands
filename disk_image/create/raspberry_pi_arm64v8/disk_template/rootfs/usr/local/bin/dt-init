@@ -2,8 +2,75 @@
 
 set -x
 
+
+# raspi-config non-interactive commands:
+#       sudo raspi-config nonint get_can_expand
+#       sudo raspi-config nonint do_expand_rootfs
+#       sudo raspi-config nonint get_hostname
+#       sudo raspi-config nonint do_hostname %s
+#       sudo raspi-config nonint get_boot_cli
+#       sudo raspi-config nonint get_autologin
+#       sudo raspi-config nonint do_boot_behaviour B1
+#       sudo raspi-config nonint do_boot_behaviour B2
+#       sudo raspi-config nonint do_boot_behaviour B3
+#       sudo raspi-config nonint do_boot_behaviour B4
+#       sudo raspi-config nonint get_boot_wait
+#       sudo raspi-config nonint do_boot_wait %d
+#       sudo raspi-config nonint get_boot_splash
+#       sudo raspi-config nonint do_boot_splash %d
+#       sudo raspi-config nonint get_overscan
+#       sudo raspi-config nonint do_overscan %d
+#       sudo raspi-config nonint get_camera
+#       sudo raspi-config nonint do_camera %d
+#       sudo raspi-config nonint get_ssh
+#       sudo raspi-config nonint do_ssh %d
+#       sudo raspi-config nonint get_vnc
+#       sudo raspi-config nonint do_vnc %d
+#       sudo raspi-config nonint get_spi
+#       sudo raspi-config nonint do_spi %d
+#       sudo raspi-config nonint get_i2c
+#       sudo raspi-config nonint do_i2c %d
+#       sudo raspi-config nonint get_serial
+#       sudo raspi-config nonint get_serial_hw
+#       sudo raspi-config nonint do_serial %d
+#       sudo raspi-config nonint get_onewire
+#       sudo raspi-config nonint do_onewire %d
+#       sudo raspi-config nonint get_rgpio
+#       sudo raspi-config nonint do_rgpio %d
+#       sudo raspi-config nonint get_pi_type
+#       sudo raspi-config nonint get_config_var arm_freq /boot/config.txt
+#       sudo raspi-config nonint do_overclock %s
+#       sudo raspi-config nonint get_config_var gpu_mem /boot/config.txt
+#       sudo raspi-config nonint get_config_var gpu_mem_256 /boot/config.txt
+#       sudo raspi-config nonint get_config_var gpu_mem_512 /boot/config.txt
+#       sudo raspi-config nonint get_config_var gpu_mem_1024 /boot/config.txt
+#       sudo raspi-config nonint do_memory_split %d
+#       sudo raspi-config nonint get_config_var hdmi_group /boot/config.txt
+#       sudo raspi-config nonint get_config_var hdmi_mode /boot/config.txt
+#       sudo raspi-config nonint do_resolution %d %d
+#       sudo raspi-config nonint get_wifi_country
+#       sudo raspi-config nonint do_wifi_country %s
+
+
 EVENTS_DIR=/data/stats/events
 USAGE_DIR=/data/stats/usage
+LED_GPIO_PIN=26
+
+
+setup_hostname() {
+    old_hostname=$(cat /etc/hostname)
+    new_hostname=$(cat /config/hostname)
+    if [ "${old_hostname}" == "${new_hostname}" ]; then
+        echo "Hostname is already set to ${new_hostname}"
+        return 0
+    fi
+    echo "Setting the hostname to ${new_hostname}..."
+    echo "${new_hostname}" > /etc/hostname
+    hostnamectl set-hostname "${new_hostname}"
+    setup_etc_hosts
+    echo "Hostname set to ${new_hostname}"
+    return 1
+}
 
 
 setup_etc_hosts() {
@@ -30,30 +97,64 @@ store_event() {
 
 run_on_setup_boot() {
     echo "Setting up the robot for its first ever (aka setup) boot..."
+    setup_etc_hosts
 
-    # copy configuration files
-    if [ -d /config ]; then
-        if [ -f /config/hostname ]; then
-            cp /config/hostname /etc/hostname
-            chmod 644 /etc/hostname
-            cp /config/hostname /config/hostname.loaded
-        fi
-        if [ -f /config/wpa_supplicant.conf ]; then
-            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
-            chmod 644 /etc/wpa_supplicant.conf
-            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
-        fi
+    # blink the LED to signal the setup boot (frequency = 10Hz)
+    dt-blink-gpio-led ${LED_GPIO_PIN} 0.1 &
+    blink_opid=$!
+
+    # copy root overlay from the configuration partition
+    if [ -d /config/rootfs ]; then
+        sudo rsync --recursive --specials --times /config/rootfs/ /
     fi
+
+    # copy hostname from the configuration partition
+    setup_hostname
+
+    # change wifi country
+    # Why in 'setup' boot: this is needed asap so that the wifi connection can be established
+    WIFI_COUNTRY=$(file-or-default /config/country "US")
+    echo "Setting the WiFi country to ${WIFI_COUNTRY}..."
+    sudo raspi-config nonint do_wifi_country "${WIFI_COUNTRY}"
+
+    # expand rootfs
+    # Why in 'setup' boot: this is needed before the swap file is created in the 'configuration' boot
+    sudo raspi-config nonint do_expand_rootfs
+
+    # enabled SSH server
+    # Why in 'setup' boot: this is needed to allow remote access to the robot asap
+    sudo systemctl enable ssh.service
+    sudo systemctl start ssh.service
+
+    # setup wifi connections
+    cp -R /config/wifi/* /etc/netplan/
+    sudo netplan --debug generate
+    sudo netplan --debug apply
+
+    # stop blinking
+    sudo kill -TERM $blink_opid
+    sleep 0.5
+    dt-set-gpio-led ${LED_GPIO_PIN} 0
 
     echo "Setting up completed!"
 }
 
 run_on_configuration_boot() {
     echo "Configuring the robot..."
+    setup_etc_hosts
+
+    # blink the LED to signal the configuration boot (frequency = 4Hz)
+    dt-blink-gpio-led ${LED_GPIO_PIN} 0.25 &
+    blink_opid=$!
+
+    # set POWER_OFF_ON_HALT to 1
+    echo "Setting POWER_OFF_ON_HALT to 1..."
+    rpi-eeprom-config --out /tmp/boot.conf
+    sed -i 's/^POWER_OFF_ON_HALT=0/POWER_OFF_ON_HALT=1/' /tmp/boot.conf
+    sudo rpi-eeprom-config --apply /tmp/boot.conf
 
     # setup /etc/hosts
     echo "Setting up the environment..."
-    setup_etc_hosts
 
     # activate `booting` service
     mv /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
@@ -119,13 +220,11 @@ run_on_configuration_boot() {
         sleep 2
     done
 
-    # TODO: create duckietown_portainer-data docker volume with an initialized DB
-
     # run customizable first-boot script
     dt-init-first-boot
 
     echo "Setting up the containers..."
-    dt-autoboot
+    dt-run-basics-stacks
 
     # mark event
     store_event "first_boot"
@@ -139,26 +238,55 @@ run_on_configuration_boot() {
     # remove `booting` service
     rm -f /etc/avahi/services/dt.booting.service
 
+    # stop blinking
+    sudo kill -TERM $blink_opid
+    sleep 0.5
+    dt-set-gpio-led ${LED_GPIO_PIN} 0
+
     echo "Setting up completed!"
 }
 
 run_on_every_boot() {
-    echo "Setting up the robot for this boot..."
+    # blink the LED to signal a regular boot (frequency = 1Hz)
+    dt-blink-gpio-led ${LED_GPIO_PIN} 1 &
+    blink_opid=$!
 
-    # copy configuration files
-    if [ -d /config ]; then
-        if [ -f /config/wpa_supplicant.conf ]; then
-            cp /config/wpa_supplicant.conf /etc/wpa_supplicant.conf
-            chmod 644 /etc/wpa_supplicant.conf
-            cp /config/wpa_supplicant.conf /config/wpa_supplicant.conf.loaded
-        fi
+    echo "Setting up the robot for this boot..."
+    setup_etc_hosts
+
+    # copy hostname from the configuration partition
+    setup_hostname
+    local needs_reboot=$?
+    if [ "$needs_reboot" == "1" ]; then
+        echo "Rebooting to apply hostname change..."
+        reboot
+        exit 0
     fi
 
-    # setup /etc/hosts
-    setup_etc_hosts
+    # change wifi country
+    WIFI_COUNTRY=$(file-or-default /config/country "US")
+    echo "Setting the WiFi country to ${WIFI_COUNTRY}..."
+    sudo raspi-config nonint do_wifi_country "${WIFI_COUNTRY}"
+
+    # setup wifi connections
+    cp -R /config/wifi/* /etc/netplan/
+    sudo netplan --debug generate
+    sudo netplan --debug apply
 
     # run customizable any-boot script
     dt-init-any-boot
+
+    # update avahi service descriptions
+    # - robot type
+    cp /etc/avahi/services/dt.robot_type.service.template /etc/avahi/services/dt.robot_type.service.temp
+    ROBOT_TYPE=$(file-or-default /data/config/robot_type "NOTSET")
+    sed -i "s/NOTSET/${ROBOT_TYPE}/g" /etc/avahi/services/dt.robot_type.service.temp
+    mv /etc/avahi/services/dt.robot_type.service.temp /etc/avahi/services/dt.robot_type.service
+    # - robot configuration
+    cp /etc/avahi/services/dt.robot_configuration.service.template /etc/avahi/services/dt.robot_configuration.service.temp
+    ROBOT_CONFIGURATION=$(file-or-default /data/config/robot_configuration "NOTSET")
+    sed -i "s/NOTSET/${ROBOT_CONFIGURATION}/g" /etc/avahi/services/dt.robot_configuration.service.temp
+    mv /etc/avahi/services/dt.robot_configuration.service.temp /etc/avahi/services/dt.robot_configuration.service
 
     # launch triggers handlers
     dt-serve-triggers
@@ -184,6 +312,11 @@ run_on_every_boot() {
 
     # mark event
     store_event "boot"
+
+    # stop blinking
+    sudo kill -TERM $blink_opid
+    sleep 0.5
+    dt-set-gpio-led ${LED_GPIO_PIN} 1
 
     echo "Robot configured!"
 }

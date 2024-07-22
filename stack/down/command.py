@@ -22,7 +22,7 @@ class DTCommand(DTCommandAbs):
     help = "Easy way to remove code from Duckietown robots"
 
     @staticmethod
-    def command(shell: DTShell, args):
+    def command(shell: DTShell, args) -> bool:
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
@@ -60,7 +60,7 @@ class DTCommand(DTCommandAbs):
         stack_file = os.path.join(stack_cmd_dir, "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
-            return
+            return False
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
@@ -85,8 +85,10 @@ class DTCommand(DTCommandAbs):
         # run docker compose stack
         H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file, "down"],
+            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file,
+             "down", "--remove-orphans"],
             env=env,
         )
         # ---
         print("<------")
+        return True

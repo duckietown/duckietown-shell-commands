@@ -185,10 +185,10 @@ class DuckietownViewerInstance:
     _BACKEND_DOCKER_IMAGE = "{registry}/duckietown/dt-duckietown-viewer:{distro}"
     _BACKEND_REMOTE_PORT = 8000
     _KNOWN_APPS = [
-        "extrinsics_calibrator",
         "image_viewer",
-        "intrinsics_calibrator",
         "keyboard_controller",
+        "intrinsics_calibrator",
+        "extrinsics_calibrator",
         "led_controller"
     ]
 

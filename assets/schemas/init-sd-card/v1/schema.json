@@ -27,7 +27,7 @@
             "description": "What model of a Duckiebot are we initializing today?",
             "type": "string",
             "enum": [
-                "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR4"
+                "DB18", "DB19", "DB20", "DB21M", "DB21J", "DBR"
             ]
         },
         "duckiedrone_configuration": {
