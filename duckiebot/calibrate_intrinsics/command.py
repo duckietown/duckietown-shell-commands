@@ -7,6 +7,7 @@ from utils.duckietown_viewer_utils import \
 LAUNCHER_NAME = "intrinsics_calibrator"
 ICON_ASSET = "icon-calibrate-intrinsics.png"
 
+
 class DTCommand(DTCommandAbs):
     help = "Runs the intrinsics calibrator"
 
@@ -24,6 +25,8 @@ class DTCommand(DTCommandAbs):
             "intrinsics_calibrator",
             verbose=parsed.vv,
             window_args={
-                "icon": get_asset_icon_path(ICON_ASSET)
+                "icon": get_asset_icon_path(ICON_ASSET),
+                "width": 1120,
+                "height": 960,
             },
         )
