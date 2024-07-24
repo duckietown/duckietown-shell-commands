@@ -2,7 +2,7 @@ version: '3.2'
 services:
 
   portainer:
-    image: docker.io/duckietown/portainer:ente-${ARCH}
+    image: docker.io/duckietown/portainer:v1.24.1-${ARCH}
     container_name: portainer
     command: ["--host=unix:///var/run/docker.sock", "--no-auth"]
     restart: always
@@ -13,7 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   kvstore:
-    image: ${REGISTRY}/duckietown/dt-kvstore:v0.2.1-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-kvstore:v0.2.2-${ARCH}
     container_name: kvstore
     restart: unless-stopped
     network_mode: host
