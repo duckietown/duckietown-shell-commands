@@ -6,9 +6,9 @@ import yaml
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.avahi_utils import wait_for_service
-from utils.docker_utils import DEFAULT_MACHINE, get_endpoint_architecture, get_registry_to_use, pull_image_OLD
-from utils.misc_utils import sanitize_hostname
+from utils.docker_utils import get_endpoint_architecture, get_registry_to_use, pull_image_OLD
 from utils.multi_command_utils import MultiCommand
+from utils.networking_utils import best_host_for_robot
 
 DEFAULT_STACK = "default"
 DUCKIETOWN_STACK = "duckietown"
@@ -24,7 +24,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=None,
+            required=True,
             help="Docker socket or hostname where to run the image",
         )
 
@@ -38,11 +38,12 @@ class DTCommand(DTCommandAbs):
             return
         # ---
         parsed.stack = parsed.stack[0]
+        robot: str = parsed.machine.replace(".local", "")
+        hostname: str = best_host_for_robot(parsed.machine)
         # special stack is `duckietown`
         if parsed.stack == DUCKIETOWN_STACK:
             # retrieve robot type from device
-            dtslogger.info(f'Waiting for device "{parsed.machine}"...')
-            hostname = parsed.machine.replace(".local", "")
+            dtslogger.info(f'Waiting for robot "{robot}"...')
             _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
             rtype = data["type"]
             dtslogger.info(f'Detected device type is "{rtype}".')
@@ -55,17 +56,12 @@ class DTCommand(DTCommandAbs):
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return
-        # sanitize hostname
-        if parsed.machine is not None:
-            parsed.machine = sanitize_hostname(parsed.machine)
-        else:
-            parsed.machine = DEFAULT_MACHINE
         # info about registry
         registry_to_use = get_registry_to_use()
 
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
-        endpoint_arch = get_endpoint_architecture(parsed.machine)
+        endpoint_arch = get_endpoint_architecture(hostname)
         dtslogger.info(f'Detected device architecture is "{endpoint_arch}".')
         # print info
         dtslogger.info(f"Pulling stack [{stack}]...")
@@ -77,6 +73,6 @@ class DTCommand(DTCommandAbs):
             image_name = service["image"].replace("${ARCH}", endpoint_arch)
             image_name = image_name.replace("${REGISTRY}", registry_to_use)
             dtslogger.info(f"Pulling image `{image_name}`...")
-            pull_image_OLD(image_name, parsed.machine)
+            pull_image_OLD(image_name, hostname)
         # ---
         print("<------")

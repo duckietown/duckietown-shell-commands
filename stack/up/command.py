@@ -1,8 +1,7 @@
-from typing import Set
-
 import argparse
 import os
 import pathlib
+from typing import Set
 
 import yaml
 from docker.errors import NotFound
@@ -12,13 +11,12 @@ from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
-    DEFAULT_MACHINE,
     get_endpoint_architecture,
     get_registry_to_use,
     pull_image_OLD,
 )
-from utils.misc_utils import sanitize_hostname
 from utils.multi_command_utils import MultiCommand
+from utils.networking_utils import best_host_for_robot
 
 DEFAULT_STACK = "default"
 DUCKIETOWN_STACK = "duckietown"
@@ -34,7 +32,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-H",
             "--machine",
-            default=None,
+            required=True,
             help="Docker socket or hostname where to run the image",
         )
         parser.add_argument(
@@ -62,12 +60,13 @@ class DTCommand(DTCommandAbs):
         # ---
         parsed.stack = parsed.stack[0]
         project_name = parsed.stack.replace("/", "_")
+        robot: str = parsed.machine.replace(".local", "")
+        hostname: str = best_host_for_robot(parsed.machine)
         # special stack is `duckietown`
         if parsed.stack == DUCKIETOWN_STACK:
             # retrieve robot type from device
-            dtslogger.info(f'Waiting for device "{parsed.machine}"...')
-            hostname = parsed.machine.replace(".local", "")
-            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
+            dtslogger.info(f'Waiting for robot "{robot}"...')
+            _, _, data = wait_for_service("DT::ROBOT_TYPE", robot)
             rtype = data["type"]
             dtslogger.info(f'Detected device type is "{rtype}".')
             parsed.stack = f"{DUCKIETOWN_STACK}/{rtype}"
@@ -80,17 +79,12 @@ class DTCommand(DTCommandAbs):
         if not os.path.isfile(stack_file):
             dtslogger.error(f"Stack `{stack}` not found.")
             return False
-        # sanitize hostname
-        if parsed.machine is not None:
-            parsed.machine = sanitize_hostname(parsed.machine)
-        else:
-            parsed.machine = DEFAULT_MACHINE
         # info about registry
         registry_to_use = get_registry_to_use()
 
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
-        endpoint_arch = get_endpoint_architecture(parsed.machine)
+        endpoint_arch = get_endpoint_architecture(hostname)
         dtslogger.info(f'Detected device architecture is "{endpoint_arch}".')
         # pull images
         processed: Set[str] = set()
@@ -105,7 +99,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info(f"Pulling image `{image_name}`...")
                 processed.add(image_name)
                 try:
-                    pull_image_OLD(image_name, parsed.machine)
+                    pull_image_OLD(image_name, hostname)
                 except NotFound:
                     msg = f"Image '{image_name}' not found on registry '{registry_to_use}'. Aborting."
                     dtslogger.error(msg)
@@ -127,7 +121,7 @@ class DTCommand(DTCommandAbs):
         if parsed.detach:
             docker_arguments.append("--detach")
         # run docker compose stack
-        H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
+        H = f"{hostname}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
             ["docker", f"--host={H}", "compose", "--project-name", project_name, "--file", stack_file, "up"]
             + docker_arguments,
