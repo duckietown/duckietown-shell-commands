@@ -97,7 +97,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   duckiebot-interface:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:v4.3.0-${ARCH}
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:v4.3.1-${ARCH}
     container_name: duckiebot-interface
     restart: unless-stopped
     network_mode: host
