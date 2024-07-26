@@ -1,6 +1,7 @@
 version: '3.2'
 services:
 
+  # Driver nodes
   camera:
     image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
     container_name: ros1-camera
@@ -58,6 +59,7 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       - /data:/data
 
+  # Master node
   ros:
     image: ${REGISTRY}/duckietown/dt-ros-commons:ente-${ARCH}
     container_name: ros1
@@ -73,6 +75,36 @@ services:
     container_name: ros1-rosbridge-websocket
     restart: unless-stopped
     network_mode: host
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+      - /data:/data
+
+  # Functionalities nodes
+  altitude:
+    image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
+    container_name: altitude
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: duckiedrone-altitude-node
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+      - /data:/data
+
+    # Functionalities nodes
+  fly_commands_mux:
+    image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
+    container_name: fly_commands_mux
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: default-duckiedrone
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
