@@ -53,7 +53,7 @@ def get_robot_hardware(robot_configuration):
         # Duckiedrone
         "DD18": ("raspberry_pi", "3B"),
         "DD21": ("raspberry_pi_64", "3B+"),
-        "DD24": ("raspberry_pi_64", "4B"),
+        "DD24": ("raspberry_pi_64", "5"),
         # Watchtower
         "WT18": ("raspberry_pi", "4B2G"),
         "WT19A": ("raspberry_pi", "4B2G"),
