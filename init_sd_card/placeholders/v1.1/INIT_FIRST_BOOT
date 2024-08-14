@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+# Blue Jetson Nano only
+SD_DEVICE=/dev/sda
+ROOT_PART_ID=1
+
+# resize root partition
+if [ -b "${SD_DEVICE}" ]; then
+    sgdisk --move-second-header ${SD_DEVICE}
+    growpart ${SD_DEVICE} ${ROOT_PART_ID}
+    resize2fs ${SD_DEVICE}${ROOT_PART_ID}
+    partprobe
+fi
+
+
 # set permissions as the user accepted the terms-and-conditions inside init-sd-card
 echo -n 1 > /data/config/permissions/allow_push_config_data
 echo -n 1 > /data/config/permissions/allow_push_logs_data
