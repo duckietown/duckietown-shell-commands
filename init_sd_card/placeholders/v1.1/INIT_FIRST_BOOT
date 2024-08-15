@@ -5,10 +5,10 @@ SD_DEVICE=/dev/sda
 ROOT_PART_ID=1
 
 # resize root partition
-if [ -b "${SD_DEVICE}" ]; then
-    sgdisk --move-second-header ${SD_DEVICE}
-    growpart ${SD_DEVICE} ${ROOT_PART_ID}
-    resize2fs ${SD_DEVICE}${ROOT_PART_ID}
+if [ -b "${{SD_DEVICE}}" ]; then
+    sgdisk --move-second-header ${{SD_DEVICE}}
+    growpart ${{SD_DEVICE}} ${{ROOT_PART_ID}}
+    resize2fs ${{SD_DEVICE}}${{ROOT_PART_ID}}
     partprobe
 fi
 
