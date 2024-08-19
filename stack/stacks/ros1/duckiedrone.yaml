@@ -52,7 +52,7 @@ services:
     network_mode: host
     environment:
       DT_SUPERUSER: 1
-      DT_LAUNCHER: actuator-flight-controller
+      DT_LAUNCHER: flight-controller
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
