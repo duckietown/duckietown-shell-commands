@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      RUST_LOG: "warn,dtps_http=debug"
+      RUST_LOG: "warn,dtps_http=info"
     command: --tcp-port 11511 --tcp-host 0.0.0.0 --unix-path /dtps/switchboard.sock
     privileged: true
     volumes:
