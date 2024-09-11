@@ -224,6 +224,7 @@ class DuckietownViewerInstance:
             registry=get_registry_to_use(),
             distro=get_distro(dt_shell.shell).name
         )
+        dtslogger.info(f"Checking for updates...")
         pull_image(image, docker)
         dtslogger.debug(f"Using image '{image}'")
         # create container
