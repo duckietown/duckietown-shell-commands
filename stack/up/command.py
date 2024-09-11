@@ -48,6 +48,13 @@ class DTCommand(DTCommandAbs):
             default=False,
             help="Pull images before running",
         )
+        parser.add_argument(
+            "-n",
+            "--name",
+            default=None,
+            required=False,
+            help="Project name to use for the stack",
+        )
 
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
@@ -59,7 +66,7 @@ class DTCommand(DTCommandAbs):
             return True
         # ---
         parsed.stack = parsed.stack[0]
-        project_name = parsed.stack.replace("/", "_")
+        project_name = parsed.name or parsed.stack.replace("/", "_")
         robot: str = parsed.machine.replace(".local", "")
         hostname: str = best_host_for_robot(parsed.machine)
         # special stack is `duckietown`
