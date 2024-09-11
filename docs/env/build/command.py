@@ -41,6 +41,12 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("--distro", default=None, help="Which base distro (jupyter-book) to use")
         parser.add_argument(
+            "--no-cache",
+            default=False,
+            action="store_true",
+            help="Skip the Docker cache",
+        )
+        parser.add_argument(
             "--no-pull",
             default=False,
             action="store_true",
@@ -150,6 +156,7 @@ class DTCommand(DTCommandAbs):
                 ("source", source_path),
                 ("project", project.path),
             ],
+            no_cache=parsed.no_cache,
             pull=not parsed.no_pull,
             verbose=parsed.verbose,
             quiet=not parsed.verbose,
