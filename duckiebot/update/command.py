@@ -18,7 +18,7 @@ from utils.networking_utils import best_host_for_robot
 from utils.robot_utils import log_event_on_robot
 
 WHEN_NO_DISTRO = "daffy"
-DEFAULT_STACKS = "robot/basics,duckietown"
+DEFAULT_STACKS = "robot/basics,duckietown,ros1/{robot_type}"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
@@ -64,9 +64,32 @@ class DTCommand(DTCommandAbs):
         robot: str = parsed.robot
         hostname: str = best_host_for_robot(robot)
 
+        # open KVStore
+        kv: KVStore = KVStore(robot)
+
+        # get the robot type
+        rtype: Optional[str]
+        if kv.is_available():
+            rtype = kv.get(str, "robot/type", None)
+        else:
+            dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
+            rtype = None
+        if rtype is None:
+            dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
+        else:
+            dtslogger.info(f"Detected robot type: {rtype}")
+
+        # replace the placeholder in the stacks
+        resolved_stacks = []
+        for stack in stacks:
+            if "{robot_type}" in stack and rtype is None:
+                dtslogger.warning(f"Robot type not available for robot '{robot}', ignoring stack '{stack}'")
+                continue
+            resolved_stacks.append(stack.format(robot_type=rtype))
+        stacks = resolved_stacks
+
         # check whether the robot is using a different distro
         rdistro: Optional[str]
-        kv: KVStore = KVStore(robot)
         if kv.is_available():
             rdistro = kv.get(str, "robot/distro", WHEN_NO_DISTRO)
         else:
@@ -139,6 +162,8 @@ class DTCommand(DTCommandAbs):
 
         # set the distro on the robot
         if kv.is_available():
+            if distro != rdistro:
+                dtslogger.info(f"Setting the distro '{distro}' on robot '{robot}'")
             kv.set("robot/distro", distro, persist=True, fail_quietly=True)
         else:
             dtslogger.warning(f"Could not set the distro '{distro}' on robot '{robot}'")
@@ -146,3 +171,5 @@ class DTCommand(DTCommandAbs):
         # clean duckiebot (again)
         if not parsed.no_clean:
             shell.include.duckiebot.clean.command(shell, [robot, "--all", "--yes", "--untagged"])
+
+        dtslogger.info("Update completed!")
