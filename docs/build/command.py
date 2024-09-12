@@ -241,7 +241,7 @@ class DTCommand(DTCommandAbs):
                         machine=parsed.machine,
                         distro=parsed.distro,
                         embed=parsed.ci,
-                        no_cache=parsed.ci,
+                        no_cache=parsed.no_cache,
                         no_pull=parsed.no_pull,
                         verbose=parsed.verbose,
                     ))
