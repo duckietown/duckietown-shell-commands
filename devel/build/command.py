@@ -447,7 +447,12 @@ class DTCommand(DTCommandAbs):
                     except KeyboardInterrupt:
                         dtslogger.info("Aborting.")
                         return
-                    except (ImageNotFound, BaseException):
+                    except ImageNotFound:
+                        dtslogger.warning(
+                            f'Image "{image}" not found on the registry. Maybe the image does not exist. This is fine '
+                            f'for local and non-official images.'
+                        )
+                    except BaseException:
                         dtslogger.warning(
                             f'An error occurred while pulling the image "{image}", maybe the '
                             "image does not exist"
