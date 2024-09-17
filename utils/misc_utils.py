@@ -10,9 +10,11 @@ from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
            "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc", "NotSet",
-           "hide_string", "SimpleWindowBrowser"]
+           "hide_string", "SimpleWindowBrowser", "pretty_yaml"]
 
 from typing import Any
+
+import yaml
 
 from dt_shell import dtslogger
 
@@ -80,7 +82,8 @@ def get_first_numeric_part(s: str) -> int:
     if not c:
         return 0
     return int(c)
-        
+
+
 def parse_version(v: str) -> tuple:
     return tuple(get_first_numeric_part(_) for _ in v.split("."))
 
@@ -96,6 +99,10 @@ def indent_block(s: str, indent: int = 4) -> str:
 
 def pretty_json(data: Any, indent: int = 0) -> str:
     return indent_block(json.dumps(data, sort_keys=True, indent=4), indent=indent)
+
+
+def pretty_yaml(data: Any, indent: int = 0) -> str:
+    return indent_block(yaml.safe_dump(data, sort_keys=True, indent=4), indent=indent)
 
 
 def pretty_exc(exc: Exception, indent: int = 0) -> str:
