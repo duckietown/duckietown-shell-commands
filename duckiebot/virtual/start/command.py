@@ -89,7 +89,7 @@ class DTCommand(DTCommandAbs):
             "privileged": True,
             "name": f"dts-virtual-{parsed.robot}",
             "detach": True,
-            "remove": False,
+            "remove": True,
             "cgroupns": "private",
             "volumes": [
                 (os.path.join(vbot_root_dir, "var", "lib", "docker"), "/var/lib/docker", "rw"),
