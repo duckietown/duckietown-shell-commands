@@ -7,6 +7,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.utils import pull_docker_image
 from utils.duckietown_utils import USER_DATA_DIR
+from utils.misc_utils import pretty_yaml
 
 DISK_NAME = "root"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
@@ -67,21 +68,37 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Downloading virtual robot runtime...")
             # pull dind image
             pull_docker_image(local_docker, runtime_image)
+        # collect mountpoints
+        volumes = []
+        _, dirs, _ = next(os.walk(vbot_root_dir))
+        for dir in dirs:
+            # ignore var directory
+            if dir in ['var']:
+                continue
+            # mount entire directories as read-write
+            host_path = os.path.join(vbot_root_dir, dir)
+            container_path = f"/{dir}"
+            volumes.append((host_path, container_path, "rw"))
+
         # runtime
-        docker.container.run(
-            image=runtime_image,
-            detach=True,
-            remove=True,
-            privileged=True,
-            name=f"dts-virtual-{parsed.robot}",
-            hostname=parsed.robot,
-            cgroupns="private",
-            volumes={
-                (os.path.join(vbot_root_dir, "data"), "/data", "rw"),
+        # TODO: if we move to a `docker compose` stack, we can use volumes to mount the non-empty /home/duckie directory
+        #       and take advantage of the auto-copy feature of the docker volumes
+        opts = {
+            "image": runtime_image,
+            "hostname": parsed.robot,
+            "privileged": True,
+            "name": f"dts-virtual-{parsed.robot}",
+            "detach": True,
+            "remove": False,
+            "cgroupns": "private",
+            "volumes": [
                 (os.path.join(vbot_root_dir, "var", "lib", "docker"), "/var/lib/docker", "rw"),
-                (os.path.join(vbot_root_dir, "boot"), "/boot", "rw"),
-            },
-        )
+                *volumes
+            ]
+        }
+        dtslogger.debug(f"Booting up virtual robot '{parsed.robot}' with the following options:"
+                        f"\n{pretty_yaml(opts, indent=4)}\n")
+        docker.container.run(**opts)
         # ---
         print()
         dtslogger.info("Your virtual robot is booting up. "

@@ -6,32 +6,34 @@ import time
 from typing import Optional
 
 import docker
-from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from disk_image.create.constants import \
-    AUTOBOOT_STACKS_DIR, \
     MODULES_TO_LOAD, \
-    DOCKER_IMAGE_TEMPLATE
+    DOCKER_IMAGE_TEMPLATE, DEFAULT_DEVICE_STACKS_DIR
 from disk_image.create.utils import \
-    list_files,\
-    run_cmd,\
-    replace_in_file,\
+    run_cmd, \
+    replace_in_file, \
     pull_docker_image
+from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_registry_to_use
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
-
 from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
 
 DEVICE_ARCH = "amd64"
 DISK_NAME = "root"
-DEFAULT_STACK = "duckietown"
 DIND_IMAGE_NAME = "docker:24.0-dind"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
-COMMANDS_DIR = os.path.join(COMMAND_DIR, "..", "..", "..")
-STACKS_DIR = os.path.join(COMMANDS_DIR, "stack", "stacks", DEFAULT_STACK)
+COMMANDS_DIR = os.path.realpath(os.path.join(COMMAND_DIR, "..", "..", ".."))
+STACKS_DIR = os.path.join(COMMANDS_DIR, "stack", "stacks")
 DISK_TEMPLATE_DIR = os.path.join(COMMANDS_DIR, "disk_image", "create", "virtual", "disk_template")
+
+STACKS_TO_LOAD = {
+    "basics": "robot/basics",
+    "ros1": "ros1/{robot_type}",
+    "duckietown": "duckietown/{robot_type}"
+}
 
 
 class DTCommand(DTCommandAbs):
@@ -112,10 +114,15 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Copying skeleton root disk to the root of your virtual robot.")
             run_cmd(["cp", "-r", origin, vbot_root_dir])
             # copy stacks
-            for stack in list_files(STACKS_DIR, "yaml"):
-                origin = os.path.join(STACKS_DIR, stack)
-                destination = os.path.join(vbot_root_dir, AUTOBOOT_STACKS_DIR.lstrip("/"), stack)
+            for project, stack_fmt in STACKS_TO_LOAD.items():
+                stack: str = stack_fmt.format(robot_type=parsed.type)
+                origin = os.path.join(STACKS_DIR, f"{stack}.yaml")
+                destination = os.path.join(vbot_root_dir, DEFAULT_DEVICE_STACKS_DIR.lstrip("/"), f"{project}.yaml")
+                destination_dir = os.path.dirname(destination)
                 # copy new file
+                dtslogger.debug(f"Copying '{origin}' -> '{destination}'")
+                if not os.path.exists(destination_dir):
+                    os.makedirs(destination_dir)
                 run_cmd(["cp", origin, destination])
                 # add architecture as default value in the stack file
                 dtslogger.debug(
@@ -175,7 +182,7 @@ class DTCommand(DTCommandAbs):
             # ---
             dtslogger.info("Testing virtual Docker environment...")
             dtslogger.info(f" - Detected version: {remote_docker.version()['Version']}")
-            dtslogger.info(f"The robot is now up, transferring images...")
+            dtslogger.info(f"The robot is now up, downloading images...")
             # from this point on, if anything weird happens, stop container and unmount disk
             try:
                 # pull images inside the disk image
@@ -214,6 +221,9 @@ class DTCommand(DTCommandAbs):
             # - data/stats/MAC/eth0
             with open(os.path.join(vbot_root_dir, "data", "stats", "MAC", "eth0"), "wt") as fout:
                 fout.write(random_virtual_mac_address())
+            # - secrets/tokens/dt
+            with open(os.path.join(vbot_root_dir, "secrets", "tokens", "dt"), "wt") as fout:
+                fout.write(shell.profile.secrets.dt_token)
         except Exception as e:
             # warn user
             dtslogger.error(f"An error occurred while creating the virtual robot. Error:\n{pretty_exc(e, 4)}")
