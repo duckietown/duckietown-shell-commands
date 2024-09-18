@@ -75,7 +75,6 @@ class DTCommand(DTCommandAbs):
         rtype: Optional[str]
         if kv.is_available():
             rtype = kv.get(str, "robot/type", None)
-            rtype = None
         else:
             rtype = None
 
