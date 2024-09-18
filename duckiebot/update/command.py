@@ -1,5 +1,6 @@
 import argparse
-from typing import Optional, List
+import copy
+from typing import Optional, List, Dict
 
 from docker.errors import NotFound
 
@@ -18,7 +19,6 @@ from utils.networking_utils import best_host_for_robot
 from utils.robot_utils import log_event_on_robot
 
 WHEN_NO_DISTRO = "daffy"
-DEFAULT_STACKS = "robot/basics,duckietown,ros1/{robot_type}"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
@@ -28,6 +28,12 @@ OTHER_IMAGES_TO_UPDATE = [
     # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
 ]
 
+STACKS_TO_LOAD = {
+    "basics": "robot/basics",
+    "duckietown": "duckietown/{robot_type}",
+    "ros1": "ros1/{robot_type}",
+}
+
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -35,9 +41,6 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot update"
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
-        parser.add_argument(
-            "-s", "--stacks", type=str, default=DEFAULT_STACKS, help="Name of the stacks to update (comma-separated)"
-        )
         parser.add_argument(
             "-k", "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
         )
@@ -58,7 +61,7 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         registry_to_use = get_registry_to_use()
         distro: str = shell.profile.distro.name
-        stacks: List[str] = parsed.stacks.split(",")
+        stacks: Dict[str, str] = copy.deepcopy(STACKS_TO_LOAD)
 
         # resolve robot hostname
         robot: str = parsed.robot
@@ -80,12 +83,12 @@ class DTCommand(DTCommandAbs):
             dtslogger.info(f"Detected robot type: {rtype}")
 
         # replace the placeholder in the stacks
-        resolved_stacks = []
-        for stack in stacks:
-            if "{robot_type}" in stack and rtype is None:
-                dtslogger.warning(f"Robot type not available for robot '{robot}', ignoring stack '{stack}'")
+        resolved_stacks: Dict[str, str] = {}
+        for project, stack_fmt in stacks.items():
+            if "{robot_type}" in stack_fmt and rtype is None:
+                dtslogger.warning(f"Robot type not available for robot '{robot}', ignoring stack '{project}'")
                 continue
-            resolved_stacks.append(stack.format(robot_type=rtype))
+            resolved_stacks[project] = stack_fmt.format(robot_type=rtype)
         stacks = resolved_stacks
 
         # check whether the robot is using a different distro
@@ -106,10 +109,10 @@ class DTCommand(DTCommandAbs):
                 if parsed.force:
                     dtslogger.warning("Forced!")
                     # take stack down
-                    for stack in stacks:
+                    for project, stack in stacks.items():
                         success = shell.include.stack.down.command(
                             shell,
-                            ["--machine", robot, stack],
+                            ["--machine", robot, "--project", project, stack],
                         )
                         if not success:
                             return
@@ -144,9 +147,9 @@ class DTCommand(DTCommandAbs):
             stack_up_options.append("--pull")
 
         # call `stack up` command for all stacks to update
-        for stack in stacks:
+        for project, stack in stacks.items():
             dtslogger.info(f"Updating stack `{stack}`...")
-            success = shell.include.stack.up.command(shell, stack_up_options + [stack])
+            success = shell.include.stack.up.command(shell, stack_up_options + ["--project", project, stack])
             if not success:
                 return
 
