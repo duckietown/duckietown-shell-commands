@@ -219,7 +219,7 @@ class DTCommand(DTCommandAbs):
         workspace_name: str = os.path.basename(parsed.workdir)
         container_id: str = str(uuid.uuid4())[:4]
         container_name: str = f"vscode-{workspace_name}-{container_id}"
-        workdir = f"/code/{workspace_name}"
+        workdir = f"/code/src/{workspace_name}"
         dtslogger.info(f"Running image '{image}'...")
         args = {
             "image": image,
@@ -227,6 +227,7 @@ class DTCommand(DTCommandAbs):
             "remove": not parsed.keep,
             "envs": {
                 "HOST_UID": identity,
+                "DT_SUPERUSER": 1,
             },
             "volumes": [
                 # needed by VSCode to run in a safe context, nothing works in VSCode via HTTP
