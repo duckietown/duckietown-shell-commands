@@ -2,6 +2,7 @@ import argparse
 import copy
 from typing import Optional, List, Dict
 
+import questionary
 from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -74,20 +75,25 @@ class DTCommand(DTCommandAbs):
         rtype: Optional[str]
         if kv.is_available():
             rtype = kv.get(str, "robot/type", None)
-        else:
-            dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
             rtype = None
+        else:
+            rtype = None
+
         if rtype is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
+            rtype: Optional[str] = questionary.select(
+                "Select robot type:", choices=["duckiebot", "duckiedrone"]
+            ).unsafe_ask()
+            if rtype is None:
+                raise UserAborted()
+            dtslogger.info(f"Declared robot type: {rtype}")
         else:
             dtslogger.info(f"Detected robot type: {rtype}")
+        assert rtype is not None
 
         # replace the placeholder in the stacks
         resolved_stacks: Dict[str, str] = {}
         for project, stack_fmt in stacks.items():
-            if "{robot_type}" in stack_fmt and rtype is None:
-                dtslogger.warning(f"Robot type not available for robot '{robot}', ignoring stack '{project}'")
-                continue
             resolved_stacks[project] = stack_fmt.format(robot_type=rtype)
         stacks = resolved_stacks
 
