@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import platform
@@ -762,3 +763,29 @@ def ensure_docker_version(client: DockerClient, v: str):
 
             """
             raise UserError(msg)
+
+
+def merge_docker_compose_services(s1: dict, s2: dict) -> dict:
+    """
+    Merges two docker-compose services dictionaries.
+
+    Args:
+        s1: first service dictionary
+        s2: second service dictionary
+    """
+    s1 = dict(s1)
+    s2 = dict(s2)
+    simple_types = (str, int, float, bool, type(None))
+    for k, v in s2.items():
+        if k in s1:
+            if isinstance(v, dict) and isinstance(s1[k], dict):
+                s1[k].update(v)
+            elif isinstance(v, list) and isinstance(s1[k], list):
+                s1[k] = list(set(s1[k] + v))
+            elif isinstance(v, simple_types) and isinstance(s1[k], simple_types):
+                s1[k] = v
+            else:
+                raise ValueError(f"Cannot merge {v} of type {type(v)} with {s1[k]} of type {type(s1[k])}")
+        else:
+            s1[k] = v
+    return s1
