@@ -32,6 +32,9 @@ from utils.progress_bar import ProgressBar
 from .constants import (
     LIST_DEVICES_CMD,
     TIPS_AND_TRICKS,
+    WPA_EAP_NETWORK_CONFIG,
+    WPA_OPEN_NETWORK_CONFIG,
+    WPA_PSK_NETWORK_CONFIG,
     NETPLAN_OPEN_NETWORK_CONFIG,
     NETPLAN_WPA_EAP_NETWORK_CONFIG,
     NETPLAN_WPA_PSK_NETWORK_CONFIG,
@@ -638,6 +641,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             indent=4,
             sort_keys=True,
         ),
+        # placeholders v1.1
+        "wpa_networks": _get_wpa_supplicant_wifi_configuration(parsed),
+        "wpa_country": parsed.country,
     }
     # read disk metadata
     with open(data["disk_metadata"], "rt") as fin:
@@ -778,6 +784,31 @@ def _interpret_wifi_string(s) -> List[Wifi]:
             results.append(Wifi(name, wifissid, None, arg1, arg2))
         # ---
     return results
+
+
+def _get_wpa_supplicant_wifi_configuration(parsed):
+    networks = _interpret_wifi_string(parsed.wifi)
+    wpa_networks = ""
+    for connection in networks:
+        # EAP-secured network
+        if connection.username is not None:
+            wpa_networks += WPA_EAP_NETWORK_CONFIG.format(
+                cname=connection.name,
+                ssid=connection.ssid,
+                username=connection.username,
+                password=connection.password,
+            )
+            continue
+        # PSK-secured network
+        if connection.psk is not None:
+            wpa_networks += WPA_PSK_NETWORK_CONFIG.format(
+                cname=connection.name, ssid=connection.ssid, psk=connection.psk
+            )
+            continue
+        # open network
+        wpa_networks += WPA_OPEN_NETWORK_CONFIG.format(cname=connection.name, ssid=connection.ssid)
+    # ---
+    return wpa_networks
 
 
 def _get_netplan_wifi_configuration(parsed) -> str:
