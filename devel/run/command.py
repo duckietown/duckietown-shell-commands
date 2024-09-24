@@ -528,6 +528,15 @@ def args_to_docker_compose(
             cc_name: merge_docker_compose_services(base_cc.service, runtime_cc)
         },
     }
+    # resolve all local volume paths
+    for service in cfg["services"].values():
+        for i, volume in enumerate(service.get("volumes", [])):
+            if ":" not in volume:
+                continue
+            src, dst, *other = volume.split(":")
+            if not os.path.isabs(src) and os.path.exists(src):
+                service["volumes"][i] = f"{os.path.abspath(src)}:{dst}" + ":".join(other)
+    # ---
     return cfg
 
 
