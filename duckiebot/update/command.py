@@ -18,7 +18,7 @@ from utils.networking_utils import best_host_for_robot
 from utils.robot_utils import log_event_on_robot
 
 WHEN_NO_DISTRO = "daffy"
-DEFAULT_STACKS = "robot/basics,duckietown,ros1/{robot_type}"
+DEFAULT_STACKS = "robot/basics,duckietown/{robot_type},ros1/{robot_type}"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
@@ -50,6 +50,12 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-f", "--force", action="store_true", default=False, help="Force the operation when not recommended"
         )
+        parser.add_argument(
+            "--distro", type=str, default=WHEN_NO_DISTRO, help="Specify the distro to use for the update (default: daffy)"
+        )
+        parser.add_argument(
+            "-t", "--robot-type", type=str, default=None, help="Force using a specific robot type (the -f flag MUST also be selected)"
+        )
 
         parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
         # parse arguments
@@ -78,6 +84,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
         else:
             dtslogger.info(f"Detected robot type: {rtype}")
+            
+        if parsed.force and parsed.robot_type is not None:
+            rtype = parsed.robot_type
+            
 
         # replace the placeholder in the stacks
         resolved_stacks = []
@@ -91,10 +101,10 @@ class DTCommand(DTCommandAbs):
         # check whether the robot is using a different distro
         rdistro: Optional[str]
         if kv.is_available():
-            rdistro = kv.get(str, "robot/distro", WHEN_NO_DISTRO)
+            rdistro = kv.get(str, "robot/distro", distro)
         else:
-            dtslogger.warning(f"Could not get the distro from robot '{robot}'. Assuming '{WHEN_NO_DISTRO}'")
-            rdistro = WHEN_NO_DISTRO
+            dtslogger.warning(f"Could not get the distro from robot '{robot}'. Assuming '{distro}'")
+            rdistro = distro
 
         if rdistro is not None:
             dtslogger.info(f"Detected distro '{rdistro}' on robot '{robot}'")
