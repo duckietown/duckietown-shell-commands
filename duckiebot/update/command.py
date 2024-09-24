@@ -85,7 +85,7 @@ class DTCommand(DTCommandAbs):
         else:
             rtype = None
 
-        if rtype is None:
+        if rtype is None and parsed.robot_type is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
             rtype: Optional[str] = questionary.select(
                 "Select robot type:", choices=["duckiebot", "duckiedrone"]
@@ -93,11 +93,10 @@ class DTCommand(DTCommandAbs):
             if rtype is None:
                 raise UserAborted()
             dtslogger.info(f"Declared robot type: {rtype}")
+        elif parsed.force and parsed.robot_type is not None:
+            rtype = parsed.robot_type
         else:
             dtslogger.info(f"Detected robot type: {rtype}")
-            
-        if parsed.force and parsed.robot_type is not None:
-            rtype = parsed.robot_type
             
         assert rtype is not None
 
