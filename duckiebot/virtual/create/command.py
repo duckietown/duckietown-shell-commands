@@ -31,8 +31,8 @@ DISK_TEMPLATE_DIR = os.path.join(COMMANDS_DIR, "disk_image", "create", "virtual"
 
 STACKS_TO_LOAD = {
     "basics": "robot/basics",
+    "duckietown": "duckietown/{robot_type}",
     "ros1": "ros1/{robot_type}",
-    "duckietown": "duckietown/{robot_type}"
 }
 
 
@@ -164,10 +164,10 @@ class DTCommand(DTCommandAbs):
             endpoint_url = f"tcp://{container_ip}:2375"
             dtslogger.debug(f"DIND endpoint: {endpoint_url}")
             # wait for the engine to come up
-            dtslogger.info("Waiting up to 30 seconds for your new robot to start...")
+            dtslogger.info("Waiting up to 60 seconds for your new robot to start...")
             t0: float = time.time()
             remote_docker: Optional[docker.DockerClient] = None
-            while time.time() - t0 < 30:
+            while time.time() - t0 < 60:
                 time.sleep(2)
                 try:
                     remote_docker = docker.DockerClient(base_url=endpoint_url)

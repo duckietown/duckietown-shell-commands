@@ -123,7 +123,7 @@ services:
     privileged: true
     environment:
       DT_SUPERUSER: 1
-      DT_LAUNCHER: actuator-leds
+      DT_LAUNCHER: actuator-lights
     volumes:
       - /data:/data
       # dtps sockets

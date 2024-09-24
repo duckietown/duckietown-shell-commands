@@ -49,11 +49,11 @@ class DTCommand(DTCommandAbs):
             help="Pull images before running",
         )
         parser.add_argument(
-            "-n",
-            "--name",
-            default=None,
+            "-p",
+            "--project",
             required=False,
-            help="Project name to use for the stack",
+            default=None,
+            help="Name of the project to use for the stack",
         )
 
         parser.add_argument("stack", nargs=1, default=None)
@@ -65,26 +65,26 @@ class DTCommand(DTCommandAbs):
             multi.execute()
             return True
         # ---
-        parsed.stack = parsed.stack[0]
-        project_name = parsed.name or parsed.stack.replace("/", "_")
+        stack = parsed.stack[0]
+        project_name = parsed.project or stack.replace("/", "_")
         robot: str = parsed.machine.replace(".local", "")
         hostname: str = best_host_for_robot(parsed.machine)
         # special stack is `duckietown`
-        if parsed.stack == DUCKIETOWN_STACK:
+        if project_name == DUCKIETOWN_STACK:
             # retrieve robot type from device
             dtslogger.info(f'Waiting for robot "{robot}"...')
             _, _, data = wait_for_service("DT::ROBOT_TYPE", robot)
             rtype = data["type"]
             dtslogger.info(f'Detected device type is "{rtype}".')
-            parsed.stack = f"{DUCKIETOWN_STACK}/{rtype}"
+            stack = f"{DUCKIETOWN_STACK}/{rtype}"
             project_name = DUCKIETOWN_STACK
         # sanitize stack
-        stack = parsed.stack if "/" in parsed.stack else f"{parsed.stack}/{DEFAULT_STACK}"
+        stack = stack if "/" in stack else f"{stack}/{DEFAULT_STACK}"
         # check stack
         stack_cmd_dir = pathlib.Path(__file__).parent.parent.absolute()
         stack_file = os.path.join(stack_cmd_dir, "stacks", stack) + ".yaml"
         if not os.path.isfile(stack_file):
-            dtslogger.error(f"Stack `{stack}` not found.")
+            dtslogger.error(f"Stack [{project_name}]({stack}) not found.")
             return False
         # info about registry
         registry_to_use = get_registry_to_use()
@@ -112,7 +112,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(msg)
                     return False
         # print info
-        dtslogger.info(f"Running stack [{stack}]...")
+        dtslogger.info(f"Running stack [{project_name}]({stack})...")
         print("------>")
         # collect arguments
         docker_arguments = [

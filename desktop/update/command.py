@@ -19,6 +19,7 @@ from utils.cli_utils import ask_confirmation
 OTHER_IMAGES_TO_UPDATE = [
     "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
     "{registry}/duckietown/dt-core:{distro}-{arch}",
+    "{registry}/duckietown/dt-duckietown-viewer:{distro}",
     # "{registry}/duckietown/dt-duckiebot-fifos-bridge:{distro}-{arch}",
     # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown:{distro}-{arch}",
     # "{registry}/duckietown/challenge-aido_lf-baseline-duckietown-ml:{distro}-{arch}",

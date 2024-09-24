@@ -23,7 +23,7 @@ class DTCommand(DTCommandAbs):
         try:
             vbot_container = local_docker.containers.get(f"dts-virtual-{parsed.robot}")
             dtslogger.info(f"Shutting down virtual robot '{parsed.robot}', "
-                           f"this might take a while...")
+                           f"this might take up to a minute...")
             vbot_container.exec_run(cmd="shutdown")
             vbot_container.wait()
             dtslogger.info("Done!")

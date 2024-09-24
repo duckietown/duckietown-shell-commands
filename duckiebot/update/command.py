@@ -1,6 +1,8 @@
 import argparse
-from typing import Optional, List
+import copy
+from typing import Optional, List, Dict
 
+import questionary
 from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
@@ -28,6 +30,12 @@ OTHER_IMAGES_TO_UPDATE = [
     # "{registry}/duckietown/challenge-aido_lf-template-ros:{distro}-{arch}",
 ]
 
+STACKS_TO_LOAD = {
+    "basics": "robot/basics",
+    "duckietown": "duckietown/{robot_type}",
+    "ros1": "ros1/{robot_type}",
+}
+
 
 class DTCommand(DTCommandAbs):
     @staticmethod
@@ -35,9 +43,6 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot update"
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
-        parser.add_argument(
-            "-s", "--stacks", type=str, default=DEFAULT_STACKS, help="Name of the stacks to update (comma-separated)"
-        )
         parser.add_argument(
             "-k", "--no-clean", action="store_true", default=False, help="Do NOT perform a clean step"
         )
@@ -64,7 +69,7 @@ class DTCommand(DTCommandAbs):
         parsed.robot = parsed.robot[0]
         registry_to_use = get_registry_to_use()
         distro: str = shell.profile.distro.name
-        stacks: List[str] = parsed.stacks.split(",")
+        stacks: Dict[str, str] = copy.deepcopy(STACKS_TO_LOAD)
 
         # resolve robot hostname
         robot: str = parsed.robot
@@ -78,24 +83,28 @@ class DTCommand(DTCommandAbs):
         if kv.is_available():
             rtype = kv.get(str, "robot/type", None)
         else:
-            dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
             rtype = None
+
         if rtype is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
+            rtype: Optional[str] = questionary.select(
+                "Select robot type:", choices=["duckiebot", "duckiedrone"]
+            ).unsafe_ask()
+            if rtype is None:
+                raise UserAborted()
+            dtslogger.info(f"Declared robot type: {rtype}")
         else:
             dtslogger.info(f"Detected robot type: {rtype}")
             
         if parsed.force and parsed.robot_type is not None:
             rtype = parsed.robot_type
             
+        assert rtype is not None
 
         # replace the placeholder in the stacks
-        resolved_stacks = []
-        for stack in stacks:
-            if "{robot_type}" in stack and rtype is None:
-                dtslogger.warning(f"Robot type not available for robot '{robot}', ignoring stack '{stack}'")
-                continue
-            resolved_stacks.append(stack.format(robot_type=rtype))
+        resolved_stacks: Dict[str, str] = {}
+        for project, stack_fmt in stacks.items():
+            resolved_stacks[project] = stack_fmt.format(robot_type=rtype)
         stacks = resolved_stacks
 
         # check whether the robot is using a different distro
@@ -116,10 +125,10 @@ class DTCommand(DTCommandAbs):
                 if parsed.force:
                     dtslogger.warning("Forced!")
                     # take stack down
-                    for stack in stacks:
+                    for project, stack in stacks.items():
                         success = shell.include.stack.down.command(
                             shell,
-                            ["--machine", robot, stack],
+                            ["--machine", robot, "--project", project, stack],
                         )
                         if not success:
                             return
@@ -154,9 +163,9 @@ class DTCommand(DTCommandAbs):
             stack_up_options.append("--pull")
 
         # call `stack up` command for all stacks to update
-        for stack in stacks:
+        for project, stack in stacks.items():
             dtslogger.info(f"Updating stack `{stack}`...")
-            success = shell.include.stack.up.command(shell, stack_up_options + [stack])
+            success = shell.include.stack.up.command(shell, stack_up_options + ["--project", project, stack])
             if not success:
                 return
 

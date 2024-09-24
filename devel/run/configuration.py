@@ -57,11 +57,22 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         parser.add_argument(
             "--build", default=False, action="store_true", help="Whether to build the image of the project"
         )
+        # TODO: currently not used as CLI is still the default behavior
         parser.add_argument(
             "--plain",
             default=False,
             action="store_true",
             help="Whether to run the image without default module configuration",
+        )
+        parser.add_argument(
+            "-g",
+            "--configuration",
+            default=None,
+            const="default",
+            action="store",
+            nargs="?",
+            type=str,
+            help="Container configuration to use",
         )
         parser.add_argument(
             "--no-multiarch",
@@ -189,7 +200,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=None,
             help="Overrides 'version' (usually taken to be branch name)"
         )
-        parser.add_argument("docker_args", nargs="*", default=[])
         parser.add_argument(
             "-RW",
             "--read_write",
@@ -197,5 +207,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             action="store_true",
             help="Mount the project in read-write mode",
         )
+        parser.add_argument("docker_args", nargs="*", default=[])
         # ---
         return parser
