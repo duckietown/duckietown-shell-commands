@@ -45,8 +45,6 @@ class DTCommand(DTCommandAbs):
         parsed = kwargs.get("parsed", None)
         container_cmd_arguments: Optional[List[str]] = None
         if parsed is None:
-            # parse arguments
-            parsed, _ = DTCommand.parser.parse_known_args(args=args)
             # try to interpret it as a multi-command
             multi = MultiCommand(DTCommand, shell, [("-H", "--machine")], args)
             if multi.is_multicommand:
@@ -63,6 +61,8 @@ class DTCommand(DTCommandAbs):
                 args = args[:idx] + ["--", "--fake"] + args[idx + 1:]
             except ValueError:
                 pass
+            # parse arguments
+            parsed, _ = DTCommand.parser.parse_known_args(args=args)
         else:
             # combine given args with default values
             default_parsed = DTCommand.parser.parse_args(args=[])
