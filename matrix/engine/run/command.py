@@ -113,7 +113,7 @@ class MatrixEngine:
         # set the map
         if parsed.sandbox:
             engine_config["command"] += [
-                "--maps-dir", "/embedded_maps",
+                "--maps-dir", "/maps",
                 "--map", "sandbox"
             ]
         else:
