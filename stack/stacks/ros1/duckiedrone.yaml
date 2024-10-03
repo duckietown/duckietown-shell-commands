@@ -31,19 +31,6 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       - /data:/data
 
-  imu:
-    image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
-    container_name: ros1-imu
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-imu
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      - /data:/data
 
   flight-controller:
     image: ${REGISTRY}/duckietown/duckiedrone-ardupilot-driver:ente-${ARCH}
