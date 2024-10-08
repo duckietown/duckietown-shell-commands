@@ -129,12 +129,6 @@ class DTCommand(DTCommandAbs):
             project.ensure_recipe_updated()
         recipe: Optional[DTProject] = project.recipe
 
-        # custom VNC distro
-        if parsed.distro:
-            dtslogger.info(f"Using custom distro '{parsed.distro}'")
-        else:
-            parsed.distro = shell.profile.distro.name
-        build_args.append(("DISTRO", parsed.distro))
 
         # avoid weird silence
         if parsed.build_only and project.vnc_dockerfile is None:
