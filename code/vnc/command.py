@@ -59,13 +59,20 @@ class DTCommand(DTCommandAbs):
             "--build-only",
             default=False,
             action="store_true",
-            help="Whether to build VSCode for this project without running it",
+            help="Whether to build VNC for this project without running it",
         )
         parser.add_argument(
             "--recipe",
             default=None,
             help="Path to a custom recipe to use",
         )
+        parser.add_argument(
+            "-R",
+            "--robot",
+            default=None,
+            help="Name of the robot to connect this agent to",
+        )
+
         parser.add_argument(
             "--plain",
             default=False,
@@ -173,18 +180,18 @@ class DTCommand(DTCommandAbs):
         # we know which VNC to use
         dtslogger.debug(f"Using VNC image '{vnc_image_name}'")
 
-        raise NotImplementedError("dts/vnc/run is not implemented.")
 
-        # # run VNC
-        # vnc_namespace = SimpleNamespace(
-        #     workdir=[parsed.workdir],
-        #     image=vnc_image_name,
-        #     impersonate=parsed.impersonate,
-        #     verbose=parsed.verbose,
-        # )
-        # dtslogger.debug(f"Calling 'vnc/run' with arguments: {str(vnc_namespace)}")
-        # shell.include.vnc.run.command(shell, [], parsed=vnc_namespace)
-        # return True
+        # run VNC
+        vnc_namespace = SimpleNamespace(
+            workdir=[parsed.workdir],
+            image=vnc_image_name,
+            impersonate=parsed.impersonate,
+            verbose=parsed.verbose,
+            hostname=parsed.robot,
+            vnc=True,
+        )
+        shell.include.gui.command(shell, [], parsed=vnc_namespace)
+        return True
 
     @staticmethod
     def complete(shell, word, line):

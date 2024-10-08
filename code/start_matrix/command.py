@@ -6,7 +6,6 @@ from typing import Dict, Any, cast, Iterable, List, Optional
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from dtproject import DTProject
 from utils.yaml_utils import load_yaml
-import multiprocessing
 
 
 class DTCommand(DTCommandAbs):
@@ -24,16 +23,6 @@ class DTCommand(DTCommandAbs):
             for k, v in parsed.__dict__.items():
                 setattr(default_parsed, k, v)
             parsed = default_parsed
-
-        # -R/--robot is required when -H/--machine is not provided
-        if not parsed.robot:
-            dtslogger.error("You need to specify a robot (-R/--robot) - either virtual or real")
-            return False
-        # sanitize hostnames (lowercase and remove .local)
-        parsed.robot = parsed.robot.lower()
-        if parsed.robot.endswith(".local"):
-            parsed.robot = parsed.robot[:-6]
-
 
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -57,7 +46,6 @@ class DTCommand(DTCommandAbs):
         # get the exercise recipe
         recipe: DTProject = project.recipe
 
-
         # settings file is in the recipe
         settings_file: str = os.path.join(recipe.path, "settings.yaml")
         if not os.path.exists(settings_file):
@@ -68,55 +56,26 @@ class DTCommand(DTCommandAbs):
 
         dtslogger.info(f"Settings:\n{settings}")
 
-        if parsed.matrix:
-            dtslogger.info("Attaching Robot to the Duckiematrix...")
-            shell.include.matrix.attach.command(
-                shell,
-                [parsed.robot, settings.matrix['vehicle'] ],
-                parsed=None
-            )
-
-
-        # sanitize hostnames (lowercase and remove .local)
-        if parsed.machine:
-            parsed.machine = parsed.machine.lower()
-            if parsed.machine.endswith(".local"):
-                parsed.machine = parsed.machine[:-6]
-
-
-        # load project
-        parsed.workdir = os.path.abspath(parsed.workdir)
-        project = DTProject(parsed.workdir)
-        # collect run arguments (if any)
-        run_arg: Dict[str, Any] = {}
-        if parsed.launcher:
-            # make sure the launcher exists
-            if parsed.launcher not in project.launchers:
-                dtslogger.error(f"Launcher '{parsed.launcher}' not found in the current project")
-                return False
-
-        # docker args
-        docker_args: List[str] = []
-        # - ros master uri
-        docker_args.extend(["-e", f"ROS_MASTER_URI=http://{parsed.robot}.local:11311/"])
-
-        # Run the project using 'devel run'
+        dtslogger.info("Running Duckiematrix...")
         run_namespace: SimpleNamespace = SimpleNamespace(
-            workdir=parsed.workdir,
-            machine=parsed.machine,
-            username=parsed.username,
-            no_rm=parsed.keep,
-            robot=parsed.robot,
-            launcher=parsed.launcher,
-            docker_args=docker_args,
-            **run_arg
+            standalone=True,
+            map=f"{recipe.path}/assets/duckiematrix/map/{settings.matrix['map']}",
+            sandbox=False,
+            force_vulkan=False,
+            links=[],
+            delta_t=None,
+            version=None,
+            force_opengl=False,
+            engine_hostname=None,
+            renderer_id=None,
+            renderer_key=None,
+            no_pull=False,
+            verbose=False,
         )
-        dtslogger.debug(f"Deploying with 'devel/run' using args: {run_namespace}")
-        return shell.include.devel.run.command(shell, [], parsed=run_namespace)
 
-    @staticmethod
-    def complete(shell, word, line):
-        return []
+        return shell.include.matrix.run.command(shell, [], parsed=run_namespace)
+
+
 
 
 @dataclasses.dataclass

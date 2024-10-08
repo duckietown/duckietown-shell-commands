@@ -38,21 +38,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-R",
             "--robot",
             default=None,
-            help="Name of the robot to connect this agent to",
+            help="Name of the virtual robot to connect to the matrix",
         )
         parser.add_argument(
             "-u",
             "--username",
             default=get_user_login(),
             help="The docker registry username to use",
-        )
-
-        parser.add_argument(
-            "-m",
-            "--matrix",
-            default=False,
-            action="store_true",
-            help="Should we also run the duckiematrix at the same time?"
         )
 
 
@@ -75,14 +67,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             help="Do not auto-remove containers once done. Produces garbage containers but it is "
                  "useful for debugging.",
-        )
-
-
-        parser.add_argument(
-            "-L",
-            "--launcher",
-            default=None,
-            help="The launcher to use as entrypoint to the agent container",
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         # ---
