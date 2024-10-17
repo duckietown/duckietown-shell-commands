@@ -11,11 +11,12 @@ import yaml
 from docker.models.containers import Container
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
-from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD
+from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD, get_endpoint_architecture
 from utils.duckiematrix_utils import \
     APP_NAME
 
-DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-amd64"
+DEVICE_ARCH = get_endpoint_architecture()
+DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-%s" % DEVICE_ARCH
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 
 DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {}
