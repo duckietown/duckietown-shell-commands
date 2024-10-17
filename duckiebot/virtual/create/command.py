@@ -15,12 +15,12 @@ from disk_image.create.utils import \
     replace_in_file, \
     pull_docker_image
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.docker_utils import get_registry_to_use
+from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
 from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
 
-DEVICE_ARCH = "amd64"
+DEVICE_ARCH = get_endpoint_architecture()
 DISK_NAME = "root"
 DIND_IMAGE_NAME = "docker:24.0-dind"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
