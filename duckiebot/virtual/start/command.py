@@ -8,10 +8,12 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from disk_image.create.utils import pull_docker_image
 from utils.duckietown_utils import USER_DATA_DIR
 from utils.misc_utils import pretty_yaml
+from utils.docker_utils import get_endpoint_architecture
 
 DISK_NAME = "root"
+DEVICE_ARCH = get_endpoint_architecture()
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
-VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-amd64"
+VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-%s" % DEVICE_ARCH
 
 
 class DTCommand(DTCommandAbs):
