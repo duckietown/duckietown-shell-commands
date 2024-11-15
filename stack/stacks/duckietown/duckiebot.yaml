@@ -170,6 +170,7 @@ services:
     container_name: files-api
     restart: always
     network_mode: host
+    privileged: true
     volumes:
       - /data:/data
       # dtps sockets
@@ -179,21 +180,22 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-#  code-api:
-#    image: ${REGISTRY}/duckietown/dt-code-api:ente-${ARCH}
-#    container_name: code-api
-#    restart: always
-#    network_mode: host
-#    volumes:
-#      - /data:/data
-#      # dtps sockets
-#      - /data/ramdisk/dtps:/dtps
-      # user code
-#      - /code:/user_code
-      # docker socket
-#      - /var/run/docker.sock:/var/run/docker.sock
-#      # avahi socket
-#      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+ code-api:
+   image: ${REGISTRY}/duckietown/dt-code-api:ente-${ARCH}
+   container_name: code-api
+   restart: always
+   network_mode: host
+   privileged: true
+   volumes:
+     - /data:/data
+     # dtps sockets
+     - /data/ramdisk/dtps:/dtps
+     # user code
+     - /code:/user_code
+     # docker socket
+     - /var/run/docker.sock:/var/run/docker.sock
+     # avahi socket
+     - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   device-proxy:
     image: ${REGISTRY}/duckietown/dt-device-proxy:ente-${ARCH}
