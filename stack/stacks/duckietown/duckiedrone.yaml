@@ -74,6 +74,7 @@ services:
     container_name: files-api
     restart: always
     network_mode: host
+    privileged: true
     volumes:
       - /data:/data
       # dtps sockets
@@ -88,6 +89,7 @@ services:
     container_name: code-api
     restart: always
     network_mode: host
+    privileged: true
     volumes:
       - /data:/data
       # dtps sockets
