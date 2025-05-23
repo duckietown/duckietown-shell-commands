@@ -15,7 +15,6 @@
                 compatible = "ti,tca9548a", "ti,tca9548", "nxp,pca9548";
                 reg = <0x70>;
                 vcc-pullup-supply = <0x4b>;
-                status = "okay";
                 vcc-supply = <0x4b>;
                 status = "okay";
             };
