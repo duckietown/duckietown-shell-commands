@@ -9,14 +9,15 @@
         target-path = "/i2c@7000c400";
 
         __overlay__ {
+            #address-cells = <0x1>;
+            #size-cells = <0x0>;
             mux@70 {
                 compatible = "ti,tca9548a", "ti,tca9548", "nxp,pca9548";
+                reg = <0x70>;
                 vcc-pullup-supply = <0x4b>;
                 status = "okay";
-                #address-cells = <0x1>;
-                #size-cells = <0x0>;
                 vcc-supply = <0x4b>;
-                reg = <0x70>;
+                status = "okay";
             };
         };
     };
