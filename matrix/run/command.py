@@ -145,10 +145,10 @@ class DTCommand(DTCommandAbs):
             help="Run in verbose mode"
         )
         parser.add_argument(
-            "--tutorial",
+            "--no-tutorial",
             default=False,
             action="store_true",
-            help="Enable tutorial"
+            help="Disable showing the tutorial"
         )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -234,8 +234,10 @@ class DTCommand(DTCommandAbs):
             # custom renderer key
             if parsed.renderer_key is not None:
                 app_config += ["--renderer-key", parsed.renderer_key]
-            # tutorial
-            if parsed.tutorial:
+            # By default, display the tutorial
+            if parsed.no_tutorial:
+                pass
+            else:
                 app_config += ["--tutorial"]
             # token
             app_config += ["--token", shell.profile.secrets.dt_token]
