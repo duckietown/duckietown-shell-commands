@@ -121,24 +121,17 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  ros:
-    image: ${REGISTRY}/duckietown/dt-ros2-commons:ente-${ARCH}
-    container_name: ros2
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-
-  rosbridge-websocket:
-    image: ${REGISTRY}/duckietown/dt-ros2bridge-websocket:ente-${ARCH}
-    container_name: ros2-rosbridge-websocket
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      DT_SUPERUSER: 1
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+  # rosbridge-websocket:
+  #   image: ${REGISTRY}/duckietown/dt-ros2bridge-websocket:ente-${ARCH}
+  #   container_name: ros2-rosbridge-websocket
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   environment:
+  #     DT_SUPERUSER: 1
+  #   volumes:
+  #     - /data/ramdisk/dtps:/dtps
+  #     # avahi socket
+  #     - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   car-interface:
     image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
