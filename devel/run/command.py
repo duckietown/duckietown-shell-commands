@@ -1,5 +1,4 @@
 import glob
-
 import json
 import os
 import shutil
@@ -26,6 +25,7 @@ from utils.docker_utils import (
 from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string
 from utils.multi_command_utils import MultiCommand
 from utils.resolve import get_duckiebot_host
+from utils.vscode_utils import handle_vscode_attachment
 
 from .configuration import DEFAULT_TRUE
 
@@ -92,6 +92,11 @@ class DTCommand(DTCommandAbs):
         # - docker args and configuration
         if parsed.configuration is not None and parsed.docker_args:
             dtslogger.error("You cannot use positional arguments together with -g/--configuration.")
+            exit(1)
+
+        # - code flag requires remote machine
+        if getattr(parsed, 'code', False) and parsed.machine == DEFAULT_MACHINE:
+            dtslogger.error("The --code flag requires a remote SSH host specified with -H/--machine.")
             exit(1)
 
         # we mount the code inside the container by default unless we are using --cloud
@@ -396,6 +401,18 @@ class DTCommand(DTCommandAbs):
             (["--"] if not cc_command else []) + container_cmd_arguments
         )
 
+        # Automatically configure for VS Code attachment
+        if getattr(parsed, 'code', False):
+            # Force detach mode when --code is used
+            if not parsed.detach:
+                dtslogger.info("Automatically enabling detached mode (--detach) for VS Code attachment")
+                parsed.detach = True
+            
+            # Inject sleep infinity if no custom command is specified
+            if not cc_command:
+                cc_command = ["sleep", "infinity"]
+                dtslogger.info("Using 'sleep infinity' to keep container running for VS Code attachment")
+
         # environment
         if parsed.machine == DEFAULT_MACHINE and not parsed.no_impersonate:
             host_uid: int = os.getuid()
@@ -461,6 +478,10 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Command exited with exit code [{exitcode}].")
             if parsed.detach:
                 dtslogger.info("Your container is running in detached mode!")
+                
+                # Handle VS Code attachment if requested and container was created successfully
+                if getattr(parsed, 'code', False) and exitcode == 0:
+                    handle_vscode_attachment(parsed, cc_name, project)
 
         else:
             # use a temporary docker-compose file instead
@@ -509,6 +530,11 @@ class DTCommand(DTCommandAbs):
                     return_exitcode=True,
                 )
                 dtslogger.debug(f"Docker-compose exited with exit code [{exitcode}].")
+                
+                # Handle VS Code attachment if requested and container was created successfully
+                # Docker-compose runs in detached mode when -d flag is passed
+                if getattr(parsed, 'code', False) and exitcode == 0 and cc_detach:
+                    handle_vscode_attachment(parsed, cc_name, project)
 
     @staticmethod
     def complete(shell, word, line):

@@ -186,6 +186,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="After ensuring Mutagen sessions, perform a one-shot flush in this direction",
         )
         parser.add_argument(
+            "--code",
+            default=False,
+            action="store_true",
+            help="Automatically open VS Code attached to the container after deployment (automatically enables detached mode and keeps container running)",
+        )
+        parser.add_argument(
             "--net",
             "--network_mode",
             dest="network_mode",
