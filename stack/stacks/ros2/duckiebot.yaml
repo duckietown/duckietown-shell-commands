@@ -1,5 +1,14 @@
 services:
 
+  zenoh-router:
+    image: ${REGISTRY}/duckietown/dt-ros2-commons:ente-${ARCH}
+    container_name: zenoh-router
+    command: ["bash", "-c", ". /opt/ros/jazzy/setup.bash && ros2 run rmw_zenoh_cpp rmw_zenohd"]
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      ZENOH_ROUTER_ID: duckiebot_router
+
   camera:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
     container_name: ros2-camera
@@ -15,6 +24,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   tof:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -30,6 +41,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   imu:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -45,6 +58,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   power-button:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -60,6 +75,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   wheel-encoders:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -75,6 +92,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   wheels:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -90,6 +109,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   leds:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -105,6 +126,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   display:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -120,6 +143,8 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
 
   # rosbridge-websocket:
   #   image: ${REGISTRY}/duckietown/dt-ros2bridge-websocket:ente-${ARCH}
@@ -148,3 +173,5 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
