@@ -37,7 +37,7 @@ services:
     security_opt:
       - seccomp=unconfined
     environment:
-      DT_LAUNCHER: sensor-tof
+      DT_LAUNCHER: sensor-tof-front-center
       DT_SUPERUSER: 1
       ROS_DOMAIN_ID: 42
     volumes:
