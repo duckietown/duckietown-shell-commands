@@ -19,11 +19,11 @@ APP_RELEASES_DIR = os.path.join(APP_LOCAL_DIR, "releases")
 
 
 def get_os_family() -> str:
-    if sys.platform.startswith('linux'):
+    if sys.platform.startswith("linux"):
         return "linux"
-    elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
+    elif sys.platform.startswith("win32") or sys.platform.startswith("cygwin"):
         return "windows"
-    elif sys.platform.startswith('darwin'):
+    elif sys.platform.startswith("darwin"):
         return "macosx"
 
 
@@ -68,13 +68,13 @@ def get_path_to_binary(version: str):
     app_dir = get_path_to_install(version)
     if app_dir is None:
         return None
-    system: str = platform.system()
+    system: str = get_os_family()
     ext: str
-    if system == "Linux":
+    if system == "linux":
         ext = "x86_64"
-    elif system == "Darwin":
+    elif system == "macosx":
         ext = "app"
-    elif system == "Windows":
+    elif system == "windows":
         ext = "exe"
     else:
         raise ValueError(f"Unknown platform '{system}'")
@@ -108,4 +108,3 @@ def mark_as_latest_version(token: str, version: str, os_family: str):
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
     upload = storage.upload(version.encode("ascii"), latest_version_obj)
     upload.join()
-
