@@ -72,6 +72,10 @@ class DTCommand(DTCommandAbs):
         # remove virtual robot
         dtslogger.info(f"Destroying virtual robot '{parsed.robot}'...")
 
+        # Clean up Docker volumes associated with this robot
+        _cleanup_robot_volumes(local_docker, parsed.robot)
+
+        # Remove local filesystem data
         local_docker.containers.run(
             image="alpine",
             remove=True,
@@ -87,3 +91,26 @@ class DTCommand(DTCommandAbs):
 
         shutil.rmtree(vbot_dir)
         dtslogger.info("Your virtual robot was successfully destroyed.")
+
+
+def _cleanup_robot_volumes(local_docker, robot_name):
+    """
+    Remove all Docker volumes associated with a virtual robot.
+    
+    Args:
+        local_docker: Docker client instance
+        robot_name: Name of the virtual robot
+    """
+    dtslogger.debug(f"Cleaning up Docker volumes for robot '{robot_name}'")
+    
+    # List all volumes and find ones that belong to this robot
+    volumes = local_docker.volumes.list()
+    robot_volume_prefix = f"dts-virtual-{robot_name}-"
+    
+    for volume in volumes:
+        if volume.name.startswith(robot_volume_prefix):
+            try:
+                dtslogger.debug(f"Removing volume {volume.name}")
+                volume.remove()
+            except Exception as e:
+                dtslogger.warn(f"Failed to remove volume {volume.name}: {e}")

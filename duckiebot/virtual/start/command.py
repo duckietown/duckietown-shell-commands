@@ -70,21 +70,25 @@ class DTCommand(DTCommandAbs):
             dtslogger.info("Downloading virtual robot runtime...")
             # pull dind image
             pull_docker_image(local_docker, runtime_image)
-        # collect mountpoints
+        # create named volumes for each directory
         volumes = []
+        volume_names = []
         _, dirs, _ = next(os.walk(vbot_root_dir))
         for dir in dirs:
-            # ignore var directory
+            # ignore var directory (still use bind mount for Docker daemon data)
             if dir in ['var']:
                 continue
-            # mount entire directories as read-write
-            host_path = os.path.join(vbot_root_dir, dir)
+            # create named volume for each directory
+            volume_name = f"dts-virtual-{parsed.robot}-{dir}"
             container_path = f"/{dir}"
-            volumes.append((host_path, container_path, "rw"))
+            volumes.append((volume_name, container_path, "rw"))
+            volume_names.append(volume_name)
 
-        # runtime
-        # TODO: if we move to a `docker compose` stack, we can use volumes to mount the non-empty /home/duckie directory
-        #       and take advantage of the auto-copy feature of the docker volumes
+        # ensure Docker volumes exist and are populated
+        _ensure_volumes_exist(local_docker, parsed.robot, vbot_root_dir, volume_names, dirs)
+
+        # runtime - using Docker volumes instead of bind mounts for better integration
+        # Docker volumes provide auto-copy feature and better isolation
         opts = {
             "image": runtime_image,
             "hostname": parsed.robot,
@@ -98,7 +102,9 @@ class DTCommand(DTCommandAbs):
                 ["7447", "7447", "tcp"],     # ROS2 zenoh bridge 
             ],
             "volumes": [
+                # Keep var/lib/docker as bind mount for Docker daemon data
                 (os.path.join(vbot_root_dir, "var", "lib", "docker"), "/var/lib/docker", "rw"),
+                # Use named volumes for other directories
                 *volumes
             ]
         }
@@ -109,3 +115,80 @@ class DTCommand(DTCommandAbs):
         print()
         dtslogger.info("Your virtual robot is booting up. "
                        "It should appear on 'dts fleet discover' soon.")
+
+
+def _ensure_volumes_exist(local_docker, robot_name, vbot_root_dir, volume_names, dirs):
+    """
+    Ensure Docker volumes exist for the virtual robot and populate them with initial data.
+    
+    Args:
+        local_docker: Docker client instance
+        robot_name: Name of the virtual robot
+        vbot_root_dir: Path to the virtual robot's root directory on host
+        volume_names: List of volume names to create
+        dirs: List of directory names that correspond to the volumes
+    """
+    for volume_name, dir_name in zip(volume_names, [d for d in dirs if d != 'var']):
+        # Check if volume exists
+        try:
+            volume = local_docker.volumes.get(volume_name)
+            dtslogger.debug(f"Volume {volume_name} already exists")
+            # Volume exists, check if it's empty and needs to be populated
+            # We'll use a temporary container to check and populate if needed
+            host_dir_path = os.path.join(vbot_root_dir, dir_name)
+            _populate_volume_if_needed(local_docker, volume_name, host_dir_path, dir_name)
+        except dockerpy.errors.NotFound:
+            # Volume doesn't exist, create it
+            dtslogger.debug(f"Creating volume {volume_name}")
+            volume = local_docker.volumes.create(name=volume_name)
+            # Populate the new volume with data from host directory
+            host_dir_path = os.path.join(vbot_root_dir, dir_name)
+            _populate_volume_from_host(local_docker, volume_name, host_dir_path, dir_name)
+
+
+def _populate_volume_if_needed(local_docker, volume_name, host_dir_path, container_path):
+    """
+    Check if a volume is empty and populate it if needed.
+    """
+    # Use a temporary container to check if volume is empty
+    try:
+        result = local_docker.containers.run(
+            image="alpine:latest",
+            command=["sh", "-c", f"ls -la /{container_path} | wc -l"],
+            volumes={volume_name: {"bind": f"/{container_path}", "mode": "rw"}},
+            remove=True,
+            detach=False
+        )
+        # If result is "3" or less, the directory is effectively empty (only . and .. entries)
+        line_count = int(result.decode().strip())
+        if line_count <= 3:
+            dtslogger.debug(f"Volume {volume_name} is empty, populating from host")
+            _populate_volume_from_host(local_docker, volume_name, host_dir_path, container_path)
+        else:
+            dtslogger.debug(f"Volume {volume_name} already contains data")
+    except Exception as e:
+        dtslogger.debug(f"Could not check volume {volume_name}, assuming it needs population: {e}")
+        _populate_volume_from_host(local_docker, volume_name, host_dir_path, container_path)
+
+
+def _populate_volume_from_host(local_docker, volume_name, host_dir_path, container_path):
+    """
+    Populate a Docker volume with data from a host directory.
+    """
+    if not os.path.exists(host_dir_path):
+        dtslogger.debug(f"Host directory {host_dir_path} does not exist, skipping population")
+        return
+        
+    dtslogger.debug(f"Populating volume {volume_name} from {host_dir_path}")
+    
+    # Use a temporary container to copy data from host to volume
+    local_docker.containers.run(
+        image="alpine:latest",
+        command=["sh", "-c", f"cp -r /source/. /{container_path}/ 2>/dev/null || true"],
+        volumes={
+            host_dir_path: {"bind": "/source", "mode": "ro"},
+            volume_name: {"bind": f"/{container_path}", "mode": "rw"}
+        },
+        remove=True,
+        detach=False
+    )

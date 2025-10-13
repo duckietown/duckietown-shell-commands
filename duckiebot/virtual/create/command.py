@@ -204,7 +204,7 @@ class DTCommand(DTCommandAbs):
                 # stop container
                 remote_docker_engine_container.stop()
                 remote_docker_engine_container = None
-            # perform surgery
+            # perform surgery on local filesystem (needed for initial setup)
             # - data/config/robot_type
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_type"), "wt") as fout:
                 fout.write(parsed.type)
@@ -220,6 +220,9 @@ class DTCommand(DTCommandAbs):
             # - secrets/tokens/dt
             with open(os.path.join(vbot_root_dir, "secrets", "tokens", "dt"), "wt") as fout:
                 fout.write(shell.profile.secrets.dt_token)
+            
+            # create Docker volumes and populate them with initial data
+            _create_and_populate_volumes(local_docker, parsed.robot, vbot_root_dir)
         except Exception as e:
             # warn user
             dtslogger.error(f"An error occurred while creating the virtual robot. Error:\n{pretty_exc(e, 4)}")
@@ -238,6 +241,53 @@ class DTCommand(DTCommandAbs):
         dtslogger.info("Your virtual robot was created successfully.")
         dtslogger.info(f"You can now run it using the command "
                        f"'dts duckiebot virtual start {parsed.robot}'.")
+
+
+def _create_and_populate_volumes(local_docker, robot_name, vbot_root_dir):
+    """
+    Create Docker volumes for the virtual robot and populate them with initial data.
+    
+    Args:
+        local_docker: Docker client instance
+        robot_name: Name of the virtual robot
+        vbot_root_dir: Path to the virtual robot's root directory on host
+    """
+    dtslogger.info("Creating Docker volumes for virtual robot...")
+    
+    # Get list of directories to create volumes for (excluding 'var' which uses bind mount)
+    _, dirs, _ = next(os.walk(vbot_root_dir))
+    for dir_name in dirs:
+        if dir_name == 'var':
+            continue  # Skip var directory as it uses bind mount
+            
+        volume_name = f"dts-virtual-{robot_name}-{dir_name}"
+        host_dir_path = os.path.join(vbot_root_dir, dir_name)
+        
+        try:
+            # Check if volume already exists
+            volume = local_docker.volumes.get(volume_name)
+            dtslogger.debug(f"Volume {volume_name} already exists, removing and recreating")
+            volume.remove()
+        except docker.errors.NotFound:
+            pass  # Volume doesn't exist, which is fine
+            
+        # Create new volume
+        dtslogger.debug(f"Creating volume {volume_name}")
+        volume = local_docker.volumes.create(name=volume_name)
+        
+        # Populate volume with data from host directory
+        if os.path.exists(host_dir_path):
+            dtslogger.debug(f"Populating volume {volume_name} from {host_dir_path}")
+            local_docker.containers.run(
+                image="alpine:latest",
+                command=["sh", "-c", f"cp -a /source/. /{dir_name}/ 2>/dev/null || mkdir -p /{dir_name}"],
+                volumes={
+                    host_dir_path: {"bind": "/source", "mode": "ro"},
+                    volume_name: {"bind": f"/{dir_name}", "mode": "rw"}
+                },
+                remove=True,
+                detach=False
+            )
 
 
 def random_virtual_mac_address() -> str:
