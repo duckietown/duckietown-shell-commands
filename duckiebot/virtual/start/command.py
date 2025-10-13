@@ -184,7 +184,7 @@ def _populate_volume_from_host(local_docker, volume_name, host_dir_path, contain
     # Use a temporary container to copy data from host to volume
     local_docker.containers.run(
         image="alpine:latest",
-        command=["sh", "-c", f"cp -r /source/* /{container_path}/ 2>/dev/null || true"],
+        command=["sh", "-c", f"cp -r /source/. /{container_path}/ 2>/dev/null || true"],
         volumes={
             host_dir_path: {"bind": "/source", "mode": "ro"},
             volume_name: {"bind": f"/{container_path}", "mode": "rw"}
