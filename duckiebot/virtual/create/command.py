@@ -280,7 +280,7 @@ def _create_and_populate_volumes(local_docker, robot_name, vbot_root_dir):
             dtslogger.debug(f"Populating volume {volume_name} from {host_dir_path}")
             local_docker.containers.run(
                 image="alpine:latest",
-                command=["sh", "-c", f"cp -r /source/* /{dir_name}/ 2>/dev/null || mkdir -p /{dir_name}"],
+                command=["sh", "-c", f"cp -a /source/. /{dir_name}/ 2>/dev/null || mkdir -p /{dir_name}"],
                 volumes={
                     host_dir_path: {"bind": "/source", "mode": "ro"},
                     volume_name: {"bind": f"/{dir_name}", "mode": "rw"}
