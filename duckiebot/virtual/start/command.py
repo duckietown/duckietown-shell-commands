@@ -111,6 +111,10 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug(f"Booting up virtual robot '{parsed.robot}' with the following options:"
                         f"\n{pretty_yaml(opts, indent=4)}\n")
         docker.container.run(**opts)
+        
+        # Get the container's IP address and add to /etc/hosts
+        _add_robot_to_hosts(local_docker, parsed.robot)
+        
         # ---
         print()
         dtslogger.info("Your virtual robot is booting up. "
@@ -131,7 +135,7 @@ def _ensure_volumes_exist(local_docker, robot_name, vbot_root_dir, volume_names,
     for volume_name, dir_name in zip(volume_names, [d for d in dirs if d != 'var']):
         # Check if volume exists
         try:
-            volume = local_docker.volumes.get(volume_name)
+            local_docker.volumes.get(volume_name)
             dtslogger.debug(f"Volume {volume_name} already exists")
             # Volume exists, check if it's empty and needs to be populated
             # We'll use a temporary container to check and populate if needed
@@ -140,7 +144,7 @@ def _ensure_volumes_exist(local_docker, robot_name, vbot_root_dir, volume_names,
         except dockerpy.errors.NotFound:
             # Volume doesn't exist, create it
             dtslogger.debug(f"Creating volume {volume_name}")
-            volume = local_docker.volumes.create(name=volume_name)
+            local_docker.volumes.create(name=volume_name)
             # Populate the new volume with data from host directory
             host_dir_path = os.path.join(vbot_root_dir, dir_name)
             _populate_volume_from_host(local_docker, volume_name, host_dir_path, dir_name)
@@ -192,3 +196,114 @@ def _populate_volume_from_host(local_docker, volume_name, host_dir_path, contain
         remove=True,
         detach=False
     )
+
+
+def _add_robot_to_hosts(local_docker, robot_name):
+    """
+    Add the virtual robot's IP address to /etc/hosts for .local domain resolution.
+    
+    Args:
+        local_docker: Docker client instance
+        robot_name: Name of the virtual robot
+    """
+    try:
+        # Get the container
+        container = local_docker.containers.get(f"dts-virtual-{robot_name}")
+        
+        # Wait a moment for the container to be fully started and get IP
+        import time
+        time.sleep(2)
+        
+        # Reload container info to get current network data
+        container.reload()
+        
+        # Get the container's IP address
+        networks = container.attrs['NetworkSettings']['Networks']
+        if not networks:
+            dtslogger.warn(f"Could not find network information for robot '{robot_name}'")
+            return
+            
+        # Get IP from the default bridge network
+        bridge_network = networks.get('bridge')
+        if not bridge_network or not bridge_network.get('IPAddress'):
+            dtslogger.warn(f"Could not find IP address for robot '{robot_name}'")
+            return
+            
+        robot_ip = bridge_network['IPAddress']
+        hostname = f"{robot_name}.local"
+        
+        dtslogger.info(f"Adding {hostname} -> {robot_ip} to /etc/hosts")
+        
+        # First, remove any existing entries for this robot
+        _remove_robot_from_hosts(robot_name)
+        
+        # Add the new entry to /etc/hosts
+        hosts_entry = f"{robot_ip}\t{hostname}\n"
+        
+        # Use sudo to modify /etc/hosts
+        import subprocess
+        try:
+            # Read current /etc/hosts
+            with open('/etc/hosts', 'r') as f:
+                current_hosts = f.read()
+            
+            # Append the new entry
+            new_hosts = current_hosts + hosts_entry
+            
+            # Write back to /etc/hosts using sudo
+            subprocess.run(
+                ['sudo', 'tee', '/etc/hosts'],
+                input=new_hosts.encode(),
+                capture_output=True,
+                check=True
+            )
+            
+            dtslogger.info(f"Successfully added {hostname} to /etc/hosts")
+            
+        except subprocess.CalledProcessError as e:
+            dtslogger.warn(f"Failed to update /etc/hosts: {e}")
+        except PermissionError:
+            dtslogger.warn("Permission denied updating /etc/hosts. Make sure you have sudo access.")
+        except Exception as e:
+            dtslogger.warn(f"Unexpected error updating /etc/hosts: {e}")
+            
+    except dockerpy.errors.NotFound:
+        dtslogger.warn(f"Container for robot '{robot_name}' not found")
+    except Exception as e:
+        dtslogger.warn(f"Error getting IP for robot '{robot_name}': {e}")
+
+
+def _remove_robot_from_hosts(robot_name):
+    """
+    Remove any existing entries for the robot from /etc/hosts.
+    
+    Args:
+        robot_name: Name of the virtual robot
+    """
+    hostname = f"{robot_name}.local"
+    
+    try:
+        # Read current /etc/hosts
+        with open('/etc/hosts', 'r') as f:
+            lines = f.readlines()
+        
+        # Filter out lines containing the robot hostname
+        filtered_lines = [line for line in lines if hostname not in line]
+        
+        # Only write if we actually removed something
+        if len(filtered_lines) != len(lines):
+            import subprocess
+            new_hosts = ''.join(filtered_lines)
+            
+            # Write back to /etc/hosts using sudo
+            subprocess.run(
+                ['sudo', 'tee', '/etc/hosts'],
+                input=new_hosts.encode(),
+                capture_output=True,
+                check=True
+            )
+            
+            dtslogger.debug(f"Removed existing entries for {hostname} from /etc/hosts")
+            
+    except Exception as e:
+        dtslogger.debug(f"Error removing {hostname} from /etc/hosts: {e}")

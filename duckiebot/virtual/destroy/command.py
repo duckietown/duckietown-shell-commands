@@ -10,6 +10,9 @@ from utils.cli_utils import \
     ask_confirmation
 from utils.duckietown_utils import USER_DATA_DIR
 
+# Import the hosts management function from the start command
+from ..start.command import _remove_robot_from_hosts
+
 DISK_NAME = "root"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 
@@ -71,6 +74,9 @@ class DTCommand(DTCommandAbs):
 
         # remove virtual robot
         dtslogger.info(f"Destroying virtual robot '{parsed.robot}'...")
+
+        # Remove the robot from /etc/hosts
+        _remove_robot_from_hosts(parsed.robot)
 
         # Clean up Docker volumes associated with this robot
         _cleanup_robot_volumes(local_docker, parsed.robot)

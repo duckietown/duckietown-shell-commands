@@ -76,6 +76,63 @@ def format_docker_host(machine: str) -> str:
         return f"ssh://duckie@{machine}"
 
 
+def try_docker_endpoint_with_fallback(machine: str, runtime: str = "docker") -> str:
+    """
+    Try to connect to Docker endpoint using SSH first, then fallback to TCP if SSH fails.
+    
+    Args:
+        machine: The machine identifier (hostname, IP, or protocol URI)
+        runtime: Docker runtime binary to use (default: "docker")
+        
+    Returns:
+        Working Docker host string suitable for the -H parameter
+        
+    Raises:
+        RuntimeError: If both SSH and TCP connections fail
+    """
+    if machine == DEFAULT_MACHINE or '://' in machine:
+        # Local machine or already has protocol, use as-is
+        return format_docker_host(machine)
+    
+    # Try SSH first
+    ssh_host = f"ssh://duckie@{machine}"
+    dtslogger.debug(f"Trying SSH connection to {ssh_host}")
+    ssh_exit_code = _run_cmd(
+        [runtime, f"-H={ssh_host}", "info", "--format", "{{.ID}}"],
+        get_output=True,
+        print_output=False,
+        suppress_errors=True,
+        return_exitcode=True,
+    )
+    
+    if ssh_exit_code == 0:
+        dtslogger.debug(f"SSH connection to {ssh_host} successful")
+        return ssh_host
+    else:
+        dtslogger.debug(f"SSH connection failed with exit code {ssh_exit_code}")
+        dtslogger.warning(f"SSH connection to {machine} failed")
+        dtslogger.info(f"Attempting fallback to TCP connection...")
+    
+    # Fallback to TCP
+    tcp_host = f"tcp://{machine}:2375"
+    dtslogger.info(f"Trying TCP connection to {tcp_host}")
+    tcp_exit_code = _run_cmd(
+        [runtime, f"-H={tcp_host}", "info", "--format", "{{.ID}}"],
+        get_output=False,
+        print_output=False,
+        suppress_errors=True,
+        return_exitcode=True,
+    )
+    
+    if tcp_exit_code == 0:
+        dtslogger.info(f"TCP connection to {tcp_host} successful")
+        return tcp_host
+    else:
+        dtslogger.debug(f"TCP connection failed with exit code {tcp_exit_code}")
+        dtslogger.error(f"TCP connection to {machine} also failed")
+        raise RuntimeError(f"Failed to connect to Docker daemon on {machine} via both SSH and TCP")
+
+
 class DTCommand(DTCommandAbs):
     help = "Runs the current project"
 
@@ -191,6 +248,9 @@ class DTCommand(DTCommandAbs):
         if not parsed.name:
             parsed.name = "dts-run-{:s}".format(project.name)
 
+        # Try to connect with SSH fallback to TCP (determine docker host early)
+        docker_host = try_docker_endpoint_with_fallback(parsed.machine, parsed.runtime)
+
         # subcommands
         if parsed.subcommand == "attach":
             dtslogger.info(f"Attempting to attach to container {parsed.name}...")
@@ -198,7 +258,7 @@ class DTCommand(DTCommandAbs):
             _run_cmd(
                 [
                     parsed.runtime,
-                    f"-H={format_docker_host(parsed.machine)}",
+                    f"-H={docker_host}",
                     "exec",
                     "-it",
                     parsed.name,
@@ -342,7 +402,7 @@ class DTCommand(DTCommandAbs):
         # TODO: this can be moved to a separate function or command
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(
-            ["docker", f"-H={format_docker_host(parsed.machine)}", "info", "--format", "{{json .}}"],
+            ["docker", f"-H={docker_host}", "info", "--format", "{{json .}}"],
             get_output=True,
             print_output=False,
         )
@@ -367,7 +427,7 @@ class DTCommand(DTCommandAbs):
                     _run_cmd(
                         [
                             "docker",
-                            f"-H={format_docker_host(parsed.machine)}",
+                            f"-H={docker_host}",
                             "run",
                             "--rm",
                             "--privileged",
@@ -394,7 +454,7 @@ class DTCommand(DTCommandAbs):
             # noinspection PyBroadException
             try:
                 out = _run_cmd(
-                    ["docker", f"-H={format_docker_host(parsed.machine)}", "images", "--format", "{{.Repository}}:{{.Tag}}"],
+                    ["docker", f"-H={docker_host}", "images", "--format", "{{.Repository}}:{{.Tag}}"],
                     get_output=True,
                     print_output=False,
                     suppress_errors=True,
@@ -408,7 +468,7 @@ class DTCommand(DTCommandAbs):
                 # noinspection PyBroadException
                 try:
                     _run_cmd(
-                        ["docker", f"-H={format_docker_host(parsed.machine)}", "pull", cc_image],
+                        ["docker", f"-H={docker_host}", "pull", cc_image],
                         get_output=True,
                         print_output=True,
                         suppress_errors=True,
@@ -486,7 +546,7 @@ class DTCommand(DTCommandAbs):
         if parsed.configuration is None:
             # use docker CLI directly
             exitcode = _run_cmd(
-                [parsed.runtime, f"-H={format_docker_host(parsed.machine)}", "run", "-it"]
+                [parsed.runtime, f"-H={docker_host}", "run", "-it"]
                 + [f"--net={cc_network_mode}"]
                 + [f"-e={k}={v}" for k, v in cc_environment.items()]
                 + [f"-v={src}:{dst}:{mode}" for src, dst, mode in cc_mountpoints]
@@ -539,7 +599,7 @@ class DTCommand(DTCommandAbs):
                 # run docker-compose
                 exitcode = _run_cmd(
                     [
-                        "docker", f"-H={format_docker_host(parsed.machine)}", "compose",
+                        "docker", f"-H={docker_host}", "compose",
                         "-f", f.name,
                         "-p", f"dts-devel-run-{random_string(4)}",
                         "up",
