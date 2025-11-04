@@ -799,7 +799,7 @@ class DTCommand(DTCommandAbs):
                 uri: str = f"docker/image/metadata/{identifier}/sha256/{sha256}.json"
                 if uri in already_pushed:
                     continue
-                url: str = f"{DTHUB_API_URL}/{uri}"
+                url: str = f"{DTHUB_API_URL}/{uri}/"
                 dtslogger.info(f"Pushing image metadata to [{url}]...")
                 dtslogger.debug(f"Pushing image metadata:\n{pretty_json(metadata, indent=4)}")
                 already_pushed.add(uri)
