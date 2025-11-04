@@ -180,8 +180,6 @@ class MutagenSync:
         symlink_mode: str = "portable",
         mode: str = "two-way-resolved",
         max_staging_file_size: Optional[str] = None,  # e.g., "128MiB"
-        # Permission handling: avoid propagating permission changes cross-endpoint
-        permissions: Optional[str] = "manual",  # try to disable permission syncing; fallback if unsupported
     ) -> MutagenSession:
         """
         Create the session if it doesn't exist; otherwise reuse it.
@@ -204,8 +202,6 @@ class MutagenSync:
         # Optional flags that might be unsupported in older Mutagen versions
         mode_flag = f"--mode={mode}" if mode else None
         max_stage_flag = f"--max-staging-file-size={max_staging_file_size}" if max_staging_file_size else None
-        # Attempt to configure permissions in a way that avoids permission flips
-        permissions_flag = f"--permissions={permissions}" if permissions else None
         if ignore_paths:
             # Mutagen supports multiple --ignore options
             for p in ignore_paths:
@@ -216,15 +212,12 @@ class MutagenSync:
         last_error: Optional[Exception] = None
         use_mode = bool(mode_flag)
         use_max_stage = bool(max_stage_flag)
-        use_permissions = bool(permissions_flag)
         for cand_beta in candidate_betas:
             args = list(base_args)
             if use_mode and mode_flag:
                 args.append(mode_flag)
             if use_max_stage and max_stage_flag:
                 args.append(max_stage_flag)
-            if use_permissions and permissions_flag:
-                args.append(permissions_flag)
             args += [alpha, cand_beta]
 
             # Attempt creation with current flags
@@ -246,12 +239,6 @@ class MutagenSync:
                         use_max_stage = False
                         args = [a for a in args if not a.startswith("--max-staging-file-size=")]
                         continue
-                    if use_permissions and ("unknown flag" in msg or "flag provided but not defined" in msg) and "--permissions" in " ".join(args):
-                        # Remove --permissions and retry
-                        use_permissions = False
-                        args = [a for a in args if not a.startswith("--permissions=")]
-                        continue
-                    # default file/dir mode flags removed by design
                     # Endpoint style issue: try next candidate
                     if "could not resolve hostname ssh" in msg or "unable to dial agent endpoint" in msg:
                         last_error = e

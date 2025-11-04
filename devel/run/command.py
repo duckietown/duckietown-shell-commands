@@ -264,21 +264,15 @@ class DTCommand(DTCommandAbs):
                         if not os.path.isdir(local_launch):
                             continue
 
-                        # respect read-only setting for launcher mounts
-                        if parsed.read_only:
-                            cc_mountpoints.append((local_launch, destination_launch, "ro"))
-                        else:
-                            cc_mountpoints.append((local_launch, destination_launch, "rw"))
+                        cc_mountpoints.append((local_launch, destination_launch, "rw"))
                         # make sure the launchers are executable (local only)
                         if local:
                             # noinspection PyBroadException
                             try:
                                 _run_cmd(["chmod", "a+x", os.path.join(local_launch, "*")], shell=True)
                             except Exception:
-                                dtslogger.warning(
-                                    "An error occurred while making the launchers executable. "
-                                    "Things might not work as expected."
-                                )
+                                dtslogger.warning("An error occurred while making the launchers executable. "
+                                                  "Things might not work as expected.")
 
                 # mount libraries explicitly to support symlinks (local only)
                 if not parsed.no_mount_libraries and local:
@@ -294,10 +288,7 @@ class DTCommand(DTCommandAbs):
                                 os.makedirs(local_mountpoint, exist_ok=True)
                                 real_local_lib = os.path.realpath(local_lib)
                                 destination_lib: str = os.path.join(destination_src, "libraries", f"__{lib_name}")
-                                if parsed.read_only:
-                                    cc_mountpoints.append((real_local_lib, destination_lib, "ro"))
-                                else:
-                                    cc_mountpoints.append((real_local_lib, destination_lib, "rw"))
+                                cc_mountpoints.append((real_local_lib, destination_lib, "rw"))
 
         # create image name
         cc_image = project.image(
@@ -443,9 +434,6 @@ class DTCommand(DTCommandAbs):
                 sync_args += ["-M"]
             elif isinstance(parsed.mount, str):
                 sync_args += ["-M", parsed.mount]
-            # propagate include-git for Mutagen
-            if getattr(parsed, "sync_include_git", False):
-                sync_args += ["--include-git"]
             # propagate optional flush direction
             if getattr(parsed, "sync_flush_direction", None):
                 sync_args += ["--flush-direction", parsed.sync_flush_direction]

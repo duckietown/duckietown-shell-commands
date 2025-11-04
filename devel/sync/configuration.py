@@ -48,12 +48,5 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             choices=("alpha-to-beta", "beta-to-alpha"),
             help="After ensuring sessions, perform a one-shot flush in this direction",
         )
-        parser.add_argument(
-            "--include-git",
-            dest="include_git",
-            default=False,
-            action="store_true",
-            help="Include the .git directory in the sync",
-        )
         # ---
         return parser
