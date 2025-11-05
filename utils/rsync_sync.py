@@ -37,16 +37,17 @@ def rsync_sync(
         ignore_patterns: List of patterns to exclude (e.g., ".git/", "*.pyc")
         verbose: Enable verbose output
     """
-    # Ensure local path exists
+    # Ensure local path exists and is a directory
     if not os.path.isdir(local_path):
-        raise RsyncError(f"Local path does not exist: {local_path}")
+        raise RsyncError(f"Local path does not exist or is not a directory: {local_path}")
 
     # Ensure remote directory exists
     mkdir_cmd = ["ssh", f"{remote_user}@{remote_host}", f"mkdir -p '{remote_path}'"]
     try:
-        subprocess.run(mkdir_cmd, check=True, capture_output=True)
+        subprocess.run(mkdir_cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        raise RsyncError(f"Failed to create remote directory: {e.stderr.decode()}")
+        stderr_msg = e.stderr if e.stderr else "unknown error"
+        raise RsyncError(f"Failed to create remote directory: {stderr_msg}")
 
     # Build rsync command
     # -a: archive mode (recursive, preserves permissions, times, etc.)

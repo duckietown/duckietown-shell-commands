@@ -129,7 +129,13 @@ class DTCommand(DTCommandAbs):
                 session_name = sanitize_session_name(f"dts-sync-{project_name}-{parsed.machine}")
                 # ensure remote directory exists
                 remote_host_dir = os.path.join(REMOTE_SYNC_CODE_LOCATION, project_name)
-                _run_cmd(["ssh", f"{DEFAULT_REMOTE_USER}@{parsed.machine}", f"mkdir -p '{remote_host_dir}'"])
+                try:
+                    _run_cmd(
+                        ["ssh", f"{DEFAULT_REMOTE_USER}@{parsed.machine}", f"mkdir -p '{remote_host_dir}'"]
+                    )
+                except Exception as e:
+                    dtslogger.error(f"Failed to create remote directory: {e}")
+                    exit(2)
                 # build Mutagen endpoints
                 alpha = project_path
                 beta = f"ssh://{DEFAULT_REMOTE_USER}@{parsed.machine}//{remote_host_dir.lstrip('/')}"
