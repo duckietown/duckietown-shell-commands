@@ -13,7 +13,6 @@ DEFAULT_REMOTE_SYNC_LOCATION = "/code"
 
 
 class DTCommandConfiguration(DTCommandConfigurationAbs):
-
     @classmethod
     def parser(cls, *args, **kwargs) -> Optional[argparse.ArgumentParser]:
         """
@@ -96,41 +95,39 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             nargs="?",
             type=str,
             help="Whether to mount the current project into the container. "
-                 "Pass a comma-separated list of paths to mount multiple projects",
+            "Pass a comma-separated list of paths to mount multiple projects",
         )
         parser.add_argument(
             "--no-mount",
             default=False,
             action="store_true",
-            help="Whether NOT TO mount the current project into the container"
+            help="Whether NOT TO mount the current project into the container",
         )
         parser.add_argument(
             "--no-mount-code",
             default=False,
             action="store_true",
-            help="Whether NOT TO mount the current project's code into the container"
+            help="Whether NOT TO mount the current project's code into the container",
         )
         parser.add_argument(
             "--no-mount-launchers",
             default=False,
             action="store_true",
-            help="Whether NOT TO mount the current project's launchers into the container"
+            help="Whether NOT TO mount the current project's launchers into the container",
         )
         parser.add_argument(
             "--no-mount-libraries",
             default=False,
             action="store_true",
-            help="Whether NOT TO mount the current project's libraries into the container"
+            help="Whether NOT TO mount the current project's libraries into the container",
         )
         parser.add_argument(
             "--no-impersonate",
             default=False,
             action="store_true",
-            help="Do not impersonate the host user inside the container"
+            help="Do not impersonate the host user inside the container",
         )
-        parser.add_argument(
-            "--cloud", default=False, action="store_true", help="Run the image on the cloud"
-        )
+        parser.add_argument("--cloud", default=False, action="store_true", help="Run the image on the cloud")
         parser.add_argument(
             "-u",
             "--username",
@@ -170,14 +167,14 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--sync-user",
             type=str,
             default=DEFAULT_REMOTE_USER,
-            help="User on the remote server to sync as"
+            help="User on the remote server to sync as",
         )
         parser.add_argument(
             "-sd",
             "--sync-destination",
             type=str,
             default=DEFAULT_REMOTE_SYNC_LOCATION,
-            help="Location of the synced code on the remote server"
+            help="Location of the synced code on the remote server",
         )
         parser.add_argument(
             "--sync-flush-direction",
@@ -191,6 +188,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Include the .git directory in remote sync",
+        )
+        parser.add_argument(
+            "--mutagen",
+            default=False,
+            action="store_true",
+            help="Use Mutagen for continuous syncing (default: rsync for one-time sync)",
         )
         parser.add_argument(
             "--net",
@@ -208,10 +211,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Detach from the container and let it run",
         )
         parser.add_argument(
-            "-t",
-            "--tag",
-            default=None,
-            help="Overrides 'version' (usually taken to be branch name)"
+            "-t", "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"
         )
         # Mount mode: read-only available, but default remains read-write
         parser.add_argument(

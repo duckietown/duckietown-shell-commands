@@ -448,18 +448,21 @@ class DTCommand(DTCommandAbs):
                 sync_args += ["-M"]
             elif isinstance(parsed.mount, str):
                 sync_args += ["-M", parsed.mount]
-            # propagate include-git for Mutagen
+            # propagate include-git
             if getattr(parsed, "sync_include_git", False):
                 sync_args += ["--include-git"]
-            # propagate optional flush direction
+            # propagate mutagen flag
+            if getattr(parsed, "mutagen", False):
+                sync_args += ["--mutagen"]
+            # propagate optional flush direction (only for mutagen)
             if getattr(parsed, "sync_flush_direction", None):
                 sync_args += ["--flush-direction", parsed.sync_flush_direction]
             # call devel.sync
             shell.include.devel.sync.command(shell, sync_args)
 
-        # Track mutagen sessions for cleanup if sync was used
+        # Track mutagen sessions for cleanup if sync was used with --mutagen
         mutagen_sessions_to_cleanup: List[str] = []
-        if parsed.sync and parsed.machine != DEFAULT_MACHINE:
+        if parsed.sync and parsed.machine != DEFAULT_MACHINE and getattr(parsed, "mutagen", False):
             # Determine session names that would have been created
             projects_to_mount = [parsed.workdir] if parsed.mount is True else []
             if isinstance(parsed.mount, str):
