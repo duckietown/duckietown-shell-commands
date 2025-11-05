@@ -12,16 +12,16 @@ import yaml
 from dt_shell import DTCommandAbs, dtslogger
 
 from dtproject import DTProject
-from dtproject.constants import (
-    BUILD_COMPATIBILITY_MAP,
-    CANONICAL_ARCH
-)
+from dtproject.constants import BUILD_COMPATIBILITY_MAP, CANONICAL_ARCH
 from dtproject.types import LayerContainers, ContainerConfiguration
 from utils.docker_utils import (
     DEFAULT_MACHINE,
     DOCKER_INFO,
     get_endpoint_architecture,
-    get_registry_to_use, CLOUD_BUILDERS, get_cloud_builder, merge_docker_compose_services,
+    get_registry_to_use,
+    CLOUD_BUILDERS,
+    get_cloud_builder,
+    merge_docker_compose_services,
 )
 from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
@@ -64,12 +64,12 @@ class DTCommand(DTCommandAbs):
             # everything after "++" is a passthrough for the container's command
             if "++" in args:
                 idx: int = args.index("++")
-                container_cmd_arguments = args[idx+1:]
+                container_cmd_arguments = args[idx + 1 :]
                 args = args[:idx]
             # add a fake positional argument to avoid missing the first argument starting with `-`
             try:
                 idx = args.index("--")
-                args = args[:idx] + ["--", "--fake"] + args[idx + 1:]
+                args = args[:idx] + ["--", "--fake"] + args[idx + 1 :]
             except ValueError:
                 pass
             # parse arguments
@@ -113,8 +113,7 @@ class DTCommand(DTCommandAbs):
                 exit(1)
             if parsed.machine is not None:
                 dtslogger.error(
-                    "The parameter --machine (-H) cannot be set together with "
-                    + "--cloud. Aborting..."
+                    "The parameter --machine (-H) cannot be set together with " + "--cloud. Aborting..."
                 )
                 exit(1)
             # route the run to the native node
@@ -294,7 +293,9 @@ class DTCommand(DTCommandAbs):
                                 local_mountpoint = os.path.join(local_src, "libraries", f"__{lib_name}")
                                 os.makedirs(local_mountpoint, exist_ok=True)
                                 real_local_lib = os.path.realpath(local_lib)
-                                destination_lib: str = os.path.join(destination_src, "libraries", f"__{lib_name}")
+                                destination_lib: str = os.path.join(
+                                    destination_src, "libraries", f"__{lib_name}"
+                                )
                                 if parsed.read_only:
                                     cc_mountpoints.append((real_local_lib, destination_lib, "ro"))
                                 else:
@@ -402,8 +403,9 @@ class DTCommand(DTCommandAbs):
 
         cc_command: List[str] = [] if not parsed.cmd else [parsed.cmd]
         cc_command_arguments = (
-            [] if not container_cmd_arguments else
-            (["--"] if not cc_command else []) + container_cmd_arguments
+            []
+            if not container_cmd_arguments
+            else (["--"] if not cc_command else []) + container_cmd_arguments
         )
 
         # environment
@@ -436,8 +438,10 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
                 exit(2)
             sync_args: List[str] = [
-                "-H", parsed.machine,
-                "-C", parsed.workdir,
+                "-H",
+                parsed.machine,
+                "-C",
+                parsed.workdir,
             ]
             # propagate mounts
             if parsed.mount is True:
@@ -502,8 +506,10 @@ class DTCommand(DTCommandAbs):
                 try:
                     base_cc: ContainerConfiguration = container_configurations[parsed.configuration]
                 except KeyError:
-                    dtslogger.error(f"Container configuration '{parsed.configuration}' not found in project. "
-                                    f"Valid container configurations are: {list(container_configurations.keys())}")
+                    dtslogger.error(
+                        f"Container configuration '{parsed.configuration}' not found in project. "
+                        f"Valid container configurations are: {list(container_configurations.keys())}"
+                    )
                     exit(1)
                 # create docker-compose configuration
                 docker_compose = args_to_docker_compose(
@@ -514,7 +520,7 @@ class DTCommand(DTCommandAbs):
                     cc_mountpoints,
                     cc_command,
                     cc_command_arguments,
-                    base_cc
+                    base_cc,
                 )
                 # write temporary docker-compose.yaml file and run it
                 with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
@@ -523,16 +529,23 @@ class DTCommand(DTCommandAbs):
                     f.flush()
                     # run docker-compose
                     dtslogger.info("Running container using docker-compose...")
-                    dtslogger.debug(f"Using docker-compose file [{f.name}] with configuration:\n"
-                                    f"{pretty_yaml(docker_compose, indent=4)}")
+                    dtslogger.debug(
+                        f"Using docker-compose file [{f.name}] with configuration:\n"
+                        f"{pretty_yaml(docker_compose, indent=4)}"
+                    )
                     # run docker-compose
                     exitcode = _run_cmd(
                         [
-                            "docker", f"-H={parsed.machine}", "compose",
-                            "-f", f.name,
-                            "-p", f"dts-devel-run-{random_string(4)}",
+                            "docker",
+                            f"-H={parsed.machine}",
+                            "compose",
+                            "-f",
+                            f.name,
+                            "-p",
+                            f"dts-devel-run-{random_string(4)}",
                             "up",
-                            "--exit-code-from", cc_name,
+                            "--exit-code-from",
+                            cc_name,
                             "--abort-on-container-exit",
                         ]
                         + (["-d"] if cc_detach else []),
@@ -558,14 +571,14 @@ class DTCommand(DTCommandAbs):
 
 
 def args_to_docker_compose(
-        image: str,
-        cc_name: str,
-        cc_network_mode: str,
-        cc_environment: Dict[str, str],
-        cc_mountpoints: List[Tuple[str, str, str]],
-        cc_command: List[str],
-        cc_command_arguments: List[str],
-        base_cc: ContainerConfiguration
+    image: str,
+    cc_name: str,
+    cc_network_mode: str,
+    cc_environment: Dict[str, str],
+    cc_mountpoints: List[Tuple[str, str, str]],
+    cc_command: List[str],
+    cc_command_arguments: List[str],
+    base_cc: ContainerConfiguration,
 ) -> dict:
     runtime_cc = {
         "image": image,
@@ -577,9 +590,7 @@ def args_to_docker_compose(
         "tty": True,
     }
     cfg = {
-        "services": {
-            cc_name: merge_docker_compose_services(base_cc.service, runtime_cc)
-        },
+        "services": {cc_name: merge_docker_compose_services(base_cc.service, runtime_cc)},
     }
     # resolve all local volume paths
     for service in cfg["services"].values():
@@ -594,7 +605,7 @@ def args_to_docker_compose(
 
 
 def _run_cmd(
-        cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
+    cmd, get_output=False, print_output=False, suppress_errors=False, shell=False, return_exitcode=False
 ):
     if shell and isinstance(cmd, (list, tuple)):
         cmd = " ".join([str(s) for s in cmd])

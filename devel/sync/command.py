@@ -45,7 +45,7 @@ class DTCommand(DTCommandAbs):
             parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
-        
+
         # Handle --terminate-all flag
         if parsed.terminate_all:
             dtslogger.info("Terminating all Mutagen sync sessions...")
@@ -56,7 +56,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f"Failed to terminate Mutagen sessions: {e}")
                 exit(1)
             return
-        
+
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)
@@ -72,9 +72,9 @@ class DTCommand(DTCommandAbs):
         robot_name: Optional[str] = None
         # If the given machine is like NAME.local, derive NAME
         try:
-            if parsed.machine.endswith('.local'):
-                robot_name = parsed.machine.split('.', 1)[0]
-            elif '.' not in parsed.machine:
+            if parsed.machine.endswith(".local"):
+                robot_name = parsed.machine.split(".", 1)[0]
+            elif "." not in parsed.machine:
                 # likely MagicDNS short name
                 robot_name = parsed.machine
         except Exception:
@@ -117,11 +117,7 @@ class DTCommand(DTCommandAbs):
             session_name = sanitize_session_name(f"dts-sync-{project_name}-{parsed.machine}")
             # ensure remote directory exists
             remote_host_dir = os.path.join(REMOTE_SYNC_CODE_LOCATION, project_name)
-            _run_cmd([
-                "ssh",
-                f"{DEFAULT_REMOTE_USER}@{parsed.machine}",
-                f"mkdir -p '{remote_host_dir}'"
-            ])
+            _run_cmd(["ssh", f"{DEFAULT_REMOTE_USER}@{parsed.machine}", f"mkdir -p '{remote_host_dir}'"])
             # build Mutagen endpoints
             alpha = project_path
             beta = f"ssh://{DEFAULT_REMOTE_USER}@{parsed.machine}//{remote_host_dir.lstrip('/')}"
