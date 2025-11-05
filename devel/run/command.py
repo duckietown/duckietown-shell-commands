@@ -23,9 +23,10 @@ from utils.docker_utils import (
     get_endpoint_architecture,
     get_registry_to_use, CLOUD_BUILDERS, get_cloud_builder, merge_docker_compose_services,
 )
-from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string
+from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string, sanitize_hostname
 from utils.multi_command_utils import MultiCommand
 from utils.resolve import get_duckiebot_host
+from utils.mutagen_sync import MutagenSync, sanitize_session_name
 
 from .configuration import DEFAULT_TRUE
 
@@ -452,75 +453,104 @@ class DTCommand(DTCommandAbs):
             # call devel.sync
             shell.include.devel.sync.command(shell, sync_args)
 
+        # Track mutagen sessions for cleanup if sync was used
+        mutagen_sessions_to_cleanup: List[str] = []
+        if parsed.sync and parsed.machine != DEFAULT_MACHINE:
+            # Determine session names that would have been created
+            projects_to_mount = [parsed.workdir] if parsed.mount is True else []
+            if isinstance(parsed.mount, str):
+                projects_to_mount.extend(
+                    [os.path.join(os.getcwd(), p.strip()) for p in parsed.mount.split(",")]
+                )
+            for project_path in projects_to_mount:
+                project_path = os.path.abspath(project_path)
+                project_name = os.path.basename(project_path.rstrip("/"))
+                # Get the sanitized hostname
+                machine_hostname = sanitize_hostname(parsed.machine)
+                session_name = sanitize_session_name(f"dts-sync-{project_name}-{machine_hostname}")
+                mutagen_sessions_to_cleanup.append(session_name)
+
         # run
-        if parsed.configuration is None:
-            # use docker CLI directly
-            exitcode = _run_cmd(
-                [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
-                + [f"--net={cc_network_mode}"]
-                + [f"-e={k}={v}" for k, v in cc_environment.items()]
-                + [f"-v={src}:{dst}:{mode}" for src, dst, mode in cc_mountpoints]
-                + (["--rm"] if cc_remove else [])
-                + (["-d"] if cc_detach else [])
-                + [f"--name={cc_name}"]
-                + cc_docker_args
-                + [cc_image]
-                + cc_command
-                + cc_command_arguments,
-                suppress_errors=True,
-                return_exitcode=True,
-            )
-            dtslogger.debug(f"Command exited with exit code [{exitcode}].")
-            if parsed.detach:
-                dtslogger.info("Your container is running in detached mode!")
-
-        else:
-            # use a temporary docker-compose file instead
-            assert len(cc_docker_args) == 0
-
-            # load configuration
-            container_configurations: LayerContainers = project.layers.containers
-            try:
-                base_cc: ContainerConfiguration = container_configurations[parsed.configuration]
-            except KeyError:
-                dtslogger.error(f"Container configuration '{parsed.configuration}' not found in project. "
-                                f"Valid container configurations are: {list(container_configurations.keys())}")
-                exit(1)
-            # create docker-compose configuration
-            docker_compose = args_to_docker_compose(
-                cc_image,
-                cc_name,
-                cc_network_mode,
-                cc_environment,
-                cc_mountpoints,
-                cc_command,
-                cc_command_arguments,
-                base_cc
-            )
-            # write temporary docker-compose.yaml file and run it
-            with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
-                # write docker-compose file
-                yaml.dump(docker_compose, f)
-                f.flush()
-                # run docker-compose
-                dtslogger.info("Running container using docker-compose...")
-                dtslogger.debug(f"Using docker-compose file [{f.name}] with configuration:\n"
-                                f"{pretty_yaml(docker_compose, indent=4)}")
-                # run docker-compose
+        try:
+            if parsed.configuration is None:
+                # use docker CLI directly
                 exitcode = _run_cmd(
-                    [
-                        "docker", f"-H={parsed.machine}", "compose",
-                        "-f", f.name,
-                        "-p", f"dts-devel-run-{random_string(4)}",
-                        "up",
-                        "--exit-code-from", cc_name,
-                        "--abort-on-container-exit",
-                    ]
-                    + (["-d"] if cc_detach else []),
+                    [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
+                    + [f"--net={cc_network_mode}"]
+                    + [f"-e={k}={v}" for k, v in cc_environment.items()]
+                    + [f"-v={src}:{dst}:{mode}" for src, dst, mode in cc_mountpoints]
+                    + (["--rm"] if cc_remove else [])
+                    + (["-d"] if cc_detach else [])
+                    + [f"--name={cc_name}"]
+                    + cc_docker_args
+                    + [cc_image]
+                    + cc_command
+                    + cc_command_arguments,
                     suppress_errors=True,
                     return_exitcode=True,
                 )
-                dtslogger.debug(f"Docker-compose exited with exit code [{exitcode}].")
+                dtslogger.debug(f"Command exited with exit code [{exitcode}].")
+                if parsed.detach:
+                    dtslogger.info("Your container is running in detached mode!")
+
+            else:
+                # use a temporary docker-compose file instead
+                assert len(cc_docker_args) == 0
+
+                # load configuration
+                container_configurations: LayerContainers = project.layers.containers
+                try:
+                    base_cc: ContainerConfiguration = container_configurations[parsed.configuration]
+                except KeyError:
+                    dtslogger.error(f"Container configuration '{parsed.configuration}' not found in project. "
+                                    f"Valid container configurations are: {list(container_configurations.keys())}")
+                    exit(1)
+                # create docker-compose configuration
+                docker_compose = args_to_docker_compose(
+                    cc_image,
+                    cc_name,
+                    cc_network_mode,
+                    cc_environment,
+                    cc_mountpoints,
+                    cc_command,
+                    cc_command_arguments,
+                    base_cc
+                )
+                # write temporary docker-compose.yaml file and run it
+                with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
+                    # write docker-compose file
+                    yaml.dump(docker_compose, f)
+                    f.flush()
+                    # run docker-compose
+                    dtslogger.info("Running container using docker-compose...")
+                    dtslogger.debug(f"Using docker-compose file [{f.name}] with configuration:\n"
+                                    f"{pretty_yaml(docker_compose, indent=4)}")
+                    # run docker-compose
+                    exitcode = _run_cmd(
+                        [
+                            "docker", f"-H={parsed.machine}", "compose",
+                            "-f", f.name,
+                            "-p", f"dts-devel-run-{random_string(4)}",
+                            "up",
+                            "--exit-code-from", cc_name,
+                            "--abort-on-container-exit",
+                        ]
+                        + (["-d"] if cc_detach else []),
+                        suppress_errors=True,
+                        return_exitcode=True,
+                    )
+                    dtslogger.debug(f"Docker-compose exited with exit code [{exitcode}].")
+        finally:
+            # Cleanup mutagen sessions if sync was used
+            if mutagen_sessions_to_cleanup and not parsed.detach:
+                dtslogger.info("Cleaning up Mutagen sync sessions...")
+                for session_name in mutagen_sessions_to_cleanup:
+                    try:
+                        sync = MutagenSync(name=session_name)
+                        sync.terminate(ignore_errors=True)
+                        dtslogger.info(f"Terminated Mutagen session: {session_name}")
+                    except Exception as e:
+                        dtslogger.debug(f"Could not terminate session {session_name}: {e}")
 
     @staticmethod
     def complete(shell, word, line):

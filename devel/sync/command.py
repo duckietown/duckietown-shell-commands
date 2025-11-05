@@ -45,6 +45,18 @@ class DTCommand(DTCommandAbs):
             parsed, _ = parser.parse_known_args(args=args)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
+        
+        # Handle --terminate-all flag
+        if parsed.terminate_all:
+            dtslogger.info("Terminating all Mutagen sync sessions...")
+            try:
+                _run_cmd(["mutagen", "sync", "terminate", "-a"], suppress_errors=False)
+                dtslogger.info("All Mutagen sync sessions terminated successfully.")
+            except Exception as e:
+                dtslogger.error(f"Failed to terminate Mutagen sessions: {e}")
+                exit(1)
+            return
+        
         # sanitize hostname
         if parsed.machine is not None:
             parsed.machine = sanitize_hostname(parsed.machine)

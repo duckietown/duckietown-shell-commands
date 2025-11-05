@@ -55,5 +55,18 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             action="store_true",
             help="Include the .git directory in the sync",
         )
+        parser.add_argument(
+            "--mutagen",
+            default=True,
+            action="store_true",
+            help="Use Mutagen for syncing (default: True)",
+        )
+        parser.add_argument(
+            "--terminate-all",
+            dest="terminate_all",
+            default=False,
+            action="store_true",
+            help="Force-terminate all Mutagen sync sessions",
+        )
         # ---
         return parser
