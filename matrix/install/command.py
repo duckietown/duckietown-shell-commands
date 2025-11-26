@@ -74,7 +74,8 @@ class DTCommand(DTCommandAbs):
                            f"-U/--update to update to the latest version (if any is available).")
             return
         # get latest version available on the DCSS
-        latest = get_latest_version(os_family)
+        latest_version = get_latest_version(os_family)
+        latest = latest_version + "-" + os_family
         # compare installed and latest versions
         if installed_version:
             if installed_version == latest:
@@ -93,7 +94,7 @@ class DTCommand(DTCommandAbs):
         # download
         dtslogger.info(f"Downloading version v{latest}...")
         os.makedirs(app_dir)
-        zip_remote = remote_zip_obj(latest)
+        zip_remote = remote_zip_obj(latest_version, os_family)
         zip_local = os.path.join(app_dir, f"v{latest}.zip")
         shell.include.data.get.command(
             shell,

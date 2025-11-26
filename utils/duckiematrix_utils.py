@@ -35,7 +35,7 @@ def get_latest_version(os_family: str = ""):
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
     download = storage.download(latest_version_obj)
     download.join()
-    return download.data.decode("ascii").strip() + "-" + os_family
+    return download.data.decode("ascii").strip()
 
 
 def get_all_installed_releases(os_family: str = "") -> List[str]:
@@ -81,12 +81,12 @@ def get_path_to_binary(version: str):
     return os.path.join(app_dir, f"{APP_NAME}.{ext}")
 
 
-def is_version_released(version: str) -> bool:
+def is_version_released(version: str, os_family: str = "") -> bool:
     # create storage client
     client = DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # check whether the object exists
-    release_obj = remote_zip_obj(version)
+    release_obj = remote_zip_obj(version, os_family)
     try:
         storage.head(release_obj)
         return True
@@ -94,8 +94,8 @@ def is_version_released(version: str) -> bool:
         return False
 
 
-def remote_zip_obj(version: str):
-    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}.zip")
+def remote_zip_obj(version: str, os_family: str = "") -> str:
+    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
 
 
 def mark_as_latest_version(token: str, version: str, os_family: str):
