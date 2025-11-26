@@ -27,20 +27,19 @@ def get_os_family() -> str:
         return "macosx"
 
 
-def get_latest_version(os_family: str = None):
+def get_latest_version(os_family: str = ""):
     # create storage client
     client = DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
-    os_family = os_family or get_os_family()
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
     download = storage.download(latest_version_obj)
     download.join()
-    return download.data.decode("ascii").strip()
+    return download.data.decode("ascii").strip() + "-" + os_family
 
 
-def get_all_installed_releases() -> List[str]:
-    app_dir = os.path.join(APP_RELEASES_DIR, "*")
+def get_all_installed_releases(os_family: str = "") -> List[str]:
+    app_dir = os.path.join(APP_RELEASES_DIR, f"*-{os_family}")
     dirs = glob.glob(app_dir)
     version_regex = r"v([0-9]+)\.([0-9]+)\.([0-9]+)"
     version_pattern = re.compile(version_regex)
@@ -48,8 +47,8 @@ def get_all_installed_releases() -> List[str]:
     return list(map(lambda p: os.path.basename(p)[1:], filter(is_release_dir, dirs)))
 
 
-def get_most_recent_version_installed() -> Optional[str]:
-    releases = get_all_installed_releases()
+def get_most_recent_version_installed(os_family: str = "") -> Optional[str]:
+    releases = get_all_installed_releases(os_family)
     release = None
     for r in releases:
         if release is None or versiontuple(r) > versiontuple(release):
@@ -82,12 +81,12 @@ def get_path_to_binary(version: str):
     return os.path.join(app_dir, f"{APP_NAME}.{ext}")
 
 
-def is_version_released(version: str, os_family: str = None) -> bool:
+def is_version_released(version: str) -> bool:
     # create storage client
     client = DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # check whether the object exists
-    release_obj = remote_zip_obj(version, os_family)
+    release_obj = remote_zip_obj(version)
     try:
         storage.head(release_obj)
         return True
@@ -95,9 +94,8 @@ def is_version_released(version: str, os_family: str = None) -> bool:
         return False
 
 
-def remote_zip_obj(version: str, os_family: str = None):
-    os_family = os_family or get_os_family()
-    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
+def remote_zip_obj(version: str):
+    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}.zip")
 
 
 def mark_as_latest_version(token: str, version: str, os_family: str):

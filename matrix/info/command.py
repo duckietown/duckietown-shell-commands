@@ -6,7 +6,8 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
-    get_path_to_install
+    get_path_to_install, \
+    get_os_family
 
 
 class DTCommand(DTCommandAbs):
@@ -24,6 +25,12 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="Show info about a specific version"
         )
+        parser.add_argument(
+            "--webgl",
+            default=False,
+            action="store_true",
+            help="Show info about the WebGL version"
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -33,7 +40,8 @@ class DTCommand(DTCommandAbs):
         if parsed is None:
             parsed = DTCommand._parse_args(args)
         # ---
-        version = parsed.version if parsed.version else get_most_recent_version_installed()
+        os_family = "webgl" if parsed.webgl else get_os_family()
+        version = parsed.version if parsed.version else get_most_recent_version_installed(os_family)
         if version is None:
             dtslogger.error(
                 f"Version v{parsed.version} not found."
@@ -42,7 +50,8 @@ class DTCommand(DTCommandAbs):
             return
         # ---
         install_dir = get_path_to_install(version)
-        meta_fp = os.path.join(install_dir, f"{APP_NAME}.json")
+        capitalized_app_name = APP_NAME.capitalize()
+        meta_fp = os.path.join(install_dir, f"{capitalized_app_name}.json")
         with open(meta_fp, 'rt') as fin:
             meta = json.load(fin)
         # ---

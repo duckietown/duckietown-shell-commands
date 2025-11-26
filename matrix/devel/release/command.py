@@ -81,7 +81,8 @@ class DTCommand(DTCommandAbs):
         with open(json_fp, "rt") as fin:
             meta = json.loads(fin.read())
         release_version = meta["version"]
-        os_family = meta["target"]["operating_system_family"].lower()
+        if os_family.lower() != "webgl":
+            os_family = meta["target"]["operating_system_family"].lower()
 
         # make sure we have a token
         token: str = parsed.token
@@ -89,8 +90,8 @@ class DTCommand(DTCommandAbs):
             token = shell.profile.secrets.dt_token
 
         # check whether the same version was already released
-        if is_version_released(release_version, os_family):
-            dtslogger.warn(f"The version v{release_version} for OS Family '{os_family}' was found "
+        if is_version_released(release_version):
+            dtslogger.warn(f"The version v{release_version} was found "
                            f"already on the DCSS, are you re-releasing this version? "
                            f"(use -f/--force to continue)")
             if not parsed.force:
@@ -100,7 +101,9 @@ class DTCommand(DTCommandAbs):
 
         # check whether we are releasing an older version
         latest = get_latest_version(os_family)
-        if versiontuple(latest) > versiontuple(release_version):
+        latest_split = latest.split("-")
+        release_version_split = release_version.split("-")
+        if versiontuple(latest_split[0]) > versiontuple(release_version_split[0]):
             dtslogger.warn(f"The version v{latest} was found on the DCSS, are you releasing "
                            f"an older version? (use -f/--force to continue)")
             if not parsed.force:
@@ -110,7 +113,7 @@ class DTCommand(DTCommandAbs):
 
         # upload
         dtslogger.info(f"Uploading version v{release_version}...")
-        zip_remote = remote_zip_obj(release_version, os_family)
+        zip_remote = remote_zip_obj(release_version)
         shell.include.data.push.command(
             shell,
             [],

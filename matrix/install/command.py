@@ -12,7 +12,8 @@ from utils.duckiematrix_utils import \
     APP_RELEASES_DIR, \
     get_most_recent_version_installed, \
     remote_zip_obj, \
-    get_latest_version
+    get_latest_version, \
+    get_os_family
 
 from utils.misc_utils import versiontuple
 
@@ -28,23 +29,29 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-U",
             "--update",
-            default=None,
+            default=False,
             action="store_true",
             help="Update if already installed",
         )
         parser.add_argument(
             "-f",
             "--force",
-            default=None,
+            default=False,
             action="store_true",
             help="Force reinstall when the same version is already installed",
         )
         parser.add_argument(
             "-v",
             "--version",
-            default=None,
+            default="",
             type=str,
             help="Install a specific version"
+        )
+        parser.add_argument(
+            "--webgl",
+            default=False,
+            action="store_true",
+            help="Install the WebGL version"
         )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
@@ -59,14 +66,15 @@ class DTCommand(DTCommandAbs):
             dtslogger.error(f"You need to have the library dt-data-api>=1.0.1, "
                             f"the version {dt_data_api.__version__} was found instead.")
             return
+        os_family = "webgl" if parsed.webgl else get_os_family()
         # make sure the app is not already installed
-        installed_version = get_most_recent_version_installed()
+        installed_version = get_most_recent_version_installed(os_family)
         if installed_version is not None and not parsed.update:
             dtslogger.info(f"Found version 'v{installed_version}' already installed. \nUse "
                            f"-U/--update to update to the latest version (if any is available).")
             return
         # get latest version available on the DCSS
-        latest = get_latest_version()
+        latest = get_latest_version(os_family)
         # compare installed and latest versions
         if installed_version:
             if installed_version == latest:

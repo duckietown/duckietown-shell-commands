@@ -1,9 +1,15 @@
+import os
 import time
 from pathlib import Path
 
 import argparse
 import subprocess
 import platform
+import socket
+import webbrowser
+from socket import AF_INET, SOCK_STREAM
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from threading import Thread
 from typing import Optional, Callable
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
@@ -11,7 +17,9 @@ from ..engine.run.command import MatrixEngine
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
-    get_path_to_binary
+    get_path_to_binary, \
+    get_path_to_install, \
+    get_os_family
 
 EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 IS_MACOS: bool = platform.system() == "Darwin"
@@ -156,6 +164,24 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Enable the profiler (requires -S/--standalone)"
         )
+        parser.add_argument(
+            "--browser",
+            default=False,
+            action="store_true",
+            help="Run in browser mode"
+        )
+        parser.add_argument(
+            "--host",
+            default="localhost",
+            type=str,
+            help="Hostname or IP address to bind the HTTP server"
+        )
+        parser.add_argument(
+            "--port",
+            default=None,
+            type=int,
+            help="Port number to bind the HTTP server"
+        )
         parsed, _ = parser.parse_known_args(args=args)
         return parsed
 
@@ -216,8 +242,14 @@ class DTCommand(DTCommandAbs):
             if parsed.version:
                 version = parsed.version
             else:
-                shell.include.matrix.install.command(shell, ["--update"])
-                version = get_most_recent_version_installed()
+                args = ["--update"]
+                if parsed.browser:
+                    args.append("--webgl")
+                    os_family = "webgl"
+                else:
+                    os_family = get_os_family()
+                shell.include.matrix.install.command(shell, args)
+                version = get_most_recent_version_installed(os_family)
             dtslogger.info(f"Configuring Renderer ({version})...")
             dtslogger.debug(f"Will try to run {version}...")
             # make sure the app is installed
@@ -286,8 +318,43 @@ class DTCommand(DTCommandAbs):
                         engine.stop()
                         return
 
-                # on MacOS, we open the location of the app
-                if IS_MACOS:
+                if parsed.browser:
+                    dtslogger.info("Launching Renderer in browser...")
+                    app_dir = get_path_to_install(version)
+                    app_path = os.path.join(app_dir, "duckiematrix")
+                    os.chdir(app_path)
+                    host = parsed.host
+                    port = parsed.port
+                    if port is None:
+                        with socket.socket(AF_INET, SOCK_STREAM) as socket_:
+                            socket_.bind((host, 0))
+                            socket_.listen(1)
+                            sock_name = socket_.getsockname()
+                            port = sock_name[1]
+                    server = HTTPServer((host, port), SimpleHTTPRequestHandler)
+                    server_thread = Thread(target=server.serve_forever)
+                    server_thread.daemon = True
+                    url = f"http://{host}:{port}/?"
+                    if parsed.renderer_id is not None:
+                        url += f"renderer-id={parsed.renderer_id}&"
+                    if parsed.renderer_key is not None:
+                        url += f"renderer-key={parsed.renderer_key}&"
+                    if parsed.engine_hostname is not None:
+                        url += f"engine-hostname={parsed.engine_hostname}&"
+                    url += f"profiler={'true' if parsed.profiler else 'false'}&"
+                    url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
+                    url += f"token={shell.profile.secrets.dt_token}/"
+                    server_thread.start()
+                    if not webbrowser.open(url):
+                        dtslogger.warning("Could not open browser.")
+                    dtslogger.info(f"Navigate to {url}.")
+                    # wait for the engine to terminate
+                    if run_engine:
+                        engine.join()
+                    else:
+                        server_thread.join()
+                elif IS_MACOS:
+                    # on MacOS, we open the location of the app
                     app_location: str = str(Path(app_bin).parent)
                     dtslogger.info(f"\n===================\n"
                                    f"  The Duckiematrix app is located at:\n\n\t{app_location}/\n\n"
