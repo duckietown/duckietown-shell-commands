@@ -129,10 +129,10 @@ class DTCommand(DTCommandAbs):
         )
 
         # mark this as latest (if needed)
-        if versiontuple(latest) < versiontuple(release_version):
+        if versiontuple(latest_version) < versiontuple(release_version):
             mark_as_latest_version(token, release_version, os_family)
 
-        dtslogger.info(f"Congrats! You just released version v{release_version}.")
+        dtslogger.info(f"Congrats! You just released version v{release}.")
 
     @staticmethod
     def complete(shell, word, line):
