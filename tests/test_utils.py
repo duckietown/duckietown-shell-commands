@@ -17,7 +17,7 @@ def get_command_path(command_name: str) -> str:
     Returns:
         Full path to the command.py file
     """
-    from test_config import REPO_ROOT
+    from tests.test_config import REPO_ROOT
     
     parts = command_name.split("/")
     command_path = os.path.join(REPO_ROOT, *parts, "command.py")
