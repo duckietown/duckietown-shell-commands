@@ -3,3 +3,11 @@
 .updates-check
 .idea
 /lib
+
+# Test artifacts
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+*.coverage.*
+.tox/
