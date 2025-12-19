@@ -110,6 +110,7 @@ def BASE_DISK_IMAGE(robot_configuration, experimental=False):
         "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
+        "jetson_orin_nano": f"dt-nvidia-jetpack-orin-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
