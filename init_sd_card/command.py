@@ -624,7 +624,7 @@ def step_setup(shell, parsed, data):
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
         "robot_type": parsed.robot_type,
-        "token": shell.get_dt1_token(),
+        "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
