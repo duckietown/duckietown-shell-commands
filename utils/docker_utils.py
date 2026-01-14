@@ -122,11 +122,20 @@ def get_endpoint_architecture_from_client_OLD(client: DockerClientOLD) -> str:
 
 
 def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT) -> str:
-    client = (
-        dockerOLD.from_env()
-        if hostname is None
-        else DockerClientOLD(base_url=sanitize_docker_baseurl(hostname, port))
-    )
+    try:
+        client = (
+            dockerOLD.from_env()
+            if hostname is None
+            else DockerClientOLD(base_url=sanitize_docker_baseurl(hostname, port))
+        )
+    except dockerOLD.errors.DockerException as e:
+        if "Permission denied" in str(e):
+            raise dockerOLD.errors.DockerException(
+                f"{e}\n\n"
+                "Hint: If you're using Docker Desktop, set DOCKER_HOST:\n"
+                '    export DOCKER_HOST="unix://$HOME/.docker/desktop/docker.sock"'
+            ) from e
+        raise e
     return get_endpoint_architecture_from_client_OLD(client)
 
 
