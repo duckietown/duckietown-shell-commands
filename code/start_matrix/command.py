@@ -5,6 +5,7 @@ from typing import Dict, Any, cast, Iterable, List, Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from dtproject import DTProject
+from utils.subscription_utils import can_run_command
 from utils.yaml_utils import load_yaml
 
 
@@ -13,6 +14,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        if not can_run_command(shell, dtslogger):
+            return
         # Get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:

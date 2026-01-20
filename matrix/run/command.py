@@ -20,6 +20,7 @@ from utils.duckiematrix_utils import \
     get_path_to_binary, \
     get_path_to_install, \
     get_os_family
+from utils.subscription_utils import can_run_command
 
 EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 IS_MACOS: bool = platform.system() == "Darwin"
@@ -187,6 +188,8 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        if not can_run_command(shell, dtslogger):
+            return
         parsed = kwargs.get("parsed", None)
         if parsed is None:
             parsed = DTCommand._parse_args(args)
