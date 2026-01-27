@@ -35,6 +35,9 @@ from .constants import (
     WPA_EAP_NETWORK_CONFIG,
     WPA_OPEN_NETWORK_CONFIG,
     WPA_PSK_NETWORK_CONFIG,
+    NETPLAN_EAP_NETWORK_CONFIG,
+    NETPLAN_OPEN_NETWORK_CONFIG,
+    NETPLAN_PSK_NETWORK_CONFIG,
 )
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
@@ -59,6 +62,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
         "jetson_nano_4gb": {"stable": "1.3.0", "experimental": "1.3.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
+        "jetson_orin_nano": {"stable": "1.0.0", "experimental": "1.0.0"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -91,6 +95,12 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
             # - experimental
             "-----": "1.1",
         },
+        "jetson_orin_nano": {
+            # - stable
+            "1.0.0": "2.0",
+            # - experimental
+            "-----": "2.0",
+        },
     }
     board, _ = get_robot_hardware(robot_configuration)
     version = DISK_IMAGE_VERSION(robot_configuration, experimental)
@@ -103,6 +113,7 @@ def BASE_DISK_IMAGE(robot_configuration, experimental=False):
         "raspberry_pi_64": f"dt-ubuntu-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
+        "jetson_orin_nano": f"dt-nvidia-jetpack-orin-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -252,18 +263,18 @@ class DTCommand(DTCommandAbs):
             else:
                 parsed.wifi = DEFAULT_WIFI_CONFIG
         # make sure the token is set
-        # noinspection PyBroadException
-        try:
-            shell.get_dt1_token()
-        except Exception:
-            dtslogger.error(
-                "You have not set a token for this shell.\n"
-                "You can get a token from the following URL,\n\n"
-                "\thttps://hub.duckietown.com/token   \n\n"
-                "and set it using the following command,\n\n"
-                "\tdts tok set\n"
-            )
-            return
+        # # noinspection PyBroadException
+        # try:
+        #     shell.get_dt1_token()
+        # except Exception:
+        #     dtslogger.error(
+        #         "You have not set a token for this shell.\n"
+        #         "You can get a token from the following URL,\n\n"
+        #         "\thttps://hub.duckietown.com/token   \n\n"
+        #         "and set it using the following command,\n\n"
+        #         "\tdts tok set\n"
+        #     )
+        #     return
         # print some usage tips and tricks
         print(TIPS_AND_TRICKS)
         # get the robot type
@@ -603,7 +614,7 @@ def step_verify(_, parsed, data):
     return {}
 
 
-def step_setup(shell, parsed, data):
+def step_setup(shell : DTShell, parsed, data):
     # check if dependencies are met
     check_program_dependency("dd")
     check_program_dependency("sudo")
@@ -616,10 +627,14 @@ def step_setup(shell, parsed, data):
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
         "robot_type": parsed.robot_type,
-        "token": shell.get_dt1_token(),
+        "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
+        # netplan configurations (for Ubuntu 22.04+, placeholders v2.0)
+        "netplan_open_networks": _get_netplan_networks(parsed, "open"),
+        "netplan_wpa_psk_networks": _get_netplan_networks(parsed, "psk"),
+        "netplan_wpa_eap_networks": _get_netplan_networks(parsed, "eap"),
         "sanitize_files": None,
         "stats": json.dumps(
             {
@@ -807,6 +822,34 @@ def _get_wpa_networks(parsed):
         wpa_networks += WPA_OPEN_NETWORK_CONFIG.format(cname=connection.name, ssid=connection.ssid)
     # ---
     return wpa_networks
+
+
+def _get_netplan_networks(parsed, network_type):
+    """Generate netplan YAML network configurations for Ubuntu 22.04+ (placeholders v2.0)"""
+    networks = _interpret_wifi_string(parsed.wifi)
+    netplan_networks = ""
+    for connection in networks:
+        # EAP-secured network
+        if connection.username is not None:
+            if network_type == "eap":
+                netplan_networks += NETPLAN_EAP_NETWORK_CONFIG.format(
+                    ssid=connection.ssid,
+                    username=connection.username,
+                    password=connection.password,
+                )
+            continue
+        # PSK-secured network
+        if connection.psk is not None:
+            if network_type == "psk":
+                netplan_networks += NETPLAN_PSK_NETWORK_CONFIG.format(
+                    ssid=connection.ssid, psk=connection.psk
+                )
+            continue
+        # open network
+        if network_type == "open":
+            netplan_networks += NETPLAN_OPEN_NETWORK_CONFIG.format(ssid=connection.ssid)
+    # ---
+    return netplan_networks
 
 
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):

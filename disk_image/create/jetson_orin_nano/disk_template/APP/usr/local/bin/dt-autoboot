@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+ROBOT_TYPE=$(head -1 /data/config/robot_type)
+
+DOCKER_SOCKET=unix:///var/run/docker.sock
+
+BOOT_STACKS=(
+  "/data/autoboot/${ROBOT_TYPE}.yml"
+  "/data/autoboot/${ROBOT_TYPE}.yaml"
+  "/data/autoboot/${ROBOT_TYPE}.YML"
+  "/data/autoboot/${ROBOT_TYPE}.YAML"
+)
+
+for BOOT_STACK in "${BOOT_STACKS[@]}"; do
+  if [ -f "${BOOT_STACK}" ]; then
+    echo "Launching 'duckietown' stack ${BOOT_STACK}..."
+    set -e
+    docker-compose \
+        --host "${DOCKER_SOCKET}" \
+        --project-name "duckietown" \
+        --file "${BOOT_STACK}" \
+        up \
+            -d
+    echo "Autoboot stack should be now up!"
+    exit 0
+  fi
+done
+
+echo "Autoboot stack /data/autoboot/${ROBOT_TYPE}.[yml|yaml] not found!"
