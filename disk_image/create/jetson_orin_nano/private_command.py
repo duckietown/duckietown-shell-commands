@@ -70,7 +70,7 @@ DISK_IMAGE_PARTITION_TABLE = {
 DISK_IMAGE_SIZE_GB = 20
 DISK_IMAGE_VERSION = "1.0.0"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "5.1.1"
+JETPACK_VERSION = "6.0"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-orin-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
@@ -125,7 +125,7 @@ DEVICE_PLATFORM = "linux/arm64"
 
 class DTCommand(DTCommandAbs):
 
-    help = "Prepares an .img disk file for an Nvidia Jetson Nano"
+    help = "Prepares an .img disk file for an Nvidia Jetson Orin Nano"
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
@@ -559,10 +559,10 @@ class DTCommand(DTCommandAbs):
                     to_hold = " ".join(APT_PACKAGES_TO_HOLD)
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
-                        # Fix nvidia apt sources
+                        # Fix nvidia apt sources for JetPack 6.0 (r36.3)
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "echo $'deb https://repo.download.nvidia.com/jetson/common r35.6 main\ndeb https://repo.download.nvidia.com/jetson/t234 r35.6 main\ndeb https://repo.download.nvidia.com/jetson/ffmpeg r35.6 main' > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list",
+                            "echo $'deb https://repo.download.nvidia.com/jetson/common r36.3 main\ndeb https://repo.download.nvidia.com/jetson/t234 r36.3 main\ndeb https://repo.download.nvidia.com/jetson/ffmpeg r36.3 main' > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list",
                         )
                         # Disable GUI
                         run_cmd_in_partition(

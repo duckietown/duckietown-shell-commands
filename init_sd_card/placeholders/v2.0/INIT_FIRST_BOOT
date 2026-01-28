@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+# Detect the boot device and partition number from the current root filesystem
+# Returns: Sets global variables BOOT_DEVICE and ROOT_PART_ID
+detect_boot_device() {
+    local ROOT_PARTITION=$(findmnt -n -o SOURCE /)
+    if [ -z "$ROOT_PARTITION" ]; then
+        echo "Error: Could not detect root partition"
+        exit 1
+    fi
+
+    # Extract the base device and partition number using regex pattern matching
+    # BASH_REMATCH is a built-in array: [0]=full match, [1]=first group, [2]=second group, etc.
+    if [[ $ROOT_PARTITION =~ (mmcblk[0-9]+)p([0-9]+) ]]; then
+        # SD card or eMMC: /dev/mmcblk0p1 -> /dev/mmcblk0, partition 1
+        BOOT_DEVICE="/dev/${{BASH_REMATCH[1]}}"
+        ROOT_PART_ID="${{BASH_REMATCH[2]}}"
+    elif [[ $ROOT_PARTITION =~ (nvme[0-9]+n[0-9]+)p([0-9]+) ]]; then
+        # NVMe: /dev/nvme0n1p1 -> /dev/nvme0n1, partition 1
+        BOOT_DEVICE="/dev/${{BASH_REMATCH[1]}}"
+        ROOT_PART_ID="${{BASH_REMATCH[2]}}"
+    elif [[ $ROOT_PARTITION =~ (sd[a-z]+)([0-9]+) ]]; then
+        # USB/SATA: /dev/sda1 -> /dev/sda, partition 1
+        BOOT_DEVICE="/dev/${{BASH_REMATCH[1]}}"
+        ROOT_PART_ID="${{BASH_REMATCH[2]}}"
+    else
+        echo "Error: Unrecognized partition format: $ROOT_PARTITION"
+        exit 1
+    fi
+
+    echo "Detected boot device: $BOOT_DEVICE, root partition: $ROOT_PART_ID"
+}
+
+# Jetson Orin Nano - auto-detect root device (SD card, USB, or NVMe)
+detect_boot_device
+
+# resize root partition
+if [ -b "$BOOT_DEVICE" ]; then
+    sgdisk --move-second-header "$BOOT_DEVICE"
+    growpart "$BOOT_DEVICE" "$ROOT_PART_ID"
+    resize2fs "$ROOT_PARTITION"
+    partprobe
+fi
+
+# apply netplan configuration (Ubuntu 22.04)
+if [ -d /etc/netplan ]; then
+    netplan generate
+    netplan apply
+fi
+
+# set permissions as the user accepted the terms-and-conditions inside init-sd-card
+echo -n 1 > /data/config/permissions/allow_push_config_data
+echo -n 1 > /data/config/permissions/allow_push_logs_data
+echo -n 1 > /data/config/permissions/allow_push_stats_data

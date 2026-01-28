@@ -35,6 +35,9 @@ from .constants import (
     WPA_EAP_NETWORK_CONFIG,
     WPA_OPEN_NETWORK_CONFIG,
     WPA_PSK_NETWORK_CONFIG,
+    NETPLAN_EAP_NETWORK_CONFIG,
+    NETPLAN_OPEN_NETWORK_CONFIG,
+    NETPLAN_PSK_NETWORK_CONFIG,
 )
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
@@ -94,9 +97,9 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_orin_nano": {
             # - stable
-            "1.0.0": "1.1",
+            "1.0.0": "2.0",
             # - experimental
-            "-----": "1.1",
+            "-----": "2.0",
         },
     }
     board, _ = get_robot_hardware(robot_configuration)
@@ -611,7 +614,7 @@ def step_verify(_, parsed, data):
     return {}
 
 
-def step_setup(shell, parsed, data):
+def step_setup(shell : DTShell, parsed, data):
     # check if dependencies are met
     check_program_dependency("dd")
     check_program_dependency("sudo")
@@ -628,6 +631,10 @@ def step_setup(shell, parsed, data):
         "robot_configuration": parsed.robot_configuration,
         "wpa_networks": _get_wpa_networks(parsed),
         "wpa_country": parsed.country,
+        # netplan configurations (for Ubuntu 22.04+, placeholders v2.0)
+        "netplan_open_networks": _get_netplan_networks(parsed, "open"),
+        "netplan_wpa_psk_networks": _get_netplan_networks(parsed, "psk"),
+        "netplan_wpa_eap_networks": _get_netplan_networks(parsed, "eap"),
         "sanitize_files": None,
         "stats": json.dumps(
             {
@@ -815,6 +822,34 @@ def _get_wpa_networks(parsed):
         wpa_networks += WPA_OPEN_NETWORK_CONFIG.format(cname=connection.name, ssid=connection.ssid)
     # ---
     return wpa_networks
+
+
+def _get_netplan_networks(parsed, network_type):
+    """Generate netplan YAML network configurations for Ubuntu 22.04+ (placeholders v2.0)"""
+    networks = _interpret_wifi_string(parsed.wifi)
+    netplan_networks = ""
+    for connection in networks:
+        # EAP-secured network
+        if connection.username is not None:
+            if network_type == "eap":
+                netplan_networks += NETPLAN_EAP_NETWORK_CONFIG.format(
+                    ssid=connection.ssid,
+                    username=connection.username,
+                    password=connection.password,
+                )
+            continue
+        # PSK-secured network
+        if connection.psk is not None:
+            if network_type == "psk":
+                netplan_networks += NETPLAN_PSK_NETWORK_CONFIG.format(
+                    ssid=connection.ssid, psk=connection.psk
+                )
+            continue
+        # open network
+        if network_type == "open":
+            netplan_networks += NETPLAN_OPEN_NETWORK_CONFIG.format(ssid=connection.ssid)
+    # ---
+    return netplan_networks
 
 
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):

@@ -63,3 +63,20 @@ network={{
     priority=1
 }}
 """
+
+# Netplan configuration templates (for Ubuntu 22.04+, placeholders v2.0)
+NETPLAN_OPEN_NETWORK_CONFIG = """        "{ssid}":
+          {{}}
+"""
+
+NETPLAN_PSK_NETWORK_CONFIG = """        "{ssid}":
+          password: "{psk}"
+"""
+
+NETPLAN_EAP_NETWORK_CONFIG = """        "{ssid}":
+          auth:
+            key-management: eap
+            method: peap
+            identity: "{username}"
+            password: "{password}"
+"""
