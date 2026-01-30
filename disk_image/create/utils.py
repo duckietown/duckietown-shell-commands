@@ -307,7 +307,7 @@ def get_file_first_line(filepath):
         except UnicodeDecodeError:
             # this must be a non-text (maybe a binary) file
             return ""
-    return line
+    return line.rstrip('\n\r')
 
 
 def get_file_length(filepath):

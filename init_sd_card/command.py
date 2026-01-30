@@ -62,7 +62,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
         "jetson_nano_4gb": {"stable": "1.3.0", "experimental": "1.3.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
-        "jetson_orin_nano": {"stable": "1.0.0", "experimental": "1.0.0"},
+        "jetson_orin_nano": {"stable": "1.1.0", "experimental": "1.1.0"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -97,7 +97,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_orin_nano": {
             # - stable
-            "1.0.0": "2.0",
+            "1.1.0": "2.0",
             # - experimental
             "-----": "2.0",
         },
@@ -677,7 +677,14 @@ def step_setup(shell : DTShell, parsed, data):
         # get placeholder info
         surgery_bit["placeholder"] = surgery_bit["placeholder"]
         placeholder_file = os.path.join(placeholders_dir, surgery_bit["placeholder"])
+        # skip WPA_SUPPLICANT for v2.0 (netplan-based systems)
+        if placeholders_version == "2.0" and surgery_bit["placeholder"] == "WPA_SUPPLICANT":
+            dtslogger.info(f"Skipping placeholder {surgery_bit['placeholder']} (using netplan instead)")
+            continue
         # make sure that the placeholder exists
+        if surgery_bit["placeholder"] == "INIT_FIRST_BOOT":
+            dtslogger.info(f"Skipping placeholder {surgery_bit['placeholder']}")
+            continue
         if not os.path.isfile(placeholder_file):
             print(placeholder_file)
             dtslogger.error(f"The placeholder {surgery_bit['placeholder']} is not recognized.")

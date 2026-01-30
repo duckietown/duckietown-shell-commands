@@ -12,6 +12,7 @@ import time
 import docker
 import socket
 import getpass
+import platform
 from datetime import datetime
 
 from utils.cli_utils import ask_confirmation
@@ -68,7 +69,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.0.0"
+DISK_IMAGE_VERSION = "1.1.0"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "6.0"
 DEVICE_ARCH = "arm64v8"
@@ -105,13 +106,13 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
+    "docker.io",
     "docker-compose",
     # provides the command `growpart`, used to resize the root partition at first boot
     "cloud-guest-utils",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
     "inotify-tools",
     # needed to be able to perform `docker login` on the device
-    # TODO: no releases contain this
     "gnupg2",
     "pass",
 ]
@@ -484,13 +485,28 @@ class DTCommand(DTCommandAbs):
                 )
                 # force driver to reload file size
                 run_cmd(["sudo", "losetup", "-c", sd_card.loopdev])
+                # force kernel to re-read partition table by detaching and re-attaching
+                # this is necessary after gdisk modifies the partition table
+                run_cmd(["sudo", "losetup", "-d", sd_card.loopdev])
+                # re-attach with -P to automatically discover partitions
+                lodev_output = subprocess.check_output(
+                    ["sudo", "losetup", "-f", "-P", "--show", out_file_path("img")]
+                ).decode("utf-8").strip()
+                sd_card.set_loopdev(lodev_output)
+                # refresh udev to recognize new partition devices
+                run_cmd(["sudo", "udevadm", "trigger"])
             except subprocess.CalledProcessError as e:
+                dtslogger.warning(
+                    "Failed to re-read partition table. If running this command inside a container, "
+                    "ensure you start it with the '--privileged' flag to allow access to loop devices and "
+                    "partition management capabilities."
+                )
                 pass
 
             # show info about disk
             dtslogger.debug("\n" + run_cmd(["sudo", "fdisk", "-l", sd_card.loopdev], True))
             # fix file system
-            run_cmd(["sudo", "e2fsck", "-f", root_device])
+            run_cmd(["sudo", "e2fsck", "-f", "-p", root_device])
             # resize file system
             run_cmd(["sudo", "resize2fs", root_device])
             # ---
@@ -519,92 +535,135 @@ class DTCommand(DTCommandAbs):
                 _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
-                    # copy QEMU, resolvconf
-                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    # detect host architecture for QEMU conditional
+                    host_arch = platform.machine()  # returns 'x86_64', 'aarch64', etc.
+                    is_native_arm = host_arch == 'aarch64'
+                    
+                    # copy resolvconf (always needed)
                     _transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
                     # mount /dev from the host
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
-                    # try running a simple echo from the new chroot, if an error occurs, we need
-                    # to check the QEMU configuration
-                    try:
-                        output = run_cmd_in_partition(
-                            ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                    
+                    # only setup QEMU on non-native ARM64 hosts (e.g., x86_64)
+                    if not is_native_arm:
+                        dtslogger.info(f"Host architecture detected as {host_arch} - setting up QEMU for ARM64 emulation")
+                        # copy QEMU for x86 to ARM64 emulation
+                        _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                        # configure the kernel for QEMU
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
                         )
-                        if "Exec format error" in output:
-                            raise Exception("Exec format error")
-                    except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
-                        exit(2)
-                    # compile list of packages to hold
-                    to_hold = " ".join(APT_PACKAGES_TO_HOLD)
+                        # try running a simple echo from the new chroot, if an error occurs, we need
+                        # to check the QEMU configuration
+                        try:
+                            output = run_cmd_in_partition(
+                                ROOT_PARTITION, 'echo "Hello from an ARM chroot!"', get_output=True
+                            )
+                            if "Exec format error" in output:
+                                raise Exception("Exec format error")
+                        except (BaseException, subprocess.CalledProcessError) as e:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                            exit(2)
+                    else:
+                        dtslogger.info(f"Native ARM64 host detected ({host_arch}) - skipping QEMU setup")
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
-                        # Fix nvidia apt sources for JetPack 6.0 (r36.3)
+                        # Disable GUI first (before any apt operations)
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "echo $'deb https://repo.download.nvidia.com/jetson/common r36.3 main\ndeb https://repo.download.nvidia.com/jetson/t234 r36.3 main\ndeb https://repo.download.nvidia.com/jetson/ffmpeg r36.3 main' > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list",
+                            "systemctl set-default multi-user.target 2>/dev/null || true"
                         )
-                        # Disable GUI
+                        # Remove blueman (causing errors) and GNOME (non-blocking)
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "systemctl set-default multi-user.target"
+                            "apt remove -y --purge gdm3 2>/dev/null || true"
                         )
-                        # Remove blueman (causing errors) and GNOME
+                        # Fix Nvidia JetPack sources.list by replacing <SOC> placeholder with t234 (Orin Nano SoC)
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "apt remove -y --purge gdm3"
+                            "sed -i 's|<SOC>|t234|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true"
                         )
-                        # run full-upgrade on the new root
+                        # update package index
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            "apt update && "
-                            + (f"apt-mark hold {to_hold}" if len(to_hold) else ":")
-                            + " && "
-                            + "apt --yes --force-yes --no-install-recommends"
-                            ' -o Dpkg::Options::="--force-confdef"'
-                            ' -o Dpkg::Options::="--force-confold"'
-                            " full-upgrade && " + (f"apt-mark unhold {to_hold}" if len(to_hold) else ":"),
+                            "apt-get update -o Acquire::ForceIPv4=true"
                         )
-                        # install packages
+                        # Get the exact installed l4t-core version (e.g., 36.4.4-20250616085344)
+                        l4t_core_version = run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "dpkg-query -W -f='${Version}' nvidia-l4t-core 2>/dev/null || echo ''",
+                            get_output=True
+                        ).strip()
+                        dtslogger.info(f"Installed nvidia-l4t-core version: {l4t_core_version}")
+                        
+                        if l4t_core_version:
+                            # Downgrade nvidia packages that require a different l4t-core version
+                            # to versions compatible with the installed l4t-core
+                            nvidia_pkgs_to_fix = [
+                                "nvidia-l4t-jetsonpower-gui-tools",
+                                "nvidia-l4t-nvfancontrol", 
+                                "nvidia-l4t-nvpmodel",
+                                "nvidia-l4t-nvpmodel-gui-tools",
+                            ]
+                            # Downgrade all packages at once to avoid dependency issues
+                            pkgs_with_version = " ".join([f"{pkg}={l4t_core_version}" for pkg in nvidia_pkgs_to_fix])
+                            dtslogger.info(f"Downgrading nvidia packages to {l4t_core_version}")
+                            run_cmd_in_partition(
+                                ROOT_PARTITION,
+                                f"DEBIAN_FRONTEND=noninteractive apt install --yes --allow-downgrades -o Acquire::ForceIPv4=true {pkgs_with_version}",
+                            )
+                        
+                        # Now fix any remaining broken dependencies
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "DEBIAN_FRONTEND=noninteractive apt --fix-broken install --yes -o Acquire::ForceIPv4=true"
+                        )
+                        
+                        # Install the packages we need
                         if APT_PACKAGES_TO_INSTALL:
                             pkgs = " ".join(APT_PACKAGES_TO_INSTALL)
+                            dtslogger.info(f"Installing packages: {pkgs}")
                             run_cmd_in_partition(
                                 ROOT_PARTITION,
                                 "DEBIAN_FRONTEND=noninteractive "
-                                f"apt install --yes --force-yes --no-install-recommends {pkgs}",
+                                "apt install --yes --no-install-recommends "
+                                "-o Acquire::ForceIPv4=true "
+                                f"{pkgs}",
                             )
                         # clean packages
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            f"apt autoremove --yes",
+                            "apt autoremove --yes",
                         )
                     except Exception as e:
                         raise e
-                    # unomunt bind /dev
-                    run_cmd(["sudo", "umount", _dev])
+                    # unmount bind mounts
+                    try:
+                        run_cmd(["sudo", "umount", _dev])
+                    except:
+                        pass
                 except Exception as e:
-                    # unomunt bind /dev
-                    run_cmd(["sudo", "umount", _dev])
+                    # unmount bind mounts (with fallback if not mounted)
+                    try:
+                        run_cmd(["sudo", "umount", _dev])
+                    except:
+                        pass
                     # unmount partition
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
