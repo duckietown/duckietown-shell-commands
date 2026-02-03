@@ -52,26 +52,29 @@ from disk_image.create.utils import (
     get_validator_fcn,
 )
 
+# JetPack 6.2.1 partition table for Jetson Orin Nano
+# Uses A/B redundancy scheme with kernel, recovery, and ESP partitions
 DISK_IMAGE_PARTITION_TABLE = {
     "APP": 1,
-    "TBC": 2,
-    "RP1": 3,
-    "EBT": 4,
-    "WB0": 5,
-    "BPF": 6,
-    "BPF-DTB": 7,
-    "FX": 8,
-    "TOS": 9,
-    "DTB": 10,
-    "LNX": 11,
-    "EKS": 12,
-    "BMP": 13,
-    "RP4": 14,
+    "A_kernel": 2,
+    "A_kernel-dtb": 3,
+    "A_reserved_on_user": 4,
+    "B_kernel": 5,
+    "B_kernel-dtb": 6,
+    "B_reserved_on_user": 7,
+    "recovery": 8,
+    "recovery-dtb": 9,
+    "esp": 10,
+    "recovery_alt": 11,
+    "recovery-dtb_alt": 12,
+    "esp_alt": 13,
+    "UDA": 14,
+    "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.1.0"
+DISK_IMAGE_VERSION = "1.2.0"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "6.0"
+JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-orin-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
