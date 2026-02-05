@@ -44,11 +44,8 @@ run_on_first_boot() {
     # activate `booting` service
     cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
-    # resize root partition
-    sgdisk --move-second-header ${SD_DEVICE}
-    growpart ${SD_DEVICE} ${ROOT_PART_ID}
-    resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
-    partprobe
+    # resize root partition to fill the storage device
+    safe_grow_rootfs
 
     # sanitize files
     dt-sanitize-files
@@ -213,3 +210,38 @@ else
     touch "$FIRST_BOOT_EVIDENCE_FILE"
     reboot
 fi
+
+detect_root_blockdevs() {
+  ROOT_DEV="$(findmnt -n -o SOURCE /)"          # e.g. /dev/mmcblk0p1 or /dev/sda1
+  ROOT_DISK="/dev/$(lsblk -no PKNAME "$ROOT_DEV")"  # e.g. /dev/mmcblk0 or /dev/sda
+  ROOT_PART="$ROOT_DEV"
+
+  echo "Detected root: ROOT_DISK=$ROOT_DISK ROOT_PART=$ROOT_PART"
+}
+
+safe_grow_rootfs() {
+  set -euo pipefail
+
+  detect_root_blockdevs
+
+  # Only ext4
+  FSTYPE="$(findmnt -n -o FSTYPE /)"
+  if [ "$FSTYPE" != "ext4" ]; then
+    echo "safe_grow_rootfs: root fstype=$FSTYPE, skipping"
+    return 0
+  fi
+
+  # Partition number from /dev/mmcblk0p1 or /dev/sda1 -> 1
+  PART_NUM="$(echo "$ROOT_PART" | grep -oE '[0-9]+$')"
+
+  echo "safe_grow_rootfs: Fix GPT backup header and grow partition if needed..."
+  sgdisk --move-second-header "$ROOT_DISK" || true
+  partprobe "$ROOT_DISK" || true
+  growpart "$ROOT_DISK" "$PART_NUM" || true
+  partprobe "$ROOT_DISK" || true
+
+  echo "safe_grow_rootfs: Resizing filesystem (online)..."
+  resize2fs "$ROOT_PART"
+
+  echo "safe_grow_rootfs: done"
+}
