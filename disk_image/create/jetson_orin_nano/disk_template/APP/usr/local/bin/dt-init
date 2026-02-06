@@ -115,6 +115,8 @@ run_on_first_boot() {
     # run customizable first-boot script
     dt-init-first-boot
 
+    enable_cameras
+
     echo "Setting up the containers..."
     dt-autoboot
 
@@ -244,4 +246,58 @@ safe_grow_rootfs() {
   resize2fs "$ROOT_PART"
 
   echo "safe_grow_rootfs: done"
+}
+
+enable_cameras() {
+    EXTLINUX="/boot/extlinux/extlinux.conf"
+    BACKUP="/boot/extlinux/extlinux.conf.bak"
+    OVERLAY="/boot/tegra234-p3767-camera-p3768-imx219-dual.dtbo"
+
+    echo "=== Enabling IMX219 dual camera overlay ==="
+
+    # --- sanity checks ---
+    if [[ ! -f "$EXTLINUX" ]]; then
+        echo "ERROR: extlinux.conf not found!"
+        return 1
+    fi
+
+    if [[ ! -f "$OVERLAY" ]]; then
+        echo "ERROR: overlay DTBO not found: $OVERLAY"
+        return 1
+    fi
+
+    # --- backup once ---
+    if [[ ! -f "$BACKUP" ]]; then
+        echo "Backing up extlinux.conf"
+        cp "$EXTLINUX" "$BACKUP"
+    fi
+
+    # --- check if JetsonIO entry already exists ---
+    if grep -q "LABEL JetsonIO" "$EXTLINUX"; then
+        echo "JetsonIO entry already present — skipping insertion."
+    else
+        echo "Inserting JetsonIO boot entry..."
+
+        cat <<'EOF' >> "$EXTLINUX"
+
+LABEL JetsonIO
+        MENU LABEL Custom Header Config: <CSI Camera IMX219 Dual>
+        LINUX /boot/Image
+        FDT /boot/dtb/kernel_tegra234-p3768-0000+p3767-0004-nv.dtb
+        INITRD /boot/initrd
+        APPEND ${cbootargs} rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 video=efifb:off console=tty0 nv-auto-config
+        OVERLAYS /boot/tegra234-p3767-camera-p3768-imx219-dual.dtbo
+EOF
+    fi
+
+    # --- set JetsonIO as default ---
+    echo "Setting JetsonIO as default boot entry..."
+
+    if grep -q "^DEFAULT" "$EXTLINUX"; then
+        sed -i 's/^DEFAULT.*/DEFAULT JetsonIO/' "$EXTLINUX"
+    else
+        sed -i '1i DEFAULT JetsonIO' "$EXTLINUX"
+    fi
+
+    echo "imx219 camera overlay configured successfully, reboot required."
 }
