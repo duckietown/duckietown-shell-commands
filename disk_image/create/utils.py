@@ -12,6 +12,9 @@ import time
 from typing import Callable
 from typing import List
 
+# Timeout in seconds for waiting for a partition to be freed before using lazy unmount
+UMOUNT_WAIT_TIMEOUT_SECONDS = 20
+
 import yaml
 from disk_image.create.constants import (
     DEFAULT_DOCKER_REGISTRY,
@@ -51,6 +54,7 @@ class VirtualSDCard:
     def mount(self):
         # refresh devices module
         run_cmd(["sudo", "udevadm", "trigger"])
+        run_cmd(["sudo", "udevadm", "settle", "--timeout=10"])
         # look for a free loop device
         cmd = ["sudo", "losetup", "-f"]
         dtslogger.debug("$ %s" % cmd)
@@ -74,14 +78,26 @@ class VirtualSDCard:
         lodev = subprocess.check_output(cmd).decode("utf-8").strip()
         # refresh devices module
         run_cmd(["sudo", "udevadm", "trigger"])
+        run_cmd(["sudo", "udevadm", "settle", "--timeout=10"])
         # once mounted, keep track of the loopdev in use
         self._loopdev = lodev
 
     def umount(self, quiet=False):
-        # mount loop device
+        # unmount disk
         if not quiet:
             dtslogger.info(f"Closing disk {self._disk_file}...")
+        # flush I/O buffers before unmounting
+        if not quiet:
+            dtslogger.info("Syncing filesystem buffers...")
+        run_cmd(["sync"])
         try:
+            # first, unmount any mounted partitions
+            for partition in self._partition_table.keys():
+                mountpoint = PARTITION_MOUNTPOINT(partition)
+                if os.path.exists(mountpoint) and os.path.ismount(mountpoint):
+                    if not quiet:
+                        dtslogger.info(f"Unmounting partition {partition} from {mountpoint}...")
+                    self.umount_partition(partition)
             # free loop devices
             cmd = ["sudo", "losetup", "--json"]
             dtslogger.debug("$ %s" % cmd)
@@ -91,7 +107,7 @@ class VirtualSDCard:
                 if "(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] != self._disk_file:
                     continue
                 if not quiet:
-                    dtslogger.info(f"Unmounting {self._disk_file} from {dev['name']}...")
+                    dtslogger.info(f"Detaching loop device {dev['name']}...")
                 run_cmd(["sudo", "losetup", "-d", dev["name"]])
         except Exception as e:
             if not quiet:
@@ -100,6 +116,7 @@ class VirtualSDCard:
             dtslogger.info("Done!")
         # refresh devices module
         run_cmd(["sudo", "udevadm", "trigger"])
+        run_cmd(["sudo", "udevadm", "settle", "--timeout=10"])
 
     def mount_partition(self, partition):
         dtslogger.info(f'Mounting partition "{partition}"...')
@@ -137,20 +154,78 @@ class VirtualSDCard:
             msg = f"The directory {mountpoint} is not a mountpoint. Please, clean this mess."
             dtslogger.error(msg)
             raise ValueError(msg)
-        # wait for the device to be free
+        # first, unmount any bind mounts under this mountpoint (in reverse order)
+        self._cleanup_bind_mounts(mountpoint)
+        # wait for the device to be free (with timeout)
         in_use = True
-        while in_use:
-            dtslogger.info(f"Waiting for [{partition_device}]{mountpoint} to be freed.")
-            time.sleep(2)
+        elapsed = 0
+        wait_interval = 2
+        while in_use and elapsed < UMOUNT_WAIT_TIMEOUT_SECONDS:
+            dtslogger.info(f"Waiting for [{partition_device}]{mountpoint} to be freed ({elapsed}s/{UMOUNT_WAIT_TIMEOUT_SECONDS}s)...")
+            time.sleep(wait_interval)
+            elapsed += wait_interval
             lsof = run_cmd(
                 ["sudo", "lsof", partition_device, "2>/dev/null", "||", ":"], get_output=True, shell=True
             ).splitlines()
             in_use = len(lsof) > 0
-        # unmount
-        run_cmd(["sudo", "umount", mountpoint])
-        run_cmd(["sudo", "rmdir", mountpoint])
+        # check if we timed out
+        if in_use:
+            dtslogger.warning(f"Timeout waiting for {mountpoint} to be freed. Processes still using it:")
+            # log what's still using the device
+            lsof_output = run_cmd(
+                ["sudo", "lsof", partition_device, "2>/dev/null", "||", ":"], get_output=True, shell=True
+            )
+            if lsof_output.strip():
+                dtslogger.warning(f"\n{lsof_output}")
+            # try lazy unmount as fallback
+            dtslogger.warning(f"Attempting lazy unmount of {mountpoint}...")
+            try:
+                run_cmd(["sudo", "umount", "-l", mountpoint])
+            except Exception as e:
+                dtslogger.error(f"Lazy unmount failed: {e}")
+                raise
+        else:
+            # normal unmount
+            run_cmd(["sudo", "umount", mountpoint])
+        # remove mountpoint directory
+        if os.path.exists(mountpoint) and not os.path.ismount(mountpoint):
+            run_cmd(["sudo", "rmdir", mountpoint])
         # ---
         dtslogger.info(f'Partition "{partition}" successfully unmounted!')
+
+    def _cleanup_bind_mounts(self, mountpoint):
+        """Unmount any bind mounts under the given mountpoint in reverse order."""
+        dtslogger.info(f"Checking for bind mounts under {mountpoint}...")
+        try:
+            # use findmnt to get all mounts under this mountpoint
+            output = run_cmd(
+                ["findmnt", "-rn", "-o", "TARGET", "--submounts", mountpoint],
+                get_output=True
+            ).strip()
+            if not output:
+                dtslogger.debug("No submounts found.")
+                return
+            # get list of mount targets (excluding the mountpoint itself)
+            submounts = [line.strip() for line in output.splitlines() if line.strip() and line.strip() != mountpoint]
+            if not submounts:
+                dtslogger.debug("No submounts to clean up.")
+                return
+            # unmount in reverse order (deepest first)
+            submounts.sort(key=len, reverse=True)
+            dtslogger.info(f"Found {len(submounts)} bind mount(s) to clean up: {submounts}")
+            for submount in submounts:
+                dtslogger.info(f"Unmounting bind mount: {submount}")
+                try:
+                    run_cmd(["sudo", "umount", submount])
+                except Exception as e:
+                    dtslogger.warning(f"Failed to unmount {submount}, trying lazy unmount: {e}")
+                    try:
+                        run_cmd(["sudo", "umount", "-l", submount])
+                    except Exception as e2:
+                        dtslogger.error(f"Lazy unmount of {submount} also failed: {e2}")
+        except subprocess.CalledProcessError:
+            # findmnt returns non-zero if no mounts found, which is fine
+            dtslogger.debug("No submounts found (findmnt returned no results).")
 
     def get_disk_identifier(self):
         dtslogger.info(f"Reading Disk Identifier for {self._loopdev}...")
@@ -301,17 +376,17 @@ def find_placeholders_on_disk(disk_image):
 
 
 def get_file_first_line(filepath):
-    with open(filepath, "rt") as f:
-        try:
-            line = f.readline()
-        except UnicodeDecodeError:
-            # this must be a non-text (maybe a binary) file
-            return ""
-    return line.rstrip('\n\r')
+    try:
+        output = run_cmd(["sudo", "cat", filepath], get_output=True)
+        line = output.split('\n')[0] if output else ""
+        return line.rstrip('\n\r')
+    except (subprocess.CalledProcessError, UnicodeDecodeError):
+        # file doesn't exist or is binary
+        return ""
 
 
 def get_file_length(filepath):
-    stat_out = run_cmd(["stat", "--format", "%s,%b,%B", filepath], get_output=True)
+    stat_out = run_cmd(["sudo", "stat", "--format", "%s,%b,%B", filepath], get_output=True)
     real_size, num_blocks, block_size = stat_out.strip().split(",")
     return int(real_size), int(num_blocks) * int(block_size)
 

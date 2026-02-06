@@ -62,7 +62,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False):
         "raspberry_pi_64": {"stable": "2.0.0", "experimental": "2.0.0"},
         "jetson_nano_4gb": {"stable": "1.3.0", "experimental": "1.3.0"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
-        "jetson_orin_nano": {"stable": "1.1.0", "experimental": "1.1.0"},
+        "jetson_orin_nano": {"stable": "1.2.0", "experimental": "1.2.0"},
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -97,7 +97,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False):
         },
         "jetson_orin_nano": {
             # - stable
-            "1.1.0": "2.0",
+            "1.2.0": "2.0",
             # - experimental
             "-----": "2.0",
         },

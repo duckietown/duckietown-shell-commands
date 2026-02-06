@@ -72,7 +72,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.2.0"
+DISK_IMAGE_VERSION = "1.2.1"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
@@ -109,8 +109,6 @@ APT_PACKAGES_TO_INSTALL = [
     "rsync",
     "nano",
     "htop",
-    "docker.io",
-    "docker-compose",
     # provides the command `growpart`, used to resize the root partition at first boot
     "cloud-guest-utils",
     # provides the command `inotifywait`, used to monitor inode events on trigger sockets
@@ -350,7 +348,7 @@ class DTCommand(DTCommandAbs):
                         file=[in_file_path("zip")],
                         object=[
                             os.path.join(
-                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{jetpack_disk_image_name}.zip"
+                                DATA_STORAGE_DISK_IMAGE_DIR, f"{jetpack_disk_image_name}.img.zip"
                             )
                         ],
                         space="public",
@@ -498,6 +496,8 @@ class DTCommand(DTCommandAbs):
                 sd_card.set_loopdev(lodev_output)
                 # refresh udev to recognize new partition devices
                 run_cmd(["sudo", "udevadm", "trigger"])
+                # update root_device to use the new loop device
+                root_device = sd_card.partition_device(ROOT_PARTITION)
             except subprocess.CalledProcessError as e:
                 dtslogger.warning(
                     "Failed to re-read partition table. If running this command inside a container, "
@@ -591,11 +591,6 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "systemctl set-default multi-user.target 2>/dev/null || true"
-                        )
-                        # Remove blueman (causing errors) and GNOME (non-blocking)
-                        run_cmd_in_partition(
-                            ROOT_PARTITION,
-                            "apt remove -y --purge gdm3 2>/dev/null || true"
                         )
                         # Fix Nvidia JetPack sources.list by replacing <SOC> placeholder with t234 (Orin Nano SoC)
                         run_cmd_in_partition(
@@ -900,6 +895,7 @@ class DTCommand(DTCommandAbs):
                     sd_card.umount_partition(partition)
                 # ---
             except Exception as e:
+                dtslogger.debug(f"An error occurred: {str(e)}")
                 sd_card.umount()
                 raise e
             # finalize surgery plan
@@ -951,6 +947,9 @@ class DTCommand(DTCommandAbs):
         # Step: unmount
         if "unmount" in parsed.steps:
             dtslogger.info("Step BEGIN: unmount")
+            # flush I/O buffers before unmounting
+            dtslogger.info("Syncing filesystem buffers...")
+            run_cmd(["sync"])
             sd_card.umount()
             cache_step("unmount")
             dtslogger.info("Step END: unmount\n")
