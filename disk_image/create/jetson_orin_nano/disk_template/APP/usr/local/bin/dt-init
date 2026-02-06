@@ -44,11 +44,8 @@ run_on_first_boot() {
     # activate `booting` service
     cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
-    # resize root partition
-    sgdisk --move-second-header ${SD_DEVICE}
-    growpart ${SD_DEVICE} ${ROOT_PART_ID}
-    resize2fs ${SD_DEVICE}p${ROOT_PART_ID}
-    partprobe
+    # resize root partition to fill the storage device
+    safe_grow_rootfs
 
     # sanitize files
     dt-sanitize-files
@@ -117,6 +114,8 @@ run_on_first_boot() {
 
     # run customizable first-boot script
     dt-init-first-boot
+
+    enable_cameras
 
     echo "Setting up the containers..."
     dt-autoboot
@@ -213,3 +212,92 @@ else
     touch "$FIRST_BOOT_EVIDENCE_FILE"
     reboot
 fi
+
+detect_root_blockdevs() {
+  ROOT_DEV="$(findmnt -n -o SOURCE /)"          # e.g. /dev/mmcblk0p1 or /dev/sda1
+  ROOT_DISK="/dev/$(lsblk -no PKNAME "$ROOT_DEV")"  # e.g. /dev/mmcblk0 or /dev/sda
+  ROOT_PART="$ROOT_DEV"
+
+  echo "Detected root: ROOT_DISK=$ROOT_DISK ROOT_PART=$ROOT_PART"
+}
+
+safe_grow_rootfs() {
+  set -euo pipefail
+
+  detect_root_blockdevs
+
+  # Only ext4
+  FSTYPE="$(findmnt -n -o FSTYPE /)"
+  if [ "$FSTYPE" != "ext4" ]; then
+    echo "safe_grow_rootfs: root fstype=$FSTYPE, skipping"
+    return 0
+  fi
+
+  # Partition number from /dev/mmcblk0p1 or /dev/sda1 -> 1
+  PART_NUM="$(echo "$ROOT_PART" | grep -oE '[0-9]+$')"
+
+  echo "safe_grow_rootfs: Fix GPT backup header and grow partition if needed..."
+  sgdisk --move-second-header "$ROOT_DISK" || true
+  partprobe "$ROOT_DISK" || true
+  growpart "$ROOT_DISK" "$PART_NUM" || true
+  partprobe "$ROOT_DISK" || true
+
+  echo "safe_grow_rootfs: Resizing filesystem (online)..."
+  resize2fs "$ROOT_PART"
+
+  echo "safe_grow_rootfs: done"
+}
+
+enable_cameras() {
+    EXTLINUX="/boot/extlinux/extlinux.conf"
+    BACKUP="/boot/extlinux/extlinux.conf.bak"
+    OVERLAY="/boot/tegra234-p3767-camera-p3768-imx219-dual.dtbo"
+
+    echo "=== Enabling IMX219 dual camera overlay ==="
+
+    # --- sanity checks ---
+    if [[ ! -f "$EXTLINUX" ]]; then
+        echo "ERROR: extlinux.conf not found!"
+        return 1
+    fi
+
+    if [[ ! -f "$OVERLAY" ]]; then
+        echo "ERROR: overlay DTBO not found: $OVERLAY"
+        return 1
+    fi
+
+    # --- backup once ---
+    if [[ ! -f "$BACKUP" ]]; then
+        echo "Backing up extlinux.conf"
+        cp "$EXTLINUX" "$BACKUP"
+    fi
+
+    # --- check if JetsonIO entry already exists ---
+    if grep -q "LABEL JetsonIO" "$EXTLINUX"; then
+        echo "JetsonIO entry already present — skipping insertion."
+    else
+        echo "Inserting JetsonIO boot entry..."
+
+        cat <<'EOF' >> "$EXTLINUX"
+
+LABEL JetsonIO
+        MENU LABEL Custom Header Config: <CSI Camera IMX219 Dual>
+        LINUX /boot/Image
+        FDT /boot/dtb/kernel_tegra234-p3768-0000+p3767-0004-nv.dtb
+        INITRD /boot/initrd
+        APPEND ${cbootargs} rw rootwait rootfstype=ext4 mminit_loglevel=4 console=ttyTCU0,115200 firmware_class.path=/etc/firmware fbcon=map:0 video=efifb:off console=tty0 nv-auto-config
+        OVERLAYS /boot/tegra234-p3767-camera-p3768-imx219-dual.dtbo
+EOF
+    fi
+
+    # --- set JetsonIO as default ---
+    echo "Setting JetsonIO as default boot entry..."
+
+    if grep -q "^DEFAULT" "$EXTLINUX"; then
+        sed -i 's/^DEFAULT.*/DEFAULT JetsonIO/' "$EXTLINUX"
+    else
+        sed -i '1i DEFAULT JetsonIO' "$EXTLINUX"
+    fi
+
+    echo "imx219 camera overlay configured successfully, reboot required."
+}
