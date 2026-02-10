@@ -22,30 +22,33 @@ detect_root_blockdevs() {
 }
 
 safe_grow_rootfs() {
-  set -euo pipefail
+  # Run in subshell to contain set -euo pipefail
+  (
+    set -euo pipefail
 
-  detect_root_blockdevs
+    detect_root_blockdevs
 
-  # Only ext4
-  FSTYPE="$(findmnt -n -o FSTYPE /)"
-  if [ "$FSTYPE" != "ext4" ]; then
-    echo "safe_grow_rootfs: root fstype=$FSTYPE, skipping"
-    return 0
-  fi
+    # Only ext4
+    FSTYPE="$(findmnt -n -o FSTYPE /)"
+    if [ "$FSTYPE" != "ext4" ]; then
+      echo "safe_grow_rootfs: root fstype=$FSTYPE, skipping"
+      exit 0
+    fi
 
-  # Partition number from /dev/mmcblk0p1 or /dev/sda1 -> 1
-  PART_NUM="$(echo "$ROOT_PART" | grep -oE '[0-9]+$')"
+    # Partition number from /dev/mmcblk0p1 or /dev/sda1 -> 1
+    PART_NUM="$(echo "$ROOT_PART" | grep -oE '[0-9]+$')"
 
-  echo "safe_grow_rootfs: Fix GPT backup header and grow partition if needed..."
-  sgdisk --move-second-header "$ROOT_DISK" || true
-  partprobe "$ROOT_DISK" || true
-  growpart "$ROOT_DISK" "$PART_NUM" || true
-  partprobe "$ROOT_DISK" || true
+    echo "safe_grow_rootfs: Fix GPT backup header and grow partition if needed..."
+    sgdisk --move-second-header "$ROOT_DISK" || true
+    partprobe "$ROOT_DISK" || true
+    growpart "$ROOT_DISK" "$PART_NUM" || true
+    partprobe "$ROOT_DISK" || true
 
-  echo "safe_grow_rootfs: Resizing filesystem (online)..."
-  resize2fs "$ROOT_PART"
+    echo "safe_grow_rootfs: Resizing filesystem (online)..."
+    resize2fs "$ROOT_PART"
 
-  echo "safe_grow_rootfs: done"
+    echo "safe_grow_rootfs: done"
+  )
 }
 
 enable_cameras() {
@@ -90,7 +93,7 @@ run_on_first_boot() {
     # resize root partition to fill the storage device
     safe_grow_rootfs
 
-    # sanitize files
+    # FIXME: this sanitizes files passed to it, but we are not passing any files to it
     dt-sanitize-files
 
     # sudo without a password
@@ -119,10 +122,10 @@ run_on_first_boot() {
 
     # store the MAC addresses for future reference
     echo "Storing debug information..."
-    cp /proc/*info /data/proc
-    cat /sys/class/net/eth0/address > /data/stats/MAC/eth0
-    cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0
-    cp /etc/nv_tegra_release /data/stats/os-release
+    cp /proc/*info /data/proc || true
+    cat /sys/class/net/en*/address > /data/stats/MAC/ethernet 2>/dev/null || true
+    cat /sys/class/net/wlan0/address > /data/stats/MAC/wlan0 2>/dev/null || true
+    cp /etc/nv_tegra_release /data/stats/os-release || true
 
     # make sure the user owns its folders
     echo "Changing the ownership of the user directories..."
@@ -251,5 +254,6 @@ else
     echo "$FIRST_BOOT_EVIDENCE_FILE does not exist so we assume this is the first boot!"
     run_on_first_boot 2>&1 | tee /data/logs/first_boot_init.log
     touch "$FIRST_BOOT_EVIDENCE_FILE"
+    sync
     reboot
 fi
