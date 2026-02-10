@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 ROBOT_TYPE=$(head -1 /data/config/robot_type)
-
 DOCKER_SOCKET=unix:///var/run/docker.sock
+BOOTED=false
 
 BOOT_STACKS=(
-  "/data/autoboot/${ROBOT_TYPE}.yml"
-  "/data/autoboot/${ROBOT_TYPE}.yaml"
-  "/data/autoboot/${ROBOT_TYPE}.YML"
-  "/data/autoboot/${ROBOT_TYPE}.YAML"
+  "/data/autoboot/robot/basics.yaml"
+  "/data/autoboot/duckietown/${ROBOT_TYPE}.yaml"
+  "/data/autoboot/ros1/${ROBOT_TYPE}.yaml"
 )
 
 for BOOT_STACK in "${BOOT_STACKS[@]}"; do
   if [ -f "${BOOT_STACK}" ]; then
-    echo "Launching 'duckietown' stack ${BOOT_STACK}..."
-    set -e
-    docker-compose \
-        --host "${DOCKER_SOCKET}" \
-        --project-name "duckietown" \
+    PROJECT_NAME=$(basename "$(dirname "${BOOT_STACK}")")
+    echo "Launching stack: ${BOOT_STACK} (project: ${PROJECT_NAME})"
+    ARCH=arm64v8 REGISTRY=docker.io docker --host "${DOCKER_SOCKET}" compose \
         --file "${BOOT_STACK}" \
-        up \
-            -d
-    echo "Autoboot stack should be now up!"
-    exit 0
+        up -d
+    echo "Stack ${PROJECT_NAME} launched from ${BOOT_STACK}"
+    BOOTED=true
+  else
+    echo "Stack not found: ${BOOT_STACK}"
   fi
 done
 
-echo "Autoboot stack /data/autoboot/${ROBOT_TYPE}.[yml|yaml] not found!"
+if [ "${BOOTED}" = false ]; then
+  echo "No autoboot stack was found or launched for robot type '${ROBOT_TYPE}'."
+  exit 1
+fi
