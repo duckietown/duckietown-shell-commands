@@ -6,7 +6,7 @@
 # apply netplan configuration (Ubuntu 22.04)
 if [ -d /etc/netplan ]; then
     netplan generate
-    netplan apply
+    netplan --debug apply
 fi
 
 # set permissions as the user accepted the terms-and-conditions inside init-sd-card

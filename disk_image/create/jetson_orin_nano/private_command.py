@@ -72,7 +72,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.2.1"
+DISK_IMAGE_VERSION = "1.2.2"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
@@ -116,6 +116,7 @@ APT_PACKAGES_TO_INSTALL = [
     # needed to be able to perform `docker login` on the device
     "gnupg2",
     "pass",
+    "netplan.io"
 ]
 APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`

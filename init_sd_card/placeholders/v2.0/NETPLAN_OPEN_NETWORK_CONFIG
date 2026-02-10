@@ -1,7 +1,10 @@
 network:
   version: 2
+  renderer: NetworkManager
   wifis:
-    wlan0:
+    wifi:
+      match:
+        name: "wl*"
       dhcp4: true
       dhcp6: false
       optional: true
