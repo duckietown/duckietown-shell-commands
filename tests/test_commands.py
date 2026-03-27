@@ -3,19 +3,19 @@ Test cases for duckietown-shell-commands.
 
 This test suite verifies that:
 1. Command modules exist and are accessible
-2. Command modules have the required structure (DTCommand class with command method)
-3. Repository structure is correct
+2. Command modules can be imported using dt_shell
+3. Command modules have the required structure (DTCommand class inheriting from DTCommandAbs)
+4. Repository structure is correct
 """
 import sys
 import os
 import unittest
-import re
 
 # Add the repository root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.test_config import IMPORTABLE_COMMANDS, REPO_ROOT
-from tests.test_utils import command_exists, get_command_path
+from tests.test_utils import command_exists, import_command, validate_command_structure
 
 
 class TestCommandExistence(unittest.TestCase):
@@ -36,66 +36,73 @@ class TestCommandExistence(unittest.TestCase):
         )
 
 
-class TestCommandStructure(unittest.TestCase):
-    """Test that commands have the required structure by inspecting source code."""
+class TestCommandImport(unittest.TestCase):
+    """Test that commands can be imported successfully using dt_shell."""
     
-    def test_commands_have_dtcommand_class(self):
-        """Test that all commands have a DTCommand class."""
-        invalid_commands = []
+    def test_commands_importable(self):
+        """Test that all specified commands can be imported."""
+        failed_imports = {}
         
         for command_name in IMPORTABLE_COMMANDS:
-            command_path = get_command_path(command_name)
-            if not os.path.exists(command_path):
-                invalid_commands.append(f"{command_name} (file not found)")
+            module, error = import_command(command_name)
+            if module is None:
+                failed_imports[command_name] = error
+        
+        self.assertEqual(
+            failed_imports,
+            {},
+            f"The following commands failed to import:\n" + 
+            "\n".join([f"  {cmd}: {err}" for cmd, err in failed_imports.items()])
+        )
+
+
+class TestCommandStructure(unittest.TestCase):
+    """Test that commands have the required structure using dt_shell."""
+    
+    def test_commands_have_dtcommand_class(self):
+        """Test that all commands have a DTCommand class that inherits from DTCommandAbs."""
+        invalid_commands = {}
+        
+        for command_name in IMPORTABLE_COMMANDS:
+            module, import_error = import_command(command_name)
+            if module is None:
+                # Skip if import failed - that's tested in TestCommandImport
                 continue
             
-            try:
-                with open(command_path, 'r') as f:
-                    content = f.read()
-                
-                # Check for DTCommand class definition
-                if not re.search(r'class\s+DTCommand\s*\(', content):
-                    invalid_commands.append(f"{command_name} (no DTCommand class)")
-                    continue
-                
-                # Check for command method
-                if not re.search(r'def\s+command\s*\(', content):
-                    invalid_commands.append(f"{command_name} (no command method)")
-                    continue
-                    
-            except Exception as e:
-                invalid_commands.append(f"{command_name} (error reading: {e})")
+            is_valid, error = validate_command_structure(module)
+            if not is_valid:
+                invalid_commands[command_name] = error
         
         self.assertEqual(
             invalid_commands,
-            [],
-            f"The following commands have invalid structure: {invalid_commands}"
+            {},
+            f"The following commands have invalid structure:\n" +
+            "\n".join([f"  {cmd}: {err}" for cmd, err in invalid_commands.items()])
         )
     
-    def test_commands_import_dtshell(self):
-        """Test that all commands import from dt_shell."""
-        missing_import = []
+    def test_commands_have_command_method(self):
+        """Test that all commands have a callable 'command' method."""
+        missing_method = {}
         
         for command_name in IMPORTABLE_COMMANDS:
-            command_path = get_command_path(command_name)
-            if not os.path.exists(command_path):
+            module, import_error = import_command(command_name)
+            if module is None:
                 continue
             
-            try:
-                with open(command_path, 'r') as f:
-                    content = f.read()
-                
-                # Check for dt_shell import
-                if not re.search(r'from\s+dt_shell\s+import|import\s+dt_shell', content):
-                    missing_import.append(command_name)
-                    
-            except Exception as e:
-                missing_import.append(f"{command_name} (error: {e})")
+            if not hasattr(module, "DTCommand"):
+                continue
+            
+            dt_command = module.DTCommand
+            if not hasattr(dt_command, "command"):
+                missing_method[command_name] = "No 'command' method"
+            elif not callable(getattr(dt_command, "command", None)):
+                missing_method[command_name] = "'command' is not callable"
         
         self.assertEqual(
-            missing_import,
-            [],
-            f"The following commands don't import dt_shell: {missing_import}"
+            missing_method,
+            {},
+            f"The following commands have issues with command method:\n" +
+            "\n".join([f"  {cmd}: {err}" for cmd, err in missing_method.items()])
         )
 
 
@@ -126,17 +133,14 @@ class TestRepositoryStructure(unittest.TestCase):
             "README.md is missing"
         )
     
-    def test_command_set_has_dtcommandabs(self):
-        """Test that __command_set__/configuration.py imports DTCommandSetConfigurationAbs."""
-        config_path = os.path.join(REPO_ROOT, "__command_set__", "configuration.py")
-        with open(config_path, 'r') as f:
-            content = f.read()
-        
-        self.assertIn(
-            "DTCommandSetConfigurationAbs",
-            content,
-            "__command_set__/configuration.py should import DTCommandSetConfigurationAbs"
-        )
+    def test_command_set_configuration_imports(self):
+        """Test that __command_set__/configuration.py can be imported."""
+        try:
+            sys.path.insert(0, REPO_ROOT)
+            from __command_set__.configuration import DTCommandSetConfiguration
+            self.assertTrue(True, "Configuration imported successfully")
+        except ImportError as e:
+            self.fail(f"Failed to import configuration: {e}")
 
 
 class TestCommandCount(unittest.TestCase):

@@ -1,0 +1,5 @@
+# Test dependencies for duckietown-shell-commands
+# These dependencies are required to run the test suite
+
+# Main dependency - duckietown shell
+duckietown-shell>=6.0.0

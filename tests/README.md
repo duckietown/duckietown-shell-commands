@@ -1,13 +1,22 @@
 # Duckietown Shell Commands Test Suite
 
-This directory contains a simple testing suite to ensure that the commands run correctly in the latest duckietown shell release.
+This directory contains a testing suite that uses `dt_shell` to actually import and validate commands in the duckietown-shell-commands repository.
 
 ## Overview
 
 The test suite validates:
-- Command modules exist and can be imported
-- Command modules have the required structure (DTCommand class with command method)
+- Command modules exist and can be imported using dt_shell
+- Command modules have the required structure (DTCommand class inheriting from DTCommandAbs)
+- Commands have the required methods (command method is callable)
 - Repository structure is correct (configuration files, requirements, etc.)
+
+## Requirements
+
+The test suite requires `duckietown-shell` to be installed:
+
+```bash
+pip install -r tests/requirements.txt
+```
 
 ## Running Tests
 
@@ -21,6 +30,12 @@ python3 tests/run_tests.py
 
 ```bash
 python3 -m unittest tests.test_commands
+```
+
+### Run specific test class
+
+```bash
+python3 -m unittest tests.test_commands.TestCommandImport
 ```
 
 ### Run with different verbosity
@@ -39,9 +54,10 @@ python3 tests/run_tests.py -v
 tests/
 ├── __init__.py           # Test package initialization
 ├── test_config.py        # Test configuration and command lists
-├── test_utils.py         # Utility functions for testing
+├── test_utils.py         # Utility functions for importing and validating commands
 ├── test_commands.py      # Main test cases
 ├── run_tests.py          # Test runner script
+├── requirements.txt      # Test dependencies (duckietown-shell)
 └── README.md             # This file
 ```
 
@@ -51,17 +67,24 @@ tests/
 Tests that all specified commands exist in the repository.
 
 ### TestCommandImport
-Tests that all specified commands can be imported successfully.
+Tests that all specified commands can be imported successfully using dt_shell.
 
 ### TestCommandStructure
-Tests that all commands have the required structure (DTCommand class with command method).
+Tests that all commands:
+- Have a DTCommand class that inherits from DTCommandAbs
+- Have a callable 'command' method
 
 ### TestRepositoryStructure
-Tests that the repository has the required configuration files.
+Tests that the repository has the required configuration files and they can be imported.
+
+### TestCommandCount
+Tests that the repository has a reasonable number of commands (>10).
 
 ## Adding New Tests
 
 To add new commands to test, edit `tests/test_config.py` and add the command path to the `IMPORTABLE_COMMANDS` list.
+
+**Note:** Only add commands that can be imported without additional dependencies beyond what's in `__command_set__/requirements.txt`.
 
 Example:
 ```python
@@ -74,8 +97,25 @@ IMPORTABLE_COMMANDS = [
 
 ## CI Integration
 
-The test suite can be integrated into CI/CD pipelines. See `.github/workflows/test.yml` for the GitHub Actions configuration.
+The test suite is integrated into GitHub Actions via `.github/workflows/test.yml`. It runs on:
+- Python 3.8, 3.9, and 3.10
+- Push to main branches (main, master, daffy, ente)
+- Pull requests to main branches
 
-## Requirements
+## How It Works
 
-The test suite uses only Python standard library modules (unittest, importlib, os, sys) and does not require additional dependencies beyond those already specified in `__command_set__/requirements.txt`.
+Unlike static analysis, this test suite actually imports commands using Python's `importlib`:
+
+```python
+# Import a command dynamically
+module, error = import_command("devel/info")
+
+# Validate it has the correct structure
+is_valid, error = validate_command_structure(module)
+
+# Check it inherits from DTCommandAbs
+from dt_shell import DTCommandAbs
+assert issubclass(module.DTCommand, DTCommandAbs)
+```
+
+This ensures that commands are compatible with the latest duckietown shell release.
