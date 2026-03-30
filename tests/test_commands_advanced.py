@@ -21,6 +21,24 @@ from tests.test_config import IMPORTABLE_COMMANDS
 from tests.test_utils import import_command
 
 
+def _get_valid_command_modules():
+    """
+    Helper generator to yield valid imported command modules.
+    
+    Yields:
+        Tuple of (command_name, module, DTCommand class)
+    """
+    for command_name in IMPORTABLE_COMMANDS:
+        module, import_error = import_command(command_name)
+        if module is None:
+            continue
+        
+        if not hasattr(module, "DTCommand"):
+            continue
+        
+        yield command_name, module, module.DTCommand
+
+
 class TestCommandHelpText(unittest.TestCase):
     """Test that commands have meaningful help text."""
     
@@ -28,15 +46,7 @@ class TestCommandHelpText(unittest.TestCase):
         """Test that all commands have a 'help' attribute."""
         missing_help = {}
         
-        for command_name in IMPORTABLE_COMMANDS:
-            module, import_error = import_command(command_name)
-            if module is None:
-                continue
-            
-            if not hasattr(module, "DTCommand"):
-                continue
-            
-            dt_command = module.DTCommand
+        for command_name, module, dt_command in _get_valid_command_modules():
             if not hasattr(dt_command, "help"):
                 missing_help[command_name] = "No 'help' attribute"
         
@@ -56,15 +66,7 @@ class TestCommandHelpText(unittest.TestCase):
             'default_help': []
         }
         
-        for command_name in IMPORTABLE_COMMANDS:
-            module, import_error = import_command(command_name)
-            if module is None:
-                continue
-            
-            if not hasattr(module, "DTCommand"):
-                continue
-            
-            dt_command = module.DTCommand
+        for command_name, module, dt_command in _get_valid_command_modules():
             if hasattr(dt_command, "help"):
                 help_text = dt_command.help
                 if help_text == default_help:
@@ -94,15 +96,7 @@ class TestCommandMethodSignatures(unittest.TestCase):
         """Test that command methods accept (shell, args) or (shell, args, **kwargs)."""
         invalid_signatures = {}
         
-        for command_name in IMPORTABLE_COMMANDS:
-            module, import_error = import_command(command_name)
-            if module is None:
-                continue
-            
-            if not hasattr(module, "DTCommand"):
-                continue
-            
-            dt_command = module.DTCommand
+        for command_name, module, dt_command in _get_valid_command_modules():
             if not hasattr(dt_command, "command"):
                 continue
             
@@ -142,15 +136,7 @@ class TestCommandAutocomplete(unittest.TestCase):
             'without_complete': []
         }
         
-        for command_name in IMPORTABLE_COMMANDS:
-            module, import_error = import_command(command_name)
-            if module is None:
-                continue
-            
-            if not hasattr(module, "DTCommand"):
-                continue
-            
-            dt_command = module.DTCommand
+        for command_name, module, dt_command in _get_valid_command_modules():
             if hasattr(dt_command, "complete") and callable(getattr(dt_command, "complete", None)):
                 stats['with_complete'].append(command_name)
             else:
@@ -170,15 +156,7 @@ class TestCommandDocumentation(unittest.TestCase):
         """Test that command methods have docstrings."""
         missing_docs = []
         
-        for command_name in IMPORTABLE_COMMANDS:
-            module, import_error = import_command(command_name)
-            if module is None:
-                continue
-            
-            if not hasattr(module, "DTCommand"):
-                continue
-            
-            dt_command = module.DTCommand
+        for command_name, module, dt_command in _get_valid_command_modules():
             if hasattr(dt_command, "command"):
                 command_method = getattr(dt_command, "command")
                 if not command_method.__doc__ or len(command_method.__doc__.strip()) < 10:
@@ -242,7 +220,8 @@ class TestCommandErrorHandling(unittest.TestCase):
                     # Check if dtslogger is imported
                     if 'dtslogger' not in content:
                         missing_logger.append(command_name)
-                except:
+                except Exception:
+                    # Ignore errors reading files
                     pass
         
         # This is informational - not all commands need logging
