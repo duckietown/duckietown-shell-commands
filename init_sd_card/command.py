@@ -794,22 +794,28 @@ def _validate_hostname(hostname: str):
     # The proper regex for RFC 952 should be:
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
-    # Must start with a lowercase letter, followed by zero or more lowercase letters or digits.
-    pattern = "^[a-z][a-z0-9]*$"
+    # Must start with a lowercase letter, followed by zero or more lowercase letters, digits, or underscores.
+    pattern = r"^[a-z][a-z0-9_]*$"
     if not re.match(pattern, hostname):
         # suggest a valid name with the same logic stated above
-        # filter for alphanumeric
-        filtered_alnum = ''.join(c.lower() for c in hostname if c.isalnum())
-        # remove digits at the beginning
-        suggestion = re.sub(r'^\d+', '', filtered_alnum)
-        # just ensure it's a valid suggestion
-        assert re.match(pattern, suggestion), \
-            "An error has occured. Please report to the administrators with these error logs."
+        # filter for lowercase alphanumeric and underscores
+        filtered = ''.join(c.lower() for c in hostname if c.isalnum() or c == '_')
+        # remove digits and underscores at the beginning (must start with a letter)
+        suggestion = re.sub(r'^[0-9_]+', '', filtered)
+        # if no valid suggestion can be derived, abort gracefully
+        if not re.match(pattern, suggestion):
+            dtslogger.error(
+                f"The hostname '{hostname}' is not valid and no valid suggestion could be derived.\n"
+                "Robot names must start with a lowercase letter (a-z) and contain only "
+                "lowercase letters (a-z), numbers (0-9), or underscores (_).\n"
+                "Please provide a valid hostname and repeat the step."
+            )
+            return False, ""
 
         granted = ask_confirmation(
             message=(
-                "The hostname can only contain alphanumeric symbols [a-z,0-9]. "
-                "No capital letters are allowed. It should not start with a digit either."
+                "The hostname can only contain lowercase letters (a-z), numbers (0-9), "
+                "or underscores (_). It must start with a letter."
             ),
             question=f'Do you want to use the hostname "{suggestion}" instead?',
         )
