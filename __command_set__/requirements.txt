@@ -2,7 +2,7 @@
 netifaces-plus==0.12.*
 docker==6.1.3
 # docker-compose package removed - codebase uses 'docker compose' CLI (v2), not the Python library
-GitPython==3.1.37
+GitPython==3.1.47
 python-dateutil==2.8.2
 pytz==2023.3
 psutil>=5.9.0 # FIXME: this had to be pinned to get the dependencies to resolve on aarch64
