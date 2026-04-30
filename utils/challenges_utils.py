@@ -2,7 +2,7 @@ import os
 
 import requests
 
-DEFAULT_CHALLENGES_SERVER: str = "https://challenges.duckietown.org/v4"
+DEFAULT_CHALLENGES_SERVER: str = "https://challenges.duckietown.com"
 
 
 def get_challenges_server_to_use() -> str:
