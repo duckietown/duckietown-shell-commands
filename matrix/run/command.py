@@ -2,6 +2,7 @@ import json
 import os
 import time
 import shlex
+import errno
 from collections import Counter
 
 import subprocess
@@ -25,6 +26,17 @@ from utils.duckiematrix_utils import \
     get_os_family
 
 EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
+FEX_EXECUTABLES = ("FEX", "FEXInterpreter")
+ARM64_MACHINES = ("aarch64", "arm64")
+FEX_SETUP_GUIDANCE = (
+    "See https://fex-emu.com/ for setup instructions, or use --browser to avoid the "
+    "native renderer."
+)
+WINDOWS_ARM64_SETUP_GUIDANCE = (
+    "Windows on ARM64 can run x86-64 applications through Windows emulation. "
+    "If launch fails, verify x64 emulation support is available, or use --browser to avoid "
+    "the native renderer."
+)
 
 
 class DTCommand(DTCommandAbs):
@@ -81,6 +93,7 @@ class DTCommand(DTCommandAbs):
         # configure renderer
         app_path: Optional[str] = None
         app_config: list = []
+        app_prefix: list = []
         terminate_renderer: Optional[Callable] = None
         if run_renderer:
             os_family = parsed.os_family
@@ -116,6 +129,18 @@ class DTCommand(DTCommandAbs):
                 return
             # app configuration
             app_path = get_path_to_app(os_family, version, browser)
+            if not browser and should_run_linux_renderer_through_fex(os_family):
+                fex_executable = find_fex_executable()
+                if fex_executable is None:
+                    message = format_fex_renderer_message()
+                    dtslogger.error(message)
+                    return
+                app_prefix = [fex_executable]
+            elif not browser and is_arm64_windows_host(os_family):
+                dtslogger.info(
+                    "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
+                    "is an x86-64 binary and will rely on Windows x64 emulation."
+                )
             # Unity on macOS/Windows uses "-" to mean "log to stdout"; "/dev/stdout" works on Linux.
             app_config = [
                 "-logfile", "/dev/stdout" if os_family == "linux" else "-"
@@ -251,7 +276,7 @@ class DTCommand(DTCommandAbs):
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
-                    app_path_list = ["open", "-n", "-W", app_path, "--args"] if os_family == "macos" else [app_path]
+                    app_path_list = ["open", "-n", "-W", app_path, "--args"] if os_family == "macos" else [*app_prefix, app_path]
                     app_cmd = app_path_list + app_config
                     if parsed.xvfb:
                         if os_family != "linux":
@@ -264,7 +289,13 @@ class DTCommand(DTCommandAbs):
                         app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
                     dtslogger.debug(f"$ > {app_cmd}")
                     time.sleep(2)
-                    renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                    try:
+                        renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                    except OSError as error:
+                        if error.errno == errno.ENOEXEC:
+                            show_exec_format_error(os_family, app_path)
+                            return
+                        raise
                     # this is how we terminate the renderer
 
                     def terminate_renderer(*_):
@@ -310,3 +341,72 @@ def join_renderer(process: subprocess.Popen, verbose: bool = False):
             return
         if verbose:
             print(line, end="")
+
+
+def is_arm64_machine() -> bool:
+    machine = platform.machine()
+    return machine.lower() in ARM64_MACHINES
+
+
+def should_run_linux_renderer_through_fex(os_family: str) -> bool:
+    return (
+        os_family == "linux"
+        and platform.system() == "Linux"
+        and is_arm64_machine()
+    )
+
+
+def is_arm64_windows_host(os_family: str) -> bool:
+    return os_family == "windows" and is_arm64_machine()
+
+
+def find_fex_executable() -> Optional[str]:
+    for executable in FEX_EXECUTABLES:
+        executable_path = which(executable)
+        if executable_path is not None:
+            return executable_path
+    return None
+
+
+def format_fex_renderer_message(*, launch_failed: bool = False, app_path: Optional[str] = None) -> str:
+    if launch_failed:
+        message = (
+            "Failed to execute the native Linux Duckiematrix renderer.\n"
+            "This host is ARM64 and the renderer binary is x86-64, so it must be run through "
+            "FEX-EMU with an x86-64 RootFS configured.\n"
+            f"{FEX_SETUP_GUIDANCE}"
+        )
+    else:
+        message = (
+            "The native Linux Duckiematrix renderer is an x86-64 binary, "
+            "but this host is ARM64.\n"
+            "Install and configure FEX-EMU, then rerun this command.\n"
+            f"{FEX_SETUP_GUIDANCE}"
+        )
+    if app_path is not None:
+        message += f"\nRenderer path: {app_path}"
+    return message
+
+
+def format_windows_arm64_renderer_message(app_path: Optional[str] = None) -> str:
+    message = (
+        "Failed to execute the native Windows Duckiematrix renderer.\n"
+        "This host is ARM64 and the renderer binary is x86-64, so it relies on Windows "
+        "x64 emulation support.\n"
+        f"{WINDOWS_ARM64_SETUP_GUIDANCE}"
+    )
+    if app_path is not None:
+        message += f"\nRenderer path: {app_path}"
+    return message
+
+
+def show_exec_format_error(os_family: str, app_path: str):
+    if should_run_linux_renderer_through_fex(os_family):
+        message = format_fex_renderer_message(launch_failed=True, app_path=app_path)
+        dtslogger.error(message)
+        return
+    if is_arm64_windows_host(os_family):
+        message = format_windows_arm64_renderer_message(app_path=app_path)
+        dtslogger.error(message)
+        return
+    dtslogger.error(f"Failed to execute renderer binary '{app_path}'.")
