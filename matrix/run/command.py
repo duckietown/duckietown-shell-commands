@@ -1,9 +1,11 @@
 import json
 import os
+import plistlib
 import re
 import time
 import shlex
 from collections import Counter
+from pathlib import Path
 
 import subprocess
 import platform
@@ -304,7 +306,15 @@ class DTCommand(DTCommandAbs):
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
-                    app_path_list = ["open", "-n", "-W", app_path, "--args"] if os_family == "macos" else [app_path]
+                    if os_family == "macos":
+                        try:
+                            app_path_list = [get_macos_app_executable(app_path)]
+                        except FileNotFoundError as error:
+                            error_string = str(error)
+                            dtslogger.error(error_string)
+                            return
+                    else:
+                        app_path_list = [app_path]
                     app_cmd = app_path_list + app_config
                     if parsed.xvfb:
                         if os_family != "linux":
@@ -360,6 +370,28 @@ def join_renderer(process: subprocess.Popen, verbose: bool = False):
         line = line.decode("utf-8")
         if EXTERNAL_SHUTDOWN_REQUEST in line:
             process.kill()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
             return
         if verbose:
             print(line, end="")
+
+
+def get_macos_app_executable(app_path: str) -> str:
+    app_bundle = Path(app_path)
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    executable_name = app_bundle.stem
+    if info_plist.is_file():
+        try:
+            with info_plist.open("rb") as file:
+                plist_data = plistlib.load(file)
+                bundle_executable = plist_data.get("CFBundleExecutable")
+                executable_name = bundle_executable or executable_name
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            pass
+    executable_path = app_bundle / "Contents" / "MacOS" / executable_name
+    if not executable_path.is_file():
+        raise FileNotFoundError(f"Could not find executable in macOS app bundle '{app_path}'.")
+    return str(executable_path)
