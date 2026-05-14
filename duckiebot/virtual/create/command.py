@@ -66,7 +66,7 @@ class DTCommand(DTCommandAbs):
                 "Robot names must:\n"
                 "  - Start with a lowercase letter (a-z)\n"
                 "  - Contain only lowercase letters (a-z), numbers (0-9), or underscores (_)\n"
-                "  - Not start with a number or contain uppercase letters or special characters\n"
+                "  - Not start with a number or contain uppercase letters or other special characters besides underscores\n"
                 "\n"
                 "Valid examples:   'myduckiebot', 'myduckiebot01'\n"
                 "Invalid examples: '123bot' (starts with a number), 'MyDuckiebot' (uppercase letters), "
