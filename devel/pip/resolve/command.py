@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from itertools import chain
 from typing import Optional, List, Union, Dict, Set, Tuple
 
@@ -8,7 +9,7 @@ import argparse
 import requests
 
 from dockertown import DockerClient
-from requirements.requirement import Requirement
+from packaging.requirements import Requirement as PackagingRequirement
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger, UserError
 from dt_shell.database import DTShellDatabase
@@ -33,6 +34,96 @@ GOOD_SPECS: Set[str] = {
     "<",
 }
 REGISTRY_JSON_URL: str = "https://pypi.org/pypi/{package}/json"
+
+
+class Requirement:
+    def __init__(
+        self,
+        raw: str,
+        name: str,
+        specs: List[Tuple[str, str]],
+        vcs: Optional[str],
+        revision: Optional[str],
+    ):
+        self.raw = raw
+        self.name = name
+        self.specs = specs
+        self.vcs = vcs
+        self.revision = revision
+
+    def __str__(self) -> str:
+        return self.raw
+
+    @classmethod
+    def parse(cls, raw: str) -> "Requirement":
+        stripped = raw.strip()
+        cleaned = cls._strip_inline_comment(stripped)
+        is_git_requirement = cleaned.startswith("git+")
+        if is_git_requirement:
+            name = cls._vcs_name(cleaned)
+            revision = cls._vcs_revision(cleaned)
+            specs: List[Tuple[str, str]] = []
+            return cls(raw=raw, name=name, specs=specs, vcs="git", revision=revision)
+        parsed = PackagingRequirement(cleaned)
+        vcs = None
+        revision = None
+        parsed_url = parsed.url
+        if parsed_url:
+            is_git_url = parsed_url.startswith("git+")
+            if is_git_url:
+                vcs = "git"
+                revision = cls._vcs_revision(parsed_url)
+        specs = []
+        for specifier in parsed.specifier:
+            operator = specifier.operator
+            version = specifier.version
+            spec = (operator, version)
+            specs.append(spec)
+        name = parsed.name
+        return cls(raw=raw, name=name, specs=specs, vcs=vcs, revision=revision)
+
+    @staticmethod
+    def _strip_inline_comment(raw: str) -> str:
+        without_comment = re.sub(r"\s+#.*$", "", raw)
+        cleaned = without_comment.strip()
+        return cleaned
+
+    @staticmethod
+    def _vcs_revision(url: str) -> Optional[str]:
+        url_parts = url.split("#", 1)
+        url_without_fragment = url_parts[0]
+        last_slash = url_without_fragment.rfind("/")
+        revision_index = url_without_fragment.rfind("@")
+        if revision_index <= last_slash:
+            return None
+        return url_without_fragment[revision_index + 1:]
+
+    @classmethod
+    def _vcs_name(cls, url: str) -> str:
+        egg_match = re.search(r"[#&]egg=([^&]+)", url)
+        if egg_match:
+            egg_value = egg_match.group(1)
+            egg_parts = egg_value.split("[", 1)
+            name = egg_parts[0]
+            return name
+        url_without_revision = cls._vcs_url_without_revision(url)
+        url_without_revision = url_without_revision.rstrip("/")
+        name_parts = url_without_revision.rsplit("/", 1)
+        name = name_parts[-1]
+        is_git_repository = name.endswith(".git")
+        if is_git_repository:
+            name = name[:-4]
+        return name
+
+    @staticmethod
+    def _vcs_url_without_revision(url: str) -> str:
+        url_parts = url.split("#", 1)
+        url_without_fragment = url_parts[0]
+        last_slash = url_without_fragment.rfind("/")
+        revision_index = url_without_fragment.rfind("@")
+        if revision_index > last_slash:
+            return url_without_fragment[:revision_index]
+        return url_without_fragment
 
 
 class DTCommand(DTCommandAbs):
