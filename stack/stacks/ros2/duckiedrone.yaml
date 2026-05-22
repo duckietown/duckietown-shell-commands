@@ -68,6 +68,19 @@ services:
     depends_on:
       - zenoh-router
 
+  px4-calibration:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-px4-calibration
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: px4-calibration
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    depends_on:
+      - zenoh-router
+      - mavros
+
   foxglove-bridge:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
     container_name: ros2-foxglove-bridge
