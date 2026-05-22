@@ -36,7 +36,7 @@ GOOD_SPECS: Set[str] = {
 REGISTRY_JSON_URL: str = "https://pypi.org/pypi/{package}/json"
 
 
-class Requirement:
+class ParsedRequirement:
     def __init__(
         self,
         raw: str,
@@ -55,7 +55,7 @@ class Requirement:
         return self.raw
 
     @classmethod
-    def parse(cls, raw: str) -> "Requirement":
+    def parse(cls, raw: str) -> "ParsedRequirement":
         stripped = raw.strip()
         cleaned = cls._strip_inline_comment(stripped)
         is_git_requirement = cleaned.startswith("git+")
@@ -226,13 +226,13 @@ class DTCommand(DTCommandAbs):
         # computed mock list
         cache: DTShellDatabase = shell.profile.database("known_python_packages")
         explicit: List[RawUnpinned] = [
-            Requirement.parse(d).name for d in chain(*deps_files.values())
+            ParsedRequirement.parse(d).name for d in chain(*deps_files.values())
             if not d.startswith("#") and len(d.strip()) > 0
         ]
         valid: Set[RawUnpinned] = set(cache.get("valid", []))
         mocked: Set[RawPinned] = set(cache.get("mocked", []))
         for package in computed:
-            r: Requirement = Requirement.parse(package)
+            r: ParsedRequirement = ParsedRequirement.parse(package)
             # check if the package (without pinned version is available), otherwise add it to the mock list
             # - we have seen this package before
             if r.name in valid:
@@ -319,8 +319,8 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def _check_pinned(deps_file: str, wanted: List[str], strict: bool):
         # parse all deps and remove all comments
-        deps: Dict[int, Requirement] = {
-            i: Requirement.parse(d)
+        deps: Dict[int, ParsedRequirement] = {
+            i: ParsedRequirement.parse(d)
             for i, d in enumerate(wanted)
             if not DTCommand._is_comment(d)
         }
@@ -341,20 +341,20 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def _resolve_deps(wanted: List[str], pinned: List[str], inherited: List[str]) -> Tuple[List[str], Set[str]]:
         resolved: List[Raw] = []
-        wanted: List[Union[Comment, Requirement]] = [
-            (w if DTCommand._is_comment(w) else Requirement.parse(w)) for w in wanted
+        wanted: List[Union[Comment, ParsedRequirement]] = [
+            (w if DTCommand._is_comment(w) else ParsedRequirement.parse(w)) for w in wanted
         ]
-        pinned: Dict[Raw, Union[Comment, Requirement]] = {
-            p: (p if DTCommand._is_comment(p) else Requirement.parse(p)) for p in pinned
+        pinned: Dict[Raw, Union[Comment, ParsedRequirement]] = {
+            p: (p if DTCommand._is_comment(p) else ParsedRequirement.parse(p)) for p in pinned
         }
-        inherited: Set[RawUnpinned] = {Requirement.parse(p).name.lower().strip() for p in inherited}
+        inherited: Set[RawUnpinned] = {ParsedRequirement.parse(p).name.lower().strip() for p in inherited}
         unmatched: Set[RawPinned] = set(pinned.keys())
         for dep in wanted:
             # keep comments
             if isinstance(dep, Comment):
                 resolved.append(dep)
                 continue
-            rdep: Requirement = dep
+            rdep: ParsedRequirement = dep
             # match with pinned
             found: bool = False
             for dep1, rdep1 in pinned.items():
@@ -371,7 +371,7 @@ class DTCommand(DTCommandAbs):
                 raise UserError(msg)
         # remove unmatched dependencies that are inherited
         unmatched = {
-            u for u in unmatched if Requirement.parse(u).name.lower().strip() not in inherited
+            u for u in unmatched if ParsedRequirement.parse(u).name.lower().strip() not in inherited
         }
         # ---
         return resolved, unmatched
