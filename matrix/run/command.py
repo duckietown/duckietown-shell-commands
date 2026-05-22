@@ -1,13 +1,17 @@
 import json
 import os
+import plistlib
+import re
 import time
 import shlex
 import errno
 from collections import Counter
+from pathlib import Path
 
 import subprocess
 import platform
 import socket
+import sys
 import webbrowser
 from socket import AF_INET, SOCK_STREAM
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -37,6 +41,55 @@ WINDOWS_ARM64_SETUP_GUIDANCE = (
     "If launch fails, verify x64 emulation support is available, or use --browser to avoid "
     "the native renderer."
 )
+
+
+def _mask_token_value(token: str) -> str:
+    parts = token.split("-", maxsplit=2)
+    if len(parts) == 3:
+        return f"{parts[0]}-{parts[1]}-{'*' * len(parts[2])}"
+    if len(parts) == 2:
+        return f"{parts[0]}-{'*' * len(parts[1])}"
+    return "*" * len(token)
+
+
+def _supports_terminal_hyperlinks() -> bool:
+    if not sys.stdout.isatty():
+        return False
+    if os.environ.get("TERM_PROGRAM") in {"vscode", "iTerm.app", "WezTerm"}:
+        return True
+    if os.environ.get("WT_SESSION") or os.environ.get("KONSOLE_VERSION"):
+        return True
+    vte_version = os.environ.get("VTE_VERSION")
+    return vte_version is not None and vte_version.isdigit() and int(vte_version) >= 5000
+
+
+def _mask_token_in_text(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        token = match.group("token")
+        suffix = "/" if token.endswith("/") else ""
+        token = token[:-1] if suffix else token
+        return f"token={_mask_token_value(token)}{suffix}"
+
+    return re.sub(r"token=(?P<token>[^&\s\"]+)", replace, text)
+
+
+def _format_navigation_url(url: str, token: str) -> str:
+    display_url = _mask_token_in_text(url)
+    if not _supports_terminal_hyperlinks():
+        return display_url
+    escape = "\033"
+    return f"{escape}]8;;{url}{escape}\\{display_url}{escape}]8;;{escape}\\"
+
+
+class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
+
+    def log_message(self, format: str, *args) -> None:
+        sanitized_args = tuple(
+            _mask_token_in_text(arg) if isinstance(arg, str) else arg
+            for arg in args
+        )
+        super_ = super()
+        super_.log_message(format, *sanitized_args)
 
 
 class DTCommand(DTCommandAbs):
@@ -231,7 +284,7 @@ class DTCommand(DTCommandAbs):
                             socket_.listen(1)
                             sock_name = socket_.getsockname()
                             port = sock_name[1]
-                    server = HTTPServer((host, port), SimpleHTTPRequestHandler)
+                    server = HTTPServer((host, port), RedactingSimpleHTTPRequestHandler)
                     server_thread = Thread(target=server.serve_forever)
                     server_thread.daemon = True
                     url = f"http://{host}:{port}/?"
@@ -249,7 +302,8 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
-                    url += f"token={shell.profile.secrets.dt_token}/"
+                    token = shell.profile.secrets.dt_token
+                    url += f"token={token}/"
                     server_thread.start()
                     browser_opened = False
                     if os_family == "windows":
@@ -267,7 +321,8 @@ class DTCommand(DTCommandAbs):
                         browser_opened = webbrowser.open(url)
                     if not browser_opened:
                         dtslogger.warning("Could not open browser.")
-                    dtslogger.info(f"Navigate to {url}.")
+                    formatted_url = _format_navigation_url(url, token)
+                    dtslogger.info(f"Navigate to {formatted_url}.")
                     # wait for the engine to terminate
                     if run_engine:
                         engine.join()
@@ -276,7 +331,15 @@ class DTCommand(DTCommandAbs):
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
-                    app_path_list = ["open", "-n", "-W", app_path, "--args"] if os_family == "macos" else [*app_prefix, app_path]
+                    if os_family == "macos":
+                        try:
+                            app_path_list = [get_macos_app_executable(app_path)]
+                        except FileNotFoundError as error:
+                            error_string = str(error)
+                            dtslogger.error(error_string)
+                            return
+                    else:
+                        app_path_list = [*app_prefix, app_path]
                     app_cmd = app_path_list + app_config
                     if parsed.xvfb:
                         if os_family != "linux":
@@ -338,6 +401,10 @@ def join_renderer(process: subprocess.Popen, verbose: bool = False):
         line = line.decode("utf-8")
         if EXTERNAL_SHUTDOWN_REQUEST in line:
             process.kill()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
             return
         if verbose:
             print(line, end="")
@@ -410,3 +477,21 @@ def show_exec_format_error(os_family: str, app_path: str):
         dtslogger.error(message)
         return
     dtslogger.error(f"Failed to execute renderer binary '{app_path}'.")
+
+
+def get_macos_app_executable(app_path: str) -> str:
+    app_bundle = Path(app_path)
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    executable_name = app_bundle.stem
+    if info_plist.is_file():
+        try:
+            with info_plist.open("rb") as file:
+                plist_data = plistlib.load(file)
+                bundle_executable = plist_data.get("CFBundleExecutable")
+                executable_name = bundle_executable or executable_name
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            pass
+    executable_path = app_bundle / "Contents" / "MacOS" / executable_name
+    if not executable_path.is_file():
+        raise FileNotFoundError(f"Could not find executable in macOS app bundle '{app_path}'.")
+    return str(executable_path)
