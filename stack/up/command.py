@@ -2,6 +2,7 @@ import argparse
 import os
 import pathlib
 from shutil import which
+from typing import List
 
 import yaml
 from docker.errors import NotFound
@@ -25,6 +26,18 @@ DUCKIETOWN_STACK = "duckietown"
 
 class DTCommand(DTCommandAbs):
     help = "Easy way to run code on Duckietown robots"
+
+    @staticmethod
+    def _docker_compose_command(host: str) -> List[str]:
+        if which("docker-compose") is not None:
+            return ["docker-compose", f"--host={host}"]
+        if which("docker") is not None:
+            return ["docker", f"--host={host}", "compose"]
+        dtslogger.error(
+            "\nThis command requires Docker Compose.\n"
+            "Please, install either the `docker-compose` executable or Docker with the Compose v2 plugin.\n"
+        )
+        return []
 
     @staticmethod
     def command(shell: DTShell, args):
@@ -53,13 +66,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("stack", nargs=1, default=None)
         parsed, _ = parser.parse_known_args(args=args)
         # ---
-        # verify dependencies
-        if which("docker-compose") is None:
-            dtslogger.error(
-                "\nThis command requires the library `docker-compose`.\n"
-                "Please, install it using the command:\n\n"
-                "\tpip3 install docker-compose\n\n"
-            )
+        H = f"{sanitize_hostname(parsed.machine) if parsed.machine is not None else DEFAULT_MACHINE}:{DEFAULT_DOCKER_TCP_PORT}"
+        compose_command = DTCommand._docker_compose_command(H)
+        if not compose_command:
             return False
         # ---
         # try to interpret it as a multi-command
@@ -131,9 +140,8 @@ class DTCommand(DTCommandAbs):
         if parsed.detach:
             docker_arguments.append("--detach")
         # run docker compose stack
-        H = f"{parsed.machine}:{DEFAULT_DOCKER_TCP_PORT}"
         start_command_in_subprocess(
-            ["docker-compose", f"--host={H}", "--project-name", project_name, "--file", stack_file, "up"]
+            compose_command + ["--project-name", project_name, "--file", stack_file, "up"]
             + docker_arguments,
             env=env,
         )
