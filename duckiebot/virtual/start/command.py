@@ -107,13 +107,14 @@ class DTCommand(DTCommandAbs):
             "remove": True,
             "cgroupns": "private",
             "publish": [
-                ["14551", "14551", "udp"],   # Ardupilot SITL
-                ["80", "80", "tcp"],         # device-proxy HTTP entrypoint for robot.local/dashboard/... 
-                ["7447", "7447", "tcp"],     # ROS2 zenoh bridge
-                ["8080", "8080", "tcp"],     # Dashboard backend (HTTP)
-                ["9001", "9001", "tcp"],     # rosbridge WebSocket
-                ["11411", "11411", "tcp"],   # DTPS KV store
-                ["11911", "11911", "tcp"],   # DTPS switchboard
+                ["14551", "14551", "udp"],          # Ardupilot SITL
+                ["80", "80", "tcp"],                # device-proxy HTTP entrypoint for robot.local/dashboard/... 
+                ["127.0.0.1:2375", "2375", "tcp"],  # unauthenticated Docker Remote API
+                ["7447", "7447", "tcp"],            # ROS2 zenoh bridge
+                ["8080", "8080", "tcp"],            # Dashboard backend (HTTP)
+                ["9001", "9001", "tcp"],            # rosbridge WebSocket
+                ["11411", "11411", "tcp"],          # DTPS KV store
+                ["11911", "11911", "tcp"],          # DTPS switchboard
             ],
             "volumes": [
                 # Keep var/lib/docker as bind mount for Docker daemon data

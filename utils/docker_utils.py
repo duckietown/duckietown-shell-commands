@@ -1,4 +1,5 @@
 import copy
+import ipaddress
 import os
 import re
 import platform
@@ -22,7 +23,7 @@ from dtproject.constants import CANONICAL_ARCH
 from dtproject.utils.misc import canonical_arch
 from .cli_utils import start_command_in_subprocess
 from .misc_utils import parse_version, hide_string
-from .networking_utils import get_duckiebot_ip, resolve_hostname
+from .networking_utils import best_host_for_robot, get_duckiebot_ip, resolve_hostname
 from .progress_bar import ProgressBar
 
 ENV_REGISTRY: str = "DOCKER_REGISTRY"
@@ -88,6 +89,16 @@ class AuthNotFound(Exception):
     pass
 
 
+def _is_literal_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
 def get_docker_auth_from_env() -> Tuple[str, str]:
     try:
         registry_username = os.environ[f"DOCKER_USERNAME"]
@@ -138,7 +149,10 @@ def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optio
     elif baseurl.startswith("tcp://"):
         return resolve_hostname(baseurl)
     else:
-        url = resolve_hostname(baseurl)
+        hostname = baseurl
+        if "/" not in baseurl and ":" not in baseurl and not _is_literal_host(baseurl):
+            hostname = best_host_for_robot(baseurl)
+        url = resolve_hostname(hostname)
         if not url.startswith("tcp://"):
             url = f"tcp://{url}"
         if url.count(":") == 1:
