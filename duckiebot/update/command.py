@@ -28,7 +28,7 @@ from utils.networking_utils import best_host_for_robot
 from utils.robot_utils import log_event_on_robot
 
 WHEN_NO_DISTRO = "ente"
-DEFAULT_STACKS = "robot/basics,duckietown/{robot_type},ros1/{robot_type}"
+DEFAULT_STACKS = "robot/basics,duckietown/{robot_type},ros{ros_version}/{robot_type}"
 OTHER_IMAGES_TO_UPDATE = [
     # TODO: this is disabled for now, too big for the SD card
     # "{registry}/duckietown/dt-gui-tools:{distro}-{arch}",
@@ -41,7 +41,7 @@ OTHER_IMAGES_TO_UPDATE = [
 STACKS_TO_LOAD = {
     "basics": "robot/basics",
     "duckietown": "duckietown/{robot_type}",
-    "ros1": "ros1/{robot_type}",
+    "ros{ros_version}": "ros{ros_version}/{robot_type}",
 }
 
 ROBOT_PROXY_DROP_IN = "/etc/systemd/system/docker.service.d/dts-proxy.conf"
@@ -394,7 +394,9 @@ class DTCommand(DTCommandAbs):
         resolved_stacks: Dict[str, str] = {}
         
         for project, stack_fmt in stacks.items():
-            stack_fmt = stack_fmt.format(robot_type=rtype)
+            ros_version = "2" if rtype == "duckiedrone" else "1"
+            project = project.format(ros_version=ros_version)
+            stack_fmt = stack_fmt.format(robot_type=rtype, ros_version=ros_version)
             resolved_stacks[project] = stack_fmt
         stacks = resolved_stacks
 
