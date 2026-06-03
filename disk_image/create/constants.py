@@ -14,23 +14,27 @@ DOCKER_IMAGE_TEMPLATE = (
 )
 
 MODULES_TO_LOAD = [
-    {"owner": "duckietown", "module": "portainer"},
     {"owner": "duckietown", "module": "dt-base-environment"},
+    {"owner": "duckietown", "module": "dt-code-api"},
     {"owner": "duckietown", "module": "dt-commons"},
+    {"owner": "duckietown", "module": "dt-core"},
+    {"owner": "duckietown", "module": "dt-device-dashboard"},
     {"owner": "duckietown", "module": "dt-device-health"},
     {"owner": "duckietown", "module": "dt-device-online"},
     {"owner": "duckietown", "module": "dt-device-proxy"},
-    {"owner": "duckietown", "module": "dt-wifi-access-point"},
-    {"owner": "duckietown", "module": "dt-files-api"},
-    {"owner": "duckietown", "module": "dt-device-dashboard"},
-    {"owner": "duckietown", "module": "dt-ros-commons"},
     {"owner": "duckietown", "module": "dt-duckiebot-interface"},
+    {"owner": "duckietown", "module": "dt-files-api"},
+    {"owner": "duckietown", "module": "dt-kvstore"},
+    {"owner": "duckietown", "module": "dt-ros-commons"},
+    {"owner": "duckietown", "module": "dt-ros-interface"},
+    {"owner": "duckietown", "module": "dt-ros2-commons"},
+    {"owner": "duckietown", "module": "dt-ros2-interface"},
     {"owner": "duckietown", "module": "dt-rosbridge-websocket"},
-    {"owner": "duckietown", "module": "dt-core"},
-    {"owner": "duckietown", "module": "dt-code-api"},
     {"owner": "duckietown", "module": "dt-system-monitor"},
     {"owner": "duckietown", "module": "dt-vscode"},
+    {"owner": "duckietown", "module": "dt-wifi-access-point"},
     {"owner": "duckietown", "module": "dtps-switchboard", "tag": "release"},
+    {"owner": "duckietown", "module": "portainer"},
 ]
 
 CLI_TOOLS_NEEDED = [
