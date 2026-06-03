@@ -1,5 +1,8 @@
 import os
 import argparse
+import tarfile
+import time
+from io import BytesIO
 
 import docker as dockerpy
 from dockertown import DockerClient
@@ -13,6 +16,12 @@ from utils.docker_utils import get_endpoint_architecture
 DISK_NAME = "root"
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
 VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-{arch}"
+parent_directory = os.path.dirname(__file__)
+STARTUP_LOG_STREAM_SCRIPT_HOST_PATH = os.path.join(parent_directory, "startup_log_stream.py")
+STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH = "/tmp/dts-startup-log-stream.py"
+STARTUP_LOG_FILES = ("/data/logs/first_boot_init.log", "/data/logs/this_boot_init.log")
+STARTUP_LOG_POLL_INTERVAL_SECONDS = 0.1
+STARTUP_LOG_COMPLETION_MARKER = "Setting up completed!"
 
 
 class DTCommand(DTCommandAbs):
@@ -43,6 +52,12 @@ class DTCommand(DTCommandAbs):
             type=str,
             default=shell.profile.distro.name,
             help="Tag of the robot runtime image to use"
+        )
+        parser.add_argument(
+            "--no-logs",
+            action="store_true",
+            default=False,
+            help="Do not stream startup logs",
         )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to start")
         # parse arguments
@@ -125,11 +140,13 @@ class DTCommand(DTCommandAbs):
         }
         dtslogger.debug(f"Booting up virtual robot '{parsed.robot}' with the following options:"
                         f"\n{pretty_yaml(opts, indent=4)}\n")
+        startup_started_at = time.time()
         docker.container.run(**opts)
-        # ---
-        print()
         dtslogger.info("Your virtual robot is booting up. "
                        "It should appear on 'dts fleet discover' soon.")
+        if not parsed.no_logs:
+            dtslogger.info("Streaming startup logs...")
+            _log_startup_output(local_docker, parsed.robot, startup_started_at)
 
 
 def _ensure_volumes_exist(local_docker, robot_name, vbot_root_dir, volume_names, dirs):
@@ -207,3 +224,80 @@ def _populate_volume_from_host(local_docker, volume_name, host_dir_path, contain
         remove=True,
         detach=False
     )
+
+
+def _log_startup_output(local_docker, robot_name, startup_started_at):
+    container_name = f"dts-virtual-{robot_name}"
+    while True:
+        try:
+            container = local_docker.containers.get(container_name)
+            break
+        except dockerpy.errors.NotFound:
+            time.sleep(STARTUP_LOG_POLL_INTERVAL_SECONDS)
+            continue
+    try:
+        if not _copy_startup_log_stream_script(container):
+            return
+        startup_started_at_int = int(startup_started_at)
+        startup_started_at_string = str(startup_started_at_int)
+        startup_log_poll_interval_seconds_string = str(STARTUP_LOG_POLL_INTERVAL_SECONDS)
+        result = container.exec_run(
+            [
+                "python3",
+                STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH,
+                "--startup-started-at",
+                startup_started_at_string,
+                "--poll-interval",
+                startup_log_poll_interval_seconds_string,
+                "--completion-marker",
+                STARTUP_LOG_COMPLETION_MARKER,
+                *STARTUP_LOG_FILES,
+            ],
+            stderr=False,
+            stream=True,
+        )
+    except dockerpy.errors.APIError:
+        return
+    output_stream = result.output if hasattr(result, "output") else result[1]
+    if output_stream is None:
+        return
+    pending_fragment = ""
+    for chunk in output_stream:
+        normalized_chunk = _normalize_exec_output_chunk(chunk)
+        if not normalized_chunk:
+            continue
+        pending_fragment = _log_output_lines(normalized_chunk, pending_fragment)
+    if pending_fragment.strip():
+        message = pending_fragment.rstrip()
+        print(message)
+
+
+def _copy_startup_log_stream_script(container):
+    archive = BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as tar:
+        arcname = os.path.basename(STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH)
+        tar.add(STARTUP_LOG_STREAM_SCRIPT_HOST_PATH, arcname=arcname)
+    archive.seek(0)
+    path = os.path.dirname(STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH)
+    return container.put_archive(path=path, data=archive)
+
+
+def _normalize_exec_output_chunk(chunk):
+    if isinstance(chunk, tuple):
+        chunk = b"".join(part for part in chunk if part)
+    if not chunk:
+        return ""
+    if isinstance(chunk, bytes):
+        return chunk.decode("utf-8", errors="replace")
+    return str(chunk)
+
+
+def _log_output_lines(chunk, pending_fragment):
+    lines = f"{pending_fragment}{chunk}".replace("\r", "\n")
+    lines = lines.split("\n")
+    pending_fragment = lines.pop()
+    for line in lines:
+        if line.strip():
+            message = line.rstrip()
+            print(message)
+    return pending_fragment
