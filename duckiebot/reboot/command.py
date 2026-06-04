@@ -4,7 +4,7 @@ import requests
 from dt_shell import DTCommandAbs, dtslogger
 from dt_shell import DTShell
 
-from utils.misc_utils import sanitize_hostname
+from utils.resolve import resolve_robot_host
 
 
 class DTCommand(DTCommandAbs):
@@ -21,7 +21,7 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
         # ---
         robot = parsed.robot[0]
-        hostname = sanitize_hostname(robot)
+        hostname = resolve_robot_host(robot)
         # ---
         dtslogger.info(f"Shutting down {robot}...")
         url = f"http://{hostname}/health/trigger/reboot?value=dts&token="
