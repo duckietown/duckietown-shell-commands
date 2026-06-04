@@ -5,6 +5,8 @@ import socket
 import subprocess
 from functools import lru_cache
 
+import docker
+
 from dt_shell import dtslogger
 from utils.exceptions import NetworkingError
 
@@ -19,6 +21,9 @@ def get_ip_from_ping(alias):
 
 
 def get_duckiebot_ip(duckiebot_name):
+    if is_local_virtual_robot_running(duckiebot_name):
+        return "127.0.0.1"
+    
     try:
         duckiebot_ip = get_ip_from_ping("%s.local" % duckiebot_name)
     except Exception as e:
@@ -74,9 +79,25 @@ def get_interface_ip_address(ifname):
     return m.group(1) if m else None
 
 
+def is_local_virtual_robot_running(robot: str) -> bool:
+    container_name = f"dts-virtual-{robot}"
+    try:
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        return container.status == "running"
+    except (docker.errors.NotFound, docker.errors.DockerException):
+        return False
+
+
 @lru_cache
 def best_host_for_robot(robot: str, allow_static: bool = True) -> str:
-    mdns: str = f"{robot}.local" if not robot.endswith(".local") else robot
+    robot_name = robot[:-6] if robot.endswith(".local") else robot
+    if is_local_virtual_robot_running(robot_name):
+        dtslogger.debug(
+            f"Best host for robot '{robot}' is loopback because it is a locally running virtual robot"
+        )
+        return "127.0.0.1"
+    mdns: str = f"{robot_name}.local" if not robot.endswith(".local") else robot
     # try to get the IP address first (this is a static option)
     if allow_static:
         try:

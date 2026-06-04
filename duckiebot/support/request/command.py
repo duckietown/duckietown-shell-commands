@@ -6,8 +6,9 @@ import requests
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_remote_client, pull_if_not_exist, pull_image, remove_if_running
 from dt_shell.exceptions import ShellNeedsUpdate
-from utils.misc_utils import sanitize_hostname, pretty_json
+from utils.misc_utils import pretty_json
 from utils.networking_utils import get_duckiebot_ip
+from utils.resolve import resolve_robot_host
 
 # NOTE: this is to avoid breaking the user workspace
 try:
@@ -57,7 +58,7 @@ class DTCommand(DTCommandAbs):
         # Get pre-parsed or parse arguments
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
         parsed.robot = parsed.robot[0]
-        robot_hostname = sanitize_hostname(parsed.robot)
+        robot_hostname = resolve_robot_host(parsed.robot)
         robot_ip = get_duckiebot_ip(parsed.robot)
         dtslogger.debug(f"Found {robot_hostname} at {robot_ip}")
 

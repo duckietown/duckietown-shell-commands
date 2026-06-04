@@ -9,7 +9,7 @@ import sys
 import time
 from threading import Thread
 from types import SimpleNamespace
-from typing import List, Optional, Union, Dict
+from typing import Dict, List, Optional, Tuple, Union
 
 import dockertown
 import requests
@@ -563,6 +563,18 @@ class DuckietownViewerInstance:
         system_name = platform.system()
         return system_name == "Darwin"
 
+    @staticmethod
+    def _resolve_backend_vehicle_ip(ip: str, use_host_network: bool) -> Tuple[str, List[Tuple[str, str]]]:
+        """Return a backend-reachable vehicle address and any extra host mappings.
+
+        A local virtual robot resolves to loopback on the host. When the
+        backend runs in a bridge-networked container, that loopback would point
+        back to the backend container itself instead of the Docker host.
+        """
+        if use_host_network or not ip.startswith("127."):
+            return ip, []
+        return "host.docker.internal", [("host.docker.internal", "host-gateway")]
+
     @classmethod
     def _local_arch_image(cls, image: str, docker: DockerClient) -> Optional[str]:
         """Return the local architecture-specific image tag when it exists."""
@@ -685,10 +697,12 @@ class DuckietownViewerInstance:
         container_name: str = f"duckietown-viewer-backend-{random_string()}"
         backend_port = str(self._BACKEND_REMOTE_PORT)
         self._host_port = None
+        use_host_network = self._use_host_network_for_backend()
+        vehicle_ip, add_hosts = self._resolve_backend_vehicle_ip(ip, use_host_network)
         network_cfg: dict = {
             "publish": [(0, self._BACKEND_REMOTE_PORT)],
         }
-        if self._use_host_network_for_backend():
+        if use_host_network:
             backend_port = self._find_free_host_port()
             self._host_port = backend_port
             network_cfg = {
@@ -701,12 +715,14 @@ class DuckietownViewerInstance:
             "remove": True,
             "envs": {
                 "DT_LAUNCHER": app,
-                "VEHICLE_IP": ip,
+                "VEHICLE_IP": vehicle_ip,
                 "VEHICLE_NAME": robot,
                 self._BACKEND_PORT_ENV: backend_port,
             },
             **network_cfg,
         }
+        if add_hosts:
+            container_cfg["add_hosts"] = add_hosts
         # mount avahi socket (if it is available)
         if os.path.exists(AVAHI_SOCKET):
             container_cfg["volumes"].append((AVAHI_SOCKET, AVAHI_SOCKET))
