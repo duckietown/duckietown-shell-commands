@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import signal
+import socket
 import time
 from collections import defaultdict
 from threading import Thread
@@ -55,6 +56,20 @@ class DiscoverListener:
         server = service_parts[2]
         return name, server
 
+    @staticmethod
+    def _hostname_resolves(server: str) -> bool:
+        """Check whether <server>.local resolves via the system DNS resolver.
+
+        This is used to distinguish live external robots (which the system
+        resolver can reach) from stale mDNS cache entries that resolve only
+        within a container's Avahi daemon.
+        """
+        try:
+            socket.getaddrinfo(f"{server}.local", None, family=socket.AF_INET)
+            return True
+        except (socket.gaierror, OSError):
+            return False
+
     def remove_service(self, zeroconf, type, name):
         dtslogger.debug("SERVICE_REM: %s (%s)" % (str(name), str(type)))
         name, server = self.process_service_name(name)
@@ -75,6 +90,24 @@ class DiscoverListener:
         dtslogger.debug("SERVICE_ADD: %s (%s)" % (str(name), str(server)))
         info = zeroconf.get_service_info(type, sname)
         if info is None:
+            # mDNS proxies can forward browse announcements but may not
+            # support unicast resolution to hosts on external networks.
+            # Use the system DNS resolver as a liveness check — live robots
+            # will resolve while stale cache entries will not.
+            if not self._hostname_resolves(server):
+                dtslogger.debug(
+                    "SERVICE_ADD: dropping stale record for %s — "
+                    "hostname %s.local does not resolve" % (sname, server),
+                )
+                return
+            dtslogger.debug(
+                "SERVICE_ADD: could not resolve %s (%s) — "
+                "recording placeholder" % (str(sname), str(type)),
+            )
+            self.services[name][server] = {
+                "port": 0,
+                "txt": {},
+            }
             return
         dtslogger.debug("SERVICE_ADD: %s" % (str(info)))
         txt_str: str = list(info.properties.keys())[0].decode("utf-8") if len(info.properties) else "{}"
@@ -130,7 +163,7 @@ class DiscoverListener:
                     pass
 
         # create device -> robot_hardware map
-        device_to_hardware = defaultdict(lambda: "physical")
+        device_to_hardware = defaultdict(lambda: "ND")
         # - from external (UDP responder scan)
         for x in self._external:
             device_to_hardware[x["name"]] = x["hardware"]
