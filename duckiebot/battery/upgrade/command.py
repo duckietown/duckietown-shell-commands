@@ -12,7 +12,7 @@ from docker.models.containers import Container
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client_OLD, get_endpoint_architecture, pull_image_OLD
-from utils.misc_utils import sanitize_hostname
+from utils.resolve import resolve_robot_host
 from utils.robot_utils import log_event_on_robot
 
 UPGRADE_IMAGE = "duckietown/dt-firmware-upgrade:{distro}-{arch}"
@@ -60,7 +60,7 @@ class DTCommand(DTCommandAbs):
         sleep(3)
         # check if the health-api container is running
         dtslogger.info("Releasing battery...")
-        hostname = sanitize_hostname(parsed.duckiebot)
+        hostname = resolve_robot_host(parsed.duckiebot)
         client = get_client_OLD(hostname)
         device_health = None
         try:

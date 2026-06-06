@@ -4,7 +4,7 @@ import yaml
 import requests
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
-from utils.misc_utils import sanitize_hostname
+from utils.resolve import resolve_robot_host
 
 
 class DTCommand(DTCommandAbs):
@@ -18,7 +18,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
         parsed = parser.parse_args(args)
         # fetch data from the health API
-        hostname = sanitize_hostname(parsed.duckiebot)
+        hostname = resolve_robot_host(parsed.duckiebot)
         url = f"http://{hostname}/health/battery/info"
         dtslogger.info(f"Fetching data from robot '{parsed.duckiebot}'...")
         data = requests.get(url).json()

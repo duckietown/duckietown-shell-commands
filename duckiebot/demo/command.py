@@ -14,8 +14,9 @@ from utils.docker_utils import (
     remove_if_running,
 )
 from utils.exceptions import InvalidUserInput
-from utils.misc_utils import sanitize_hostname
 from utils.networking_utils import get_duckiebot_ip
+from utils.resolve import resolve_robot_host
+
 
 usage = """
 
@@ -132,10 +133,10 @@ class DTCommand(DTCommandAbs):
         if duckiebot_name is None:
             msg = "You must specify a duckiebot_name"
             raise InvalidUserInput(msg)
-        duckiebot_hostname = sanitize_hostname(duckiebot_name)
         duckiebot_name = duckiebot_name.replace(".local", "")
+        duckiebot_docker_host = resolve_robot_host(duckiebot_name)
 
-        arch = get_endpoint_architecture(duckiebot_hostname)
+        arch = get_endpoint_architecture(duckiebot_docker_host)
         dtslogger.info(f"Target architecture automatically set to {arch}.")
 
         default_image = "duckietown/dt-core:" + BRANCH + "-" + arch
@@ -162,7 +163,7 @@ class DTCommand(DTCommandAbs):
         if parsed.local:
             duckiebot_client = docker.from_env()
         else:
-            duckiebot_client = docker.DockerClient("tcp://" + duckiebot_ip + ":2375")
+            duckiebot_client = docker.DockerClient("tcp://" + duckiebot_docker_host + ":2375")
 
         container_name = "demo_%s" % parsed.demo_name
         remove_if_running(duckiebot_client, container_name)
@@ -231,6 +232,6 @@ class DTCommand(DTCommandAbs):
         )
 
         if parsed.demo_name == "base" or parsed.debug:
-            opt_remote_host = "" if parsed.local else f"-H {duckiebot_hostname}"
+            opt_remote_host = "" if parsed.local else f"-H {duckiebot_docker_host}"
             attach_cmd = f"docker {opt_remote_host} attach {container_name}"
             start_command_in_subprocess(attach_cmd)

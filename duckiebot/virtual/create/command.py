@@ -28,7 +28,7 @@ COMMANDS_DIR = os.path.realpath(os.path.join(COMMAND_DIR, "..", "..", ".."))
 DISK_TEMPLATE_DIR = os.path.join(COMMANDS_DIR, "disk_image", "create", "virtual", "disk_template")
 
 STACKS_BASE_DIR = os.path.join(COMMANDS_DIR, "stack", "stacks")
-STACKS = ["robot/basics", "duckietown/{robot_type}", "ros1/{robot_type}"]
+STACKS = ["robot/basics", "duckietown/{robot_type}", "ros{ros_version}/{robot_type}"]
 
 
 class DTCommand(DTCommandAbs):
@@ -112,7 +112,8 @@ class DTCommand(DTCommandAbs):
             run_cmd(["cp", "-r", origin, vbot_root_dir])
             # copy stacks
             for s in STACKS:
-                stack: str = s.format(robot_type=parsed.type)
+                robot_type = parsed.type
+                stack: str = s.format(robot_type=robot_type, ros_version="2" if robot_type == "duckiedrone" else "1")
                 origin = os.path.join(STACKS_BASE_DIR, f"{stack}.yaml")
                 destination = os.path.join(vbot_root_dir, AUTOBOOT_STACKS_DIR.lstrip("/"), f"{stack}.yaml")
                 destination_dir = os.path.dirname(destination)
