@@ -8,6 +8,8 @@ import re
 import shutil
 import socket
 import subprocess
+import platform
+import plistlib
 import sys
 import time
 from collections import namedtuple
@@ -501,9 +503,7 @@ def step_download(shell, parsed, data):
 
 def step_flash(_, parsed, data):
     # check if dependencies are met
-    ensure_command_is_installed("sudo")
-    ensure_command_is_installed("lsblk")
-    ensure_command_is_installed("umount")
+    _ensure_flash_dependencies()
     print("=" * 30)
 
     # ask for a device if not set already
@@ -584,8 +584,7 @@ def step_flash(_, parsed, data):
         # noinspection PyBroadException
         try:
             dtslogger.info(f"Trying to unmount all partitions from device {parsed.device}")
-            cmd = f"for n in {parsed.device}* ; do umount $n || . ; done"
-            _run_cmd(cmd, shell=True, quiet=True)
+            _unmount_device(parsed.device)
             dtslogger.info("All partitions unmounted.")
         except BaseException:
             dtslogger.warn(
@@ -961,7 +960,32 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         subprocess.check_call(cmd, shell=shell, env=env, **outputs)
 
 
+def _ensure_flash_dependencies():
+    ensure_command_is_installed("sudo")
+    if platform.system() == "Darwin":
+        ensure_command_is_installed("diskutil")
+        return
+    ensure_command_is_installed("lsblk")
+    ensure_command_is_installed("umount")
+
+
+def _unmount_device(device: str):
+    if platform.system() == "Darwin":
+        _run_cmd(["diskutil", "unmountDisk", "force", _get_darwin_block_device(device)], quiet=True)
+        return
+    cmd = f"for n in {device}* ; do umount $n || . ; done"
+    _run_cmd(cmd, shell=True, quiet=True)
+
+
+def _get_darwin_block_device(device: str) -> str:
+    if device.startswith("/dev/rdisk"):
+        return "/dev/disk" + device[len("/dev/rdisk") :]
+    return device
+
+
 def _get_devices() -> List[SimpleNamespace]:
+    if platform.system() == "Darwin":
+        return _get_darwin_devices()
     units = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
     lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
     out = []
@@ -978,6 +1002,30 @@ def _get_devices() -> List[SimpleNamespace]:
             size_b = size * units[unit]
             size_gb = size_b / units["G"]
             out.append(SimpleNamespace(device=device, size_b=size_b, size_gb=size_gb))
+    return out
+
+
+def _get_darwin_devices() -> List[SimpleNamespace]:
+    devices = plistlib.loads(_run_cmd(["diskutil", "list", "-plist"], get_output=True).encode("utf-8"))
+    out = []
+    for device_identifier in devices.get("WholeDisks", []):
+        info = plistlib.loads(_run_cmd(["diskutil", "info", "-plist", device_identifier], get_output=True).encode("utf-8"))
+        if not info.get("WholeDisk"):
+            continue
+        if not info.get("RemovableMediaOrExternalDevice"):
+            continue
+        if not info.get("WritableMedia", True):
+            continue
+        size_b = info.get("Size")
+        device_node = info.get("DeviceNode")
+        if not device_node or size_b is None:
+            continue
+        try:
+            size_b = int(size_b)
+        except (TypeError, ValueError):
+            continue
+        size_gb = size_b / float(1024**3)
+        out.append(SimpleNamespace(device=device_node, size_b=size_b, size_gb=size_gb))
     return out
 
 

@@ -1,71 +1,17 @@
 services:
 
-  # Driver nodes
-  camera:
+  ros-interface:
     image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
-    container_name: ros1-camera
+    container_name: ros-interface
     restart: unless-stopped
     network_mode: host
     privileged: true
     pid: host
     environment:
-      DT_LAUNCHER: sensor-camera
-      DT_SUPERUSER: 1
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      - /data:/data
-
-  tof:
-    image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
-    container_name: ros1-tof
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-tof
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      - /data:/data
-
-  ros-http-api:
-    image: ${REGISTRY}/duckietown/dt-ros-interface:ente-${ARCH}
-    container_name: ros1-http-api
-    restart: unless-stopped
-    network_mode: host
-    pid: host
-    environment:
-      DT_LAUNCHER: ros-http-api
-      DT_SUPERUSER: 1
-    volumes:
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      - /data:/data
-
-  flight-controller:
-    image: ${REGISTRY}/duckietown/duckiedrone-ardupilot-driver:ente-${ARCH}
-    container_name: ros1-flight-controller
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
       DT_LAUNCHER: default
+      DT_SUPERUSER: 1
     volumes:
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-      - /data:/data
-
-  # Master node
-  ros:
-    image: ${REGISTRY}/duckietown/dt-ros-commons:ente-${ARCH}
-    container_name: ros1
-    restart: unless-stopped
-    network_mode: host
-    volumes:
+      - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       - /data:/data
@@ -81,7 +27,6 @@ services:
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       - /data:/data
 
-  # Functionalities nodes
   fly_commands_mux:
     image: ${REGISTRY}/duckietown/dt-core:ente-${ARCH}
     container_name: fly_commands_mux
