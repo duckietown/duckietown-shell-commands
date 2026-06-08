@@ -446,8 +446,11 @@ class DTCommand(DTCommandAbs):
                 remote_path = f"{parsed.sync_user}@{parsed.machine}:{parsed.sync_destination.rstrip('/')}/"
                 # run rsync
                 for project_path in projects_to_sync:
-                    cmd = (f"rsync --archive --delete --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} "
-                           f"\"{project_path}\" \"{remote_path}\"")
+                    cmd = (
+                        f"rsync --archive --delete --delete-excluded --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} "
+                        f"--exclude='.git' "
+                        f"\"{project_path}\" \"{remote_path}\""
+                    )
                     _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
 
