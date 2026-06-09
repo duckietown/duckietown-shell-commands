@@ -12,6 +12,9 @@ BASELINE_IMAGES = {
     "template_ros": "duckietown/challenge-aido_lf-template-ros:ente",
     "duckietown_baseline": "duckietown/challenge-aido_lf-baseline-duckietown:ente",
     "template_pytorch": "duckietown/challenge-aido_lf-template-pytorch:ente",
+    "template_tensorflow": "duckietown/challenge-aido_lf-template-tensorflow:ente",
+    "baseline_dagger_pytorch": "duckietown/challenge-aido_lf-baseline-dagger-pytorch:ente",
+    "baseline_rl_sim_pytorch": "duckietown/challenge-aido_lf-baseline-rl-sim-pytorch:ente",
     "template_random": "duckietown/challenge-aido_lf-template-random:ente",
     "duckietown_ml": "duckietown/challenge-aido_lf-baseline-duckietown-ml:ente",
 }
