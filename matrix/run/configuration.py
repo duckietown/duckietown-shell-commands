@@ -28,11 +28,33 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run a specific version",
         )
         parser.add_argument(
+            "--renderer-binary",
+            default=None,
+            type=str,
+            help="Path to a local renderer binary",
+        )
+        parser.add_argument(
             "-S",
             "--standalone",
             default=False,
             action="store_true",
             help="Run both engine and renderer",
+        )
+        parser.add_argument(
+            "--gym",
+            "--simulation",
+            dest="simulation",
+            default=False,
+            action="store_true",
+            help="Run the standalone engine in simulation mode",
+        )
+        parser.add_argument(
+            "-t",
+            "-dt",
+            "--delta-t",
+            default=None,
+            type=float,
+            help="Time step (requires --gym/--simulation)",
         )
         parser.add_argument(
             "--engine-name",
@@ -161,6 +183,30 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Enable the profiler (requires -S/--standalone)",
+        )
+        parser.add_argument(
+            "--disable-contracts",
+            default=False,
+            action="store_true",
+            help="Disable PyContracts in the standalone engine",
+        )
+        parser.add_argument(
+            "--shm-path",
+            default=None,
+            type=str,
+            help="Path to a shared-memory socket for standalone gym mode",
+        )
+        parser.add_argument(
+            "--target-frame-rate",
+            default=None,
+            type=int,
+            help="Target renderer frame rate",
+        )
+        parser.add_argument(
+            "--container",
+            default=False,
+            action="store_true",
+            help="Run the native renderer binary in a Linux container",
         )
         parser.add_argument(
             "-os",
