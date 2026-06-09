@@ -5,6 +5,7 @@ import time
 import webbrowser
 from argparse import ArgumentParser
 from subprocess import TimeoutExpired
+from urllib.parse import urlparse
 
 from docker import DockerClient
 from docker.errors import APIError, NotFound
@@ -969,15 +970,19 @@ class DTCommand(DTCommandAbs):
                 if not chunk:
                     continue
                 line = chunk.decode("utf-8", errors="ignore")
-                if (
-                    "https://login.tailscale.com" in line
-                    or "http" in line.lower()
-                ):
-                    if "https://login.tailscale.com" in line and not auth_url:
-                        auth_url = line.strip()
-                        if not url_opened:
-                            DTCommand._open_auth_url(auth_url)
-                            url_opened = True
+                urls_in_line = re.findall(r"https?://[^\s\"'<>]+", line)
+                for candidate_url in urls_in_line:
+                    parsed = urlparse(candidate_url)
+                    if (
+                        parsed.scheme == "https"
+                        and parsed.hostname == "login.tailscale.com"
+                    ):
+                        if not auth_url:
+                            auth_url = candidate_url.strip()
+                            if not url_opened:
+                                DTCommand._open_auth_url(auth_url)
+                                url_opened = True
+                        break
                 current_time = time.time()
                 if (
                     (current_time - start_time > 15)
