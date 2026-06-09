@@ -32,10 +32,11 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parser: argparse.ArgumentParser = DTCommand.parser
-        # parse arguments
-        parsed = parser.parse_args(args)
-        if "parsed" in kwargs:
-            parsed.__dict__.update(kwargs["parsed"].__dict__)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
         dtslogger.debug(f"Arguments: {str(parsed)}")
         # hostname = "LOCAL" is same as None
         if parsed.hostname == "LOCAL":

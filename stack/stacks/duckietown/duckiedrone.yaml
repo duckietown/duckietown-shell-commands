@@ -32,10 +32,24 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
+  dt-px4:
+    image: ${REGISTRY}/duckietown/dt-px4:ente
+    container_name: dt-px4
+    restart: unless-stopped
+    network_mode: host
+    command: -d
+    volumes:
+     - /data/config/robot_type:/data/config/robot_type:ro
+     - /data/config/robot_hardware:/data/config/robot_hardware:ro
+
   mavlink-proxy:
     image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
     container_name: mavlink-proxy
-    restart: unless-stopped
+    depends_on:
+      dt-px4:
+        condition: service_healthy
+        restart: true
+    restart: always
     network_mode: host
     privileged: true
     environment:

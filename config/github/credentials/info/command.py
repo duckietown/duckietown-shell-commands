@@ -18,7 +18,11 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             default=False,
         )
-        parsed = parser.parse_args(args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
 
         # ---
 

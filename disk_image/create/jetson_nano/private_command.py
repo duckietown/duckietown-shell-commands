@@ -16,7 +16,7 @@ from datetime import datetime
 from utils.cli_utils import ask_confirmation
 from utils.docker_utils import DEFAULT_REGISTRY
 from utils.misc_utils import human_time
-from disk_image.create.steps import step_docker
+from disk_image.create.steps import step_docker, step_push
 
 from disk_image.create.constants import (
     PARTITION_MOUNTPOINT,
@@ -178,8 +178,11 @@ class DTCommand(DTCommandAbs):
             choices=["2gb", "4gb"],
             help="Nvidia Jetson Nano Developer Kit version",
         )
-        # parse arguments
-        parsed = parser.parse_args(args=args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args=args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
         stime = time.time()
         # check given steps
         f = lambda s: len(s) > 0
@@ -657,9 +660,9 @@ class DTCommand(DTCommandAbs):
                 STACKS_BASE_DIR=STACKS_BASE_DIR,
                 DEVICE_PLATFORM=DEVICE_PLATFORM,
                 DIND_IMAGE_NAME=DIND_IMAGE_NAME,
-                cache_step_fn=cache_step,
                 architecture=DEVICE_ARCH
             )
+            cache_step("docker")
             dtslogger.info("Step END: docker\n")
 
         # ------>
@@ -869,28 +872,10 @@ class DTCommand(DTCommandAbs):
         # Step: compress
         # <------
         #
-        # ------>
-        # Step: push
+        
         if parsed.push:
-            # if "compress" not in parsed.steps:
-            #     dtslogger.warning("The step 'compress' was not performed. No artifacts to push.")
-            #     return
-            dtslogger.info("Step BEGIN: push")
-            dtslogger.info("Pushing disk image...")
-            shell.include.data.push.command(
-                shell,
-                [],
-                parsed=SimpleNamespace(
-                    file=[out_file_path("zip")],
-                    object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
-                    space="public",
-                    token=shell.profile.secrets.dt_token,
-                ),
-            )
-            dtslogger.info("Done!")
-            dtslogger.info("Step END: push\n")
-        # Step: push
-        # <------
+            step_push(shell, out_file_name("zip"), out_file_path("zip"))
+        
         dtslogger.info(f"Completed in {human_time(time.time() - stime)}")
 
     @staticmethod

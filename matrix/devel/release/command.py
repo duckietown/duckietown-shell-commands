@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 from types import SimpleNamespace
@@ -23,44 +22,8 @@ class DTCommand(DTCommandAbs):
     help = f'Creates a new release of the {APP_NAME} application and pushes it to the DCSS.'
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-f",
-            "--force",
-            default=None,
-            action="store_true",
-            help="Force upload when the same version already exists on the DCSS",
-        )
-        parser.add_argument(
-            "-os",
-            "--os-family",
-            default=None,
-            type=str,
-            help="Release for a given os-family",
-        )
-        parser.add_argument(
-            "-t",
-            "--token",
-            default=None,
-            help="(Optional) Duckietown token to use for the upload action",
-        )
-        parser.add_argument(
-            "-v",
-            "--version",
-            default=None,
-            type=str,
-            help="Release a specific version",
-        )
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         if versiontuple(dt_data_api.__version__) < (1, 0, 1):
             dtslogger.error(f"You need to have the library dt-data-api>=1.0.1, "

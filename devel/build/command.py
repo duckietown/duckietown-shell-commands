@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 import traceback
@@ -68,6 +69,108 @@ MIN_FORMAT_PER_DISTRO = {
     "ente": 2,
 }
 
+GIT_LFS_POINTER_HEADER = b"version https://git-lfs.github.com/spec/v1\n"
+
+
+def _project_uses_git_lfs(workdir: str) -> bool:
+    for root, dirs, files in os.walk(workdir):
+        if ".git" in dirs:
+            dirs.remove(".git")
+        if ".gitattributes" not in files:
+            continue
+        attributes_path = os.path.join(root, ".gitattributes")
+        with open(attributes_path, "r", encoding="utf-8", errors="ignore") as attributes_file:
+            attributes = attributes_file.read()
+        if "filter=lfs" in attributes:
+            return True
+    return False
+
+
+def _run_git_lfs(workdir: str, args: List[str]) -> subprocess.CompletedProcess:
+    command = ["git", "-C", workdir, "lfs"]
+    command.extend(args)
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _git_lfs_available(workdir: str) -> bool:
+    result = _run_git_lfs(workdir, ["version"])
+    return result.returncode == 0
+
+
+def _git_lfs_files(workdir: str) -> List[str]:
+    result = _run_git_lfs(workdir, ["ls-files", "--name-only"])
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise UserError(f"Could not list Git LFS files in '{workdir}': {message}")
+    paths = []
+    for raw_line in result.stdout.splitlines():
+        relative_path = raw_line.strip()
+        if relative_path:
+            paths.append(relative_path)
+    return paths
+
+
+def _is_git_lfs_pointer(path: str) -> bool:
+    try:
+        with open(path, "rb") as file:
+            git_lfs_pointer_header_size = len(GIT_LFS_POINTER_HEADER)
+            header = file.read(git_lfs_pointer_header_size)
+    except FileNotFoundError:
+        return False
+    return header == GIT_LFS_POINTER_HEADER
+
+
+def _git_lfs_pointer_files(workdir: str) -> List[str]:
+    pointer_files = []
+    for relative_path in _git_lfs_files(workdir):
+        absolute_path = os.path.join(workdir, relative_path)
+        if _is_git_lfs_pointer(absolute_path):
+            pointer_files.append(relative_path)
+    return pointer_files
+
+
+def _ensure_git_lfs_checkout(workdir: str) -> None:
+    if not os.path.isdir(workdir):
+        return
+    path_string = os.path.join(workdir, ".git")
+    if not os.path.isdir(path_string):
+        return
+    if not _project_uses_git_lfs(workdir):
+        return
+    if not _git_lfs_available(workdir):
+        raise UserError(f"Project '{workdir}' uses Git LFS, but git-lfs is not installed.")
+    pointer_files = _git_lfs_pointer_files(workdir)
+    if not pointer_files:
+        return
+    dtslogger.info("Fetching Git LFS files for the Docker build context...")
+    result = _run_git_lfs(workdir, ["pull"])
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise UserError(f"Could not fetch Git LFS files in '{workdir}': {message}")
+    pointer_files = _git_lfs_pointer_files(workdir)
+    if pointer_files:
+        sample = ", ".join(pointer_files[:3])
+        raise UserError(
+            f"Git LFS files are still pointers after 'git lfs pull' in '{workdir}': {sample}"
+        )
+
+
+def _local_build_context_path(path: str, base_path: str) -> Optional[str]:
+    if not path:
+        return None
+    if "://" in path:
+        return None
+    if path.startswith("git@"):
+        return None
+    if os.path.isabs(path):
+        return path
+    path_string = os.path.join(base_path, path)
+    return os.path.abspath(path_string)
+
 
 class DTCommand(DTCommandAbs):
     help = "Builds the current project"
@@ -87,11 +190,7 @@ class DTCommand(DTCommandAbs):
         if not parsed:
             parsed = parser.parse_args(args=args)
         else:
-            # combine given args with default values
-            default_parsed = parser.parse_args(args=[])
-            for k, v in parsed.__dict__.items():
-                setattr(default_parsed, k, v)
-            parsed = default_parsed
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
         # ---
 
         # check version of dtproject
@@ -570,6 +669,13 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug("Build arguments:\n%s\n" % json.dumps(buildargs, sort_keys=True, indent=4))
 
         # build image
+        build_context_paths = [parsed.workdir]
+        paths = docker_build_contexts.values()
+        build_context_paths.extend(paths)
+        for build_context_path in build_context_paths:
+            absolute_context_path = _local_build_context_path(build_context_path, parsed.workdir)
+            if absolute_context_path is not None:
+                _ensure_git_lfs_checkout(absolute_context_path)
         dtslogger.info("Packaging project...")
         buildlog = []
         build = docker.buildx.build(path=parsed.workdir, progress="plain", stream_logs=True, **buildargs)

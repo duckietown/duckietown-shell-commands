@@ -31,7 +31,11 @@ class DTCommand(DTCommandAbs):
             help="Docker access token (preferred) or Docker password",
             required=True,
         )
-        parsed = parser.parse_args(args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
 
         username = parsed.username
         password = parsed.password

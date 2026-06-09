@@ -55,8 +55,11 @@ class DTCommand(DTCommandAbs):
             help="Whether to clean the PDF instead of HTML",
         )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
-        # parse arguments
-        parsed = parser.parse_args(args=args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args=args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
 
         # variables
         registry_to_use = get_registry_to_use()

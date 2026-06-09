@@ -88,6 +88,18 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Assign default values to all the ports"
         )
         parser.add_argument(
+            "--engine-name",
+            default=None,
+            type=str,
+            help="Name for the engine Docker container (default: dts-matrix-engine)"
+        )
+        parser.add_argument(
+            "--port-offset",
+            default=0,
+            type=int,
+            help="Offset to apply to all engine ports (useful for running multiple engines)"
+        )
+        parser.add_argument(
             "-vv",
             "--verbose",
             default=False,

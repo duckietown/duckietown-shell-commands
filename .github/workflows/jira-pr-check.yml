@@ -1,5 +1,9 @@
 name: Enforce Jira Key in PR Title and Branch
 
+permissions:
+  contents: read
+  pull-requests: read
+
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]

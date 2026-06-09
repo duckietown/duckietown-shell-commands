@@ -70,9 +70,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--ci", default=False, action="store_true", help="Are we running on jenkins?")
 
         # get pre-parsed or parse arguments
-        parsed = kwargs.get("parsed", None)
-        if not parsed:
-            parsed = parser.parse_args(args=args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
         parsed.destination = parsed.destination[0]
 
         # load project

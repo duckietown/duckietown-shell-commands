@@ -5,9 +5,12 @@ import json
 import os
 import shutil
 import subprocess
+import tarfile
 import tempfile
+from io import BytesIO
 from typing import List, Optional, Dict, Tuple
 
+import docker
 import yaml
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -27,7 +30,7 @@ from utils.docker_utils import (
 )
 from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string
 from utils.multi_command_utils import MultiCommand
-from utils.resolve import get_duckiebot_host
+from utils.resolve import resolve_robot_host
 
 from .configuration import DEFAULT_TRUE
 
@@ -44,6 +47,7 @@ class DTCommand(DTCommandAbs):
     def command(shell, args: list, **kwargs):
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
+        local_virtual_robot_name: Optional[str] = None
         container_cmd_arguments: Optional[List[str]] = None
         if parsed is None:
             # try to interpret it as a multi-command
@@ -65,11 +69,7 @@ class DTCommand(DTCommandAbs):
             # parse arguments
             parsed, _ = DTCommand.parser.parse_known_args(args=args)
         else:
-            # combine given args with default values
-            default_parsed = DTCommand.parser.parse_args(args=[])
-            for k, v in parsed.__dict__.items():
-                setattr(default_parsed, k, v)
-            parsed = default_parsed
+            parsed = DTCommand._resolve_parsed([], parsed)
 
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
@@ -117,10 +117,15 @@ class DTCommand(DTCommandAbs):
             # local builder is the default
             if parsed.machine is not None:
                 # cloud Docker endpoints (ip:port) are already explicit and shouldn't
-                # be passed through get_duckiebot_host
+                # be passed through robot host resolution
                 if ":" not in parsed.machine and "://" not in parsed.machine:
-                    # resolve hostname
-                    parsed.machine = get_duckiebot_host(parsed.machine)
+                    requested_machine = parsed.machine
+                    # resolve hostname, including loopback for local virtual robots
+                    parsed.machine = resolve_robot_host(requested_machine)
+                    if parsed.machine == "127.0.0.1" and requested_machine not in {"127.0.0.1", "localhost"}:
+                        local_virtual_robot_name = (
+                            requested_machine[:-6] if requested_machine.endswith(".local") else requested_machine
+                        )
             else:
                 parsed.machine = DEFAULT_MACHINE
 
@@ -420,10 +425,6 @@ class DTCommand(DTCommandAbs):
             if parsed.machine == DEFAULT_MACHINE:
                 dtslogger.error("The option -s/--sync can only be used together with -H/--machine")
                 exit(2)
-            # make sure rsync is installed
-            ensure_command_is_installed("rsync", dependant="dts devel run")
-            dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
-            remote_path = f"{parsed.sync_user}@{parsed.machine}:{parsed.sync_destination.rstrip('/')}/"
             # get projects' locations
             projects_to_sync = [parsed.workdir] if parsed.mount is True else []
             # sync secondary projects
@@ -431,11 +432,26 @@ class DTCommand(DTCommandAbs):
                 projects_to_sync.extend(
                     [os.path.abspath(os.path.join(os.getcwd(), p.strip())) for p in parsed.mount.split(",")]
                 )
-            # run rsync
-            for project_path in projects_to_sync:
-                cmd = (f"rsync --archive --delete --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} "
-                       f"\"{project_path}\" \"{remote_path}\"")
-                _run_cmd(cmd, shell=True)
+            if local_virtual_robot_name is not None:
+                dtslogger.info(f"Syncing code into local virtual robot '{local_virtual_robot_name}'...")
+                _sync_projects_to_local_virtual_robot(
+                    local_virtual_robot_name,
+                    projects_to_sync,
+                    parsed.sync_destination,
+                )
+            else:
+                # make sure rsync is installed
+                ensure_command_is_installed("rsync", dependant="dts devel run")
+                dtslogger.info(f"Syncing code with {parsed.machine.replace('.local', '')}...")
+                remote_path = f"{parsed.sync_user}@{parsed.machine}:{parsed.sync_destination.rstrip('/')}/"
+                # run rsync
+                for project_path in projects_to_sync:
+                    cmd = (
+                        f"rsync --archive --delete --delete-excluded --copy-links --chown={REMOTE_USER}:{REMOTE_GROUP} "
+                        f"--exclude='.git' "
+                        f"\"{project_path}\" \"{remote_path}\""
+                    )
+                    _run_cmd(cmd, shell=True)
             dtslogger.info(f"Code synced!")
 
         # run
@@ -547,6 +563,49 @@ def args_to_docker_compose(
                 service["volumes"][i] = f"{os.path.abspath(src)}:{dst}" + ":".join(other)
     # ---
     return cfg
+
+
+def _sync_projects_to_local_virtual_robot(robot_name: str, projects_to_sync: List[str], sync_destination: str):
+    container_name = f"dts-virtual-{robot_name}"
+    try:
+        local_docker = docker.from_env()
+        container = local_docker.containers.get(container_name)
+    except docker.errors.NotFound as e:
+        raise RuntimeError(f"No running virtual robot found with name '{robot_name}'") from e
+    except docker.errors.DockerException as e:
+        raise RuntimeError(f"Could not access local Docker while syncing '{robot_name}'") from e
+    destination = sync_destination.rstrip("/") or "/"
+    _exec_in_local_virtual_robot(container, ["mkdir", "-p", destination])
+    for project_path in projects_to_sync:
+        normalized_project_path = os.path.abspath(project_path)
+        project_name = os.path.basename(os.path.normpath(normalized_project_path))
+        target_dir = os.path.join(destination, project_name)
+        _exec_in_local_virtual_robot(container, ["rm", "-rf", target_dir])
+        archive = BytesIO()
+        with tarfile.open(fileobj=archive, mode="w", dereference=True) as tar:
+            tar.add(normalized_project_path, arcname=project_name)
+        archive.seek(0)
+        if not container.put_archive(path=destination, data=archive):
+            raise RuntimeError(
+                f"Failed to copy project '{project_name}' into local virtual robot '{robot_name}'"
+            )
+        _exec_in_local_virtual_robot(container, ["chown", "-R", f"{REMOTE_USER}:{REMOTE_GROUP}", target_dir])
+
+
+def _exec_in_local_virtual_robot(container, cmd: List[str]):
+    result = container.exec_run(cmd, user="root", stdout=True, stderr=True)
+    exit_code = result.exit_code if hasattr(result, "exit_code") else result[0]
+    output = result.output if hasattr(result, "output") else result[1]
+    if exit_code == 0:
+        return
+    if isinstance(output, tuple):
+        output = b"".join(part for part in output if part)
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", errors="replace").strip()
+    else:
+        output = str(output).strip()
+    suffix = f": {output}" if output else ""
+    raise RuntimeError(f"Command {' '.join(cmd)} failed in local virtual robot '{container.name}'{suffix}")
 
 
 def _run_cmd(

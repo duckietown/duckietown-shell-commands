@@ -2,6 +2,7 @@ import argparse
 from dt_shell.commands import DTCommandConfigurationAbs
 from dt_shell.environments import ShellCommandEnvironmentAbs
 from typing import Optional, List
+from utils.duckietown_viewer_utils import SUPPORTED_OS_FAMILIES
 
 class DTCommandConfiguration(DTCommandConfigurationAbs):
     @classmethod
@@ -55,6 +56,20 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Run in browser mode"
+        )
+        parser.add_argument(
+            "--no-pull",
+            default=False,
+            action="store_true",
+            help="Do not attempt to update the backend container image"
+        )
+        parser.add_argument(
+            "-os",
+            "--os-family",
+            default="",
+            type=str,
+            choices=SUPPORTED_OS_FAMILIES,
+            help="Run for a given os-family",
         )
         parser.add_argument(
             "robot",

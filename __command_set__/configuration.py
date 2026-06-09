@@ -29,7 +29,7 @@ class DTCommandSetConfiguration(DTCommandSetConfigurationAbs):
         """
         Minimum version of the shell supported in the format (major, minor, patch).
         """
-        return 6, 0, 0
+        return 6, 2, 23
 
     @classmethod
     def maximum_shell_version(cls, *args, **kwargs) -> Tuple[int, int, int]:

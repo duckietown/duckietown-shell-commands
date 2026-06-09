@@ -301,17 +301,18 @@ def find_placeholders_on_disk(disk_image):
 
 
 def get_file_first_line(filepath):
-    with open(filepath, "rt") as f:
-        try:
-            line = f.readline()
-        except UnicodeDecodeError:
-            # this must be a non-text (maybe a binary) file
-            return ""
-    return line
+    try:
+        line = run_cmd(["sudo", "head", "-n", "1", filepath], get_output=True)
+        return line.rstrip("\n")
+    except subprocess.CalledProcessError:
+        return ""
+    except UnicodeDecodeError:
+        # this must be a non-text (maybe a binary) file
+        return ""
 
 
 def get_file_length(filepath):
-    stat_out = run_cmd(["stat", "--format", "%s,%b,%B", filepath], get_output=True)
+    stat_out = run_cmd(["sudo", "stat", "--format", "%s,%b,%B", filepath], get_output=True)
     real_size, num_blocks, block_size = stat_out.strip().split(",")
     return int(real_size), int(num_blocks) * int(block_size)
 

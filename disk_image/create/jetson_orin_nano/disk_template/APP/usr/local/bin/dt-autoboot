@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROBOT_TYPE=$(head -1 /data/config/robot_type)
+DOCKER_SOCKET=unix:///var/run/docker.sock
+BOOTED=false
+
+BOOT_STACKS=(
+  "/data/autoboot/robot/basics.yaml"
+  "/data/autoboot/duckietown/${ROBOT_TYPE}.yaml"
+  "/data/autoboot/ros1/${ROBOT_TYPE}.yaml"
+)
+
+for BOOT_STACK in "${BOOT_STACKS[@]}"; do
+  if [ -f "${BOOT_STACK}" ]; then
+    PROJECT_NAME=$(basename "$(dirname "${BOOT_STACK}")")
+    echo "Launching stack: ${BOOT_STACK} (project: ${PROJECT_NAME})"
+    ARCH=arm64v8 REGISTRY=docker.io docker --host "${DOCKER_SOCKET}" compose \
+        --file "${BOOT_STACK}" \
+        up -d
+    echo "Stack ${PROJECT_NAME} launched from ${BOOT_STACK}"
+    BOOTED=true
+  else
+    echo "Stack not found: ${BOOT_STACK}"
+  fi
+done
+
+if [ "${BOOTED}" = false ]; then
+  echo "No autoboot stack was found or launched for robot type '${ROBOT_TYPE}'."
+  exit 1
+fi

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+EVENTS_DIR=/data/stats/events
+NOW=$(date +%s%N)
+SIGNAL=$1
+
+# collect event
+echo "{\"type\": \"shutdown\", \"stamp\": ${NOW}, \"data\": {\"origin\": \"${SIGNAL}\"}}" > "${EVENTS_DIR}/${NOW}.json"
+
+# activate trigger
+shutdown -h now

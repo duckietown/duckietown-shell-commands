@@ -13,6 +13,7 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+      - /data/config/robot_hardware:/data/config/robot_hardware:ro
 
   rosbridge-websocket:
     image: ${REGISTRY}/duckietown/dt-rosbridge-websocket:ente-${ARCH}

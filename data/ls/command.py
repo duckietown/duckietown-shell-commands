@@ -1,4 +1,3 @@
-import argparse
 from typing import List
 
 from dt_data_api import DataClient
@@ -23,26 +22,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
 """
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-S",
-            "--space",
-            default=None,
-            choices=VALID_SPACES,
-            help="Storage space the objects should be listed from",
-        )
-        parser.add_argument("-d", "--depth", type=int, default=1, help="Depth of the list to generate")
-        parser.add_argument("prefix", nargs=1, help="Prefix to list objects from")
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         parsed.prefix = parsed.prefix[0]
         # check arguments

@@ -185,8 +185,11 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Whether to push the final compressed image to the Duckietown Cloud Storage",
         )
-        # parse arguments
-        parsed = parser.parse_args(args=args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args=args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
         stime = time.time()
         # check given steps
         f = lambda s: len(s) > 0

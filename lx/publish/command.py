@@ -32,9 +32,7 @@ class DTCommand(DTCommandAbs):
         )
 
         # Get pre-parsed or parse arguments
-        parsed = kwargs.get("parsed", None)
-        if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
 
         # Ensure this is an LX template and get dirs
         parsed.workdir = os.path.abspath(parsed.workdir)

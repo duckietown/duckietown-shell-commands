@@ -90,6 +90,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=None,
             help="The launcher to use as entrypoint to the agent container",
         )
+        parser.add_argument(
+            "--shell",
+            action="store_true",
+            default=False,
+            help="Attach an interactive shell to the running workbench container",
+        )
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
         # ---
         return parser

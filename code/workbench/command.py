@@ -19,11 +19,7 @@ class DTCommand(DTCommandAbs):
         if not parsed:
             parsed = DTCommand.parser.parse_args(args=args)
         else:
-            # combine given args with default values
-            default_parsed = DTCommand.parser.parse_args(args=[])
-            for k, v in parsed.__dict__.items():
-                setattr(default_parsed, k, v)
-            parsed = default_parsed
+            parsed = DTCommand._resolve_parsed([], parsed)
 
         # -R/--robot is required when -H/--machine is not provided
         if not parsed.robot:
@@ -110,6 +106,19 @@ class DTCommand(DTCommandAbs):
         docker_args: List[str] = ["--privileged"]
         # - ros master uri
         docker_args.extend(["-e", f"ROS_MASTER_URI=http://{parsed.robot}.local:11311/"])
+
+        # attach to running container if --shell is requested
+        if parsed.shell:
+            project = DTProject(parsed.workdir, recipe.path)
+            container_name = "dts-run-{:s}".format(project.name)
+            dtslogger.info(f"Attaching shell to running container '{container_name}'...")
+            run_namespace: SimpleNamespace = SimpleNamespace(
+                workdir=parsed.workdir,
+                machine=parsed.machine,
+                name=container_name,
+                subcommand="attach",
+            )
+            return shell.include.devel.run.command(shell, [], parsed=run_namespace)
 
         # Run the project using 'devel run'
         run_namespace: SimpleNamespace = SimpleNamespace(

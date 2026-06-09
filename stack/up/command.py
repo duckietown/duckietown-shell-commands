@@ -11,6 +11,7 @@ from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
+    get_client_OLD,
     get_endpoint_architecture,
     get_registry_to_use,
     pull_image_OLD,
@@ -98,11 +99,12 @@ class DTCommand(DTCommandAbs):
             if not os.path.isfile(stack_file):
                 dtslogger.error(f"Stack [{project_name}]({stack_name}) not found.")
                 continue
+            # parse stack file once for both pre-flight steps below
+            with open(stack_file, "r") as fin:
+                stack_content = yaml.safe_load(fin)
             # pull images
             processed: Set[str] = set()
             if parsed.pull:
-                with open(stack_file, "r") as fin:
-                    stack_content = yaml.safe_load(fin)
                 for service in stack_content["services"].values():
                     image_name = service["image"].replace("${ARCH}", endpoint_arch)
                     image_name = image_name.replace("${REGISTRY}", registry_to_use)
@@ -116,6 +118,57 @@ class DTCommand(DTCommandAbs):
                         msg = f"Image '{image_name}' not found on registry '{registry_to_use}'. Aborting."
                         dtslogger.error(msg)
                         continue
+            # Reconcile compose project labels. Containers declared with
+            # `container_name:` are global by name; if one exists under a
+            # different compose project (or no project at all, e.g. a stale
+            # `docker run` leftover), docker compose refuses to (re)create it
+            # ("container name already in use"). Happens on fresh Raspberry Pi
+            # flashes where `dt-run-basics-stacks` brings up robot/basics with
+            # project `basics` while stack/up falls back to the compose-file
+            # parent dir, and on robots carrying orphan containers from prior
+            # ad-hoc runs.
+            target_project = stack_content.get("name") or os.path.basename(
+                os.path.dirname(stack_file)
+            )
+            declared_container_names = {
+                svc["container_name"]
+                for svc in stack_content.get("services", {}).values()
+                if "container_name" in svc
+            }
+            if declared_container_names:
+                try:
+                    robot_client = get_client_OLD(hostname)
+                    for cname in declared_container_names:
+                        try:
+                            ctr = robot_client.containers.get(cname)
+                        except NotFound:
+                            continue
+                        existing_project = ctr.labels.get(
+                            "com.docker.compose.project", ""
+                        )
+                        if existing_project == target_project:
+                            continue
+                        reason = (
+                            f"compose project '{existing_project}' != '{target_project}'"
+                            if existing_project
+                            else f"orphan (no compose project label) blocking '{target_project}'"
+                        )
+                        dtslogger.info(
+                            f"Removing legacy container '{cname}' ({reason}) "
+                            f"to let stack [{target_project}]({stack_name}) recreate it."
+                        )
+                        try:
+                            if ctr.status == "running":
+                                ctr.stop(timeout=10)
+                            ctr.remove(force=True)
+                        except Exception as e:
+                            dtslogger.warning(
+                                f"Could not remove conflicting container '{cname}': {e}"
+                            )
+                except Exception as e:
+                    dtslogger.warning(
+                        f"Could not check for conflicting containers on '{robot}': {e}"
+                    )
             # print info
             dtslogger.info(f"Running stack [{project_name}]({stack_name})...")
             print("------>")

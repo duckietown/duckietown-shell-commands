@@ -1,6 +1,5 @@
 from typing import Optional
 
-import argparse
 import yaml
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -33,25 +32,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
 """
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-S",
-            "--space",
-            default=None,
-            choices=VALID_SPACES,
-            help="Storage space the object should be fetched from",
-        )
-        parser.add_argument("object", nargs=1, help="Object to read the metadata for")
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         parsed.object = parsed.object[0]
         # check arguments

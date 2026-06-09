@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    overlay-name = "Duckietown Front Bumper 2 V1";
+    compatible = "nvidia,p3542-0000+p3448-0003nvidia", "nvidia,p3449-0000-a02+p3448-0000-a02", "nvidia,p3449-0000-b00+p3448-0000-b00";
+
+    fragment@0 {
+        target-path = "/i2c@7000c400";
+
+        __overlay__ {
+            mux@70 {
+                compatible = "ti,tca9548a", "ti,tca9548", "nxp,pca9548";
+                vcc-pullup-supply = <0x4b>;
+                status = "okay";
+                #address-cells = <0x1>;
+                #size-cells = <0x0>;
+                vcc-supply = <0x4b>;
+                reg = <0x70>;
+            };
+        };
+    };
+};

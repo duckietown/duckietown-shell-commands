@@ -6,7 +6,8 @@ from typing import Set
 import yaml
 import docker
 from disk_image.create.utils import VirtualSDCard
-from disk_image.create.constants import PARTITION_MOUNTPOINT
+from disk_image.create.constants import PARTITION_MOUNTPOINT, DATA_STORAGE_DISK_IMAGE_DIR
+from types import SimpleNamespace
 
 from dt_shell import dtslogger
 from typing import Callable
@@ -50,31 +51,29 @@ def find_images_in_stack(
 
 def step_docker(
     sd_card: VirtualSDCard,
-    out_file_path: str,
+    out_file_path: Callable[[str], str],
     ROOT_PARTITION: str,
     STACKS: list,
     STACKS_BASE_DIR: str,
     DEVICE_PLATFORM: str,
     DIND_IMAGE_NAME: str,
-    cache_step_fn: Callable[[str], None],
     architecture: str,
     registry: str = "docker.io"
 ):
     """
     Mounts the root partition of `sd_card`, starts a Docker-in-Docker (DIND) engine whose
     /var/lib/docker is bind-mounted into the new root, and then pre-pulls every image
-    found in the YAML stacks listed in STACKS. Finally, it stops the DIND container,
-    unmounts, and calls cache_step_fn("docker").
+    found in the YAML stacks listed in STACKS. Finally, it stops the DIND container
+    and unmounts.
     
     Arguments:
         sd_card                - a VirtualSDCard instance, already pointing to out_file_path("img").
-        out_file_path(str)     - a function f(ext) -> absolute path of the built disk image.
+        out_file_path          - a function f(ext) -> absolute path of the built disk image.
         ROOT_PARTITION (str)   - the name of the partition to mount (e.g. "APP").
         STACKS (list of str)   - e.g. ["robot/basics", "duckietown/duckiebot", "ros1/duckiebot"].
         STACKS_BASE_DIR (str)   - base directory where `<stack>.yaml` lives.
         DEVICE_PLATFORM (str)   - e.g. "linux/arm64".
         DIND_IMAGE_NAME (str)   - e.g. "docker:24.0.2-dind".
-        cache_step_fn (callable)   - a callable that takes a string and returns None.
         architecture (str)      - e.g. "arm64v8" used for duckietown-specific tags.
         registry (str)          - Docker registry URL to be used to pull the image from.
     """
@@ -91,6 +90,15 @@ def step_docker(
 
         # 2) Start a DIND container whose /var/lib/docker points into the new root
         local_docker = docker.from_env()
+
+        # Stop and remove any leftover DIND container from a previous session
+        try:
+            old_container = local_docker.containers.get("dts-disk-image-aux-docker")
+            dtslogger.warning("Found leftover DIND container from previous session, stopping it...")
+            old_container.stop()
+            old_container.remove(force=True)
+        except docker.errors.NotFound:
+            pass
 
         # Pull the DIND image locally, if needed
         try:
@@ -158,9 +166,6 @@ def step_docker(
         else:
             dtslogger.info("No images found in any STACKS—skipping pre-pull.")
 
-        # 5) Success! Call cache_step_fn so that this step can be cached if requested.
-        cache_step_fn("docker")
-
     except Exception as e:
         # If anything errors out, make sure to unmount and re-raise
         dtslogger.error(f"Error during `docker` step: {e}")
@@ -177,3 +182,20 @@ def step_docker(
             sd_card.umount_partition(ROOT_PARTITION)
         except Exception:
             pass
+
+def step_push(shell, out_file_name, out_file_path):
+    dtslogger.info("Step BEGIN: push")
+    dtslogger.info("Pushing disk image...")
+    shell.include.data.push.command(
+            shell,
+            [],
+            parsed=SimpleNamespace(
+                file=[out_file_path],
+                object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name)],
+                space="public",
+                token=shell.profile.secrets.dt_token,
+                compress=False,
+            ),
+        )
+    dtslogger.info("Done!")
+    dtslogger.info("Step END: push\n")

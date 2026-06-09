@@ -17,7 +17,6 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell, args: list, **kwargs):
-        parser: argparse.ArgumentParser = DTCommand.parser
         # get pre-parsed or parse arguments
         parsed = kwargs.get("parsed", None)
         if not parsed:
@@ -26,8 +25,7 @@ class DTCommand(DTCommandAbs):
             if multi.is_multicommand:
                 multi.execute()
                 return
-        if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         # sanitize hostname

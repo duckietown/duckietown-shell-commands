@@ -7,7 +7,7 @@ from utils.cli_utils import ask_confirmation
 from utils.docker_utils import get_client_OLD
 from dtproject.utils.misc import dtlabel
 from utils.exceptions import UserAborted
-from utils.misc_utils import sanitize_hostname
+from utils.resolve import resolve_robot_host
 from utils.robot_utils import log_event_on_robot
 
 
@@ -37,7 +37,7 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
         # sanitize arguments
         parsed.robot = parsed.robot[0]
-        hostname = sanitize_hostname(parsed.robot)
+        hostname = resolve_robot_host(parsed.robot)
         # open connection to robot
         client = get_client_OLD(hostname)
         client.info()

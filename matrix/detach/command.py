@@ -10,9 +10,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand.parser.parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         parsed.robot = parsed.robot[0]
         # set the HIL configuration

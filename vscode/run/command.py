@@ -62,7 +62,7 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument(
             "--bind",
-            default="127.0.0.1",
+            default="0.0.0.0",
             type=str,
             help="Address to bind to",
         )
@@ -105,6 +105,12 @@ class DTCommand(DTCommandAbs):
         )
         parser.add_argument("--image", default=None, help="VSCode image to run")
         parser.add_argument(
+            "--gpus",
+            default=None,
+            type=str,
+            help="GPU(s) to expose to the container (e.g. 'all'). Disabled by default.",
+        )
+        parser.add_argument(
             "workdir", default=os.getcwd(), help="Directory containing the workspace to open", nargs=1
         )
 
@@ -115,11 +121,9 @@ class DTCommand(DTCommandAbs):
             if remaining:
                 dtslogger.info(f"I do not know about these arguments: {remaining}")
         else:
-            # combine given args with default values
-            default_parsed = parser.parse_args(args=["workdir"])
-            for k, v in parsed.__dict__.items():
-                setattr(default_parsed, k, v)
-            parsed = default_parsed
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
+            if not isinstance(parsed.workdir, list):
+                parsed.workdir = [parsed.workdir]
         # ---
 
         # variables
@@ -225,6 +229,7 @@ class DTCommand(DTCommandAbs):
             "image": image,
             "detach": True,
             "remove": not parsed.keep,
+            **({"gpus": parsed.gpus} if parsed.gpus else {}),
             "envs": {
                 "HOST_UID": identity,
                 "DT_SUPERUSER": 1,

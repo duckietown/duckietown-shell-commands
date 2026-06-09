@@ -8,6 +8,8 @@ import re
 import shutil
 import socket
 import subprocess
+import platform
+import plistlib
 import sys
 import time
 from collections import namedtuple
@@ -41,6 +43,7 @@ from .constants import (
 )
 
 from disk_image.create.jetson_nano.private_command import DISK_IMAGE_VERSION as jetson_disk_image_version
+from disk_image.create.jetson_orin_nano.private_command import DISK_IMAGE_VERSION as jetson_orin_disk_image_version
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
@@ -66,6 +69,7 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override
         "raspberry_pi_64": {"stable": "4.0.0", "experimental": "4.0.0"},
         "jetson_nano_4gb": {"stable": jetson_disk_image_version, "experimental": "1.4.3"},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
+        "jetson_orin_nano": {"stable": jetson_orin_disk_image_version, "experimental": jetson_orin_disk_image_version},
     }
     board, _ = get_robot_hardware(robot_configuration)
     stream = "stable" if not experimental else "experimental"
@@ -98,6 +102,12 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False, version_overri
             # - experimental
             "-----": "1.1",
         },
+        "jetson_orin_nano": {
+            # - stable
+            jetson_orin_disk_image_version: "2.0",
+            # - experimental
+            "-----": "2.0",
+        },
     }
 
     board, _ = get_robot_hardware(robot_configuration)
@@ -122,6 +132,7 @@ def BASE_DISK_IMAGE(robot_configuration, experimental=False, version_override=No
         "raspberry_pi_64": f"dt-raspios-bookworm-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
         "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
         "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
+        "jetson_orin_nano": f"dt-nvidia-jetpack-orin-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -492,9 +503,7 @@ def step_download(shell, parsed, data):
 
 def step_flash(_, parsed, data):
     # check if dependencies are met
-    ensure_command_is_installed("sudo")
-    ensure_command_is_installed("lsblk")
-    ensure_command_is_installed("umount")
+    _ensure_flash_dependencies()
     print("=" * 30)
 
     # ask for a device if not set already
@@ -575,8 +584,7 @@ def step_flash(_, parsed, data):
         # noinspection PyBroadException
         try:
             dtslogger.info(f"Trying to unmount all partitions from device {parsed.device}")
-            cmd = f"for n in {parsed.device}* ; do umount $n || . ; done"
-            _run_cmd(cmd, shell=True, quiet=True)
+            _unmount_device(parsed.device)
             dtslogger.info("All partitions unmounted.")
         except BaseException:
             dtslogger.warn(
@@ -670,6 +678,10 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         "robot_configuration": parsed.robot_configuration,
         "robot_distro": shell.profile.distro.name,
         "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
+        # netplan configurations for v2.0 placeholders (Jetson Orin Nano)
+        "netplan_open_networks": _get_netplan_networks(parsed, "open"),
+        "netplan_wpa_psk_networks": _get_netplan_networks(parsed, "psk"),
+        "netplan_wpa_eap_networks": _get_netplan_networks(parsed, "eap"),
         "sanitize_files": None,
         "stats": json.dumps(
             {
@@ -781,7 +793,8 @@ def _validate_hostname(hostname: str):
     # The proper regex for RFC 952 should be:
     # ^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$
     # We modify that since we do not wish "hyphen" and "dot" to be valid for ROS reasons.
-    pattern = "^([a-z]|[a-z][a-z0-9]*[a-z0-9])*([a-z]|[a-z][a-z0-9]*[a-z0-9])$"
+    # Must start with a lowercase letter, followed by zero or more lowercase letters or digits.
+    pattern = "^[a-z][a-z0-9]*$"
     if not re.match(pattern, hostname):
         # suggest a valid name with the same logic stated above
         # filter for alphanumeric
@@ -899,6 +912,34 @@ def _get_netplan_wifi_configuration(parsed) -> str:
     return "\n".join(wifis)
 
 
+def _get_netplan_networks(parsed, network_type: str) -> str:
+    """Generate netplan YAML network configurations for Ubuntu 22.04+ (placeholders v2.0)"""
+    networks = _interpret_wifi_string(parsed.wifi)
+    netplan_networks = ""
+    for connection in networks:
+        # EAP-secured network
+        if connection.username is not None:
+            if network_type == "eap":
+                netplan_networks += NETPLAN_WPA_EAP_NETWORK_CONFIG.format(
+                    ssid=connection.ssid,
+                    username=connection.username,
+                    password=connection.password,
+                )
+            continue
+        # PSK-secured network
+        if connection.psk is not None:
+            if network_type == "psk":
+                netplan_networks += NETPLAN_WPA_PSK_NETWORK_CONFIG.format(
+                    ssid=connection.ssid, psk=connection.psk
+                )
+            continue
+        # open network
+        if network_type == "open":
+            netplan_networks += NETPLAN_OPEN_NETWORK_CONFIG.format(ssid=connection.ssid)
+    # ---
+    return netplan_networks
+
+
 def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     dtslogger.debug("$ %s" % cmd)
     env = copy.deepcopy(os.environ)
@@ -919,7 +960,32 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         subprocess.check_call(cmd, shell=shell, env=env, **outputs)
 
 
+def _ensure_flash_dependencies():
+    ensure_command_is_installed("sudo")
+    if platform.system() == "Darwin":
+        ensure_command_is_installed("diskutil")
+        return
+    ensure_command_is_installed("lsblk")
+    ensure_command_is_installed("umount")
+
+
+def _unmount_device(device: str):
+    if platform.system() == "Darwin":
+        _run_cmd(["diskutil", "unmountDisk", "force", _get_darwin_block_device(device)], quiet=True)
+        return
+    cmd = f"for n in {device}* ; do umount $n || . ; done"
+    _run_cmd(cmd, shell=True, quiet=True)
+
+
+def _get_darwin_block_device(device: str) -> str:
+    if device.startswith("/dev/rdisk"):
+        return "/dev/disk" + device[len("/dev/rdisk") :]
+    return device
+
+
 def _get_devices() -> List[SimpleNamespace]:
+    if platform.system() == "Darwin":
+        return _get_darwin_devices()
     units = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
     lsblk = _run_cmd(LIST_DEVICES_CMD, get_output=True, shell=True)
     out = []
@@ -936,6 +1002,30 @@ def _get_devices() -> List[SimpleNamespace]:
             size_b = size * units[unit]
             size_gb = size_b / units["G"]
             out.append(SimpleNamespace(device=device, size_b=size_b, size_gb=size_gb))
+    return out
+
+
+def _get_darwin_devices() -> List[SimpleNamespace]:
+    devices = plistlib.loads(_run_cmd(["diskutil", "list", "-plist"], get_output=True).encode("utf-8"))
+    out = []
+    for device_identifier in devices.get("WholeDisks", []):
+        info = plistlib.loads(_run_cmd(["diskutil", "info", "-plist", device_identifier], get_output=True).encode("utf-8"))
+        if not info.get("WholeDisk"):
+            continue
+        if not info.get("RemovableMediaOrExternalDevice"):
+            continue
+        if not info.get("WritableMedia", True):
+            continue
+        size_b = info.get("Size")
+        device_node = info.get("DeviceNode")
+        if not device_node or size_b is None:
+            continue
+        try:
+            size_b = int(size_b)
+        except (TypeError, ValueError):
+            continue
+        size_gb = size_b / float(1024**3)
+        out.append(SimpleNamespace(device=device_node, size_b=size_b, size_gb=size_gb))
     return out
 
 

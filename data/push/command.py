@@ -1,6 +1,5 @@
 import os
 import contextlib
-import argparse
 import signal
 import subprocess
 import tempfile
@@ -45,44 +44,8 @@ Where <space> can be one of {str(VALID_SPACES)}.
 """
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-S",
-            "--space",
-            default=None,
-            choices=VALID_SPACES,
-            help="Storage space the object should be uploaded to",
-        )
-        parser.add_argument(
-            "-t",
-            "--token",
-            default=None,
-            help="(Optional) Duckietown token to use for the upload action",
-        )
-        parser.add_argument(
-            "-z",
-            "--compress",
-            default=False,
-            action="store_true",
-            help="Compress directory (required when 'file' is a directory)",
-        )
-        parser.add_argument(
-            "--exclude",
-            default=None,
-            help="(Optional) Files to exclude when compressing a directory",
-        )
-        parser.add_argument("file", nargs=1, help="File or directory to upload")
-        parser.add_argument("object", nargs=1, help="Destination path of the object")
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         parsed.file = parsed.file[0]
         parsed.object = parsed.object[0]

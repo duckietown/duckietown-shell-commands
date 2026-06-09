@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# This script is called by dt-init on first boot, after the root partition has been resized.
+# Add any first-boot-only customizations here.
+
+# apply netplan configuration (Ubuntu 22.04)
+if [ -d /etc/netplan ]; then
+    netplan generate
+    netplan --debug apply
+fi
+
+# set permissions as the user accepted the terms-and-conditions inside init-sd-card
+echo -n 1 > /data/config/permissions/allow_push_config_data
+echo -n 1 > /data/config/permissions/allow_push_logs_data
+echo -n 1 > /data/config/permissions/allow_push_stats_data

@@ -16,10 +16,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parser: argparse.ArgumentParser = DTCommand.parser
-        # configure arguments
-        parsed, _ = parser.parse_known_args(args=args)
-        if "parsed" in kwargs:
-            parsed.__dict__.update(kwargs["parsed"].__dict__)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
         # ---
         parsed.workdir = os.path.abspath(parsed.workdir)
         project = DTProject(parsed.workdir)

@@ -1,4 +1,3 @@
-import argparse
 import os
 import subprocess
 from types import SimpleNamespace
@@ -23,51 +22,8 @@ class DTCommand(DTCommandAbs):
     help = f'Installs the {APP_NAME} application'
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-U",
-            "--update",
-            default=False,
-            action="store_true",
-            help="Update if already installed",
-        )
-        parser.add_argument(
-            "-f",
-            "--force",
-            default=False,
-            action="store_true",
-            help="Force reinstall when the same version is already installed",
-        )
-        parser.add_argument(
-            "-v",
-            "--version",
-            default="",
-            type=str,
-            help="Install a specific version"
-        )
-        parser.add_argument(
-            "-os",
-            "--os-family",
-            default=None,
-            type=str,
-            help="Install for a given os-family",
-        )
-        parser.add_argument(
-            "--webgl",
-            default=False,
-            action="store_true",
-            help="Install the WebGL version",
-        )
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         if versiontuple(dt_data_api.__version__) < (1, 0, 1):
             dtslogger.error(f"You need to have the library dt-data-api>=1.0.1, "

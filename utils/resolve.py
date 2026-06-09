@@ -4,6 +4,8 @@ import socket
 import subprocess
 from typing import Iterable, Optional
 
+from utils.networking_utils import is_local_virtual_robot_running
+
 
 def _is_reachable(host: str, port: int = 22, timeout: float = 1.5) -> bool:
     """Fast check: try TCP connect; if blocked, fall back to getaddrinfo + ping."""
@@ -41,15 +43,19 @@ def get_duckiebot_host(
     """Return the best hostname to reach the Duckiebot.
     Precedence:
       1) DUCKIEBOT_HOST (explicit override)
-      2) `duckiebot_name`.local (mDNS)
-      3) `duckiebot_name` (MagicDNS short name)
-      4) `duckiebot_name`.<TAILNET_DOMAIN> (MagicDNS FQDN, optional)
-      5) any extra candidates passed in
+      2) loopback if local virtual robot
+      3) `duckiebot_name`.local (mDNS)
+      4) `duckiebot_name` (MagicDNS short name)
+      5) `duckiebot_name`.<TAILNET_DOMAIN> (MagicDNS FQDN, optional)
+      6) any extra candidates passed in
     Raises RuntimeError if none are reachable.
     """
     override = os.environ.get("DUCKIEBOT_HOST")
     if override:
         return override
+
+    if is_local_virtual_robot_running(duckiebot_name):
+        return "127.0.0.1"
 
     candidates = [f"{duckiebot_name}.local", duckiebot_name]
     candidates += list(_magicdns_candidates(duckiebot_name))
@@ -66,3 +72,13 @@ def get_duckiebot_host(
         f"Could not reach Duckiebot via any hostname. Tried: {', '.join(tried)}.\n"
         "Tip: export DUCKIEBOT_HOST=<ip-or-host>, or set TAILNET_DOMAIN=tailnet-xyz.ts.net."
     )
+
+
+def resolve_robot_host(robot_name: str) -> str:
+    """Resolve a robot name to its best reachable host.
+    
+    Handles .local suffix stripping and passes the original name as an extra
+    candidate so get_duckiebot_host can fall back to it if needed.
+    """
+    stripped = robot_name[:-6] if robot_name.endswith(".local") else robot_name
+    return get_duckiebot_host(stripped, extra_candidates=[robot_name])

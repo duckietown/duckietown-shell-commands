@@ -29,7 +29,11 @@ Usage:
             help="GitHub access token",
             required=True,
         )
-        parsed = parser.parse_args(args)
+        parsed = kwargs.get("parsed", None)
+        if parsed is None:
+            parsed = parser.parse_args(args)
+        else:
+            parsed = DTCommand._resolve_parsed([], parsed, parser=parser)
 
         username = parsed.username
         token = parsed.token

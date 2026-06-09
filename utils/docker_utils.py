@@ -246,7 +246,17 @@ def _login_client_OLD(
     """Raises CouldNotLogin"""
     password_hidden = hide_string(password)
     dtslogger.info(f"Logging in to {registry} as {username!r} with secret {password_hidden!r}")
-    res = client.login(username=username, password=password, registry=registry, reauth=True)
+    try:
+        res = client.login(username=username, password=password, registry=registry, reauth=True)
+    except dockerOLD.errors.APIError as e:
+        msg = f"Docker API error while logging in to {registry!r}: {e}"
+        if raise_on_error:
+            dtslogger.error(msg)
+            raise CouldNotLogin(msg) from e
+        else:
+            dtslogger.warning(msg)
+            dtslogger.warning("Continuing because raise_on_error = False.")
+            return
     dtslogger.debug(f"login response: {res}")
     # Status': 'Login Succeeded'
     if res.get("Status", None) == "Login Succeeded":
@@ -654,13 +664,24 @@ def pull_if_not_exist(client, image_name):
         client.images.get(image_name)
     except ImageNotFound:
         dtslogger.info(f"Image {image_name!r} not found. Pulling from registry.")
-        loader = "Downloading ."
-        for _ in client.api.pull(image_name, stream=True, decode=True):
-            loader += "."
-            if len(loader) > 40:
-                print(" " * 60, end="\r", flush=True)
-                loader = "Downloading ."
-            print(loader, end="\r", flush=True)
+        layers = set()
+        pulled = set()
+        pbar = ProgressBar()
+        for line in client.api.pull(image_name, stream=True, decode=True):
+            if "id" not in line or "status" not in line:
+                continue
+            layer_id = line["id"]
+            layers.add(layer_id)
+            if line["status"] in ["Already exists", "Pull complete"]:
+                pulled.add(layer_id)
+            number_of_layers = len(layers)
+            total = max(1, number_of_layers)
+            ratio = len(pulled) / total
+            ratio = min(1, ratio)
+            ratio = max(0, ratio)
+            percentage = ratio * 100
+            pbar.update(percentage)
+        pbar.done()
 
 
 def build_logs_to_string(build_logs):

@@ -1,18 +1,23 @@
 import json
 import os
+import plistlib
+import re
 import time
+import shlex
+import errno
 from collections import Counter
 from pathlib import Path
 
-import argparse
 import subprocess
 import platform
 import socket
+import sys
 import webbrowser
 from socket import AF_INET, SOCK_STREAM
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from typing import Optional, Callable
+from shutil import which
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
@@ -25,6 +30,66 @@ from utils.duckiematrix_utils import \
     get_os_family
 
 EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
+FEX_EXECUTABLES = ("FEX", "FEXInterpreter")
+ARM64_MACHINES = ("aarch64", "arm64")
+FEX_SETUP_GUIDANCE = (
+    "See https://fex-emu.com/ for setup instructions, or use --browser to avoid the "
+    "native renderer."
+)
+WINDOWS_ARM64_SETUP_GUIDANCE = (
+    "Windows on ARM64 can run x86-64 applications through Windows emulation. "
+    "If launch fails, verify x64 emulation support is available, or use --browser to avoid "
+    "the native renderer."
+)
+
+
+def _mask_token_value(token: str) -> str:
+    parts = token.split("-", maxsplit=2)
+    if len(parts) == 3:
+        return f"{parts[0]}-{parts[1]}-{'*' * len(parts[2])}"
+    if len(parts) == 2:
+        return f"{parts[0]}-{'*' * len(parts[1])}"
+    return "*" * len(token)
+
+
+def _supports_terminal_hyperlinks() -> bool:
+    if not sys.stdout.isatty():
+        return False
+    if os.environ.get("TERM_PROGRAM") in {"vscode", "iTerm.app", "WezTerm"}:
+        return True
+    if os.environ.get("WT_SESSION") or os.environ.get("KONSOLE_VERSION"):
+        return True
+    vte_version = os.environ.get("VTE_VERSION")
+    return vte_version is not None and vte_version.isdigit() and int(vte_version) >= 5000
+
+
+def _mask_token_in_text(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        token = match.group("token")
+        suffix = "/" if token.endswith("/") else ""
+        token = token[:-1] if suffix else token
+        return f"token={_mask_token_value(token)}{suffix}"
+
+    return re.sub(r"token=(?P<token>[^&\s\"]+)", replace, text)
+
+
+def _format_navigation_url(url: str, token: str) -> str:
+    display_url = _mask_token_in_text(url)
+    if not _supports_terminal_hyperlinks():
+        return display_url
+    escape = "\033"
+    return f"{escape}]8;;{url}{escape}\\{display_url}{escape}]8;;{escape}\\"
+
+
+class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
+
+    def log_message(self, format: str, *args) -> None:
+        sanitized_args = tuple(
+            _mask_token_in_text(arg) if isinstance(arg, str) else arg
+            for arg in args
+        )
+        super_ = super()
+        super_.log_message(format, *sanitized_args)
 
 
 class DTCommand(DTCommandAbs):
@@ -32,177 +97,8 @@ class DTCommand(DTCommandAbs):
     help = f'Runs the {APP_NAME} renderer'
 
     @staticmethod
-    def _parse_args(args):
-        # configure arguments
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-v",
-            "--version",
-            default=None,
-            type=str,
-            help="Run a specific version"
-        )
-        parser.add_argument(
-            "-S",
-            "--standalone",
-            default=False,
-            action="store_true",
-            help="Run both engine and renderer"
-        )
-        parser.add_argument(
-            "-m",
-            "--map",
-            default=None,
-            type=str,
-            help="Directory containing the map to load"
-        )
-        parser.add_argument(
-            "--embedded",
-            default=False,
-            action="store_true",
-            help="Use the embedded map directory as the root directory for '--map'"
-        )
-        parser.add_argument(
-            "-e",
-            "--engine",
-            dest="engine_hostname",
-            default=None,
-            type=str,
-            help="Hostname or IP address of the engine to connect to"
-        )
-        parser.add_argument(
-            "-r",
-            "--renderer-id",
-            default=None,
-            type=int,
-            help="(Advanced) Use a specific `renderer_id`"
-        )
-        parser.add_argument(
-            "-k",
-            "--renderer-key",
-            default=None,
-            type=str,
-            help="(Advanced) Authenticate the renderer using a key"
-        )
-        parser.add_argument(
-            "-s",
-            "--sandbox",
-            default=False,
-            action="store_true",
-            help="Run in a sandbox map"
-        )
-        parser.add_argument(
-            "-vk",
-            "--force-vulkan",
-            default=False,
-            action="store_true",
-            help="(Advanced) Force the use of the Vulkan rendering API"
-        )
-        parser.add_argument(
-            "-gl",
-            "--force-opengl",
-            default=False,
-            action="store_true",
-            help="(Advanced) Force the use of the OpenGL rendering API"
-        )
-        # parser.add_argument(
-        #     "--gym",
-        #     "--simulation",
-        #     dest="simulation",
-        #     default=False,
-        #     action="store_true",
-        #     help="Run in simulation mode"
-        # )
-        # parser.add_argument(
-        #     "-t", "-dt",
-        #     "--delta-t",
-        #     default=None,
-        #     type=float,
-        #     help="Time step (gym mode only)",
-        # )
-        parser.add_argument(
-            "--link",
-            dest="links",
-            nargs=2,
-            action="append",
-            default=[],
-            metavar=("matrix", "world"),
-            help="Link robots inside the matrix to robots outside",
-        )
-        parser.add_argument(
-            "--no-pull",
-            default=False,
-            action="store_true",
-            help="Do not attempt to update the engine container image"
-        )
-        parser.add_argument(
-            "--expose-ports",
-            default=False,
-            action="store_true",
-            help="Expose all the ports with the host"
-        )
-        parser.add_argument(
-            "--static-ports",
-            default=False,
-            action="store_true",
-            help="Assign default values to all the ports"
-        )
-        parser.add_argument(
-            "-vv",
-            "--verbose",
-            default=False,
-            action="store_true",
-            help="Run in verbose mode"
-        )
-        parser.add_argument(
-            "--no-tutorial",
-            default=False,
-            action="store_true",
-            help="Disable showing the tutorial"
-        )
-        parser.add_argument(
-            "--profiler",
-            default=False,
-            action="store_true",
-            help="Enable the profiler (requires -S/--standalone)"
-        )
-        parser.add_argument(
-            "-os",
-            "--os-family",
-            default=None,
-            type=str,
-            help="Run for a given os-family",
-        )
-        parser.add_argument(
-            "--browser",
-            default=False,
-            action="store_true",
-            help="Run in browser mode"
-        )
-        parser.add_argument(
-            "--host",
-            default="localhost",
-            type=str,
-            help="Hostname or IP address to bind the HTTP server"
-        )
-        parser.add_argument(
-            "--port",
-            default=None,
-            type=int,
-            help="Port number to bind the HTTP server"
-        )
-        parsed, _ = parser.parse_known_args(args=args)
-        return parsed
-
-    @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand._parse_args(args)
-        else:
-            defaults = DTCommand._parse_args([])
-            defaults.__dict__.update(parsed.__dict__)
-            parsed = defaults
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         # check for conflicting arguments
         run_engine: bool = parsed.standalone
@@ -219,6 +115,10 @@ class DTCommand(DTCommandAbs):
         # - links VS renderer-only
         if len(parsed.links) > 0 and not run_engine:
             dtslogger.error("You cannot use --links without -S/--standalone.")
+            return
+        # - xvfb only works for native renderer mode
+        if parsed.xvfb and parsed.browser:
+            dtslogger.error("You cannot use --xvfb together with --browser.")
             return
         # make sure the map is given (in standalone mode)
         if run_engine and not parsed.map and not parsed.sandbox:
@@ -246,6 +146,7 @@ class DTCommand(DTCommandAbs):
         # configure renderer
         app_path: Optional[str] = None
         app_config: list = []
+        app_prefix: list = []
         terminate_renderer: Optional[Callable] = None
         if run_renderer:
             os_family = parsed.os_family
@@ -281,9 +182,21 @@ class DTCommand(DTCommandAbs):
                 return
             # app configuration
             app_path = get_path_to_app(os_family, version, browser)
-            # Unity on Windows/WSL uses "-" to mean "log to stdout"; "/dev/stdout" only exists on Unix-like OSes.
+            if not browser and should_run_linux_renderer_through_fex(os_family):
+                fex_executable = find_fex_executable()
+                if fex_executable is None:
+                    message = format_fex_renderer_message()
+                    dtslogger.error(message)
+                    return
+                app_prefix = [fex_executable]
+            elif not browser and is_arm64_windows_host(os_family):
+                dtslogger.info(
+                    "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
+                    "is an x86-64 binary and will rely on Windows x64 emulation."
+                )
+            # Unity on macOS/Windows uses "-" to mean "log to stdout"; "/dev/stdout" works on Linux.
             app_config = [
-                "-logfile", "-" if os_family == "windows" else "/dev/stdout"
+                "-logfile", "/dev/stdout" if os_family == "linux" else "-"
             ]
             # graphics API
             if parsed.force_opengl:
@@ -298,6 +211,12 @@ class DTCommand(DTCommandAbs):
             # custom engine
             if parsed.engine_hostname is not None:
                 app_config += ["--engine-hostname", parsed.engine_hostname]
+            _ep = parsed.engine_control_port if parsed.engine_control_port is not None else (7502 + parsed.port_offset if parsed.port_offset else None)
+            _ewp = parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None else (7503 + parsed.port_offset if parsed.port_offset else None)
+            if _ep is not None:
+                app_config += ["--engine-control-port", str(_ep)]
+            if _ewp is not None:
+                app_config += ["--engine-ws-control-port", str(_ewp)]
             # custom renderer ID
             if parsed.renderer_id is not None:
                 app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
@@ -365,7 +284,7 @@ class DTCommand(DTCommandAbs):
                             socket_.listen(1)
                             sock_name = socket_.getsockname()
                             port = sock_name[1]
-                    server = HTTPServer((host, port), SimpleHTTPRequestHandler)
+                    server = HTTPServer((host, port), RedactingSimpleHTTPRequestHandler)
                     server_thread = Thread(target=server.serve_forever)
                     server_thread.daemon = True
                     url = f"http://{host}:{port}/?"
@@ -375,9 +294,16 @@ class DTCommand(DTCommandAbs):
                         url += f"renderer-key={parsed.renderer_key}&"
                     if parsed.engine_hostname is not None:
                         url += f"engine-hostname={parsed.engine_hostname}&"
+                    _ep = parsed.engine_control_port if parsed.engine_control_port is not None else (7502 + parsed.port_offset if parsed.port_offset else None)
+                    _ewp = parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None else (7503 + parsed.port_offset if parsed.port_offset else None)
+                    if _ep is not None:
+                        url += f"engine-control-port={_ep}&"
+                    if _ewp is not None:
+                        url += f"engine-ws-control-port={_ewp}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
-                    url += f"token={shell.profile.secrets.dt_token}/"
+                    token = shell.profile.secrets.dt_token
+                    url += f"token={token}/"
                     server_thread.start()
                     browser_opened = False
                     if os_family == "windows":
@@ -395,7 +321,8 @@ class DTCommand(DTCommandAbs):
                         browser_opened = webbrowser.open(url)
                     if not browser_opened:
                         dtslogger.warning("Could not open browser.")
-                    dtslogger.info(f"Navigate to {url}.")
+                    formatted_url = _format_navigation_url(url, token)
+                    dtslogger.info(f"Navigate to {formatted_url}.")
                     # wait for the engine to terminate
                     if run_engine:
                         engine.join()
@@ -404,11 +331,34 @@ class DTCommand(DTCommandAbs):
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
-                    app_path_list = ["open", app_path, "--args"] if os_family == "macos" else [app_path]
+                    if os_family == "macos":
+                        try:
+                            app_path_list = [get_macos_app_executable(app_path)]
+                        except FileNotFoundError as error:
+                            error_string = str(error)
+                            dtslogger.error(error_string)
+                            return
+                    else:
+                        app_path_list = [*app_prefix, app_path]
                     app_cmd = app_path_list + app_config
+                    if parsed.xvfb:
+                        if os_family != "linux":
+                            dtslogger.error("--xvfb is supported only with Linux native renderer binaries.")
+                            return
+                        if which("xvfb-run") is None:
+                            dtslogger.error("Could not find 'xvfb-run' in PATH. Install xvfb first.")
+                            return
+                        xvfb_args = shlex.split(parsed.xvfb_args or "")
+                        app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
                     dtslogger.debug(f"$ > {app_cmd}")
                     time.sleep(2)
-                    renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                    try:
+                        renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                    except OSError as error:
+                        if error.errno == errno.ENOEXEC:
+                            show_exec_format_error(os_family, app_path)
+                            return
+                        raise
                     # this is how we terminate the renderer
 
                     def terminate_renderer(*_):
@@ -451,6 +401,97 @@ def join_renderer(process: subprocess.Popen, verbose: bool = False):
         line = line.decode("utf-8")
         if EXTERNAL_SHUTDOWN_REQUEST in line:
             process.kill()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
             return
         if verbose:
             print(line, end="")
+
+
+def is_arm64_machine() -> bool:
+    machine = platform.machine()
+    return machine.lower() in ARM64_MACHINES
+
+
+def should_run_linux_renderer_through_fex(os_family: str) -> bool:
+    return (
+        os_family == "linux"
+        and platform.system() == "Linux"
+        and is_arm64_machine()
+    )
+
+
+def is_arm64_windows_host(os_family: str) -> bool:
+    return os_family == "windows" and is_arm64_machine()
+
+
+def find_fex_executable() -> Optional[str]:
+    for executable in FEX_EXECUTABLES:
+        executable_path = which(executable)
+        if executable_path is not None:
+            return executable_path
+    return None
+
+
+def format_fex_renderer_message(*, launch_failed: bool = False, app_path: Optional[str] = None) -> str:
+    if launch_failed:
+        message = (
+            "Failed to execute the native Linux Duckiematrix renderer.\n"
+            "This host is ARM64 and the renderer binary is x86-64, so it must be run through "
+            "FEX-EMU with an x86-64 RootFS configured.\n"
+            f"{FEX_SETUP_GUIDANCE}"
+        )
+    else:
+        message = (
+            "The native Linux Duckiematrix renderer is an x86-64 binary, "
+            "but this host is ARM64.\n"
+            "Install and configure FEX-EMU, then rerun this command.\n"
+            f"{FEX_SETUP_GUIDANCE}"
+        )
+    if app_path is not None:
+        message += f"\nRenderer path: {app_path}"
+    return message
+
+
+def format_windows_arm64_renderer_message(app_path: Optional[str] = None) -> str:
+    message = (
+        "Failed to execute the native Windows Duckiematrix renderer.\n"
+        "This host is ARM64 and the renderer binary is x86-64, so it relies on Windows "
+        "x64 emulation support.\n"
+        f"{WINDOWS_ARM64_SETUP_GUIDANCE}"
+    )
+    if app_path is not None:
+        message += f"\nRenderer path: {app_path}"
+    return message
+
+
+def show_exec_format_error(os_family: str, app_path: str):
+    if should_run_linux_renderer_through_fex(os_family):
+        message = format_fex_renderer_message(launch_failed=True, app_path=app_path)
+        dtslogger.error(message)
+        return
+    if is_arm64_windows_host(os_family):
+        message = format_windows_arm64_renderer_message(app_path=app_path)
+        dtslogger.error(message)
+        return
+    dtslogger.error(f"Failed to execute renderer binary '{app_path}'.")
+
+
+def get_macos_app_executable(app_path: str) -> str:
+    app_bundle = Path(app_path)
+    info_plist = app_bundle / "Contents" / "Info.plist"
+    executable_name = app_bundle.stem
+    if info_plist.is_file():
+        try:
+            with info_plist.open("rb") as file:
+                plist_data = plistlib.load(file)
+                bundle_executable = plist_data.get("CFBundleExecutable")
+                executable_name = bundle_executable or executable_name
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            pass
+    executable_path = app_bundle / "Contents" / "MacOS" / executable_name
+    if not executable_path.is_file():
+        raise FileNotFoundError(f"Could not find executable in macOS app bundle '{app_path}'.")
+    return str(executable_path)

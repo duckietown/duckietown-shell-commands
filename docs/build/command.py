@@ -135,9 +135,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("-v", "--verbose", default=False, action="store_true", help="Be verbose")
 
         # get pre-parsed or parse arguments
-        parsed = kwargs.get("parsed", None)
-        if not parsed:
-            parsed = parser.parse_args(args=args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
 
         # load project
         parsed.workdir = os.path.abspath(parsed.workdir)

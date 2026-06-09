@@ -15,8 +15,7 @@ from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD,
 from utils.duckiematrix_utils import \
     APP_NAME
 
-DEVICE_ARCH = get_endpoint_architecture()
-DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-%s" % DEVICE_ARCH
+DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-{arch}"
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 
 DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {}
@@ -25,6 +24,9 @@ MAX_RENDERERS = 4
 DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
     "world-control-out-port": 7501,
     "matrix-control-out-port": 7502,
+    "matrix-websocket-bridge-control-out-port": 7503,
+    "matrix-websocket-bridge-data-out-port": 7504,
+    "matrix-websocket-bridge-data-in-port": 7505,
     "matrix-data-out-port": 17510,
     "matrix-data-in-port": 17511,
     "world-data-out-port": 17512,
@@ -94,8 +96,25 @@ class MatrixEngine:
         # compile engine image name
         engine_image = DUCKIEMATRIX_ENGINE_IMAGE_FMT.format(
             registry=docker_registry,
-            distro=shell.profile.distro.name
+            distro=shell.profile.distro.name,
+            arch=get_endpoint_architecture()
         )
+        # check if a default-named engine container already exists
+        engine_container_name: str = parsed.engine_name if parsed.engine_name else "dts-matrix-engine"
+        if not parsed.engine_name:
+            docker = get_client_OLD()
+            existing = [
+                c for c in docker.containers.list(all=True, filters={"name": "dts-matrix-engine"})
+                if c.name == "dts-matrix-engine"
+            ]
+            if existing:
+                dtslogger.error(
+                    "A Duckiematrix engine container named 'dts-matrix-engine' already exists.\n"
+                    "To launch a second instance, provide an explicit name and port offset, e.g.:\n"
+                    "  --engine-name dts-matrix-engine-1 --port-offset 10\n"
+                    "Adjust the port offset as needed to avoid conflicts."
+                )
+                return False
         # engine container configuration
         engine_config = {
             "image": engine_image,
@@ -109,7 +128,7 @@ class MatrixEngine:
                 "IMPERSONATE_GID": os.getgid(),
             },
             "ports": {},
-            "name": "dts-matrix-engine"
+            "name": engine_container_name
         }
         engine_config.update(DUCKIEMATRIX_ENGINE_IMAGE_CONFIG)
         # set the mode
@@ -151,6 +170,9 @@ class MatrixEngine:
         # configure ports
         expose_ports: bool = parsed.expose_ports or platform.system() == "Darwin"
         static_ports: bool = parsed.static_ports
+        port_offset: int = parsed.port_offset
+        if port_offset:
+            static_ports = True
         # expose ports defined in the connector_ports layer + static ports
         if expose_ports or static_ports:
             connector_ports: Dict[str, int] = {}
@@ -169,6 +191,7 @@ class MatrixEngine:
                     connector_ports[name] = port
             # add ports to the engine configuration
             for name, port in connector_ports.items():
+                port += port_offset
                 # expose port to the host
                 if expose_ports:
                     engine_config["ports"][f"{port}/tcp"] = port
@@ -282,9 +305,7 @@ class DTCommand(DTCommandAbs):
     def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False) \
             -> Optional[MatrixEngine]:
         if use_defaults:
-            defaults = DTCommand.parser.parse_args([])
-            defaults.__dict__.update(parsed.__dict__)
-            parsed = defaults
+            parsed = DTCommand._resolve_parsed([], parsed)
         # create engine
         engine = MatrixEngine()
         configured = engine.configure(shell, parsed)
@@ -295,13 +316,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
-        parsed = kwargs.get("parsed", None)
-        if parsed is None:
-            parsed = DTCommand.parser.parse_args(args)
-        else:
-            defaults = DTCommand.parser.parse_args([])
-            defaults.__dict__.update(parsed.__dict__)
-            parsed = defaults
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         engine = DTCommand.make_engine(shell, parsed)
         if engine is None:

@@ -1,0 +1,12 @@
+network:
+  version: 2
+  renderer: NetworkManager
+  wifis:
+    wifi:
+      match:
+        name: "wl*"
+      dhcp4: true
+      dhcp6: false
+      optional: true
+      access-points:
+{netplan_open_networks}{netplan_wpa_psk_networks}{netplan_wpa_eap_networks}

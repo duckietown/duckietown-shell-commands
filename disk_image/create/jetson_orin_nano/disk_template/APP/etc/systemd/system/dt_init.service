@@ -1,0 +1,11 @@
+[Unit]
+Description=This script setups the robot on boot
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /usr/local/bin/dt-init
+
+[Install]
+WantedBy=multi-user.target

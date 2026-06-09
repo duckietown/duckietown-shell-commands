@@ -1,5 +1,8 @@
 import os
 import argparse
+import tarfile
+import time
+from io import BytesIO
 
 import docker as dockerpy
 from dockertown import DockerClient
@@ -11,9 +14,14 @@ from utils.misc_utils import pretty_yaml
 from utils.docker_utils import get_endpoint_architecture
 
 DISK_NAME = "root"
-DEVICE_ARCH = get_endpoint_architecture()
 VIRTUAL_FLEET_DIR = os.path.join(USER_DATA_DIR, "virtual_robots")
-VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-%s" % DEVICE_ARCH
+VIRTUAL_ROBOT_RUNTIME_IMAGE = "duckietown/dt-virtual-device:{distro}-{arch}"
+parent_directory = os.path.dirname(__file__)
+STARTUP_LOG_STREAM_SCRIPT_HOST_PATH = os.path.join(parent_directory, "startup_log_stream.py")
+STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH = "/tmp/dts-startup-log-stream.py"
+STARTUP_LOG_FILES = ("/data/logs/first_boot_init.log", "/data/logs/this_boot_init.log")
+STARTUP_LOG_POLL_INTERVAL_SECONDS = 0.1
+STARTUP_LOG_COMPLETION_MARKER = "Setting up completed!"
 
 
 class DTCommand(DTCommandAbs):
@@ -26,10 +34,17 @@ class DTCommand(DTCommandAbs):
         parser = argparse.ArgumentParser(prog=prog)
         # define arguments
         parser.add_argument(
+            "--no-pull",
+            action='store_true',
+            default=False,
+            help="Do not update the runtime image"
+        )
+        parser.add_argument(
             "--pull",
             action='store_true',
             default=False,
-            help="Update the runtime image"
+            dest="deprecated_pull",
+            help=argparse.SUPPRESS
         )
         parser.add_argument(
             "-t",
@@ -38,9 +53,19 @@ class DTCommand(DTCommandAbs):
             default=shell.profile.distro.name,
             help="Tag of the robot runtime image to use"
         )
+        parser.add_argument(
+            "--no-logs",
+            action="store_true",
+            default=False,
+            help="Do not stream startup logs",
+        )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to start")
         # parse arguments
         parsed = parser.parse_args(args)
+        if parsed.deprecated_pull:
+            dtslogger.warning("The '--pull' option is deprecated and no longer needed; "
+                              "the runtime image is updated by default. "
+                              "Use '--no-pull' to skip the update.")
         # sanitize arguments
         parsed.robot = parsed.robot[0]
         # make sure the virtual robot exists
@@ -65,10 +90,9 @@ class DTCommand(DTCommandAbs):
             # good
             pass
         # launch robot
-        runtime_image = VIRTUAL_ROBOT_RUNTIME_IMAGE.format(distro=parsed.tag)
-        if parsed.pull:
+        runtime_image = VIRTUAL_ROBOT_RUNTIME_IMAGE.format(distro=parsed.tag, arch=get_endpoint_architecture())
+        if not parsed.no_pull:
             dtslogger.info("Downloading virtual robot runtime...")
-            # pull dind image
             pull_docker_image(local_docker, runtime_image)
         # create named volumes for each directory
         volumes = []
@@ -98,8 +122,14 @@ class DTCommand(DTCommandAbs):
             "remove": True,
             "cgroupns": "private",
             "publish": [
-                ["14551", "14551", "udp"],   # Ardupilot SITL
-                ["7447", "7447", "tcp"],     # ROS2 zenoh bridge 
+                ["14551", "14551", "udp"],          # Ardupilot SITL
+                ["80", "80", "tcp"],                # device-proxy HTTP entrypoint for robot.local/dashboard/... 
+                ["127.0.0.1:2375", "2375", "tcp"],  # Docker API (only on loopback for security)
+                ["7447", "7447", "tcp"],            # ROS2 zenoh bridge
+                ["8080", "8080", "tcp"],            # Dashboard backend (HTTP)
+                ["9001", "9001", "tcp"],            # rosbridge WebSocket
+                ["11411", "11411", "tcp"],          # DTPS KV store
+                ["11911", "11911", "tcp"],          # DTPS switchboard
             ],
             "volumes": [
                 # Keep var/lib/docker as bind mount for Docker daemon data
@@ -110,11 +140,13 @@ class DTCommand(DTCommandAbs):
         }
         dtslogger.debug(f"Booting up virtual robot '{parsed.robot}' with the following options:"
                         f"\n{pretty_yaml(opts, indent=4)}\n")
+        startup_started_at = time.time()
         docker.container.run(**opts)
-        # ---
-        print()
         dtslogger.info("Your virtual robot is booting up. "
                        "It should appear on 'dts fleet discover' soon.")
+        if not parsed.no_logs:
+            dtslogger.info("Streaming startup logs...")
+            _log_startup_output(local_docker, parsed.robot, startup_started_at)
 
 
 def _ensure_volumes_exist(local_docker, robot_name, vbot_root_dir, volume_names, dirs):
@@ -192,3 +224,80 @@ def _populate_volume_from_host(local_docker, volume_name, host_dir_path, contain
         remove=True,
         detach=False
     )
+
+
+def _log_startup_output(local_docker, robot_name, startup_started_at):
+    container_name = f"dts-virtual-{robot_name}"
+    while True:
+        try:
+            container = local_docker.containers.get(container_name)
+            break
+        except dockerpy.errors.NotFound:
+            time.sleep(STARTUP_LOG_POLL_INTERVAL_SECONDS)
+            continue
+    try:
+        if not _copy_startup_log_stream_script(container):
+            return
+        startup_started_at_int = int(startup_started_at)
+        startup_started_at_string = str(startup_started_at_int)
+        startup_log_poll_interval_seconds_string = str(STARTUP_LOG_POLL_INTERVAL_SECONDS)
+        result = container.exec_run(
+            [
+                "python3",
+                STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH,
+                "--startup-started-at",
+                startup_started_at_string,
+                "--poll-interval",
+                startup_log_poll_interval_seconds_string,
+                "--completion-marker",
+                STARTUP_LOG_COMPLETION_MARKER,
+                *STARTUP_LOG_FILES,
+            ],
+            stderr=False,
+            stream=True,
+        )
+    except dockerpy.errors.APIError:
+        return
+    output_stream = result.output if hasattr(result, "output") else result[1]
+    if output_stream is None:
+        return
+    pending_fragment = ""
+    for chunk in output_stream:
+        normalized_chunk = _normalize_exec_output_chunk(chunk)
+        if not normalized_chunk:
+            continue
+        pending_fragment = _log_output_lines(normalized_chunk, pending_fragment)
+    if pending_fragment.strip():
+        message = pending_fragment.rstrip()
+        print(message)
+
+
+def _copy_startup_log_stream_script(container):
+    archive = BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as tar:
+        arcname = os.path.basename(STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH)
+        tar.add(STARTUP_LOG_STREAM_SCRIPT_HOST_PATH, arcname=arcname)
+    archive.seek(0)
+    path = os.path.dirname(STARTUP_LOG_STREAM_SCRIPT_CONTAINER_PATH)
+    return container.put_archive(path=path, data=archive)
+
+
+def _normalize_exec_output_chunk(chunk):
+    if isinstance(chunk, tuple):
+        chunk = b"".join(part for part in chunk if part)
+    if not chunk:
+        return ""
+    if isinstance(chunk, bytes):
+        return chunk.decode("utf-8", errors="replace")
+    return str(chunk)
+
+
+def _log_output_lines(chunk, pending_fragment):
+    lines = f"{pending_fragment}{chunk}".replace("\r", "\n")
+    lines = lines.split("\n")
+    pending_fragment = lines.pop()
+    for line in lines:
+        if line.strip():
+            message = line.rstrip()
+            print(message)
+    return pending_fragment

@@ -38,9 +38,7 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--pull", action="store_true", default=False, help="Update the support image")
 
         # Get pre-parsed or parse arguments
-        parsed = kwargs.get("parsed", None)
-        if not parsed:
-            parsed, _ = parser.parse_known_args(args=args)
+        parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"), parser=parser)
         parsed.dns = parsed.dns[0]
 
         # Make sure cloudflared is installed
