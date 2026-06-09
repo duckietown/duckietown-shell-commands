@@ -1013,9 +1013,14 @@ class DTCommand(DTCommandAbs):
                 f"Container logs (attempt {attempt + 1}):\n{decoded_logs}"
             )
             for line in decoded_logs.split("\n"):
-                if "https://login.tailscale.com" in line:
-                    print(line)
-                    return line.strip()
+                for candidate in re.findall(r"https://[^\s]+", line):
+                    parsed_url = urlparse(candidate)
+                    if (
+                        parsed_url.scheme == "https"
+                        and parsed_url.hostname == "login.tailscale.com"
+                    ):
+                        print(candidate)
+                        return candidate.strip()
         return None
 
     @staticmethod
