@@ -363,6 +363,15 @@ stack:
       description: Pull stack onto DT robot
     up:
       description: Run stack on DT robot
+tailscale:
+  description: Tailscale commands
+  subcommands:
+    connect:
+      description: Connect to Tailscale
+    disconnect:
+      description: Disconnect from Tailscale
+    status:
+      description: Show Tailscale status
 tok: &tok
   description: DT token commands
   subcommands:
