@@ -168,17 +168,26 @@ class MatrixEngine:
         if not parsed.engine_name:
             docker = get_client_OLD()
             existing = [
-                c for c in docker.containers.list(all=True, filters={"name": "dts-matrix-engine"})
-                if c.name == "dts-matrix-engine"
+                c for c in docker.containers.list(all=True, filters={"name": engine_container_name})
+                if c.name == engine_container_name
             ]
             if existing:
-                dtslogger.error(
-                    "A Duckiematrix engine container named 'dts-matrix-engine' already exists.\n"
-                    "To launch a second instance, provide an explicit name and port offset, e.g.:\n"
-                    "  --engine-name dts-matrix-engine-1 --port-offset 10\n"
-                    "Adjust the port offset as needed to avoid conflicts."
-                )
-                return False
+                container = existing[0]
+                container.reload()
+                if container.status in ("exited", "created", "dead"):
+                    dtslogger.warning(
+                        f"Found a stopped '{engine_container_name}' container from a previous run. "
+                        "Removing it..."
+                    )
+                    container.remove()
+                else:
+                    dtslogger.error(
+                        f"A Duckiematrix engine container named '{engine_container_name}' is already running.\n"
+                        "To launch a second instance, provide an explicit name and port offset, e.g.:\n"
+                        "  --engine-name dts-matrix-engine-1 --port-offset 10\n"
+                        "Adjust the port offset as needed to avoid conflicts."
+                    )
+                    return False
         # engine container configuration
         engine_environment = {
             "PYTHONUNBUFFERED": "1",
