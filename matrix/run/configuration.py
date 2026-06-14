@@ -163,6 +163,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Enable the profiler (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--disable-contracts",
+            default=False,
+            action="store_true",
+            help="Disable PyContracts in the standalone engine",
+        )
+        parser.add_argument(
             "-os",
             "--os-family",
             default=None,

@@ -212,6 +212,8 @@ class MatrixEngine:
         # profiler
         if parsed.profiler:
             engine_config["command"] += ["--profiler"]
+        if parsed.disable_contracts:
+            engine_config["command"] += ["--disable-contracts"]
         # run engine container
         dtslogger.debug(engine_config)
         self.config = engine_config

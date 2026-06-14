@@ -134,6 +134,9 @@ class DTCommand(DTCommandAbs):
         if parsed.profiler and not run_engine:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
             return
+        if parsed.disable_contracts and not run_engine:
+            dtslogger.error("You cannot use --disable-contracts without -S/--standalone.")
+            return
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
         if run_engine:

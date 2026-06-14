@@ -112,6 +112,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             action="store_true",
             help="Enable the profiler"
         )
+        parser.add_argument(
+            "--disable-contracts",
+            default=False,
+            action="store_true",
+            help="Disable PyContracts in the engine"
+        )
         # ---
         return parser
 
