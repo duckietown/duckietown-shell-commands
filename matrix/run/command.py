@@ -12,6 +12,7 @@ import subprocess
 import platform
 import socket
 import sys
+import uuid
 import webbrowser
 from socket import AF_INET, SOCK_STREAM
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -92,6 +93,36 @@ class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
         super_.log_message(format, *sanitized_args)
 
 
+def _build_renderer_container_command(
+    app_bin: str,
+    app_config: list,
+    container_image: str,
+):
+    path = os.path.expanduser(app_bin)
+    app_bin = os.path.abspath(path)
+    app_dir = os.path.dirname(app_bin)
+    app_name = os.path.basename(app_bin)
+    home = os.path.expanduser("~")
+    uuid4_ = uuid.uuid4()
+    container_name = f"dts-duckiematrix-renderer-{uuid4_.hex[:8]}"
+    command = [
+        "docker", "run", "--rm",
+        "--name", container_name,
+        "--network", "host",
+        "--runtime", "runc",
+        "-e", "DISPLAY",
+        "-e", f"HOME={home}",
+        "-v", "/tmp/.X11-unix:/tmp/.X11-unix:rw",
+        "-v", f"{home}:{home}:rw",
+        "-v", f"{app_dir}:{app_dir}:ro",
+        "-w", app_dir,
+        container_image,
+        f"./{app_name}",
+        *app_config,
+    ]
+    return command, container_name
+
+
 class DTCommand(DTCommandAbs):
 
     help = f'Runs the {APP_NAME} renderer'
@@ -99,6 +130,7 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
+        container_image = parsed.container_image
         # ---
         # check for conflicting arguments
         run_engine: bool = parsed.standalone
@@ -120,8 +152,18 @@ class DTCommand(DTCommandAbs):
         if parsed.xvfb and parsed.browser:
             dtslogger.error("You cannot use --xvfb together with --browser.")
             return
+        if parsed.xvfb and container_image:
+            dtslogger.error(
+                "You cannot use --xvfb together with --container-image.",
+            )
+            return
         if parsed.renderer_binary and parsed.browser:
             dtslogger.error("You cannot use --renderer-binary together with --browser.")
+            return
+        if container_image and parsed.browser:
+            dtslogger.error(
+                "You cannot use --container-image together with --browser.",
+            )
             return
         # make sure the map is given (in standalone mode)
         if run_engine and not parsed.map and not parsed.sandbox:
@@ -136,6 +178,9 @@ class DTCommand(DTCommandAbs):
         # profiler
         if parsed.profiler and not run_engine:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
+            return
+        if container_image and platform.system() != "Linux":
+            dtslogger.error("You cannot use --container-image outside Linux.")
             return
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
@@ -194,6 +239,11 @@ class DTCommand(DTCommandAbs):
                 dtslogger.error(f"The app {extra}was not found on your disk.\n"
                                 f"Use the command `dts matrix install` to download it.")
                 return
+            if container_image and os_family != "linux":
+                dtslogger.error(
+                    "You cannot use --container-image with a non-Linux renderer.",
+                )
+                return
             if not browser:
                 if app_bin is None:
                     dtslogger.error("Renderer binary path is not configured.")
@@ -206,6 +256,13 @@ class DTCommand(DTCommandAbs):
                     dtslogger.error(f"Renderer binary not found at {app_bin!r}.")
                     return
                 if should_run_linux_renderer_through_fex(os_family):
+                    if container_image:
+                        dtslogger.error(
+                            "You cannot use --container-image on an ARM64 Linux host with the native "
+                            "x86-64 renderer. Use the native launcher with FEX-EMU, or use "
+                            "--browser."
+                        )
+                        return
                     fex_executable = find_fex_executable()
                     if fex_executable is None:
                         message = format_fex_renderer_message()
@@ -354,50 +411,81 @@ class DTCommand(DTCommandAbs):
                 else:
                     # run the app
                     dtslogger.info("Launching Renderer...")
-                    if os_family == "macos":
-                        try:
-                            app_path_list = [get_macos_app_executable(app_path)]
-                        except FileNotFoundError as error:
-                            error_string = str(error)
-                            dtslogger.error(error_string)
-                            return
-                    else:
-                        app_path_list = [*app_prefix, app_bin]
-                    app_cmd = app_path_list + app_config
-                    if parsed.xvfb:
-                        if os_family != "linux":
-                            dtslogger.error("--xvfb is supported only with Linux native renderer binaries.")
-                            return
-                        if which("xvfb-run") is None:
-                            dtslogger.error("Could not find 'xvfb-run' in PATH. Install xvfb first.")
-                            return
-                        xvfb_args = shlex.split(parsed.xvfb_args or "")
-                        app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
-                    dtslogger.debug(f"$ > {app_cmd}")
                     time.sleep(2)
-                    try:
-                        renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
-                    except OSError as error:
-                        if error.errno == errno.ENOEXEC:
-                            show_exec_format_error(os_family, app_path)
-                            return
-                        raise
-                    # this is how we terminate the renderer
+                    if container_image:
+                        container_cmd, container_name = _build_renderer_container_command(
+                            app_bin,
+                            app_config,
+                            parsed.container_image,
+                        )
+                        dtslogger.info(f"Launching Renderer container ({container_name})...")
+                        dtslogger.debug(f"$ > {container_cmd}")
+                        renderer = subprocess.Popen(
+                            container_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                        )
 
-                    def terminate_renderer(*_):
-                        # noinspection PyBroadException
-                        try:
-                            if os_family == "windows":
-                                # For Windows binaries in WSL, kill by process name since WSL PIDs don't map to Windows
-                                app_basename = os.path.basename(app_path)
+                        def terminate_renderer(*_):
+                            # noinspection PyBroadException
+                            try:
                                 subprocess.run(
-                                    ["taskkill.exe", "/F", "/IM", app_basename],
+                                    ["docker", "kill", container_name],
+                                    check=False,
+                                    stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
                                 )
-                            else:
+                            except Exception:
+                                pass
+                            try:
                                 renderer.kill()
-                        except Exception:
-                            pass
+                            except Exception:
+                                pass
+
+                    else:
+                        if os_family == "macos":
+                            try:
+                                app_path_list = [get_macos_app_executable(app_path)]
+                            except FileNotFoundError as error:
+                                error_string = str(error)
+                                dtslogger.error(error_string)
+                                return
+                        else:
+                            app_path_list = [*app_prefix, app_bin]
+                        app_cmd = app_path_list + app_config
+                        if parsed.xvfb:
+                            if os_family != "linux":
+                                dtslogger.error("--xvfb is supported only with Linux native renderer binaries.")
+                                return
+                            if which("xvfb-run") is None:
+                                dtslogger.error("Could not find 'xvfb-run' in PATH. Install xvfb first.")
+                                return
+                            xvfb_args = shlex.split(parsed.xvfb_args or "")
+                            app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
+                        dtslogger.debug(f"$ > {app_cmd}")
+                        try:
+                            renderer = subprocess.Popen(app_cmd, stdout=subprocess.PIPE)
+                        except OSError as error:
+                            if error.errno == errno.ENOEXEC:
+                                show_exec_format_error(os_family, app_path)
+                                return
+                            raise
+                        # this is how we terminate the renderer
+
+                        def terminate_renderer(*_):
+                            # noinspection PyBroadException
+                            try:
+                                if os_family == "windows":
+                                    # For Windows binaries in WSL, kill by process name since WSL PIDs don't map to Windows
+                                    app_basename = os.path.basename(app_path)
+                                    subprocess.run(
+                                        ["taskkill.exe", "/F", "/IM", app_basename],
+                                        stderr=subprocess.DEVNULL,
+                                    )
+                                else:
+                                    renderer.kill()
+                            except Exception:
+                                pass
 
                     # wait for the renderer to terminate
                     join_renderer(renderer, parsed.verbose)

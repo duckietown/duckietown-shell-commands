@@ -169,6 +169,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Enable the profiler (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--container-image",
+            default=None,
+            type=str,
+            help="Run the renderer binary in the given container image",
+        )
+        parser.add_argument(
             "-os",
             "--os-family",
             default=None,
