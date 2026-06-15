@@ -475,6 +475,8 @@ class DTCommand(DTCommandAbs):
             dtslogger.debug(f"Command exited with exit code [{exitcode}].")
             if parsed.detach:
                 dtslogger.info("Your container is running in detached mode!")
+            elif exitcode != 0:
+                exit(exitcode)
 
         else:
             # use a temporary docker-compose file instead
@@ -523,6 +525,8 @@ class DTCommand(DTCommandAbs):
                     return_exitcode=True,
                 )
                 dtslogger.debug(f"Docker-compose exited with exit code [{exitcode}].")
+                if not parsed.detach and exitcode != 0:
+                    exit(exitcode)
 
     @staticmethod
     def complete(shell, word, line):
