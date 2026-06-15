@@ -93,6 +93,10 @@ class DTCommand(DTCommandAbs):
         if parsed.no_mount:
             parsed.mount = False
 
+        # ci-smoke-test is an image-only launcher: it should run without host sync.
+        if parsed.launcher == "ci-smoke-test":
+            parsed.mount = False
+
         # cloud run
         if parsed.cloud:
             if parsed.arch is None:
@@ -129,9 +133,9 @@ class DTCommand(DTCommandAbs):
             else:
                 parsed.machine = DEFAULT_MACHINE
 
-        # when we run against a remote machine, we need to sync the code (unless we are using --cloud)
+        # when we run against a remote machine, we only need to sync if code is mounted
         if parsed.machine != DEFAULT_MACHINE:
-            parsed.sync = not parsed.cloud
+            parsed.sync = not parsed.cloud and parsed.mount is not False
 
         # x-docker runtime
         if parsed.use_x_docker:
