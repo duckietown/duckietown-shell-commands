@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from io import BytesIO
@@ -416,6 +417,8 @@ class DTCommand(DTCommandAbs):
         if parsed.detach:
             cc_detach = True
 
+        use_tty = sys.stdin.isatty() and sys.stdout.isatty() and not cc_detach
+
         # add container name to docker args
         cc_name: str = parsed.name
 
@@ -461,8 +464,11 @@ class DTCommand(DTCommandAbs):
         # run
         if parsed.configuration is None:
             # use docker CLI directly
+            docker_run_args = [parsed.runtime, "-H=%s" % parsed.machine, "run"]
+            if use_tty:
+                docker_run_args.append("-it")
             exitcode = _run_cmd(
-                [parsed.runtime, "-H=%s" % parsed.machine, "run", "-it"]
+                docker_run_args
                 + [f"--net={cc_network_mode}"]
                 + [f"-e={k}={v}" for k, v in cc_environment.items()]
                 + [f"-v={src}:{dst}:{mode}" for src, dst, mode in cc_mountpoints]
@@ -503,7 +509,8 @@ class DTCommand(DTCommandAbs):
                 cc_mountpoints,
                 cc_command,
                 cc_command_arguments,
-                base_cc
+                base_cc,
+                use_tty,
             )
             # write temporary docker-compose.yaml file and run it
             with tempfile.NamedTemporaryFile(mode="w", delete=True) as f:
@@ -545,7 +552,8 @@ def args_to_docker_compose(
         cc_mountpoints: List[Tuple[str, str, str]],
         cc_command: List[str],
         cc_command_arguments: List[str],
-        base_cc: ContainerConfiguration
+        base_cc: ContainerConfiguration,
+        use_tty: bool,
 ) -> dict:
     runtime_cc = {
         "image": image,
@@ -553,8 +561,8 @@ def args_to_docker_compose(
         "environment": cc_environment,
         "volumes": [f"{src}:{dst}:{mode}" for src, dst, mode in cc_mountpoints],
         "command": cc_command + cc_command_arguments,
-        "stdin_open": True,
-        "tty": True,
+        "stdin_open": use_tty,
+        "tty": use_tty,
     }
     cfg = {
         "services": {
