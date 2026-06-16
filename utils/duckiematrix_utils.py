@@ -1,9 +1,10 @@
 import glob
+import json
 import os
 import platform
 import re
 import sys
-from typing import List, Optional
+from typing import List, Mapping, Optional
 
 from dt_data_api import DataClient
 
@@ -16,6 +17,7 @@ DCSS_APP_DIR = f"assets/{APP_NAME}/"
 DCSS_APP_RELEASES_DIR = f"assets/{APP_NAME}/releases/"
 APP_LOCAL_DIR = os.path.join(USER_DATA_DIR, APP_NAME)
 APP_RELEASES_DIR = os.path.join(APP_LOCAL_DIR, "releases")
+RELEASE_METADATA_FILENAME = ".release.json"
 
 
 def get_os_family() -> str:
@@ -88,6 +90,67 @@ def get_path_to_app(os_family: str, version: str, webgl: bool = False):
     else:
         return None
     return os.path.join(app_dir, f"{app_name}.{ext}")
+
+
+def _normalize_checksum(checksum: Optional[str]) -> Optional[str]:
+    if checksum is None:
+        return None
+    checksum = checksum.strip()
+    checksum = checksum.strip('"')
+    return checksum.strip("'") or None
+
+
+def get_release_checksum(metadata: Mapping[str, str]) -> Optional[str]:
+    for key in (
+        "ETag",
+        "Etag",
+        "etag",
+        "Content-MD5",
+        "Content-Md5",
+        "content-md5",
+        "x-amz-checksum-sha256",
+        "x-amz-meta-sha256",
+    ):
+        checksum = metadata.get(key)
+        if checksum:
+            return _normalize_checksum(checksum)
+    return None
+
+
+def get_remote_release_checksum(version: str, os_family: str = "", webgl: bool = False) -> Optional[str]:
+    client = DataClient()
+    storage = client.storage(DCSS_SPACE_NAME)
+    release_obj = remote_zip_obj(version, os_family, webgl)
+    metadata = storage.head(release_obj)
+    return get_release_checksum(metadata)
+
+
+def get_installed_release_checksum(os_family: str, version: str, webgl: bool = False) -> Optional[str]:
+    app_dir = get_path_to_install(os_family, version, webgl)
+    if app_dir is None:
+        return None
+    metadata_fp = os.path.join(app_dir, RELEASE_METADATA_FILENAME)
+    if not os.path.isfile(metadata_fp):
+        return None
+    try:
+        with open(metadata_fp, "rt", encoding="utf-8") as fin:
+            metadata = json.load(fin)
+    except (OSError, TypeError, ValueError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    checksum = metadata.get("checksum")
+    return _normalize_checksum(checksum)
+
+
+def write_installed_release_checksum(app_dir: str, checksum: Optional[str]) -> None:
+    metadata = {
+        "checksum": _normalize_checksum(checksum)
+    }
+    metadata_fp = os.path.join(app_dir, RELEASE_METADATA_FILENAME)
+    with open(metadata_fp, "wt", encoding="utf-8") as fout:
+        json.dump(metadata, fout, indent=4, sort_keys=True)
+        fout.write("\n")
 
 
 def is_version_released(version: str, os_family: str = "") -> bool:
