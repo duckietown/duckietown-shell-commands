@@ -28,6 +28,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run a specific version",
         )
         parser.add_argument(
+            "--renderer-binary",
+            default=None,
+            type=str,
+            help="Path to a local renderer binary",
+        )
+        parser.add_argument(
             "-S",
             "--standalone",
             default=False,

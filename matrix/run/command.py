@@ -120,6 +120,9 @@ class DTCommand(DTCommandAbs):
         if parsed.xvfb and parsed.browser:
             dtslogger.error("You cannot use --xvfb together with --browser.")
             return
+        if parsed.renderer_binary and parsed.browser:
+            dtslogger.error("You cannot use --renderer-binary together with --browser.")
+            return
         # make sure the map is given (in standalone mode)
         if run_engine and not parsed.map and not parsed.sandbox:
             dtslogger.error("You need to specify a map with -m/--map when running in "
@@ -151,49 +154,69 @@ class DTCommand(DTCommandAbs):
         if run_renderer:
             os_family = parsed.os_family
             browser = parsed.browser
-            if os_family:
-                if browser:
-                    dtslogger.error("You cannot use -os/--os-family and --browser together.")
-                    return
-                if os_family not in ("linux", "macos", "windows"):
-                    dtslogger.error(f"Unsupported os-family '{os_family}'. "
-                                    f"Supported values are: linux, macos, windows.")
-                    return
+            app_bin: Optional[str] = None
+            if parsed.renderer_binary:
+                os_family = os_family or get_os_family()
+                version = "custom"
+                path = os.path.expanduser(parsed.renderer_binary)
+                app_bin = os.path.abspath(path)
+                app_path = app_bin
             else:
-                os_family = get_os_family()
-            version = parsed.version
-            if version:
-                shell.include.matrix.install.command(shell, ("--version", version))
-            else:
-                args = ["--update"]
-                if browser:
-                    args.append("--webgl")
+                if os_family:
+                    if browser:
+                        dtslogger.error("You cannot use -os/--os-family and --browser together.")
+                        return
+                    if os_family not in ("linux", "macos", "windows"):
+                        dtslogger.error(f"Unsupported os-family '{os_family}'. "
+                                        f"Supported values are: linux, macos, windows.")
+                        return
                 else:
-                    args.extend(["--os-family", os_family])
-                shell.include.matrix.install.command(shell, args)
-                version = get_most_recent_version_installed(os_family, browser)
+                    os_family = get_os_family()
+                version = parsed.version
+                if version:
+                    shell.include.matrix.install.command(shell, ("--version", version))
+                else:
+                    install_args = ["--update"]
+                    if browser:
+                        install_args.append("--webgl")
+                    else:
+                        install_args.extend(["--os-family", os_family])
+                    shell.include.matrix.install.command(shell, install_args)
+                    version = get_most_recent_version_installed(os_family, browser)
+                app_path = get_path_to_app(os_family, version, browser) if version is not None else None
+                if not browser:
+                    app_bin = app_path
             dtslogger.info(f"Configuring Renderer ({version})...")
             dtslogger.debug(f"Will try to run {version}...")
             # make sure the app is installed
-            if version is None:
+            if app_path is None:
                 extra = f"version v{parsed.version} " if parsed.version is not None else ""
                 dtslogger.error(f"The app {extra}was not found on your disk.\n"
                                 f"Use the command `dts matrix install` to download it.")
                 return
-            # app configuration
-            app_path = get_path_to_app(os_family, version, browser)
-            if not browser and should_run_linux_renderer_through_fex(os_family):
-                fex_executable = find_fex_executable()
-                if fex_executable is None:
-                    message = format_fex_renderer_message()
-                    dtslogger.error(message)
+            if not browser:
+                if app_bin is None:
+                    dtslogger.error("Renderer binary path is not configured.")
                     return
-                app_prefix = [fex_executable]
-            elif not browser and is_arm64_windows_host(os_family):
-                dtslogger.info(
-                    "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
-                    "is an x86-64 binary and will rely on Windows x64 emulation."
-                )
+                if os_family == "macos":
+                    renderer_binary_exists = os.path.exists(app_bin)
+                else:
+                    renderer_binary_exists = os.path.isfile(app_bin)
+                if not renderer_binary_exists:
+                    dtslogger.error(f"Renderer binary not found at {app_bin!r}.")
+                    return
+                if should_run_linux_renderer_through_fex(os_family):
+                    fex_executable = find_fex_executable()
+                    if fex_executable is None:
+                        message = format_fex_renderer_message()
+                        dtslogger.error(message)
+                        return
+                    app_prefix = [fex_executable]
+                elif is_arm64_windows_host(os_family):
+                    dtslogger.info(
+                        "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
+                        "is an x86-64 binary and will rely on Windows x64 emulation."
+                    )
             # Unity on macOS/Windows uses "-" to mean "log to stdout"; "/dev/stdout" works on Linux.
             app_config = [
                 "-logfile", "/dev/stdout" if os_family == "linux" else "-"
@@ -339,7 +362,7 @@ class DTCommand(DTCommandAbs):
                             dtslogger.error(error_string)
                             return
                     else:
-                        app_path_list = [*app_prefix, app_path]
+                        app_path_list = [*app_prefix, app_bin]
                     app_cmd = app_path_list + app_config
                     if parsed.xvfb:
                         if os_family != "linux":
