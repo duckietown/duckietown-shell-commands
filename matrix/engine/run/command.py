@@ -2,7 +2,6 @@ import argparse
 import logging
 import os
 import platform
-import shlex
 import subprocess
 import time
 from threading import Thread
@@ -19,9 +18,7 @@ from utils.duckiematrix_utils import \
 DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-{arch}"
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 
-DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {
-    "runtime": "runc",
-}
+DUCKIEMATRIX_ENGINE_IMAGE_CONFIG = {}
 MAX_RENDERERS = 4
 
 DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
@@ -39,64 +36,6 @@ DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
     "layer-data-out-port": 17516,
     "layer-data-in-port": 17517,
 }
-
-
-def _apply_extra_volumes(engine_config: dict):
-    raw = os.environ.get("DTS_MATRIX_ENGINE_EXTRA_VOLUMES", "")
-    if not raw.strip():
-        return
-    volumes = engine_config.setdefault("volumes", {})
-    for spec in shlex.split(raw):
-        spec = spec.strip()
-        if not spec:
-            continue
-        parts = spec.split(":")
-        if len(parts) not in (2, 3):
-            raise ValueError(
-                "DTS_MATRIX_ENGINE_EXTRA_VOLUMES entries must be "
-                "host:container[:mode]"
-            )
-        host_path, container_path = parts[:2]
-        mode = parts[2] if len(parts) == 3 else "rw"
-        volumes[os.path.abspath(os.path.expanduser(host_path))] = {
-            "bind": container_path,
-            "mode": mode,
-        }
-
-
-def _apply_extra_pythonpath(engine_config: dict):
-    raw = os.environ.get("DTS_MATRIX_ENGINE_EXTRA_PYTHONPATH", "")
-    if not raw.strip():
-        return
-    command = engine_config.setdefault("command", ["--"])
-    volumes = engine_config.setdefault("volumes", {})
-    env_paths = []
-    for index, host_path in enumerate(raw.split(os.pathsep)):
-        host_path = host_path.strip()
-        if not host_path:
-            continue
-        bind_path = f"/dt-extra-pythonpath/{index}"
-        volumes[os.path.abspath(os.path.expanduser(host_path))] = {
-            "bind": bind_path,
-            "mode": "ro",
-        }
-        env_paths.append(bind_path)
-    if env_paths:
-        command += ["--env", "PYTHONPATH=%s:$PYTHONPATH" % ":".join(env_paths)]
-
-
-def _apply_extra_environment(engine_config: dict):
-    raw = os.environ.get("DTS_MATRIX_ENGINE_EXTRA_ENV", "")
-    if not raw.strip():
-        return
-    command = engine_config.setdefault("command", ["--"])
-    for spec in shlex.split(raw):
-        spec = spec.strip()
-        if not spec:
-            continue
-        if "=" not in spec:
-            raise ValueError("DTS_MATRIX_ENGINE_EXTRA_ENV entries must be KEY=VALUE")
-        command += ["--env", spec]
 
 
 class MatrixEngine:
@@ -149,9 +88,6 @@ class MatrixEngine:
             dtslogger.error("You can specify a --delta-t only when running with "
                             "--gym/--simulation.")
             return False
-        if parsed.shm_path and not parsed.simulation:
-            dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
-            return False
         # configure engine
         dtslogger.info("Configuring Engine...")
         docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
@@ -189,22 +125,17 @@ class MatrixEngine:
                     )
                     return False
         # engine container configuration
-        engine_environment = {
-            "PYTHONUNBUFFERED": "1",
-        }
-        uid = os.getuid()
-        gid = os.getgid()
-        if uid != 0:
-            engine_environment["IMPERSONATE_UID"] = uid
-        if gid != 0:
-            engine_environment["IMPERSONATE_GID"] = gid
         engine_config = {
             "image": engine_image,
             "command": ["--"],
             "detach": True,
             "stdout": True,
             "stderr": True,
-            "environment": engine_environment,
+            "environment": {
+                "PYTHONUNBUFFERED": "1",
+                "IMPERSONATE_UID": os.getuid(),
+                "IMPERSONATE_GID": os.getgid(),
+            },
             "ports": {},
             "name": engine_container_name
         }
@@ -281,23 +212,6 @@ class MatrixEngine:
         # profiler
         if parsed.profiler:
             engine_config["command"] += ["--profiler"]
-        if parsed.disable_contracts:
-            engine_config["command"] += ["--disable-contracts"]
-        if parsed.shm_path:
-            host_shm_path = os.path.abspath(os.path.expanduser(parsed.shm_path))
-            host_shm_dir = os.path.dirname(host_shm_path)
-            engine_config.setdefault("volumes", {})[host_shm_dir] = {
-                "bind": host_shm_dir,
-                "mode": "rw",
-            }
-            engine_config["command"] += ["--env", f"DTSHELL_SHM_PATH={host_shm_path}"]
-        try:
-            _apply_extra_volumes(engine_config)
-            _apply_extra_pythonpath(engine_config)
-            _apply_extra_environment(engine_config)
-        except ValueError as e:
-            dtslogger.error(str(e))
-            return False
         # run engine container
         dtslogger.debug(engine_config)
         self.config = engine_config
