@@ -60,9 +60,18 @@ class DTCommand(DTCommandAbs):
         parsed = parser.parse_args(args)
         # sanitize arguments
         parsed.robot = parsed.robot[0]
-        if not re.match("[a-z][a-z0-9]", parsed.robot):
+        if not re.fullmatch(r"[a-z][a-z0-9]*", parsed.robot):
             dtslogger.error(
-                "Robot name can only contain lowercase letters and numbers and cannot start with a number.")
+                f"The robot name '{parsed.robot}' is not valid.\n"
+                "Robot names must:\n"
+                "  - Start with a lowercase letter (a-z)\n"
+                "  - Contain only lowercase letters (a-z) and numbers (0-9)\n"
+                "  - Not start with a number, or contain uppercase letters or any special characters\n"
+                "\n"
+                "Valid examples:   'myduckiebot', 'myduckiebot01'\n"
+                "Invalid examples: '123bot' (starts with a number), 'MyDuckiebot' (uppercase letters), "
+                "'my_robot' (underscore), 'Whatabot!' (special characters)"
+            )
             return
         # get registry
         registry_to_use: str = get_registry_to_use()
