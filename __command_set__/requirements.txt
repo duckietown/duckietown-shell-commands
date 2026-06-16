@@ -11,7 +11,7 @@ psutil>=5.9.0 # FIXME: this had to be pinned to get the dependencies to resolve 
 # force pyyaml away from specific versions: https://github.com/yaml/pyyaml/issues/724
 # Use 6.0.1+ for pre-built wheels on macOS ARM (Python 3.12+)
 pyyaml>=6.0.1,<7
-zeroconf==0.149.7
+zeroconf==0.149.12
 
 # duckietown dependencies
 duckietown-docker-utils-ente==7.0.1
