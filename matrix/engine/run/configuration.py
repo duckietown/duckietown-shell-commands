@@ -52,7 +52,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--delta-t",
             default=None,
             type=float,
-            help="Time step (gym mode only)",
+            help="Time step (requires --gym/--simulation)",
         )
         parser.add_argument(
             "--link",
@@ -111,6 +111,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Enable the profiler"
+        )
+        parser.add_argument(
+            "--shm-path",
+            default=None,
+            type=str,
+            help="Path to a shared-memory socket for gym mode"
         )
         # ---
         return parser

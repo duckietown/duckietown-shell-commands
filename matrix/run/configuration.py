@@ -35,6 +35,22 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run both engine and renderer",
         )
         parser.add_argument(
+            "--gym",
+            "--simulation",
+            dest="simulation",
+            default=False,
+            action="store_true",
+            help="Run the standalone engine in simulation mode",
+        )
+        parser.add_argument(
+            "-t",
+            "-dt",
+            "--delta-t",
+            default=None,
+            type=float,
+            help="Time step (requires --gym/--simulation)",
+        )
+        parser.add_argument(
             "--engine-name",
             default=None,
             type=str,
@@ -161,6 +177,24 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Enable the profiler (requires -S/--standalone)",
+        )
+        parser.add_argument(
+            "--container-image",
+            default=None,
+            type=str,
+            help="Run the renderer binary in the given container image",
+        )
+        parser.add_argument(
+            "--shm-path",
+            default=None,
+            type=str,
+            help="Path to a shared-memory socket for standalone gym mode",
+        )
+        parser.add_argument(
+            "--target-frame-rate",
+            default=None,
+            type=int,
+            help="Target renderer frame rate",
         )
         parser.add_argument(
             "-os",

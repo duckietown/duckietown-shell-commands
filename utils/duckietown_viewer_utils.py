@@ -21,6 +21,7 @@ from dt_data_api import DataClient
 
 import dt_shell
 from dt_shell import dtslogger, DTShell, UserError
+from utils.host_runner import HostRunnerError, delegate_command_to_host, should_delegate_to_host
 from utils.docker_utils import get_client, get_endpoint_architecture, get_registry_to_use, pull_image
 from utils.duckietown_utils import USER_DATA_DIR, get_distro
 from utils.misc_utils import versiontuple, random_string
@@ -37,6 +38,7 @@ AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 SUPPORTED_OS_FAMILIES = ("linux", "macos", "windows")
 
 WindowArgs = Dict[str, Union[int, float, str]]
+HOST_RUNNER_FRONTEND_URL_ENV = "DTS_HOST_RUNNER_FRONTEND_URL"
 
 
 def linux_path_to_windows(path: str) -> Optional[str]:
@@ -500,6 +502,51 @@ def launch_viewer(
     return viewer
 
 
+def should_delegate_viewer_frontend(browser: bool = False) -> bool:
+    return not browser and should_delegate_to_host()
+
+
+def _window_args_to_cli_args(window_args: WindowArgs) -> List[str]:
+    cli_args: List[str] = []
+    for key, value in window_args.items():
+        cli_args.append(f"--{key}={value}")
+    return cli_args
+
+
+def delegate_viewer_frontend_to_host(
+    app: str,
+    *,
+    os_family: str,
+    fullscreen: bool,
+    menu: bool,
+    on_top: bool,
+    enable_hardware_acceleration: bool,
+    window_args: WindowArgs,
+    backend_url: str,
+) -> int:
+    command = ("desktop", "viewer", "frontend")
+    forwarded_args: List[str] = []
+    forwarded_args.extend(["--app", app])
+    if os_family:
+        forwarded_args.extend(["--os-family", os_family])
+    if fullscreen:
+        forwarded_args.append("--fullscreen")
+    if menu:
+        forwarded_args.append("--menu")
+    if on_top:
+        forwarded_args.append("--on-top")
+    if enable_hardware_acceleration:
+        forwarded_args.append("--enable-hardware-acceleration")
+    for key, value in window_args.items():
+        forwarded_args.extend(["--window-arg", f"{key}={value}"])
+
+    return delegate_command_to_host(
+        command,
+        forwarded_args,
+        extra_env={HOST_RUNNER_FRONTEND_URL_ENV: backend_url},
+    )
+
+
 class DuckietownViewerInstance:
     """Manages the lifecycle of a Duckietown Viewer session.
 
@@ -641,6 +688,14 @@ class DuckietownViewerInstance:
             no_pull: Use a local backend image without pulling updates.
             window_args: Additional ``--key=value`` arguments for the frontend.
         """
+        if window_args is None:
+            window_args = {}
+        if HOST_RUNNER_FRONTEND_URL_ENV in os.environ:
+            backend_url = os.environ[HOST_RUNNER_FRONTEND_URL_ENV].strip()
+            if backend_url:
+                window_args = dict(window_args)
+                window_args["url"] = backend_url.rstrip("/") + "/app/"
+
         if "url" not in window_args.keys():
             self._start_backend(app, robot, no_pull)
             if not self._wait_backend_ready():
@@ -657,6 +712,32 @@ class DuckietownViewerInstance:
             except KeyboardInterrupt:
                 dtslogger.info("Exiting...")
         else:
+            if should_delegate_viewer_frontend(browser):
+                backend_url = window_args.get("url")
+                if not isinstance(backend_url, str) or not backend_url:
+                    if self._backend_url is None:
+                        raise ValueError("Backend not ready. This should not have happened.")
+                    backend_url = f"http://{self._backend_url}"
+                dtslogger.info("Launching Duckietown Viewer frontend on the host...")
+                try:
+                    exit_code = delegate_viewer_frontend_to_host(
+                        app,
+                        os_family=self._os_family,
+                        fullscreen=bool(fullscreen),
+                        menu=bool(menu),
+                        on_top=bool(on_top),
+                        enable_hardware_acceleration=bool(enable_hardware_acceleration),
+                        window_args=dict(window_args),
+                        backend_url=backend_url,
+                    )
+                except HostRunnerError as error:
+                    dtslogger.error(str(error))
+                    self._stop()
+                    return
+                if exit_code != 0:
+                    dtslogger.error(f"Host-side viewer frontend exited with code {exit_code}.")
+                self._stop()
+                return
             self._start_frontend(fullscreen, menu, on_top, enable_hardware_acceleration, window_args or {})
             self._join_frontend()
         self._stop()

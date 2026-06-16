@@ -71,6 +71,8 @@ desktop:
           subcommands:
             release:
               description: Create a new release of the DTV and push it to the DCSS
+        frontend:
+          description: Launch a DTV frontend window
         install:
           description: Install a DTV application
         update:

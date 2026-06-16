@@ -23,6 +23,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
 from ..engine.run.command import MatrixEngine
+from .host_runner import HostRunnerError, delegate_matrix_run_to_host, should_delegate_matrix_run
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
@@ -41,6 +42,39 @@ WINDOWS_ARM64_SETUP_GUIDANCE = (
     "If launch fails, verify x64 emulation support is available, or use --browser to avoid "
     "the native renderer."
 )
+HOST_RUNNER_ENGINE_HOST_ENV = "DTS_HOST_RUNNER_ENGINE_HOST"
+DEFAULT_HOST_RUNNER_ENGINE_HOST = "127.0.0.1"
+ENGINE_ONLY_FLAGS = {
+    "-S",
+    "--standalone",
+    "--gym",
+    "--simulation",
+    "--embedded",
+    "-s",
+    "--sandbox",
+    "--no-pull",
+    "--expose-ports",
+    "--static-ports",
+}
+ENGINE_ONLY_OPTIONS = {
+    "-t",
+    "-dt",
+    "--delta-t",
+    "--engine-name",
+    "-m",
+    "--map",
+    "-e",
+    "--engine",
+    "-ep",
+    "--engine-control-port",
+    "-ewp",
+    "--engine-ws-control-port",
+    "--port-offset",
+    "--shm-path",
+}
+ENGINE_ONLY_MULTI_OPTIONS = {
+    "--link": 2,
+}
 
 
 def _mask_token_value(token: str) -> str:
@@ -92,13 +126,95 @@ class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
         super_.log_message(format, *sanitized_args)
 
 
+def _host_runner_engine_host() -> str:
+    value = os.environ.get(HOST_RUNNER_ENGINE_HOST_ENV, "").strip()
+    return value or DEFAULT_HOST_RUNNER_ENGINE_HOST
+
+
+def _effective_engine_control_port(parsed) -> int:
+    if parsed.port_offset:
+        return 7502 + parsed.port_offset
+    return 7502
+
+
+def _effective_engine_ws_control_port(parsed) -> int:
+    if parsed.port_offset:
+        return 7503 + parsed.port_offset
+    return 7503
+
+
+def _build_host_renderer_args(raw_args: list[str], parsed) -> list[str]:
+    if not parsed.standalone:
+        return list(raw_args)
+
+    forwarded_args = []
+    engine_option_prefixes = tuple(
+        option + "=" for option in ENGINE_ONLY_OPTIONS if option.startswith("--")
+    )
+    index = 0
+
+    while index < len(raw_args):
+        arg = raw_args[index]
+        if arg in ENGINE_ONLY_FLAGS:
+            index += 1
+            continue
+        if arg in ENGINE_ONLY_MULTI_OPTIONS:
+            index += 1 + ENGINE_ONLY_MULTI_OPTIONS[arg]
+            continue
+        if arg in ENGINE_ONLY_OPTIONS:
+            index += 2
+            continue
+        if arg.startswith(engine_option_prefixes):
+            index += 1
+            continue
+        forwarded_args.append(arg)
+        index += 1
+
+    forwarded_args.extend([
+        "--engine",
+        _host_runner_engine_host(),
+        "--engine-control-port",
+        str(_effective_engine_control_port(parsed)),
+        "--engine-ws-control-port",
+        str(_effective_engine_ws_control_port(parsed)),
+    ])
+    return forwarded_args
+
+
 class DTCommand(DTCommandAbs):
 
     help = f'Runs the {APP_NAME} renderer'
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        raw_args = list(args)
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
+        # Browser mode is intentionally resolved locally because it serves the WebGL app
+        # from inside the dev container rather than launching a native renderer binary.
+        delegate_native_renderer = should_delegate_matrix_run() and not parsed.browser
+        if delegate_native_renderer:
+            if getattr(parsed, "renderer_binary", None) is not None:
+                dtslogger.error(
+                    "Host renderer delegation does not support --renderer-binary because "
+                    "that path must exist on the host."
+                )
+                return
+            if getattr(parsed, "container_image", None) is not None:
+                dtslogger.error(
+                    "Host renderer delegation does not support --container-image because "
+                    "the host should run its native renderer directly."
+                )
+                return
+            if parsed.standalone and (
+                parsed.engine_control_port is not None
+                or parsed.engine_ws_control_port is not None
+            ):
+                dtslogger.error(
+                    "Host renderer delegation currently supports the default engine ports or "
+                    "--port-offset only. The local engine launcher does not honor explicit "
+                    "--engine-control-port / --engine-ws-control-port values."
+                )
+                return
         # ---
         # check for conflicting arguments
         run_engine: bool = parsed.standalone
@@ -126,14 +242,23 @@ class DTCommand(DTCommandAbs):
                             "Standalone mode, or use a default map with -s/--sandbox.")
             return
         # make sure the time step is only given in gym mode
-        # if parsed.delta_t is not None and not parsed.simulation:
-        #     dtslogger.error("You can specify a --delta-t only when running with "
-        #                     "--gym/--simulation.")
-        #     return
+        if parsed.delta_t is not None and not parsed.simulation:
+            dtslogger.error("You can specify a --delta-t only when running with "
+                            "--gym/--simulation.")
+            return
+        if parsed.shm_path:
+            if not parsed.simulation:
+                dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
+                return
+            if not run_engine:
+                dtslogger.error("You cannot use --shm-path without -S/--standalone.")
+                return
         # profiler
         if parsed.profiler and not run_engine:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
             return
+        if delegate_native_renderer and run_engine:
+            parsed.expose_ports = True
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
         if run_engine:
@@ -149,105 +274,110 @@ class DTCommand(DTCommandAbs):
         app_prefix: list = []
         terminate_renderer: Optional[Callable] = None
         if run_renderer:
-            os_family = parsed.os_family
             browser = parsed.browser
-            if os_family:
-                if browser:
-                    dtslogger.error("You cannot use -os/--os-family and --browser together.")
-                    return
-                if os_family not in ("linux", "macos", "windows"):
-                    dtslogger.error(f"Unsupported os-family '{os_family}'. "
-                                    f"Supported values are: linux, macos, windows.")
-                    return
+            if delegate_native_renderer:
+                dtslogger.info("Configuring host-delegated native renderer...")
             else:
-                os_family = get_os_family()
-            version = parsed.version
-            if version:
-                shell.include.matrix.install.command(shell, ("--version", version))
-            else:
-                args = ["--update"]
-                if browser:
-                    args.append("--webgl")
+                os_family = parsed.os_family
+                if os_family:
+                    if browser:
+                        dtslogger.error("You cannot use -os/--os-family and --browser together.")
+                        return
+                    if os_family not in ("linux", "macos", "windows"):
+                        dtslogger.error(f"Unsupported os-family '{os_family}'. "
+                                        f"Supported values are: linux, macos, windows.")
+                        return
                 else:
-                    args.extend(["--os-family", os_family])
-                shell.include.matrix.install.command(shell, args)
-                version = get_most_recent_version_installed(os_family, browser)
-            dtslogger.info(f"Configuring Renderer ({version})...")
-            dtslogger.debug(f"Will try to run {version}...")
-            # make sure the app is installed
-            if version is None:
-                extra = f"version v{parsed.version} " if parsed.version is not None else ""
-                dtslogger.error(f"The app {extra}was not found on your disk.\n"
-                                f"Use the command `dts matrix install` to download it.")
-                return
-            # app configuration
-            app_path = get_path_to_app(os_family, version, browser)
-            if not browser and should_run_linux_renderer_through_fex(os_family):
-                fex_executable = find_fex_executable()
-                if fex_executable is None:
-                    message = format_fex_renderer_message()
-                    dtslogger.error(message)
+                    os_family = get_os_family()
+                version = parsed.version
+                if version:
+                    shell.include.matrix.install.command(shell, ("--version", version))
+                else:
+                    install_args = ["--update"]
+                    if browser:
+                        install_args.append("--webgl")
+                    else:
+                        install_args.extend(["--os-family", os_family])
+                    shell.include.matrix.install.command(shell, install_args)
+                    version = get_most_recent_version_installed(os_family, browser)
+                dtslogger.info(f"Configuring Renderer ({version})...")
+                dtslogger.debug(f"Will try to run {version}...")
+                # make sure the app is installed
+                if version is None:
+                    extra = f"version v{parsed.version} " if parsed.version is not None else ""
+                    dtslogger.error(f"The app {extra}was not found on your disk.\n"
+                                    f"Use the command `dts matrix install` to download it.")
                     return
-                app_prefix = [fex_executable]
-            elif not browser and is_arm64_windows_host(os_family):
-                dtslogger.info(
-                    "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
-                    "is an x86-64 binary and will rely on Windows x64 emulation."
-                )
-            # Unity on macOS/Windows uses "-" to mean "log to stdout"; "/dev/stdout" works on Linux.
-            app_config = [
-                "-logfile", "/dev/stdout" if os_family == "linux" else "-"
-            ]
-            # graphics API
-            if parsed.force_opengl:
-                app_config += ["-force-opengl"]
-            elif parsed.force_vulkan:
-                app_config += ["-force-vulkan"]
-            else:
-                # by default, we use Vulkan for native platforms
-                # for Windows binaries (WSL), let Unity auto-detect the graphics API
-                if os_family != "windows":
+                # app configuration
+                app_path = get_path_to_app(os_family, version, browser)
+                if not browser and should_run_linux_renderer_through_fex(os_family):
+                    fex_executable = find_fex_executable()
+                    if fex_executable is None:
+                        message = format_fex_renderer_message()
+                        dtslogger.error(message)
+                        return
+                    app_prefix = [fex_executable]
+                elif not browser and is_arm64_windows_host(os_family):
+                    dtslogger.info(
+                        "Detected an ARM64 Windows host. The Windows Duckiematrix renderer "
+                        "is an x86-64 binary and will rely on Windows x64 emulation."
+                    )
+                # Unity on macOS/Windows uses "-" to mean "log to stdout"; "/dev/stdout" works on Linux.
+                app_config = [
+                    "-logfile", "/dev/stdout" if os_family == "linux" else "-"
+                ]
+                # graphics API
+                if parsed.force_opengl:
+                    app_config += ["-force-opengl"]
+                elif parsed.force_vulkan:
                     app_config += ["-force-vulkan"]
-            # custom engine
-            if parsed.engine_hostname is not None:
-                app_config += ["--engine-hostname", parsed.engine_hostname]
-            _ep = parsed.engine_control_port if parsed.engine_control_port is not None else (7502 + parsed.port_offset if parsed.port_offset else None)
-            _ewp = parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None else (7503 + parsed.port_offset if parsed.port_offset else None)
-            if _ep is not None:
-                app_config += ["--engine-control-port", str(_ep)]
-            if _ewp is not None:
-                app_config += ["--engine-ws-control-port", str(_ewp)]
-            # custom renderer ID
-            if parsed.renderer_id is not None:
-                app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
-            # custom renderer key
-            if parsed.renderer_key is not None:
-                app_config += ["--renderer-key", parsed.renderer_key]
-            # By default, display the tutorial
-            if parsed.no_tutorial:
-                pass
-            else:
-                app_config += ["--tutorial"]
-            if parsed.profiler:
-                app_config += ["--profiler"]
-            # token
-            app_config += ["--token", shell.profile.secrets.dt_token]
-            # billboards
-            billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
-            billboard_names = shell.get_billboard_names(billboards_database)
-            if billboard_names:
-                billboard = shell.get_billboard(billboards_database, billboard_names)
-                if billboard:
-                    app_config += ["--billboard", billboard]
-                app_config += ["--billboards-path", billboards_database.yaml]
-                # convert list with repeated names to JSON with frequencies
-                counter = Counter(billboard_names)
-                billboard_names_dict = dict(counter)
-                app_config += ["--billboard-names", json.dumps(billboard_names_dict)]
-            # ---
-            dtslogger.info("Renderer configured!")
-            # RENDERER is now configured
-            # -------------------------------------------------------------------------------------
+                else:
+                    # by default, we use Vulkan for native platforms
+                    # for Windows binaries (WSL), let Unity auto-detect the graphics API
+                    if os_family != "windows":
+                        app_config += ["-force-vulkan"]
+                # custom engine
+                if parsed.engine_hostname is not None:
+                    app_config += ["--engine-hostname", parsed.engine_hostname]
+                _ep = parsed.engine_control_port if parsed.engine_control_port is not None else (7502 + parsed.port_offset if parsed.port_offset else None)
+                _ewp = parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None else (7503 + parsed.port_offset if parsed.port_offset else None)
+                if _ep is not None:
+                    app_config += ["--engine-control-port", str(_ep)]
+                if _ewp is not None:
+                    app_config += ["--engine-ws-control-port", str(_ewp)]
+                # custom renderer ID
+                if parsed.renderer_id is not None:
+                    app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
+                # custom renderer key
+                if parsed.renderer_key is not None:
+                    app_config += ["--renderer-key", parsed.renderer_key]
+                # By default, display the tutorial
+                if parsed.no_tutorial:
+                    pass
+                else:
+                    app_config += ["--tutorial"]
+                if parsed.profiler:
+                    app_config += ["--profiler"]
+                if parsed.target_frame_rate is not None:
+                    app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
+                # token
+                app_config += ["--token", shell.profile.secrets.dt_token]
+                # billboards
+                billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
+                billboard_names = shell.get_billboard_names(billboards_database)
+                if billboard_names:
+                    billboard = shell.get_billboard(billboards_database, billboard_names)
+                    if billboard:
+                        app_config += ["--billboard", billboard]
+                    app_config += ["--billboards-path", billboards_database.yaml]
+                    # convert list with repeated names to JSON with frequencies
+                    counter = Counter(billboard_names)
+                    billboard_names_dict = dict(counter)
+                    app_config += ["--billboard-names", json.dumps(billboard_names_dict)]
+                # ---
+                dtslogger.info("Renderer configured!")
+                # RENDERER is now configured
+                # -------------------------------------------------------------------------------------
 
         # run
         try:
@@ -272,6 +402,20 @@ class DTCommand(DTCommandAbs):
                                         f"The error reads:\n{e}")
                         engine.stop()
                         return
+
+                if delegate_native_renderer:
+                    host_renderer_args = _build_host_renderer_args(raw_args, parsed)
+                    dtslogger.info("Launching the native Duckiematrix renderer on the host...")
+                    dtslogger.debug(f"$ > host dts matrix run {host_renderer_args}")
+                    try:
+                        exit_code = delegate_matrix_run_to_host(host_renderer_args)
+                    except HostRunnerError as error:
+                        error_string = str(error)
+                        dtslogger.error(error_string)
+                        return
+                    if exit_code != 0:
+                        dtslogger.error(f"Host-side renderer exited with code {exit_code}.")
+                    return
 
                 if browser:
                     dtslogger.info("Launching Renderer in browser...")
@@ -330,6 +474,7 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
+                    os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
                     if os_family == "macos":
                         try:

@@ -5,6 +5,7 @@ from utils.duckietown_viewer_utils import (
     ensure_duckietown_viewer_installed,
     launch_viewer,
     resolve_os_family,
+    should_delegate_viewer_frontend,
 )
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
@@ -19,10 +20,14 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
-        # make sure the app is installed
         browser = parsed.browser
-        os_family = resolve_os_family(parsed.os_family, browser)
-        ensure_duckietown_viewer_installed(os_family)
+        delegate_frontend = should_delegate_viewer_frontend(browser)
+        if delegate_frontend:
+            os_family = parsed.os_family or ""
+        else:
+            os_family = resolve_os_family(parsed.os_family, browser)
+            if not browser:
+                ensure_duckietown_viewer_installed(os_family)
         # launch viewer
         launch_viewer(
             LAUNCHER_NAME,
