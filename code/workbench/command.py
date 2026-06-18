@@ -117,6 +117,7 @@ class DTCommand(DTCommandAbs):
                 machine=parsed.machine,
                 name=container_name,
                 subcommand="attach",
+                use_x_docker=parsed.use_x_docker,
             )
             return shell.include.devel.run.command(shell, [], parsed=run_namespace)
 
@@ -129,6 +130,7 @@ class DTCommand(DTCommandAbs):
             robot=parsed.robot,
             launcher=parsed.launcher,
             docker_args=docker_args,
+            use_x_docker=parsed.use_x_docker,
             **run_arg
         )
         dtslogger.debug(f"Deploying with 'devel/run' using args: {run_namespace}")

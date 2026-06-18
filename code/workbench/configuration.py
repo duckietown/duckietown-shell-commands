@@ -83,6 +83,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
                  "useful for debugging.",
         )
 
+        parser.add_argument(
+            "-X",
+            dest="use_x_docker",
+            default=False,
+            action="store_true",
+            help="Use x-docker as runtime to enable X11 GUI apps inside the workbench",
+        )
 
         parser.add_argument(
             "-L",
