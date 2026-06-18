@@ -12,6 +12,28 @@ NET_DEVICE=""
 NET_IP=127.0.0.1
 DISPLAY_NO=":0"
 
+resolve_linux_display() {
+    local vnc_display=""
+
+    if [ -n "${WORKSPACE_HOST_DISPLAY:-}" ]; then
+        printf '%s\n' "$WORKSPACE_HOST_DISPLAY"
+        return
+    fi
+
+    vnc_display=$(ps -ef | sed -n 's/.*Xtigervnc \(:[0-9][0-9]*\).*/\1/p' | head -n 1)
+    if [ -n "$vnc_display" ]; then
+        printf '%s\n' "$vnc_display"
+        return
+    fi
+
+    if [ -n "${DISPLAY:-}" ]; then
+        printf '%s\n' "$DISPLAY"
+        return
+    fi
+
+    printf ':0\n'
+}
+
 # get current system
 system_codename="$(uname -s)"
 case "${system_codename}" in
@@ -48,9 +70,11 @@ if [ $SYSTEM -eq $SYS_LINUX ]; then
     # get ip
     NET_IP=''
     # get display number
-    DISPLAY_NO=$DISPLAY
+    DISPLAY_NO=$(resolve_linux_display)
     # allow X-server to receive connections from current machine
-    xhost +local:root
+    if [[ "$DISPLAY_NO" == :* ]]; then
+        DISPLAY="$DISPLAY_NO" xhost +local:root
+    fi
 elif [ $SYSTEM -eq $SYS_MAC ]; then
     # get default gateway device
     NET_DEVICE=$(route get default | grep "interface: " | head -1 | awk '{ print $2 }')
