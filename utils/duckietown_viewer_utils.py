@@ -525,6 +525,7 @@ class DuckietownViewerInstance:
         "intrinsics_calibrator",
         "extrinsics_calibrator",
         "led_controller",
+        "graph_plotter",
         "dashboard"
     ]
 
