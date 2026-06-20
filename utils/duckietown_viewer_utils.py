@@ -6,7 +6,9 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import time
+from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
 from typing import Dict, List, Optional, Tuple, Union
@@ -21,6 +23,14 @@ from dt_data_api import DataClient
 
 import dt_shell
 from dt_shell import dtslogger, DTShell, UserError
+from utils.host_runner import (
+    HOST_RUNNER_FRONTEND_URL_ENV,
+    HOST_RUNNER_FRONTEND_URL_FORWARD_ENV,
+    HostRunnerError,
+    delegate_command_to_host,
+    host_runner_engine_host,
+    should_delegate_to_host,
+)
 from utils.docker_utils import get_client, get_endpoint_architecture, get_registry_to_use, pull_image
 from utils.duckietown_utils import USER_DATA_DIR, get_distro
 from utils.misc_utils import versiontuple, random_string
@@ -37,6 +47,104 @@ AVAHI_SOCKET = "/var/run/avahi-daemon/socket"
 SUPPORTED_OS_FAMILIES = ("linux", "macos", "windows")
 
 WindowArgs = Dict[str, Union[int, float, str]]
+
+HOST_DELEGATED_VIEWER_COMMANDS = {
+    "image_viewer": ("duckiebot", "image_viewer"),
+    "keyboard_controller": ("duckiebot", "keyboard_control"),
+    "intrinsics_calibrator": ("duckiebot", "calibrate_intrinsics"),
+    "extrinsics_calibrator": ("duckiebot", "calibrate_extrinsics"),
+    "led_controller": ("duckiebot", "led_control"),
+    "graph_plotter": ("duckiebot", "graph_plotter"),
+}
+
+FRONTEND_URL_REACHABILITY_TIMEOUT_SECONDS = 10
+FRONTEND_URL_REACHABILITY_RETRY_INTERVAL_SECONDS = 0.5
+
+
+def forwarded_frontend_url() -> Optional[str]:
+    raw_url = os.environ.get(HOST_RUNNER_FRONTEND_URL_ENV, "")
+    url = raw_url.strip()
+    if url:
+        return url
+    return None
+
+
+def _is_native_viewer_host_platform() -> bool:
+    return sys.platform.startswith(("darwin", "win32", "cygwin"))
+
+
+def should_delegate_viewer_frontend(browser: bool, local: bool = False) -> bool:
+    if browser or local:
+        return False
+    if _is_native_viewer_host_platform():
+        return False
+    return should_delegate_to_host()
+
+
+def get_current_dts_cli_options(argv: Optional[List[str]] = None) -> List[str]:
+    parsed_argv = list(sys.argv[1:] if argv is None else argv)
+    forwarded_options: List[str] = []
+    index = 0
+    while index < len(parsed_argv):
+        arg = parsed_argv[index]
+        if not arg.startswith("-"):
+            break
+        if arg in ("--debug", "--verbose", "-vv", "--quiet", "-q"):
+            forwarded_options.append(arg)
+            index += 1
+            continue
+        if arg == "--profile":
+            if index + 1 >= len(parsed_argv):
+                break
+            forwarded_options.extend([arg, parsed_argv[index + 1]])
+            index += 2
+            continue
+        if arg.startswith("--profile="):
+            forwarded_options.append(arg)
+            index += 1
+            continue
+        index += 1
+    return forwarded_options
+
+
+def build_host_viewer_command(
+    app: str,
+    robot: Optional[str],
+    *,
+    fullscreen: Optional[bool],
+    on_top: Optional[bool],
+    enable_hardware_acceleration: Optional[bool],
+    verbose: bool,
+    no_pull: bool,
+) -> Optional[Tuple[Tuple[str, ...], List[str]]]:
+    command_path = HOST_DELEGATED_VIEWER_COMMANDS.get(app)
+    if command_path is None or robot is None:
+        return None
+    current_dts_cli_options = get_current_dts_cli_options()
+    command_prefix = tuple(current_dts_cli_options)
+    command_args: List[str] = []
+    if fullscreen:
+        command_args.append("--fullscreen")
+    if on_top:
+        command_args.append("--on-top")
+    if verbose:
+        command_args.append("--verbose")
+    if enable_hardware_acceleration:
+        command_args.append("--enable-hardware-acceleration")
+    if no_pull:
+        command_args.append("--no-pull")
+    command_args.append(robot)
+    return command_prefix + command_path, command_args
+
+
+def host_delegated_viewer_cwd() -> str:
+    path = Path(__file__)
+    resolved_path = path.resolve()
+    repo_root = resolved_path.parents[1]
+    workspace_root = repo_root.parent / "workspace"
+    if workspace_root.is_dir():
+        return str(workspace_root)
+    return str(repo_root.parent)
 
 
 def linux_path_to_windows(path: str) -> Optional[str]:
@@ -455,6 +563,7 @@ def launch_viewer(
     on_top: bool = False,
     enable_hardware_acceleration: bool = False,
     browser: bool = False,
+    local: bool = False,
     no_pull: bool = False,
     window_args: Optional[WindowArgs] = None
 ) -> 'DuckietownViewerInstance':
@@ -477,6 +586,8 @@ def launch_viewer(
             viewer.
         browser: Open the viewer URL in the system browser instead of the
             native app window.
+        local: Run the native frontend locally instead of delegating it to the
+            host runner.
         no_pull: Use a local backend image without pulling updates.
         window_args: Extra keyword arguments forwarded to the frontend binary
             as ``--key=value`` CLI flags.  A ``"url"`` key bypasses the
@@ -494,6 +605,7 @@ def launch_viewer(
         on_top=on_top,
         enable_hardware_acceleration=enable_hardware_acceleration,
         browser=browser,
+        local=local,
         no_pull=no_pull,
         window_args=window_args,
     )
@@ -542,6 +654,7 @@ class DuckietownViewerInstance:
         # internal state
         self._backend: Optional[Container] = None
         self._frontend: Optional[subprocess.Popen] = None
+        self._frontend_debug_log_path: Optional[str] = None
         self._backend_url: Optional[str] = None
         self._host_port: Optional[str] = None
 
@@ -611,6 +724,43 @@ class DuckietownViewerInstance:
         pull_image(image, docker)
         return image
 
+    def _host_visible_backend_url(self) -> str:
+        if self._host_port is None:
+            raise ValueError("Backend host port is not known yet.")
+        backend_host = host_runner_engine_host() or "localhost"
+        if backend_host in ("127.0.0.1", "::1"):
+            backend_host = "localhost"
+        return f"http://{backend_host}:{self._host_port}/app/"
+
+    @staticmethod
+    def _assert_frontend_url_reachable(url: str) -> None:
+        deadline = time.time() + FRONTEND_URL_REACHABILITY_TIMEOUT_SECONDS
+        last_error: Optional[Exception] = None
+        last_response: Optional[requests.Response] = None
+        while True:
+            try:
+                response = requests.get(url, timeout=3)
+            except Exception as error:
+                last_error = error
+            else:
+                last_response = response
+                if response.status_code == 200:
+                    return
+            if time.time() >= deadline:
+                break
+            time.sleep(FRONTEND_URL_REACHABILITY_RETRY_INTERVAL_SECONDS)
+        if last_response is not None:
+            raise UserError(
+                f"Forwarded backend URL '{url}' returned HTTP {last_response.status_code} {last_response.reason}."
+            )
+        if last_error is not None:
+            raise UserError(
+                f"Forwarded backend URL '{url}' is not reachable from the host: {last_error}"
+            ) from last_error
+        raise UserError(
+            f"Forwarded backend URL '{url}' could not be verified from the host."
+        )
+
     def start(
         self,
         app: str,
@@ -620,6 +770,7 @@ class DuckietownViewerInstance:
         on_top: Optional[bool],
         enable_hardware_acceleration: Optional[bool],
         browser: bool = False,
+        local: bool = False,
         no_pull: bool = False,
         window_args: Optional[WindowArgs] = None
     ):
@@ -638,28 +789,108 @@ class DuckietownViewerInstance:
             enable_hardware_acceleration: Pass ``--enable-hardware-acceleration``
                 to the frontend.
             browser: Open in the system browser instead of the native app.
+            local: Run the native frontend locally instead of delegating it to
+                the host runner.
             no_pull: Use a local backend image without pulling updates.
             window_args: Additional ``--key=value`` arguments for the frontend.
         """
-        if "url" not in window_args.keys():
-            self._start_backend(app, robot, no_pull)
-            if not self._wait_backend_ready():
-                self._backend.stop()
-                return
-        if browser:
-            url = f"http://localhost:{self._host_port}/app/"
-            if not webbrowser.open(url):
-                dtslogger.warning("Could not open browser.")
-            dtslogger.info(f"Navigate to {url}")
-            try:
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                dtslogger.info("Exiting...")
-        else:
-            self._start_frontend(fullscreen, menu, on_top, enable_hardware_acceleration, window_args or {})
-            self._join_frontend()
-        self._stop()
+        resolved_window_args: WindowArgs = {}
+        if window_args is not None:
+            resolved_window_args = dict(window_args)
+        frontend_url_override = forwarded_frontend_url()
+        if frontend_url_override and "url" not in resolved_window_args:
+            dtslogger.info(f"Using forwarded backend URL '{frontend_url_override}'.")
+            resolved_window_args["url"] = frontend_url_override
+        try:
+            if frontend_url_override:
+                self._assert_frontend_url_reachable(frontend_url_override)
+            if "url" not in resolved_window_args:
+                self._start_backend(app, robot, no_pull)
+                if not self._wait_backend_ready():
+                    return
+                if should_delegate_viewer_frontend(browser, local):
+                    frontend_url = self._host_visible_backend_url()
+                    dtslogger.info("Launching viewer on the host...")
+                    exit_code = self._delegate_frontend_to_host(
+                        app,
+                        robot,
+                        fullscreen,
+                        on_top,
+                        enable_hardware_acceleration,
+                        no_pull,
+                        frontend_url,
+                    )
+                    if exit_code != 0:
+                        dtslogger.error(
+                            f"Host-side viewer command exited with code {exit_code}."
+                        )
+                    return
+                frontend_url = f"http://{self._backend_url}/app/"
+                resolved_window_args["url"] = frontend_url
+            if browser:
+                url = str(resolved_window_args["url"])
+                if not webbrowser.open(url):
+                    dtslogger.warning("Could not open browser.")
+                dtslogger.info(f"Navigate to {url}")
+                try:
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    dtslogger.info("Exiting...")
+            else:
+                self._start_frontend(
+                    fullscreen,
+                    menu,
+                    on_top,
+                    enable_hardware_acceleration,
+                    resolved_window_args,
+                )
+                self._join_frontend()
+        finally:
+            self._stop()
+
+    def _delegate_frontend_to_host(
+        self,
+        app: str,
+        robot: Optional[str],
+        fullscreen: Optional[bool],
+        on_top: Optional[bool],
+        enable_hardware_acceleration: Optional[bool],
+        no_pull: bool,
+        frontend_url: str,
+    ) -> int:
+        host_command = build_host_viewer_command(
+            app,
+            robot,
+            fullscreen=fullscreen,
+            on_top=on_top,
+            enable_hardware_acceleration=enable_hardware_acceleration,
+            verbose=self._verbose,
+            no_pull=no_pull,
+        )
+        if host_command is None:
+            raise UserError(
+                f"Host delegation is not configured for viewer app '{app}'."
+            )
+        command_path, command_args = host_command
+        previous_url = os.environ.get(HOST_RUNNER_FRONTEND_URL_FORWARD_ENV)
+        os.environ[HOST_RUNNER_FRONTEND_URL_FORWARD_ENV] = frontend_url
+        try:
+            cwd = host_delegated_viewer_cwd()
+            return delegate_command_to_host(
+                command_path,
+                command_args,
+                cwd=cwd,
+                emit_client_context=self._verbose,
+            )
+        except HostRunnerError as error:
+            error_string = str(error)
+            raise UserError(error_string) from error
+        finally:
+            if previous_url is None:
+                os.environ.pop(HOST_RUNNER_FRONTEND_URL_FORWARD_ENV, None)
+            else:
+                os.environ[HOST_RUNNER_FRONTEND_URL_FORWARD_ENV] = previous_url
 
     def _start_backend(self, app: str, robot: str, no_pull: bool = False):
         """Pull the backend Docker image and start a container for the given app.
@@ -810,8 +1041,9 @@ class DuckietownViewerInstance:
 
         Builds the CLI argument list from the supplied options, resolves the
         platform-specific binary path, and spawns the process with
-        :class:`subprocess.Popen`.  On macOS ``.app`` bundles are launched via
-        ``open -n -W``.
+        :class:`subprocess.Popen`. On macOS the installed ``.app`` bundle is
+        entered through its nested helper executable so the delegated child
+        keeps the Viewer CLI flags and host-side debug logging intact.
 
         Args:
             fullscreen: Pass ``--fullscreen`` to the binary.
@@ -846,23 +1078,70 @@ class DuckietownViewerInstance:
             app_config.append(f"--{k}={v}")
         # run the app
         dtslogger.info("Launching viewer...")
-        # On macOS, use 'open' command for .app bundles
+        popen_kwargs = {}
         if (os_family == "macos" or os_family == "macos-arm64") and app_bin.endswith(".app"):
-            # -n starts a separate app instance; -W waits until that instance exits.
-            app_cmd = ["open", "-n", "-W", app_bin, "--args"] + app_config
+            framework_executable = (
+                f"{app_bin}/Contents/Frameworks/Duckietown Viewer Helper.app/Contents/MacOS/Duckietown Viewer Helper"
+            )
+            if not os.path.exists(framework_executable):
+                framework_executable = f"{app_bin}/Contents/MacOS/Duckietown Viewer"
+            app_cmd = [framework_executable] + app_config
+            popen_kwargs["env"] = os.environ.copy()
+            popen_kwargs["env"].pop("ELECTRON_RUN_AS_NODE", None)
+            popen_kwargs["cwd"] = f"{app_bin}/Contents/Resources"
+            popen_kwargs["stdin"] = subprocess.DEVNULL
+            if self._verbose:
+                launch_env = popen_kwargs["env"]
+                debug_log = tempfile.NamedTemporaryFile(
+                    prefix="duckietown-viewer-",
+                    suffix=".log",
+                    delete=False,
+                )
+                debug_log_path = debug_log.name
+                debug_log.close()
+                self._frontend_debug_log_path = debug_log_path
+                launch_env["DUCKIETOWN_VIEWER_DEBUG"] = "1"
+                launch_env["DUCKIETOWN_VIEWER_DEBUG_LOG"] = debug_log_path
+                launch_env.setdefault("ELECTRON_ENABLE_LOGGING", "1")
+                launch_env.setdefault("ELECTRON_ENABLE_STACK_DUMPING", "1")
         else:
             app_cmd = [app_bin] + app_config
         dtslogger.debug(f"$ > {app_cmd}")
-        self._frontend = subprocess.Popen(app_cmd)
+        self._frontend = subprocess.Popen(app_cmd, **popen_kwargs)
+
+    def _emit_frontend_debug_log(self) -> None:
+        log_path = self._frontend_debug_log_path
+        if not log_path:
+            return
+        try:
+            with open(log_path, "rt", encoding="utf-8") as debug_log:
+                for line in debug_log:
+                    sys.stdout.write(line)
+        except FileNotFoundError:
+            return
+
+    def _cleanup_frontend_debug_log(self) -> None:
+        log_path = self._frontend_debug_log_path
+        self._frontend_debug_log_path = None
+        if not log_path:
+            return
+        try:
+            os.remove(log_path)
+        except FileNotFoundError:
+            return
 
     def _join_frontend(self):
         """Block until the frontend process exits."""
-        self._frontend.wait()
+        exit_code = self._frontend.wait()
+        self._emit_frontend_debug_log()
+        if exit_code != 0:
+            raise UserError(f"Viewer frontend exited with code {exit_code}.")
         dtslogger.info("Viewer closed. Exiting...")
 
     def _stop(self):
         """Terminate the frontend process and stop the backend container."""
-        if self._frontend is not None:
+        if self._frontend is not None and self._frontend.poll() is None:
             self._frontend.terminate()
         if self._backend is not None:
             self._backend.stop()
+        self._cleanup_frontend_debug_log()
