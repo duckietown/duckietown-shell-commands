@@ -13,7 +13,6 @@ import platform
 import socket
 import sys
 import uuid
-import webbrowser
 from socket import AF_INET, SOCK_STREAM
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
@@ -24,6 +23,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
 from ..engine.run.command import MatrixEngine
+from utils.misc_utils import open_browser_url
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
@@ -398,7 +398,7 @@ class DTCommand(DTCommandAbs):
                         except Exception:
                             pass
                     if not browser_opened:
-                        browser_opened = webbrowser.open(url)
+                        browser_opened = open_browser_url(url)
                     if not browser_opened:
                         dtslogger.warning("Could not open browser.")
                     formatted_url = _format_navigation_url(url, token)

@@ -1,7 +1,9 @@
 import ipaddress
 import json
 import os
+import shlex
 import subprocess
+import sys
 import traceback
 import webbrowser
 import random
@@ -10,7 +12,7 @@ from shutil import which
 
 __all__ = ["human_time", "human_size", "sanitize_hostname", "sudo_open", "parse_version", "indent_block",
            "get_user_login", "pretty_json", "versiontuple", "render_version", "pretty_exc", "NotSet",
-           "hide_string", "SimpleWindowBrowser", "pretty_yaml"]
+           "hide_string", "SimpleWindowBrowser", "pretty_yaml", "open_browser_url"]
 
 from typing import Any
 
@@ -143,11 +145,53 @@ class SimpleWindowBrowser:
 
     def open(self, url: str) -> bool:
         if self._browser is None:
-            return False
+            return open_browser_url(url)
         try:
             return self._browser.open(url)
-        except:
-            webbrowser.open(url)
+        except Exception:
+            return open_browser_url(url)
+
+
+def open_browser_url(url: str) -> bool:
+    browser = os.environ.get("BROWSER", "")
+    browser_command = browser.strip()
+    if browser_command:
+        try:
+            browser_args = shlex.split(browser_command)
+            if browser_args:
+                if any("%s" in arg for arg in browser_args):
+                    command = [arg.replace("%s", url) for arg in browser_args]
+                else:
+                    command = [*browser_args, url]
+                subprocess.Popen(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                return True
+        except Exception as error:
+            dtslogger.debug(
+                f"Could not launch browser via BROWSER={browser_command!r}: {error}"
+            )
+    try:
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys, webbrowser; webbrowser.open(sys.argv[1])",
+                url,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return True
+    except Exception as error:
+        dtslogger.debug(f"Could not launch browser fallback process: {error}")
+        return False
 
 
 def random_string(length=6):
