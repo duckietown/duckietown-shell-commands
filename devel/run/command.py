@@ -22,6 +22,7 @@ from dtproject.constants import (
     CANONICAL_ARCH
 )
 from dtproject.types import LayerContainers, ContainerConfiguration
+from utils.assets_utils import get_asset_bin_path
 from utils.cli_utils import ensure_command_is_installed
 from utils.docker_utils import (
     DEFAULT_MACHINE,
@@ -140,8 +141,7 @@ class DTCommand(DTCommandAbs):
 
         # x-docker runtime
         if parsed.use_x_docker:
-            command_dir = os.path.dirname(os.path.abspath(__file__))
-            parsed.runtime = os.path.join(command_dir, "x-docker")
+            parsed.runtime = get_asset_bin_path("x-docker")
 
         # check runtime
         if not parsed.cloud and shutil.which(parsed.runtime) is None:
