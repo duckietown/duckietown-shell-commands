@@ -49,6 +49,78 @@ services:
     depends_on:
       - zenoh-router
 
+  tof-front:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-front
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-front
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
+
+  tof-left:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-left
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-left
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
+
+  tof-right:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-right
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-right
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
+
+  tof-top:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-top
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-top
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - zenoh-router
+
   mavros:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
     container_name: ros2-mavros
