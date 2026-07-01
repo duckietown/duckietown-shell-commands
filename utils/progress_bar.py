@@ -33,16 +33,14 @@ class ProgressBar:
         pbar += " " * (self._max - percentage - 1)
         # this ends the progress bar
         pbar += "] {:d}%".format(percentage_int)
-        # print
+        # print using carriage-return redraw so delegated output can stream
+        self._buffer.write("\r\x1b[2K")
         self._buffer.write(pbar)
-        self._buffer.flush()
-        # return to start of line
-        self._buffer.write("\b" * len(pbar) + "\x1b[2K")
         # end progress bar
         if percentage >= self._max:
-            self._buffer.write("Done!\n")
-            self._buffer.flush()
+            self._buffer.write("\r\x1b[2KDone!\n")
             self._finished = True
+        self._buffer.flush()
         self._last_value = percentage_int
 
     def done(self):

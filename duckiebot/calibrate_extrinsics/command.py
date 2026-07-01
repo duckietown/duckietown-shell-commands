@@ -1,7 +1,7 @@
 from dt_shell import DTCommandAbs, DTShell
 from utils.assets_utils import get_asset_icon_path
 from utils.duckietown_viewer_utils import \
-    ensure_duckietown_viewer_installed, launch_viewer, resolve_os_family
+    ensure_duckietown_viewer_installed, launch_viewer, resolve_os_family, should_delegate_viewer_frontend
 
 # NOTE: this must match the name of the launcher in the dt-duckietown-viewer project
 LAUNCHER_NAME = "extrinsics_calibrator"
@@ -17,8 +17,11 @@ class DTCommand(DTCommandAbs):
         # ---
         # make sure the app is installed
         browser = parsed.browser
+        local = parsed.local
+        delegate_frontend = should_delegate_viewer_frontend(browser, local)
         os_family = resolve_os_family(parsed.os_family, browser)
-        ensure_duckietown_viewer_installed(os_family)
+        if not delegate_frontend:
+            ensure_duckietown_viewer_installed(os_family)
         # launch viewer
         launch_viewer(
             LAUNCHER_NAME,
@@ -29,6 +32,7 @@ class DTCommand(DTCommandAbs):
             on_top=parsed.on_top,
             enable_hardware_acceleration=parsed.enable_hardware_acceleration,
             browser=browser,
+            local=local,
             no_pull=parsed.no_pull,
             window_args={
                 "icon": get_asset_icon_path(ICON_ASSET),
