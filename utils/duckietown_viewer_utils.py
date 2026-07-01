@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import dockertown
 import requests
-import webbrowser
 from dockertown import Container
 from dockertown import DockerClient
 from dockertown.exceptions import NoSuchContainer, NoSuchImage
@@ -34,7 +33,7 @@ from utils.host_runner import (
 )
 from utils.docker_utils import get_client, get_endpoint_architecture, get_registry_to_use, pull_image
 from utils.duckietown_utils import USER_DATA_DIR, get_distro
-from utils.misc_utils import versiontuple, random_string
+from utils.misc_utils import open_browser_url, versiontuple, random_string
 from utils.networking_utils import get_duckiebot_ip
 
 APP_NAME = "duckietown-viewer"
@@ -863,7 +862,7 @@ class DuckietownViewerInstance:
                 resolved_window_args["url"] = frontend_url
             if browser:
                 url = str(resolved_window_args["url"])
-                if not webbrowser.open(url):
+                if not open_browser_url(url):
                     dtslogger.warning("Could not open browser.")
                 dtslogger.info(f"Navigate to {url}")
                 try:
