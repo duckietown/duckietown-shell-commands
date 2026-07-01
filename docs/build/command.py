@@ -16,6 +16,7 @@ from utils.docker_utils import (
     sanitize_docker_baseurl,
     get_cloud_builder,
 )
+from utils.docs_utils import CONTAINER_BUILD_CACHE_DIR, get_host_build_cache_dir
 from dtproject import DTProject
 from dt_shell.exceptions import ShellNeedsUpdate
 
@@ -30,8 +31,6 @@ from dockertown import DockerClient
 
 CONTAINER_HTML_DIR = "tmp/jb/_build/html"
 CONTAINER_PDF_DIR = "tmp/jb/_build/pdf"
-CONTAINER_BUILD_CACHE_DIR = "/tmp/jb"
-HOST_BUILD_CACHE_DIR = "/tmp/duckietown/docs/{book}"
 
 DCSS_RSA_SECRET_LOCATION = "secrets/rsa/ssh-{dns}/id_rsa"
 DCSS_RSA_SECRET_SPACE = "private"
@@ -299,13 +298,9 @@ class DTCommand(DTCommandAbs):
 
             # build cache
             if not parsed.no_cache:
-                build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
-                try:
-                    os.makedirs(build_cache, exist_ok=True)
-                except Exception:
-                    pass
-                if os.path.exists(build_cache):
-                    volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, mount_flags("rw")))
+                build_cache: str = get_host_build_cache_dir(project.name)
+                os.makedirs(build_cache, exist_ok=True)
+                volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, mount_flags("rw")))
 
             # log reader from container
             def consume_container_logs(_logs):
