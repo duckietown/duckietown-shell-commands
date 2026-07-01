@@ -54,6 +54,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run in browser mode"
         )
         parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run the native viewer locally instead of delegating it to the host"
+        )
+        parser.add_argument(
             "--no-pull",
             default=False,
             action="store_true",
