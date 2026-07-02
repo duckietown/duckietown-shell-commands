@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Optional
 from urllib import error as urllib_error
@@ -15,6 +16,7 @@ HOST_RUNNER_TOKEN_ENV = "DTS_HOST_RUNNER_TOKEN"
 HOST_RUNNER_ACTIVE_ENV = "DTS_HOST_RUNNER_ACTIVE"
 HOST_RUNNER_ENGINE_HOST_ENV = "DTS_HOST_RUNNER_ENGINE_HOST"
 HOST_RUNNER_FRONTEND_URL_ENV = "DTS_HOST_RUNNER_FRONTEND_URL"
+HOST_RUNNER_CONTAINER_ROOT_ENV = "DTS_HOST_RUNNER_CONTAINER_ROOT"
 HOST_RUNNER_ENGINE_HOST_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_ENGINE_HOST"
 HOST_RUNNER_FRONTEND_URL_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_FRONTEND_URL"
 HOST_RUNNER_MATRIX_RENDERER_ONLY_ENV = "DTS_HOST_RUNNER_MATRIX_RENDERER_ONLY"
@@ -39,6 +41,7 @@ CANCEL_FILE_SUFFIX = ".cancel"
 HEARTBEAT_FILE_SUFFIX = ".heartbeat"
 HOST_RUNNER_INTERRUPT_GRACE_SECONDS = 5
 HOST_RUNNER_HEARTBEAT_INTERVAL_SECONDS = 1
+HOST_RUNNER_WORKSPACE_MARKER = Path("workspace/.devcontainer/scripts/host_runner.py")
 FORWARDED_ENVIRONMENT_KEYS = (
     "HOST_DOCKER_REGISTRY",
     "HOST_DTSHELL_COMMANDS",
@@ -223,7 +226,73 @@ def should_delegate_matrix_run() -> bool:
     return should_delegate_to_host()
 
 
+def _resolve_directory_candidate(path: Path) -> Optional[Path]:
+    try:
+        resolved_path = path.expanduser().resolve(strict=True)
+    except FileNotFoundError:
+        return None
+    if not resolved_path.is_dir():
+        return None
+    return resolved_path
+
+
+def _workspace_container_root(path: Path) -> Optional[Path]:
+    resolved_path = _resolve_directory_candidate(path)
+    if resolved_path is None:
+        return None
+    if not (resolved_path / HOST_RUNNER_WORKSPACE_MARKER).is_file():
+        return None
+    return resolved_path
+
+
+def _configured_host_runner_container_root() -> Optional[Path]:
+    runtime_values = {key: str(value) for key, value in os.environ.items()}
+    configured_root = _alias_value(runtime_values, HOST_RUNNER_CONTAINER_ROOT_ENV)
+    if configured_root:
+        root_path = _workspace_container_root(Path(configured_root))
+        if root_path is not None:
+            return root_path
+
+    for shared_env_file in _shared_host_runner_env_files():
+        shared_values = _read_host_runner_env_file(shared_env_file)
+        configured_root = _alias_value(
+            shared_values,
+            HOST_RUNNER_CONTAINER_ROOT_ENV,
+        )
+        if not configured_root:
+            continue
+        root_path = _workspace_container_root(Path(configured_root))
+        if root_path is not None:
+            return root_path
+    return None
+
+
+@lru_cache(maxsize=1)
 def _host_runner_container_root() -> Path:
+    configured_root = _configured_host_runner_container_root()
+    if configured_root is not None:
+        return configured_root
+
+    cwd_path = Path.cwd()
+    for candidate_root in (cwd_path, *cwd_path.parents):
+        workspace_root = _workspace_container_root(candidate_root)
+        if workspace_root is not None:
+            return workspace_root
+
+    home_path = Path.home()
+    direct_home_root = _workspace_container_root(home_path / "duckietown")
+    if direct_home_root is not None:
+        return direct_home_root
+
+    try:
+        home_children = sorted(home_path.iterdir(), key=lambda child_path: child_path.name)
+    except OSError:
+        home_children = []
+    for child_path in home_children:
+        workspace_root = _workspace_container_root(child_path)
+        if workspace_root is not None:
+            return workspace_root
+
     file_path = Path(__file__)
     resolved_path = file_path.resolve()
     repo_root = resolved_path.parents[1]
