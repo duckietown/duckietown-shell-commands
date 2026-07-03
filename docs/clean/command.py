@@ -8,6 +8,7 @@ from dt_shell import DTCommandAbs, DTShell, dtslogger
 from dtproject import DTProject
 
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
+from utils.docs_utils import CONTAINER_BUILD_CACHE_DIR, get_host_build_cache_dir
 from dt_shell.exceptions import ShellNeedsUpdate
 
 # NOTE: this is to avoid breaking the user workspace
@@ -16,9 +17,6 @@ try:
 except ImportError:
     raise ShellNeedsUpdate("5.4.0+")
 # NOTE: this is to avoid breaking the user workspace
-
-CONTAINER_BUILD_CACHE_DIR = "/tmp/jb"
-HOST_BUILD_CACHE_DIR = "/tmp/duckietown/docs/{book}"
 
 SUPPORTED_PROJECT_TYPES = {
     "template-book": {"2", "4"},
@@ -103,9 +101,9 @@ class DTCommand(DTCommandAbs):
             volumes.append((pdf_dir, "/out/pdf", "rw"))
 
         # build cache
-        build_cache: str = HOST_BUILD_CACHE_DIR.format(book=project.name)
-        if os.path.exists(build_cache):
-            volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
+        build_cache: str = get_host_build_cache_dir(project.name)
+        os.makedirs(build_cache, exist_ok=True)
+        volumes.append((build_cache, CONTAINER_BUILD_CACHE_DIR, "rw"))
 
         # start the clean process
         dtslogger.info(f"Cleaning project '{project.name}'...")
