@@ -121,6 +121,11 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "remove": True,
             "cgroupns": "private",
+            # make the Docker host reachable from inside the virtual robot as
+            # 'host.docker.internal' on all platforms (auto-provided on Docker
+            # Desktop/OrbStack, needs an explicit host-gateway mapping on native
+            # Linux). Used e.g. to reach a host-networked Duckiematrix engine.
+            "add_hosts": [("host.docker.internal", "host-gateway")],
             "publish": [
                 ["14551", "14551", "udp"],          # Ardupilot SITL
                 ["80", "80", "tcp"],                # device-proxy HTTP entrypoint for robot.local/dashboard/... 

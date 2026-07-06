@@ -1,7 +1,11 @@
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 
 from utils.kvstore_utils import KVStore
-from utils.networking_utils import get_default_gateway_and_interface, get_interface_ip_address
+from utils.networking_utils import (
+    get_default_gateway_and_interface,
+    get_interface_ip_address,
+    is_local_virtual_robot_running,
+)
 
 from duckietown_messages.simulation.hil.connection.configuration import HILConnectionConfiguration
 from duckietown_messages.simulation.hil.configuration import HILConfiguration
@@ -23,19 +27,31 @@ class DTCommand(DTCommandAbs):
         parsed.entity = parsed.entity[0]
         # get IP address on the gateway network interface
         if parsed.engine_hostname is None:
-            dtslogger.info("Engine hostname not given, assuming the engine is running "
-                           "on the local machine.")
-            _, default_interface = get_default_gateway_and_interface()
-            if default_interface is None:
-                dtslogger.warning("An error occurred while figuring out the gateway interface.\n"
-                                  f"Will assume that the robots can reach the engine at the "
-                                  f"hostname 'localhost'.")
-                engine_hostname = "localhost"
+            if is_local_virtual_robot_running(parsed.robot):
+                # A local virtual robot runs in its own bridge-networked container,
+                # so the engine's loopback/host-interface addresses are unreachable
+                # from it. It reaches the host-networked engine via the Docker host
+                # alias 'host.docker.internal' (provided to the virtual robot via a
+                # host-gateway mapping at start time).
+                engine_hostname = "host.docker.internal"
+                dtslogger.info(
+                    f"Robot '{parsed.robot}' is a local virtual robot; the engine will be "
+                    f"reached at '{engine_hostname}'."
+                )
             else:
-                dtslogger.info(f"Found gateway interface: {default_interface}")
-                dtslogger.info("Figuring out the IP address...")
-                engine_hostname = get_interface_ip_address(default_interface)
-                dtslogger.info(f"IP address found: {engine_hostname}")
+                dtslogger.info("Engine hostname not given, assuming the engine is running "
+                               "on the local machine.")
+                _, default_interface = get_default_gateway_and_interface()
+                if default_interface is None:
+                    dtslogger.warning("An error occurred while figuring out the gateway interface.\n"
+                                      f"Will assume that the robots can reach the engine at the "
+                                      f"hostname 'localhost'.")
+                    engine_hostname = "localhost"
+                else:
+                    dtslogger.info(f"Found gateway interface: {default_interface}")
+                    dtslogger.info("Figuring out the IP address...")
+                    engine_hostname = get_interface_ip_address(default_interface)
+                    dtslogger.info(f"IP address found: {engine_hostname}")
         else:
             engine_hostname = parsed.engine_hostname
         # set the HIL configuration
