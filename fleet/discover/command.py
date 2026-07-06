@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -14,6 +13,7 @@ from dt_shell import DTCommandAbs, dtslogger
 from utils.duckietown_utils import get_robot_types
 from utils.table_utils import fill_cell, format_matrix
 from utils.udp_responder_utils import UDPScanner, PongPacket
+from utils.zeroconf_txt_utils import decode_txt_properties
 
 REFRESH_HZ = 1.0
 
@@ -110,14 +110,7 @@ class DiscoverListener:
             }
             return
         dtslogger.debug("SERVICE_ADD: %s" % (str(info)))
-        txt_str: str = list(info.properties.keys())[0].decode("utf-8") if len(info.properties) else "{}"
-        txt: dict = {}
-        if len(txt_str.strip()):
-            try:
-                txt: dict = json.loads(txt_str)
-            except json.JSONDecodeError:
-                dtslogger.error(f"An error occurred while decoding the TXT string '{txt_str}'. "
-                                f"A JSON string was expected.")
+        txt = decode_txt_properties(info.properties)
         self.services[name][server] = {"port": info.port, "txt": txt}
 
     def update_service(self, *args, **kwargs):

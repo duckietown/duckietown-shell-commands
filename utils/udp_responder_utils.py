@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import dataclasses
 import ipaddress
 import json
@@ -16,6 +17,16 @@ FullAddress = Tuple[IPAddress, Port]
 
 LOCAL_HOST = '0.0.0.0'
 REMOTE_PORT = 11411
+IGNORED_SEND_ERRNOS = {
+    errno.EHOSTUNREACH,
+    errno.ENETUNREACH,
+}
+
+if hasattr(errno, 'EHOSTDOWN'):
+    IGNORED_SEND_ERRNOS.add(errno.EHOSTDOWN)
+
+if hasattr(errno, 'ENETDOWN'):
+    IGNORED_SEND_ERRNOS.add(errno.ENETDOWN)
 
 
 @dataclasses.dataclass
@@ -86,7 +97,13 @@ class UDPScanner:
         ping = PingPacket(version='1', port=self._port)
         # send the ping packet
         # dtslogger.debug(f"Sending ping to {host}:{REMOTE_PORT}")
-        self._sock.sendto(ping.serialize(), (host, REMOTE_PORT))
+        try:
+            self._sock.sendto(ping.serialize(), (host, REMOTE_PORT))
+        except OSError as error:
+            if error.errno in IGNORED_SEND_ERRNOS:
+                dtslogger.debug(f"Skipping UDP ping to {host}:{REMOTE_PORT}: {error}")
+                return
+            raise
 
     async def scan(self, callback: Callable[[FullAddress, PongPacket], None]):
         loop = asyncio.get_event_loop()
