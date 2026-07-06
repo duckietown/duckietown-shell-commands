@@ -58,7 +58,7 @@ DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
-ROOT_PARTITIONS = ["root", "APP"]
+ROOT_PARTITIONS = ["root", "rootfs", "APP"]
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override=None):
