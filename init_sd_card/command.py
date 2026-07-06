@@ -665,6 +665,13 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     ensure_command_is_installed("dd")
     ensure_command_is_installed("sudo")
     ensure_command_is_installed("sync")
+    is_sd_target = parsed.device is not None and parsed.device.startswith("/dev/")
+    if is_sd_target:
+        dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+        _unmount_device(parsed.device)
+        if platform.system() == "Darwin":
+            time.sleep(0.5)
+    target_device = parsed.device
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
@@ -760,9 +767,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             + "into [{partition}]:{path}.".format(**surgery_bit)
         )
         # apply change
-        dd_cmd = (["sudo"] if data.get("sd_type", "SD") == "SD" else []) + [
+        dd_cmd = (["sudo"] if is_sd_target else []) + [
             "dd",
-            "of={}".format(parsed.device),
+            "of={}".format(target_device),
             "bs=1",
             "count={}".format(block_size),
             "seek={}".format(block_offset),
@@ -770,14 +777,34 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         ]
         # write twice (found to increase success rate)
         for wpass in range(2):
-            # launch dd
-            dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
-            # write
-            dd.stdin.write(masked_content)
-            dd.stdin.flush()
-            dd.stdin.close()
-            dd.wait()
+            retries = 10 if is_sd_target and platform.system() == "Darwin" else 1
+            for attempt in range(retries):
+                if is_sd_target:
+                    _unmount_device(parsed.device)
+                    if platform.system() == "Darwin":
+                        time.sleep(0.5)
+                # launch dd
+                dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
+                _, stderr = dd.communicate(masked_content)
+                if dd.returncode == 0:
+                    break
+                error = stderr.decode("utf-8", errors="replace").strip()
+                can_retry = (
+                    platform.system() == "Darwin"
+                    and "Resource busy" in error
+                    and attempt + 1 < retries
+                )
+                if can_retry:
+                    dtslogger.warning(
+                        f"Write target {target_device} is busy, retrying "
+                        f"({attempt + 1}/{retries})..."
+                    )
+                    time.sleep(0.5)
+                    continue
+                raise RuntimeError(
+                    f"Failed to inject placeholder {surgery_bit['placeholder']} into {target_device}: {error}"
+                )
             # flush I/O buffer
             _run_cmd(["sync"])
     dtslogger.info("Surgery went OK!")
