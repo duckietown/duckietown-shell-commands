@@ -50,8 +50,20 @@ class DTCommand(DTCommandAbs):
                 else:
                     dtslogger.info(f"Found gateway interface: {default_interface}")
                     dtslogger.info("Figuring out the IP address...")
-                    engine_hostname = get_interface_ip_address(default_interface)
-                    dtslogger.info(f"IP address found: {engine_hostname}")
+                    try:
+                        engine_hostname = get_interface_ip_address(default_interface)
+                    except Exception as e:
+                        dtslogger.warning(f"Could not read the IP of '{default_interface}': {e}")
+                        engine_hostname = None
+                    if engine_hostname is None:
+                        dtslogger.warning(
+                            "Could not determine the engine's IP address; falling back to "
+                            "'localhost'. If the robots cannot reach the engine, pass it "
+                            "explicitly with --engine <hostname>."
+                        )
+                        engine_hostname = "localhost"
+                    else:
+                        dtslogger.info(f"IP address found: {engine_hostname}")
         else:
             engine_hostname = parsed.engine_hostname
         # set the HIL configuration
