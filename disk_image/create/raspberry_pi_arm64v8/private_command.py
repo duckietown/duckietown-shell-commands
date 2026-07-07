@@ -8,6 +8,7 @@ import argparse
 import pathlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import time
@@ -46,6 +47,7 @@ from disk_image.create.utils import (
     list_files,
     copy_file,
     get_validator_fcn,
+    wait_for_disk,
 )
 
 MODULES_TO_LOAD = [
@@ -495,12 +497,12 @@ class DTCommand(DTCommandAbs):
                 f") | sudo fdisk {sd_card.loopdev}",
                 shell=True
             )
+            run_cmd(["sudo", "partprobe", sd_card.loopdev])
+            wait_for_disk(config_device, timeout=20)
             # make file system (FAT32 and 4096 bytes of block size (needed for comfortable surgery))
             run_cmd(["sudo", "mkfs", "-t", "fat", "-F", "32", "-S", "4096", config_device])
             # label file system
             run_cmd(["sudo", "fatlabel", config_device, CONFIG_PARTITION])
-            # force reload partitions
-            run_cmd(["sudo", "partprobe"])
             # show info about disk
             dtslogger.debug("\n" + run_cmd(["sudo", "fdisk", "-l", sd_card.loopdev], True))
             # ---
@@ -525,25 +527,30 @@ class DTCommand(DTCommandAbs):
                     raise ValueError(f"Disk device {root_partition_disk} not found")
                 # mount `root` partition
                 sd_card.mount_partition(ROOT_PARTITION)
+                host_machine = platform.machine()
+                host_machine = host_machine.lower()
+                host_runs_arm64_natively = host_machine in {"aarch64", "arm64"}
+                _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
-                    # copy QEMU, resolvconf
-                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    # copy QEMU only when the host cannot execute arm64 binaries natively
+                    if not host_runs_arm64_natively:
+                        _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
                     _transfer_file(ROOT_PARTITION, ["run", "systemd", "resolve", "stub-resolv.conf"])
                     # mount /dev from the host
-                    _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
+                    # configure the kernel for QEMU only for non-native hosts
+                    if not host_runs_arm64_natively:
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
+                        )
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -553,16 +560,25 @@ class DTCommand(DTCommandAbs):
                         if "Exec format error" in output:
                             raise Exception("Exec format error")
                     except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
+                        if host_runs_arm64_natively:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                f"The current host reports architecture '{host_machine}', "
+                                "so the chroot was expected to run natively.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                        else:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
                         exit(2)
                     # compile list of packages to hold
                     to_hold = " ".join(APT_PACKAGES_TO_HOLD)
@@ -594,11 +610,13 @@ class DTCommand(DTCommandAbs):
                         )                        
                     except Exception as e:
                         raise e
-                    # unomunt bind /dev
-                    run_cmd(["sudo", "umount", _dev])
                 except Exception as e:
+                    if os.path.ismount(_dev):
+                        run_cmd(["sudo", "umount", _dev])
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
+                if os.path.ismount(_dev):
+                    run_cmd(["sudo", "umount", _dev])
                 # unmount ROOT_PARTITION
                 sd_card.umount_partition(ROOT_PARTITION)
                 # ---

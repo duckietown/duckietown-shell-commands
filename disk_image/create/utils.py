@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ from disk_image.create.constants import (
     MODULES_TO_LOAD,
     PARTITION_MOUNTPOINT,
     DEFAULT_STACK,
+    TMP_WORKDIR,
 )
 from utils.cli_utils import ensure_command_is_installed
 from utils.misc_utils import sudo_open, indent_block
@@ -40,10 +42,12 @@ class VirtualSDCard:
         return self._loopdev
 
     def set_loopdev(self, loopdev):
+        if self._loopdev is not None and self._loopdev != loopdev:
+            self._cleanup_partition_devices()
         self._loopdev = loopdev
 
     def partition_device(self, partition):
-        return f"{self._loopdev}p{self._partition_table[partition]}"
+        return self._disk_by_label(partition)
 
     def is_mounted(self):
         return self._loopdev is not None
@@ -75,7 +79,7 @@ class VirtualSDCard:
         # refresh devices module
         run_cmd(["sudo", "udevadm", "trigger"])
         # once mounted, keep track of the loopdev in use
-        self._loopdev = lodev
+        self.set_loopdev(lodev)
 
     def umount(self, quiet=False):
         # mount loop device
@@ -96,6 +100,8 @@ class VirtualSDCard:
         except Exception as e:
             if not quiet:
                 raise e
+        self._cleanup_partition_devices()
+        self._loopdev = None
         if not quiet:
             dtslogger.info("Done!")
         # refresh devices module
@@ -207,8 +213,30 @@ class VirtualSDCard:
         if self._loopdev:
             if partition not in self._partition_table:
                 raise KeyError(f"Partition '{partition}' not found in the partition table")
-            return f"{self._loopdev}p{self._partition_table[partition]}"
+            loop_partition_device = self._loop_partition_device(partition)
+            if os.path.exists(loop_partition_device):
+                return loop_partition_device
+            fallback_partition_device = self._fallback_partition_device(partition)
+            ensure_block_device_node(fallback_partition_device)
+            return fallback_partition_device
         return f"/dev/disk/by-label/{partition}"
+
+    def _loop_partition_device(self, partition):
+        partition_id = self._partition_table[partition]
+        return f"{self._loopdev}p{partition_id}"
+
+    def _fallback_partition_device(self, partition):
+        loop_partition_device = self._loop_partition_device(partition)
+        device_name = os.path.basename(loop_partition_device)
+        return os.path.join(TMP_WORKDIR, "devices", device_name)
+
+    def _cleanup_partition_devices(self):
+        if self._loopdev is None:
+            return
+        for partition in self._partition_table:
+            fallback_partition_device = self._fallback_partition_device(partition)
+            if os.path.lexists(fallback_partition_device):
+                run_cmd(["sudo", "rm", "-f", fallback_partition_device])
 
 
 def check_cli_tools(*args):
@@ -352,8 +380,62 @@ def run_cmd_in_partition(partition, cmd, *args, **kwargs):
 
 def wait_for_disk(disk, timeout):
     stime = time.time()
-    while (time.time() - stime < timeout) and (not os.path.exists(disk)):
+    while time.time() - stime < timeout:
+        if ensure_block_device_node(disk):
+            return True
+        if os.path.exists(disk):
+            return True
         time.sleep(1.0)
+    if ensure_block_device_node(disk):
+        return True
+    return os.path.exists(disk)
+
+
+def ensure_block_device_node(disk):
+    sysfs_device_path = _loop_partition_sysfs_device_path(disk)
+    if sysfs_device_path is None:
+        return os.path.exists(disk)
+
+    if not os.path.exists(sysfs_device_path):
+        if _is_managed_block_device_node(disk) and os.path.lexists(disk):
+            run_cmd(["sudo", "rm", "-f", disk])
+        return False
+
+    with open(sysfs_device_path, "rt") as fin:
+        device_numbers = fin.read().strip()
+    major_str, minor_str = device_numbers.split(":")
+    device_major = int(major_str)
+    device_minor = int(minor_str)
+
+    if os.path.exists(disk):
+        disk_stat = os.stat(disk)
+        is_block_device = stat.S_ISBLK(disk_stat.st_mode)
+        current_major = os.major(disk_stat.st_rdev)
+        current_minor = os.minor(disk_stat.st_rdev)
+        if is_block_device and current_major == device_major and current_minor == device_minor:
+            return True
+        run_cmd(["sudo", "rm", "-f", disk])
+
+    disk_dir = os.path.dirname(disk)
+    if len(disk_dir):
+        os.makedirs(disk_dir, exist_ok=True)
+    run_cmd(["sudo", "mknod", disk, "b", str(device_major), str(device_minor)])
+    return os.path.exists(disk)
+
+
+def _loop_partition_sysfs_device_path(disk):
+    disk_name = os.path.basename(disk)
+    if re.fullmatch(r"loop\d+p\d+", disk_name) is None:
+        return None
+    return os.path.join("/sys/class/block", disk_name, "dev")
+
+
+def _is_managed_block_device_node(disk):
+    managed_dir = os.path.join(TMP_WORKDIR, "devices")
+    managed_dir = os.path.abspath(managed_dir)
+    disk_path = os.path.abspath(disk)
+    managed_prefix = managed_dir + os.sep
+    return disk_path.startswith(managed_prefix)
 
 
 def get_validator_fcn(validators, partition, path):

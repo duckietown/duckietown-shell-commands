@@ -90,6 +90,7 @@ CLI_TOOLS_NEEDED = [
     "chroot",
     "fdisk",
     "gdisk",
+    "mknod",
     "chmod",
     "rm",
     "docker",
