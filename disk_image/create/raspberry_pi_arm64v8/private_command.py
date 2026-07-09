@@ -846,27 +846,33 @@ class DTCommand(DTCommandAbs):
                             with open(out_file_path("stats"), "wt") as fout:
                                 json.dump(stats, fout, indent=4, sort_keys=True)
                             run_cmd(["sudo", "cp", out_file_path("stats"), stats_filepath])
+                            host_resolv_conf = _host_resolv_conf_source()
+                            guest_resolv_conf = _guest_resolv_conf_target(ROOT_PARTITION)
                             # setup services
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "ln"
-                                " -s -f"
-                                " /etc/systemd/system/dt_init.service"
-                                " /etc/systemd/system/multi-user.target.wants/dt_init.service",
-                            )
-                                                        
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | sudo gpg " + 
-                                " --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
-                            )
-                            
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                """echo "deb [arch=arm64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-                            https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-                            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"""
-                            )
+                            _bind_mount(host_resolv_conf, guest_resolv_conf)
+                            try:
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    "ln"
+                                    " -s -f"
+                                    " /etc/systemd/system/dt_init.service"
+                                    " /etc/systemd/system/multi-user.target.wants/dt_init.service",
+                                )
+
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    "curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | gpg "
+                                    " --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
+                                )
+
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    """echo "deb [arch=arm64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+                                https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+                                | tee /etc/apt/sources.list.d/docker.list > /dev/null"""
+                                )
+                            finally:
+                                _umount_if_mounted(guest_resolv_conf)
 
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")
