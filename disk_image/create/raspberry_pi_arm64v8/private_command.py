@@ -753,7 +753,7 @@ class DTCommand(DTCommandAbs):
                         raise ValueError(f"Partition {partition} not declared in partition table")
                     # check if the corresponding disk device exists
                     partition_disk = sd_card.partition_device(partition)
-                    if not os.path.exists(partition_disk):
+                    if not wait_for_disk(partition_disk, timeout=20):
                         raise ValueError(f"Disk device {partition_disk} not found")
                     # mount device
                     sd_card.mount_partition(partition)
