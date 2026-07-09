@@ -158,6 +158,8 @@ duckiebot:
   subcommands:
     _update:
       description: Update the code API for a DT robot
+    startup_logs:
+      description: Stream a DT robot's startup logs
     battery:
       description: DT robot battery commands
       subcommands:
