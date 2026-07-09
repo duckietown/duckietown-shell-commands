@@ -76,6 +76,7 @@ DEFAULT_STACK = "robot"
 DISK_IMAGE_PARTITION_TABLE = {"bootfs": 1, "rootfs": 2, "configfs": 3}
 DISK_IMAGE_PARTITION_MOUNTPOINT = {"bootfs": "/boot", "rootfs": "/", "configfs": "/config"}
 AVAILABLE_STACKS_DIR = "/data/stacks/available"
+BOOT_PARTITION = "bootfs"
 ROOT_PARTITION = "rootfs"
 CONFIG_PARTITION = "configfs"
 DEFAULT_HOSTNAME = "robot"
@@ -125,6 +126,53 @@ APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     # "initramfs-tools"
 ]
+
+
+def _host_resolv_conf_source():
+    candidates = [
+        "/run/systemd/resolve/resolv.conf",
+        "/etc/resolv.conf",
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate) and os.path.getsize(candidate) > 0:
+            return candidate
+    raise FileNotFoundError("Could not find a usable host resolv.conf file.")
+
+
+def _guest_path(partition, *parts):
+    return os.path.join(PARTITION_MOUNTPOINT(partition), *parts)
+
+
+def _guest_resolv_conf_target(partition):
+    guest_resolv_conf = _guest_path(partition, "etc", "resolv.conf")
+    if os.path.islink(guest_resolv_conf):
+        guest_resolv_conf = os.path.realpath(guest_resolv_conf)
+    guest_resolv_dir = os.path.dirname(guest_resolv_conf)
+    run_cmd(["sudo", "mkdir", "-p", guest_resolv_dir])
+    if not os.path.exists(guest_resolv_conf):
+        run_cmd(["sudo", "touch", guest_resolv_conf])
+    return guest_resolv_conf
+
+
+def _bind_mount(source, target):
+    target_dir = os.path.dirname(target)
+    run_cmd(["sudo", "mkdir", "-p", target_dir])
+    if not os.path.exists(target):
+        if os.path.isdir(source):
+            run_cmd(["sudo", "mkdir", "-p", target])
+        else:
+            run_cmd(["sudo", "touch", target])
+    run_cmd(["sudo", "mount", "--bind", source, target])
+
+
+def _umount_if_mounted(target):
+    if os.path.ismount(target):
+        run_cmd(["sudo", "umount", target])
+
+
+def _partition_is_mounted(partition):
+    mountpoint = PARTITION_MOUNTPOINT(partition)
+    return os.path.exists(mountpoint) and os.path.ismount(mountpoint)
 
 
 class DTCommand(DTCommandAbs):
@@ -525,20 +573,42 @@ class DTCommand(DTCommandAbs):
                 root_partition_disk = sd_card.partition_device(ROOT_PARTITION)
                 if not os.path.exists(root_partition_disk):
                     raise ValueError(f"Disk device {root_partition_disk} not found")
+                boot_partition_disk = sd_card.partition_device(BOOT_PARTITION)
+                if not os.path.exists(boot_partition_disk):
+                    raise ValueError(f"Disk device {boot_partition_disk} not found")
                 # mount `root` partition
                 sd_card.mount_partition(ROOT_PARTITION)
+                sd_card.mount_partition(BOOT_PARTITION)
                 host_machine = platform.machine()
                 host_machine = host_machine.lower()
                 host_runs_arm64_natively = host_machine in {"aarch64", "arm64"}
-                _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
+                guest_dev = _guest_path(ROOT_PARTITION, "dev")
+                guest_dev_pts = _guest_path(ROOT_PARTITION, "dev", "pts")
+                guest_proc = _guest_path(ROOT_PARTITION, "proc")
+                guest_sys = _guest_path(ROOT_PARTITION, "sys")
+                guest_boot_firmware = _guest_path(ROOT_PARTITION, "boot", "firmware")
+                boot_partition_mountpoint = PARTITION_MOUNTPOINT(BOOT_PARTITION)
+                host_resolv_conf = _host_resolv_conf_source()
+                guest_resolv_conf = _guest_resolv_conf_target(ROOT_PARTITION)
+                mounted_targets = []
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU only when the host cannot execute arm64 binaries natively
                     if not host_runs_arm64_natively:
                         _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
-                    _transfer_file(ROOT_PARTITION, ["run", "systemd", "resolve", "stub-resolv.conf"])
+                    _bind_mount(host_resolv_conf, guest_resolv_conf)
+                    mounted_targets.append(guest_resolv_conf)
+                    _bind_mount(boot_partition_mountpoint, guest_boot_firmware)
+                    mounted_targets.append(guest_boot_firmware)
+                    _bind_mount("/proc", guest_proc)
+                    mounted_targets.append(guest_proc)
+                    _bind_mount("/sys", guest_sys)
+                    mounted_targets.append(guest_sys)
                     # mount /dev from the host
-                    run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
+                    _bind_mount("/dev", guest_dev)
+                    mounted_targets.append(guest_dev)
+                    _bind_mount("/dev/pts", guest_dev_pts)
+                    mounted_targets.append(guest_dev_pts)
                     # configure the kernel for QEMU only for non-native hosts
                     if not host_runs_arm64_natively:
                         run_cmd(
@@ -606,17 +676,21 @@ class DTCommand(DTCommandAbs):
                         # clean packages
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            f"apt autoremove --yes",
+                            "apt autoremove --yes",
                         )                        
                     except Exception as e:
                         raise e
                 except Exception as e:
-                    if os.path.ismount(_dev):
-                        run_cmd(["sudo", "umount", _dev])
+                    for target in reversed(mounted_targets):
+                        _umount_if_mounted(target)
+                    if _partition_is_mounted(BOOT_PARTITION):
+                        sd_card.umount_partition(BOOT_PARTITION)
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
-                if os.path.ismount(_dev):
-                    run_cmd(["sudo", "umount", _dev])
+                for target in reversed(mounted_targets):
+                    _umount_if_mounted(target)
+                if _partition_is_mounted(BOOT_PARTITION):
+                    sd_card.umount_partition(BOOT_PARTITION)
                 # unmount ROOT_PARTITION
                 sd_card.umount_partition(ROOT_PARTITION)
                 # ---
