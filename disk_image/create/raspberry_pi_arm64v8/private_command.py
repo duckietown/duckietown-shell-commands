@@ -27,6 +27,7 @@ from disk_image.create.constants import (
     DISK_IMAGE_STATS_LOCATION,
     DOCKER_IMAGE_TEMPLATE,
     DATA_STORAGE_DISK_IMAGE_DIR,
+    MODULES_TO_LOAD as DEFAULT_MODULES_TO_LOAD,
 )
 
 from disk_image.create.utils import (
@@ -50,10 +51,13 @@ from disk_image.create.utils import (
     wait_for_disk,
 )
 
-MODULES_TO_LOAD = [
-    {"owner": "duckietown", "module": "portainer"},
-    {"owner": "duckietown", "module": "dt-kvstore", "tag": "v0.2.0-arm64v8"},
-]
+MODULES_TO_LOAD = []
+for module in DEFAULT_MODULES_TO_LOAD:
+    module_to_load = dict(module)
+    if module_to_load["module"] == "dt-kvstore":
+        module_to_load["tag"] = "ente"
+    MODULES_TO_LOAD.append(module_to_load)
+
 DEFAULT_STACK = "robot"
 
 # NOTE: -----------------------------------
