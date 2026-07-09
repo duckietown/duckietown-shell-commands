@@ -92,7 +92,8 @@ class VirtualSDCard:
             output = subprocess.check_output(cmd).decode("utf-8")
             devices = json.loads(output)
             for dev in devices["loopdevices"]:
-                if "(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] != self._disk_file:
+                back_file, _ = _loop_back_file_info(dev["back-file"])
+                if back_file != self._disk_file:
                     continue
                 if not quiet:
                     dtslogger.info(f"Unmounting {self._disk_file} from {dev['name']}...")
@@ -228,7 +229,7 @@ class VirtualSDCard:
         return None
 
     @staticmethod
-    def find_loopdev(disk_file, quiet=False):
+    def find_loopdev(disk_file, quiet=False, include_deleted=False):
         # mount loop device
         if not quiet:
             dtslogger.info(f"Looking for loop devices associated to disk image {disk_file}...")
@@ -236,7 +237,11 @@ class VirtualSDCard:
             # iterate over loop devices
             lodevices = json.loads(run_cmd(["sudo", "losetup", "--json"], get_output=True))
             for dev in lodevices["loopdevices"]:
-                if dev["back-file"].split(" ")[0] == disk_file:
+                back_file, is_deleted = _loop_back_file_info(dev["back-file"])
+                if back_file != disk_file:
+                    continue
+                if is_deleted and not include_deleted:
+                    continue
                     if not quiet:
                         dtslogger.info(f"Found {dev['name']}!")
                     # found a loop device connected to the given image
@@ -473,6 +478,14 @@ def ensure_block_device_node(disk):
         os.makedirs(disk_dir, exist_ok=True)
     run_cmd(["sudo", "mknod", disk, "b", str(device_major), str(device_minor)])
     return os.path.exists(disk)
+
+
+def _loop_back_file_info(back_file):
+    deleted_suffix = " (deleted)"
+    is_deleted = back_file.endswith(deleted_suffix)
+    if is_deleted:
+        back_file = back_file[: -len(deleted_suffix)]
+    return back_file, is_deleted
 
 
 def _loop_partition_sysfs_device_path(disk):

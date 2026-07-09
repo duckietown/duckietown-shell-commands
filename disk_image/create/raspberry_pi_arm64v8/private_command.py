@@ -423,7 +423,9 @@ class DTCommand(DTCommandAbs):
                 if not granted:
                     dtslogger.info("Aborting.")
                     return
-            existing_loopdev = VirtualSDCard.find_loopdev(out_file_path("img"), quiet=True)
+            existing_loopdev = VirtualSDCard.find_loopdev(
+                out_file_path("img"), quiet=True, include_deleted=True
+            )
             if existing_loopdev:
                 dtslogger.warning(
                     f"The destination file {out_file_path('img')} is still mounted to {existing_loopdev}. "
