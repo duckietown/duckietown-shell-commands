@@ -24,8 +24,6 @@ services:
       ROS_DOMAIN_ID: 42
     volumes:
       - /data/ramdisk/dtps:/dtps
-      - /dev:/dev
-      - /run/udev:/run/udev:ro
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
     depends_on:
