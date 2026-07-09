@@ -115,6 +115,16 @@ class VirtualSDCard:
         # check if the mountpoint exists
         if os.path.exists(mountpoint):
             if os.path.ismount(mountpoint):
+                mounted_source = run_cmd(
+                    ["findmnt", "-n", "-o", "SOURCE", "--target", mountpoint],
+                    get_output=True,
+                ).strip()
+                same_device = mounted_source == partition_device
+                if not same_device and os.path.exists(mounted_source) and os.path.exists(partition_device):
+                    same_device = os.stat(mounted_source).st_rdev == os.stat(partition_device).st_rdev
+                if same_device:
+                    dtslogger.info(f'Partition "{partition}" already mounted, reusing it.')
+                    return
                 msg = f"The directory {mountpoint} is already mounted."
                 dtslogger.error(msg)
                 raise ValueError(msg)
