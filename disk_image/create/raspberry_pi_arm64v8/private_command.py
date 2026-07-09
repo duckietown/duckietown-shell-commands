@@ -423,6 +423,14 @@ class DTCommand(DTCommandAbs):
                 if not granted:
                     dtslogger.info("Aborting.")
                     return
+            existing_loopdev = VirtualSDCard.find_loopdev(out_file_path("img"), quiet=True)
+            if existing_loopdev:
+                dtslogger.warning(
+                    f"The destination file {out_file_path('img')} is still mounted to {existing_loopdev}. "
+                    "Detaching it before overwrite."
+                )
+                sd_card.set_loopdev(existing_loopdev)
+                sd_card.umount()
             # create empty disk image
             if not using_cached_step:
                 dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
