@@ -715,9 +715,9 @@ class DTCommand(DTCommandAbs):
                 STACKS_BASE_DIR=STACKS_BASE_DIR,
                 DEVICE_PLATFORM="linux/arm64",
                 DIND_IMAGE_NAME="docker:20.10.5-dind",
-                cache_step_fn=cache_step,
                 architecture="arm64v8",
             )
+            cache_step("docker")
             dtslogger.info("Step END: docker\n")
             
         # ------>

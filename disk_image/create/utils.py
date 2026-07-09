@@ -114,13 +114,23 @@ class VirtualSDCard:
         mountpoint = PARTITION_MOUNTPOINT(partition)
         # check if the mountpoint exists
         if os.path.exists(mountpoint):
-            msg = f"The directory {mountpoint} already exists. Remove it before continuing."
-            dtslogger.error(msg)
-            raise ValueError(msg)
+            if os.path.ismount(mountpoint):
+                msg = f"The directory {mountpoint} is already mounted."
+                dtslogger.error(msg)
+                raise ValueError(msg)
+            if not os.path.isdir(mountpoint):
+                msg = f"The path {mountpoint} exists and is not a directory."
+                dtslogger.error(msg)
+                raise ValueError(msg)
+            if os.listdir(mountpoint):
+                msg = f"The directory {mountpoint} already exists and is not empty. Remove it before continuing."
+                dtslogger.error(msg)
+                raise ValueError(msg)
         # mount partition
         wait_for_disk(partition_device, timeout=20)
         try:
-            run_cmd(["sudo", "mkdir", "-p", mountpoint])
+            if not os.path.exists(mountpoint):
+                run_cmd(["sudo", "mkdir", "-p", mountpoint])
             run_cmd(["sudo", "mount", "-t", "auto", partition_device, mountpoint])
         except BaseException as e:
             dtslogger.error(f'We had issues mounting partition "{partition}".')
