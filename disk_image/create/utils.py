@@ -165,6 +165,7 @@ class VirtualSDCard:
             raise ValueError(msg)
         # wait for the device to be free
         in_use = True
+        wait_cycles = 0
         while in_use:
             dtslogger.info(f"Waiting for [{partition_device}]{mountpoint} to be freed.")
             time.sleep(2)
@@ -172,6 +173,24 @@ class VirtualSDCard:
                 ["sudo", "lsof", partition_device, "2>/dev/null", "||", ":"], get_output=True, shell=True
             ).splitlines()
             in_use = len(lsof) > 0
+            if not in_use:
+                break
+            wait_cycles += 1
+            if wait_cycles < 5:
+                continue
+            pids = _lsof_mountpoint_pids(lsof, mountpoint)
+            if not pids:
+                continue
+            signal = "-9" if wait_cycles >= 8 else None
+            action = "SIGKILL" if signal else "SIGTERM"
+            dtslogger.warning(
+                f"Processes are still using {mountpoint}; sending {action} to: {', '.join(pids)}"
+            )
+            kill_cmd = ["sudo", "kill"]
+            if signal:
+                kill_cmd.append(signal)
+            kill_cmd.extend(pids)
+            run_cmd(kill_cmd)
         # unmount
         run_cmd(["sudo", "umount", mountpoint])
         run_cmd(["sudo", "rmdir", mountpoint])
@@ -263,6 +282,19 @@ def check_cli_tools(*args):
     clis = CLI_TOOLS_NEEDED + list(args)
     for cli_tool in clis:
         ensure_command_is_installed(cli_tool)
+
+
+def _lsof_mountpoint_pids(lines: List[str], mountpoint: str) -> List[str]:
+    pids = set()
+    for line in lines[1:]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        pid = parts[1]
+        path = parts[-1]
+        if pid.isdigit() and path.startswith(mountpoint):
+            pids.add(pid)
+    return sorted(pids)
 
 
 def pull_docker_image(client, image, platform=None):
