@@ -71,6 +71,7 @@ MODULES_TO_LOAD = [
 
 CLI_TOOLS_NEEDED = [
     "wget",
+    "zip",
     "unzip",
     "sudo",
     "cp",
