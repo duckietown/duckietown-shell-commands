@@ -49,7 +49,36 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
-TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
+LEGACY_TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
+HOME_DIR = os.path.expanduser("~")
+FALLBACK_TMP_WORKDIR = os.path.join(HOME_DIR, ".cache", "duckietown", "dts", "init_sd_card")
+
+
+def _get_existing_parent_dir(path: str) -> str:
+    parent_dir = path
+    while not os.path.isdir(parent_dir):
+        next_parent_dir = os.path.dirname(parent_dir)
+        if next_parent_dir == parent_dir:
+            break
+        parent_dir = next_parent_dir
+    return parent_dir
+
+
+def _can_create_workdir(path: str) -> bool:
+    existing_parent_dir = _get_existing_parent_dir(path)
+    required_mode = os.W_OK | os.X_OK
+    return os.access(existing_parent_dir, required_mode)
+
+
+def _get_tmp_workdir() -> str:
+    candidate_dirs = (LEGACY_TMP_WORKDIR, FALLBACK_TMP_WORKDIR)
+    for workdir in candidate_dirs:
+        if _can_create_workdir(workdir):
+            return workdir
+    raise OSError("Could not determine a writable init_sd_card working directory.")
+
+
+TMP_WORKDIR = _get_tmp_workdir()
 BLOCK_SIZE = 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
