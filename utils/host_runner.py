@@ -1,6 +1,10 @@
+from collections import deque
 import json
 import os
+import re
+import select
 import sys
+import threading
 import time
 import uuid
 from functools import lru_cache
@@ -9,6 +13,11 @@ from typing import Iterable, Optional
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
+
+try:
+    import termios
+except ImportError:
+    termios = None
 
 
 HOST_RUNNER_URL_ENV = "DTS_HOST_RUNNER_URL"
@@ -30,6 +39,7 @@ HOST_RUNNER_HEALTH_TIMEOUT_SECONDS = 5
 HOST_RUNNER_HEALTH_RETRY_WINDOW_SECONDS = 12
 HOST_RUNNER_HEALTH_RETRY_INTERVAL_SECONDS = 0.5
 HOST_RUNNER_REQUEST_CLAIM_TIMEOUT_SECONDS = 2
+HOST_RUNNER_STDIN_POLL_INTERVAL_SECONDS = 0.1
 DEFAULT_HOST_RUNNER_REQUESTS_DIR_PATH = Path("/tmp/duckietown/host_runner_requests")
 DEFAULT_HOST_RUNNER_REQUESTS_DIR = str(DEFAULT_HOST_RUNNER_REQUESTS_DIR_PATH)
 HOST_RUNNER_SHARED_ENV_FILE_NAME = "host_runner_endpoint.env"
@@ -37,11 +47,18 @@ REQUEST_FILE_SUFFIX = ".request.json"
 PROCESSING_FILE_SUFFIX = ".processing.json"
 STREAM_FILE_SUFFIX = ".stream"
 STREAM_CHUNK_FILE_SUFFIX = ".chunk"
+STDIN_FILE_SUFFIX = ".stdin"
+STDIN_EOF_SUFFIX = ".stdin.eof"
 CANCEL_FILE_SUFFIX = ".cancel"
 HEARTBEAT_FILE_SUFFIX = ".heartbeat"
 HOST_RUNNER_INTERRUPT_GRACE_SECONDS = 5
 HOST_RUNNER_HEARTBEAT_INTERVAL_SECONDS = 1
 HOST_RUNNER_WORKSPACE_MARKER = Path("workspace/.devcontainer/scripts/host_runner.py")
+PASSWORD_PROMPT_LINE_LIMIT = 256
+PASSWORD_PROMPT_PATTERN = re.compile(
+    r"(?:\[sudo\]\s*)?(?:password|passphrase)(?: for [^:\r\n]+)?:\s*$",
+    re.IGNORECASE,
+)
 FORWARDED_ENVIRONMENT_KEYS = (
     "HOST_DOCKER_REGISTRY",
     "HOST_DTSHELL_COMMANDS",
@@ -67,6 +84,148 @@ class HostRunnerQueueBlockedError(HostRunnerQueueUnavailableError):
 
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class _DelegatedInputEchoState:
+
+    def __init__(self) -> None:
+        self._pending_lines: deque[str] = deque()
+        self._active_line = ""
+        self._lock = threading.Lock()
+
+    def record_input(self, chunk_text: str) -> None:
+        normalized_text = chunk_text.replace("\n", "\r\n")
+        if not normalized_text:
+            return
+        with self._lock:
+            self._pending_lines.append(normalized_text)
+
+    def filter_output(self, text: str) -> str:
+        filtered_text = text
+        with self._lock:
+            while filtered_text:
+                if not self._active_line:
+                    if not self._pending_lines:
+                        break
+                    self._active_line = self._pending_lines[0]
+
+                prefix_length = _shared_prefix_length(
+                    filtered_text,
+                    self._active_line,
+                )
+                if prefix_length == 0:
+                    self._pending_lines.popleft()
+                    self._active_line = ""
+                    continue
+
+                active_line = self._active_line
+                if prefix_length < len(active_line):
+                    if prefix_length < len(filtered_text):
+                        break
+
+                filtered_text = filtered_text[prefix_length:]
+                self._active_line = active_line[prefix_length:]
+                if not self._active_line:
+                    self._pending_lines.popleft()
+
+        return filtered_text
+
+
+class _DelegatedPasswordPromptState:
+
+    def __init__(self) -> None:
+        self._prompt_line = ""
+        self._saved_terminal_attributes = None
+        self._lock = threading.Lock()
+
+    def observe_output(self, text: str) -> None:
+        if not text:
+            return
+        with self._lock:
+            prompt_line = _current_terminal_line(self._prompt_line + text)
+            self._prompt_line = prompt_line[-PASSWORD_PROMPT_LINE_LIMIT:]
+            if _looks_like_password_prompt(self._prompt_line):
+                self._disable_terminal_echo_locked()
+
+    def record_input(self, text: str) -> None:
+        if not text:
+            return
+        if "\n" not in text and "\r" not in text:
+            return
+        with self._lock:
+            self._restore_terminal_echo_locked()
+            self._prompt_line = ""
+
+    def close(self) -> None:
+        with self._lock:
+            self._restore_terminal_echo_locked()
+            self._prompt_line = ""
+
+    def _disable_terminal_echo_locked(self) -> None:
+        if self._saved_terminal_attributes is not None:
+            return
+        if termios is None:
+            return
+        try:
+            stdin_fd = sys.stdin.fileno()
+        except OSError:
+            return
+        if not os.isatty(stdin_fd):
+            return
+        try:
+            terminal_attributes = termios.tcgetattr(stdin_fd)
+        except termios.error:
+            return
+        updated_attributes = list(terminal_attributes)
+        updated_attributes[3] &= ~termios.ECHO
+        try:
+            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, updated_attributes)
+        except termios.error:
+            return
+        self._saved_terminal_attributes = terminal_attributes
+
+    def _restore_terminal_echo_locked(self) -> None:
+        if self._saved_terminal_attributes is None:
+            return
+        if termios is None:
+            self._saved_terminal_attributes = None
+            return
+        try:
+            stdin_fd = sys.stdin.fileno()
+        except OSError:
+            self._saved_terminal_attributes = None
+            return
+        try:
+            termios.tcsetattr(
+                stdin_fd,
+                termios.TCSADRAIN,
+                self._saved_terminal_attributes,
+            )
+        except termios.error:
+            pass
+        self._saved_terminal_attributes = None
+
+
+def _shared_prefix_length(left: str, right: str) -> int:
+    prefix_length = 0
+    max_length = min(len(left), len(right))
+    while prefix_length < max_length:
+        if left[prefix_length] != right[prefix_length]:
+            break
+        prefix_length += 1
+    return prefix_length
+
+
+def _current_terminal_line(text: str) -> str:
+    line_break_index = max(text.rfind("\n"), text.rfind("\r"))
+    if line_break_index == -1:
+        return text
+    return text[line_break_index + 1 :]
+
+
+def _looks_like_password_prompt(text: str) -> bool:
+    terminal_line = _current_terminal_line(text)
+    return bool(PASSWORD_PROMPT_PATTERN.search(terminal_line))
 
 
 def _candidate_is_configured(candidate: dict[str, str]) -> bool:
@@ -476,6 +635,17 @@ def _heartbeat_file_path(requests_path: Path, request_id: str) -> Path:
     return requests_path / f"{request_id}{HEARTBEAT_FILE_SUFFIX}"
 
 
+def _stdin_chunk_path(requests_path: Path, request_id: str, index: int) -> Path:
+    chunk_name = (
+        f"{request_id}{STDIN_FILE_SUFFIX}.{index:08d}{STREAM_CHUNK_FILE_SUFFIX}"
+    )
+    return requests_path / chunk_name
+
+
+def _stdin_eof_path(requests_path: Path, request_id: str) -> Path:
+    return requests_path / f"{request_id}{STDIN_EOF_SUFFIX}"
+
+
 def _cleanup_stream_artifacts(
     request_file: Path,
     processing_file: Path,
@@ -488,6 +658,14 @@ def _cleanup_stream_artifacts(
     )
     chunk_pattern = f"{stream_file.name}.*{STREAM_CHUNK_FILE_SUFFIX}"
     for chunk_path in stream_file.parent.glob(chunk_pattern):
+        _cleanup_request_artifacts(chunk_path)
+
+
+def _cleanup_stdin_artifacts(requests_path: Path, request_id: str) -> None:
+    eof_path = _stdin_eof_path(requests_path, request_id)
+    _cleanup_request_artifacts(eof_path)
+    chunk_pattern = f"{request_id}{STDIN_FILE_SUFFIX}.*{STREAM_CHUNK_FILE_SUFFIX}"
+    for chunk_path in requests_path.glob(chunk_pattern):
         _cleanup_request_artifacts(chunk_path)
 
 
@@ -504,12 +682,102 @@ def _refresh_request_heartbeat(path: Path) -> None:
     _write_request_control_file(path, heartbeat_payload)
 
 
+def _emit_interrupt_newline() -> None:
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+
+def _forward_request_stdin_to_request_dir(
+    requests_path: Path,
+    request_id: str,
+    stop_event: threading.Event,
+    interrupt_event: threading.Event,
+    cancel_file: Path,
+    echo_state: Optional[_DelegatedInputEchoState],
+    password_prompt_state: Optional[_DelegatedPasswordPromptState],
+) -> None:
+    stdin_fd = sys.stdin.fileno()
+    chunk_index = 0
+    while not stop_event.is_set():
+        try:
+            readable, _, _ = select.select(
+                [stdin_fd],
+                [],
+                [],
+                HOST_RUNNER_STDIN_POLL_INTERVAL_SECONDS,
+            )
+        except (KeyboardInterrupt, OSError):
+            if not interrupt_event.is_set():
+                _write_request_control_file(cancel_file, "interrupt\n")
+                interrupt_event.set()
+            return
+
+        if not readable:
+            continue
+
+        try:
+            chunk = os.read(stdin_fd, 4096)
+        except (KeyboardInterrupt, OSError):
+            if not interrupt_event.is_set():
+                _write_request_control_file(cancel_file, "interrupt\n")
+                interrupt_event.set()
+            return
+
+        if chunk == b"":
+            if not stop_event.is_set():
+                eof_path = _stdin_eof_path(requests_path, request_id)
+                _write_request_control_file(
+                    eof_path,
+                    "eof\n",
+                )
+            return
+
+        interrupt_index = chunk.find(b"\x03")
+        if interrupt_index != -1:
+            prefix = chunk[:interrupt_index]
+            if prefix:
+                chunk_text = prefix.decode("utf-8", errors="replace")
+                chunk_path = _stdin_chunk_path(
+                    requests_path,
+                    request_id,
+                    chunk_index,
+                )
+                _write_request_control_file(
+                    chunk_path,
+                    chunk_text,
+                )
+                if echo_state is not None:
+                    echo_state.record_input(chunk_text)
+                if password_prompt_state is not None:
+                    password_prompt_state.record_input(chunk_text)
+                chunk_index += 1
+            if not interrupt_event.is_set():
+                _write_request_control_file(cancel_file, "interrupt\n")
+                interrupt_event.set()
+            return
+
+        chunk_text = chunk.decode("utf-8", errors="replace")
+        chunk_path = _stdin_chunk_path(requests_path, request_id, chunk_index)
+        _write_request_control_file(
+            chunk_path,
+            chunk_text,
+        )
+        if echo_state is not None:
+            echo_state.record_input(chunk_text)
+        if password_prompt_state is not None:
+            password_prompt_state.record_input(chunk_text)
+        chunk_index += 1
+
+
 def _drain_buffered_stream_text(
     request_file: Path,
     processing_file: Path,
     stream_file: Path,
     *,
     buffered: str,
+    suppress_output: bool = False,
+    echo_state: Optional[_DelegatedInputEchoState] = None,
+    password_prompt_state: Optional[_DelegatedPasswordPromptState] = None,
 ) -> tuple[Optional[int], str]:
     while True:
         newline_index = buffered.find("\n")
@@ -535,8 +803,58 @@ def _drain_buffered_stream_text(
                 )
                 return exit_code, buffered
 
+        if suppress_output:
+            continue
+
+        if echo_state is not None:
+            segment = echo_state.filter_output(segment)
+        if password_prompt_state is not None:
+            password_prompt_state.observe_output(segment)
         sys.stdout.write(segment)
         sys.stdout.flush()
+
+
+def _split_safe_stream_text(buffered: str) -> tuple[str, str]:
+    earliest_prefix_index: int | None = None
+    for prefix in HOST_RUNNER_EXIT_CODE_PREFIXES:
+        prefix_index = buffered.find(prefix)
+        if prefix_index == -1:
+            continue
+        if earliest_prefix_index is None or prefix_index < earliest_prefix_index:
+            earliest_prefix_index = prefix_index
+
+    if earliest_prefix_index is not None:
+        return buffered[:earliest_prefix_index], buffered[earliest_prefix_index:]
+
+    prefix_suffix_length = 0
+    for prefix in HOST_RUNNER_EXIT_CODE_PREFIXES:
+        max_suffix_length = min(len(buffered), len(prefix) - 1)
+        for suffix_length in range(max_suffix_length, 0, -1):
+            if buffered.endswith(prefix[:suffix_length]):
+                prefix_suffix_length = max(prefix_suffix_length, suffix_length)
+                break
+
+    if prefix_suffix_length == 0:
+        return buffered, ""
+    return buffered[:-prefix_suffix_length], buffered[-prefix_suffix_length:]
+
+
+def _flush_partial_stream_text(
+    buffered: str,
+    *,
+    suppress_output: bool = False,
+    echo_state: Optional[_DelegatedInputEchoState] = None,
+    password_prompt_state: Optional[_DelegatedPasswordPromptState] = None,
+) -> str:
+    safe_text, pending_text = _split_safe_stream_text(buffered)
+    if safe_text and not suppress_output:
+        if echo_state is not None:
+            safe_text = echo_state.filter_output(safe_text)
+        if password_prompt_state is not None:
+            password_prompt_state.observe_output(safe_text)
+        sys.stdout.write(safe_text)
+        sys.stdout.flush()
+    return pending_text
 
 
 def _drain_request_stream_output(
@@ -547,6 +865,9 @@ def _drain_request_stream_output(
     buffered: str,
     offset: int,
     next_chunk_index: int,
+    suppress_output: bool = False,
+    echo_state: Optional[_DelegatedInputEchoState] = None,
+    password_prompt_state: Optional[_DelegatedPasswordPromptState] = None,
 ) -> tuple[Optional[int], str, int, int]:
     while True:
         chunk_path = _stream_chunk_path(stream_file, next_chunk_index)
@@ -563,9 +884,18 @@ def _drain_request_stream_output(
             processing_file,
             stream_file,
             buffered=buffered,
+            suppress_output=suppress_output,
+            echo_state=echo_state,
+            password_prompt_state=password_prompt_state,
         )
         if exit_code is not None:
             return exit_code, buffered, offset, next_chunk_index
+        buffered = _flush_partial_stream_text(
+            buffered,
+            suppress_output=suppress_output,
+            echo_state=echo_state,
+            password_prompt_state=password_prompt_state,
+        )
     if next_chunk_index == 0 and stream_file.exists():
         with stream_file.open("rb") as stream:
             stream.seek(offset)
@@ -579,9 +909,18 @@ def _drain_request_stream_output(
                 processing_file,
                 stream_file,
                 buffered=buffered,
+                suppress_output=suppress_output,
+                echo_state=echo_state,
+                password_prompt_state=password_prompt_state,
             )
             if exit_code is not None:
                 return exit_code, buffered, offset, next_chunk_index
+            buffered = _flush_partial_stream_text(
+                buffered,
+                suppress_output=suppress_output,
+                echo_state=echo_state,
+                password_prompt_state=password_prompt_state,
+            )
     return None, buffered, offset, next_chunk_index
 
 
@@ -590,6 +929,7 @@ def _delegate_command_via_requests_dir(
     payload: dict,
     *,
     timeout: float,
+    interactive: bool,
 ) -> int:
     requests_path = Path(requests_dir)
     requests_path.mkdir(parents=True, exist_ok=True)
@@ -613,8 +953,35 @@ def _delegate_command_via_requests_dir(
     next_heartbeat_refresh = (
         time.monotonic() + HOST_RUNNER_HEARTBEAT_INTERVAL_SECONDS
     )
+    stdin_stop_event: threading.Event | None = None
+    interrupt_event: threading.Event | None = None
+    echo_state: Optional[_DelegatedInputEchoState] = None
+    password_prompt_state: Optional[_DelegatedPasswordPromptState] = None
+    if interactive:
+        stdin_stop_event = threading.Event()
+        interrupt_event = threading.Event()
+        echo_state = _DelegatedInputEchoState()
+        password_prompt_state = _DelegatedPasswordPromptState()
+        stdin_thread = threading.Thread(
+            target=_forward_request_stdin_to_request_dir,
+            args=(
+                requests_path,
+                request_id,
+                stdin_stop_event,
+                interrupt_event,
+                cancel_file,
+                echo_state,
+                password_prompt_state,
+            ),
+            daemon=True,
+            name=f"host-runner-stdin-{request_id[:8]}",
+        )
+        stdin_thread.start()
     try:
         while time.monotonic() < deadline:
+            if interrupt_event is not None and interrupt_event.is_set():
+                _emit_interrupt_newline()
+                return 130
             if time.monotonic() >= next_heartbeat_refresh:
                 _refresh_request_heartbeat(heartbeat_file)
                 next_heartbeat_refresh = (
@@ -655,6 +1022,8 @@ def _delegate_command_via_requests_dir(
                 buffered=buffered,
                 offset=offset,
                 next_chunk_index=next_chunk_index,
+                echo_state=echo_state,
+                password_prompt_state=password_prompt_state,
             )
             if exit_code is not None:
                 return exit_code
@@ -666,23 +1035,18 @@ def _delegate_command_via_requests_dir(
                 request_file,
                 cancel_file,
             )
+            _emit_interrupt_newline()
             return 130
 
         _write_request_control_file(cancel_file, "interrupt\n")
-        interrupt_deadline = time.monotonic() + HOST_RUNNER_INTERRUPT_GRACE_SECONDS
-        while time.monotonic() < interrupt_deadline:
-            exit_code, buffered, offset, next_chunk_index = _drain_request_stream_output(
-                request_file,
-                processing_file,
-                stream_file,
-                buffered=buffered,
-                offset=offset,
-                next_chunk_index=next_chunk_index,
-            )
-            if exit_code is not None:
-                return 130
-            time.sleep(0.1)
+        _emit_interrupt_newline()
         return 130
+    finally:
+        if stdin_stop_event is not None:
+            stdin_stop_event.set()
+        if password_prompt_state is not None:
+            password_prompt_state.close()
+        _cleanup_stdin_artifacts(requests_path, request_id)
     raise HostRunnerError(
         f"Host runner request via {requests_dir} timed out after {timeout:g}s."
     )
@@ -782,6 +1146,7 @@ def delegate_command_to_host(
     cwd: Optional[str] = None,
     emit_client_context: bool = False,
     forwarded_env: Optional[dict[str, str]] = None,
+    interactive: bool = False,
 ) -> int:
     command_list = list(command)
     if not command_list:
@@ -827,8 +1192,14 @@ def delegate_command_to_host(
                 requests_dir,
                 payload,
                 timeout=timeout,
+                interactive=interactive,
             )
         except HostRunnerQueueUnavailableError as queue_error:
+            if interactive:
+                raise HostRunnerError(
+                    f"{queue_error} Interactive host delegation requires the shared "
+                    "request queue; HTTP fallback cannot forward stdin."
+                ) from queue_error
             if host_runner_url() is None:
                 raise
             if emit_client_context:
@@ -853,6 +1224,11 @@ def delegate_command_to_host(
                 raise HostRunnerError(
                     f"{queue_error} Fallback via HTTP host runner also failed: {http_error}"
                 ) from http_error
+    if interactive:
+        raise HostRunnerError(
+            "Interactive host delegation requires the shared request queue; "
+            "HTTP-only host delegation cannot forward stdin."
+        )
     return _delegate_command_via_http(
         payload,
         cwd=working_directory,
@@ -908,4 +1284,19 @@ def delegate_matrix_run_to_host(
         cwd=delegated_cwd,
         emit_client_context=emit_client_context,
         forwarded_env=forwarded_env or None,
+    )
+
+
+def delegate_init_sd_card_to_host(args: Iterable[str]) -> int:
+    args_list = list(args)
+    emit_client_context = any(
+        flag in args_list for flag in ("--debug", "--verbose", "-vv")
+    )
+    command_prefix = get_current_dts_cli_options()
+    return delegate_command_to_host(
+        [*command_prefix, "init_sd_card"],
+        args_list,
+        cwd=_host_runner_fallback_cwd(),
+        emit_client_context=emit_client_context,
+        interactive=True,
     )
