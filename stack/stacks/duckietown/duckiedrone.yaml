@@ -133,7 +133,7 @@ services:
     container_name: mavlink-proxy
     depends_on:
       dt-px4:
-        condition: service_healthy
+        condition: service_started
         restart: true
     restart: always
     network_mode: host
