@@ -500,7 +500,7 @@ class DTCommand(DTCommandAbs):
             run_cmd(["sudo", "partprobe", sd_card.loopdev])
             wait_for_disk(config_device, timeout=20)
             # make file system (FAT32 and 4096 bytes of block size (needed for comfortable surgery))
-            run_cmd(["sudo", "mkfs", "-t", "fat", "-F", "32", "-S", "4096", config_device])
+            run_cmd(["sudo", "mkfs.fat", "-F", "32", "-S", "4096", config_device])
             # label file system
             run_cmd(["sudo", "fatlabel", config_device, CONFIG_PARTITION])
             # show info about disk

@@ -84,6 +84,8 @@ CLI_TOOLS_NEEDED = [
     "e2fsck",
     "resize2fs",
     "truncate",
+    "mkfs.fat",
+    "fatlabel",
     "mount",
     "umount",
     "touch",
