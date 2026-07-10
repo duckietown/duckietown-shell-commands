@@ -303,8 +303,12 @@ class DTCommand(DTCommandAbs):
                     continue
                 parsed.steps.discard(step)
             using_cached_step = True
-        # verify that the input image exists before proceeding with create/mount steps
-        if "create" in parsed.steps and not os.path.isfile(disk_image_origin):
+        # verify that the input image exists only when create depends on a pre-existing source image
+        if (
+            "create" in parsed.steps
+            and "download" not in parsed.steps
+            and not os.path.isfile(disk_image_origin)
+        ):
             dtslogger.error(
                 f"Input image file not found at {disk_image_origin}. "
                 f"Please ensure the 'download' step is included or provide a valid --input-image."
