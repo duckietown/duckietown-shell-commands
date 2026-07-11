@@ -30,6 +30,8 @@ services:
       - /data:/data
       # dtps sockets
       - /data/ramdisk/dtps:/dtps
+      # libcamera/picamera2 device discovery
+      - /run/udev:/run/udev:ro
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
