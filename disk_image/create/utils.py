@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ from disk_image.create.constants import (
     MODULES_TO_LOAD,
     PARTITION_MOUNTPOINT,
     DEFAULT_STACK,
+    TMP_WORKDIR,
 )
 from utils.cli_utils import ensure_command_is_installed
 from utils.misc_utils import sudo_open, indent_block
@@ -40,10 +42,12 @@ class VirtualSDCard:
         return self._loopdev
 
     def set_loopdev(self, loopdev):
+        if self._loopdev is not None and self._loopdev != loopdev:
+            self._cleanup_partition_devices()
         self._loopdev = loopdev
 
     def partition_device(self, partition):
-        return f"{self._loopdev}p{self._partition_table[partition]}"
+        return self._disk_by_label(partition)
 
     def is_mounted(self):
         return self._loopdev is not None
@@ -75,7 +79,7 @@ class VirtualSDCard:
         # refresh devices module
         run_cmd(["sudo", "udevadm", "trigger"])
         # once mounted, keep track of the loopdev in use
-        self._loopdev = lodev
+        self.set_loopdev(lodev)
 
     def umount(self, quiet=False):
         # mount loop device
@@ -88,7 +92,8 @@ class VirtualSDCard:
             output = subprocess.check_output(cmd).decode("utf-8")
             devices = json.loads(output)
             for dev in devices["loopdevices"]:
-                if "(deleted)" in dev["back-file"] or dev["back-file"].split(" ")[0] != self._disk_file:
+                back_file, _ = _loop_back_file_info(dev["back-file"])
+                if back_file != self._disk_file:
                     continue
                 if not quiet:
                     dtslogger.info(f"Unmounting {self._disk_file} from {dev['name']}...")
@@ -96,6 +101,8 @@ class VirtualSDCard:
         except Exception as e:
             if not quiet:
                 raise e
+        self._cleanup_partition_devices()
+        self._loopdev = None
         if not quiet:
             dtslogger.info("Done!")
         # refresh devices module
@@ -108,13 +115,33 @@ class VirtualSDCard:
         mountpoint = PARTITION_MOUNTPOINT(partition)
         # check if the mountpoint exists
         if os.path.exists(mountpoint):
-            msg = f"The directory {mountpoint} already exists. Remove it before continuing."
-            dtslogger.error(msg)
-            raise ValueError(msg)
+            if os.path.ismount(mountpoint):
+                mounted_source = run_cmd(
+                    ["findmnt", "-n", "-o", "SOURCE", "--target", mountpoint],
+                    get_output=True,
+                ).strip()
+                same_device = mounted_source == partition_device
+                if not same_device and os.path.exists(mounted_source) and os.path.exists(partition_device):
+                    same_device = os.stat(mounted_source).st_rdev == os.stat(partition_device).st_rdev
+                if same_device:
+                    dtslogger.info(f'Partition "{partition}" already mounted, reusing it.')
+                    return
+                msg = f"The directory {mountpoint} is already mounted."
+                dtslogger.error(msg)
+                raise ValueError(msg)
+            if not os.path.isdir(mountpoint):
+                msg = f"The path {mountpoint} exists and is not a directory."
+                dtslogger.error(msg)
+                raise ValueError(msg)
+            if os.listdir(mountpoint):
+                msg = f"The directory {mountpoint} already exists and is not empty. Remove it before continuing."
+                dtslogger.error(msg)
+                raise ValueError(msg)
         # mount partition
         wait_for_disk(partition_device, timeout=20)
         try:
-            run_cmd(["sudo", "mkdir", "-p", mountpoint])
+            if not os.path.exists(mountpoint):
+                run_cmd(["sudo", "mkdir", "-p", mountpoint])
             run_cmd(["sudo", "mount", "-t", "auto", partition_device, mountpoint])
         except BaseException as e:
             dtslogger.error(f'We had issues mounting partition "{partition}".')
@@ -139,6 +166,7 @@ class VirtualSDCard:
             raise ValueError(msg)
         # wait for the device to be free
         in_use = True
+        wait_cycles = 0
         while in_use:
             dtslogger.info(f"Waiting for [{partition_device}]{mountpoint} to be freed.")
             time.sleep(2)
@@ -146,6 +174,24 @@ class VirtualSDCard:
                 ["sudo", "lsof", partition_device, "2>/dev/null", "||", ":"], get_output=True, shell=True
             ).splitlines()
             in_use = len(lsof) > 0
+            if not in_use:
+                break
+            wait_cycles += 1
+            if wait_cycles < 5:
+                continue
+            pids = _lsof_mountpoint_pids(lsof, mountpoint)
+            if not pids:
+                continue
+            signal = "-9" if wait_cycles >= 8 else None
+            action = "SIGKILL" if signal else "SIGTERM"
+            dtslogger.warning(
+                f"Processes are still using {mountpoint}; sending {action} to: {', '.join(pids)}"
+            )
+            kill_cmd = ["sudo", "kill"]
+            if signal:
+                kill_cmd.append(signal)
+            kill_cmd.extend(pids)
+            run_cmd(kill_cmd)
         # unmount
         run_cmd(["sudo", "umount", mountpoint])
         run_cmd(["sudo", "rmdir", mountpoint])
@@ -183,7 +229,7 @@ class VirtualSDCard:
         return None
 
     @staticmethod
-    def find_loopdev(disk_file, quiet=False):
+    def find_loopdev(disk_file, quiet=False, include_deleted=False):
         # mount loop device
         if not quiet:
             dtslogger.info(f"Looking for loop devices associated to disk image {disk_file}...")
@@ -191,7 +237,11 @@ class VirtualSDCard:
             # iterate over loop devices
             lodevices = json.loads(run_cmd(["sudo", "losetup", "--json"], get_output=True))
             for dev in lodevices["loopdevices"]:
-                if dev["back-file"].split(" ")[0] == disk_file:
+                back_file, is_deleted = _loop_back_file_info(dev["back-file"])
+                if back_file != disk_file:
+                    continue
+                if is_deleted and not include_deleted:
+                    continue
                     if not quiet:
                         dtslogger.info(f"Found {dev['name']}!")
                     # found a loop device connected to the given image
@@ -207,14 +257,49 @@ class VirtualSDCard:
         if self._loopdev:
             if partition not in self._partition_table:
                 raise KeyError(f"Partition '{partition}' not found in the partition table")
-            return f"{self._loopdev}p{self._partition_table[partition]}"
+            loop_partition_device = self._loop_partition_device(partition)
+            if os.path.exists(loop_partition_device):
+                return loop_partition_device
+            fallback_partition_device = self._fallback_partition_device(partition)
+            ensure_block_device_node(fallback_partition_device)
+            return fallback_partition_device
         return f"/dev/disk/by-label/{partition}"
+
+    def _loop_partition_device(self, partition):
+        partition_id = self._partition_table[partition]
+        return f"{self._loopdev}p{partition_id}"
+
+    def _fallback_partition_device(self, partition):
+        loop_partition_device = self._loop_partition_device(partition)
+        device_name = os.path.basename(loop_partition_device)
+        return os.path.join(TMP_WORKDIR, "devices", device_name)
+
+    def _cleanup_partition_devices(self):
+        if self._loopdev is None:
+            return
+        for partition in self._partition_table:
+            fallback_partition_device = self._fallback_partition_device(partition)
+            if os.path.lexists(fallback_partition_device):
+                run_cmd(["sudo", "rm", "-f", fallback_partition_device])
 
 
 def check_cli_tools(*args):
     clis = CLI_TOOLS_NEEDED + list(args)
     for cli_tool in clis:
         ensure_command_is_installed(cli_tool)
+
+
+def _lsof_mountpoint_pids(lines: List[str], mountpoint: str) -> List[str]:
+    pids = set()
+    for line in lines[1:]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        pid = parts[1]
+        path = parts[-1]
+        if pid.isdigit() and path.startswith(mountpoint):
+            pids.add(pid)
+    return sorted(pids)
 
 
 def pull_docker_image(client, image, platform=None):
@@ -352,8 +437,70 @@ def run_cmd_in_partition(partition, cmd, *args, **kwargs):
 
 def wait_for_disk(disk, timeout):
     stime = time.time()
-    while (time.time() - stime < timeout) and (not os.path.exists(disk)):
+    while time.time() - stime < timeout:
+        if ensure_block_device_node(disk):
+            return True
+        if os.path.exists(disk):
+            return True
         time.sleep(1.0)
+    if ensure_block_device_node(disk):
+        return True
+    return os.path.exists(disk)
+
+
+def ensure_block_device_node(disk):
+    sysfs_device_path = _loop_partition_sysfs_device_path(disk)
+    if sysfs_device_path is None:
+        return os.path.exists(disk)
+
+    if not os.path.exists(sysfs_device_path):
+        if _is_managed_block_device_node(disk) and os.path.lexists(disk):
+            run_cmd(["sudo", "rm", "-f", disk])
+        return False
+
+    with open(sysfs_device_path, "rt") as fin:
+        device_numbers = fin.read().strip()
+    major_str, minor_str = device_numbers.split(":")
+    device_major = int(major_str)
+    device_minor = int(minor_str)
+
+    if os.path.exists(disk):
+        disk_stat = os.stat(disk)
+        is_block_device = stat.S_ISBLK(disk_stat.st_mode)
+        current_major = os.major(disk_stat.st_rdev)
+        current_minor = os.minor(disk_stat.st_rdev)
+        if is_block_device and current_major == device_major and current_minor == device_minor:
+            return True
+        run_cmd(["sudo", "rm", "-f", disk])
+
+    disk_dir = os.path.dirname(disk)
+    if len(disk_dir):
+        os.makedirs(disk_dir, exist_ok=True)
+    run_cmd(["sudo", "mknod", disk, "b", str(device_major), str(device_minor)])
+    return os.path.exists(disk)
+
+
+def _loop_back_file_info(back_file):
+    deleted_suffix = " (deleted)"
+    is_deleted = back_file.endswith(deleted_suffix)
+    if is_deleted:
+        back_file = back_file[: -len(deleted_suffix)]
+    return back_file, is_deleted
+
+
+def _loop_partition_sysfs_device_path(disk):
+    disk_name = os.path.basename(disk)
+    if re.fullmatch(r"loop\d+p\d+", disk_name) is None:
+        return None
+    return os.path.join("/sys/class/block", disk_name, "dev")
+
+
+def _is_managed_block_device_node(disk):
+    managed_dir = os.path.join(TMP_WORKDIR, "devices")
+    managed_dir = os.path.abspath(managed_dir)
+    disk_path = os.path.abspath(disk)
+    managed_prefix = managed_dir + os.sep
+    return disk_path.startswith(managed_prefix)
 
 
 def get_validator_fcn(validators, partition, path):

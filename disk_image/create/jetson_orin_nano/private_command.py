@@ -303,8 +303,12 @@ class DTCommand(DTCommandAbs):
                     continue
                 parsed.steps.discard(step)
             using_cached_step = True
-        # verify that the input image exists before proceeding with create/mount steps
-        if "create" in parsed.steps and not os.path.isfile(disk_image_origin):
+        # verify that the input image exists only when create depends on a pre-existing source image
+        if (
+            "create" in parsed.steps
+            and "download" not in parsed.steps
+            and not os.path.isfile(disk_image_origin)
+        ):
             dtslogger.error(
                 f"Input image file not found at {disk_image_origin}. "
                 f"Please ensure the 'download' step is included or provide a valid --input-image."
@@ -432,6 +436,16 @@ class DTCommand(DTCommandAbs):
                 if not granted:
                     dtslogger.info("Aborting.")
                     return
+            existing_loopdev = VirtualSDCard.find_loopdev(
+                out_file_path("img"), quiet=True, include_deleted=True
+            )
+            if existing_loopdev:
+                dtslogger.warning(
+                    f"The destination file {out_file_path('img')} is still mounted to {existing_loopdev}. "
+                    "Detaching it before overwrite."
+                )
+                sd_card.set_loopdev(existing_loopdev)
+                sd_card.umount()
             # create empty disk image
             if not using_cached_step:
                 dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
