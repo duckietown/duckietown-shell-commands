@@ -308,6 +308,53 @@ def pull_image(image: str, endpoint: Union[None, str, DockerClient] = None, prog
         pbar.done()
 
 
+def _format_size_for_pull_progress(num_bytes: int) -> str:
+    size = float(num_bytes)
+    unit = "B"
+    for candidate in ["KB", "MB", "GB", "TB"]:
+        if size < 1024.0:
+            break
+        size /= 1024.0
+        unit = candidate
+    if unit == "B":
+        return f"{int(size)} {unit}"
+    return f"{size:.1f} {unit}"
+
+
+def _short_layer_id(layer_id: str) -> str:
+    if not layer_id:
+        return ""
+    if len(layer_id) <= 12:
+        return layer_id
+    return layer_id[:12]
+
+
+def _pull_status_detail(line: dict, pulled_count: int, layer_count: int) -> str:
+    status = str(line.get("status", "Pulling"))
+    total_layers = max(1, layer_count)
+    header = f"Pulling {pulled_count}/{total_layers} layers"
+
+    layer_id = _short_layer_id(str(line.get("id", "")))
+    progress_detail = line.get("progressDetail")
+    progress_text = ""
+    if isinstance(progress_detail, dict):
+        current = progress_detail.get("current")
+        total = progress_detail.get("total")
+        if isinstance(current, int) and isinstance(total, int) and total > 0:
+            current_str = _format_size_for_pull_progress(current)
+            total_str = _format_size_for_pull_progress(total)
+            progress_text = f"{current_str}/{total_str}"
+        elif isinstance(current, int) and current > 0:
+            progress_text = _format_size_for_pull_progress(current)
+
+    parts = [header, status]
+    if layer_id:
+        parts.append(layer_id)
+    if progress_text:
+        parts.append(progress_text)
+    return " | ".join([parts[0], " ".join(parts[1:])])
+
+
 # TODO: this should be removed
 def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
@@ -315,15 +362,18 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
     pulled = set()
     pbar = ProgressBar() if progress else None
     for line in client.api.pull(image, stream=True, decode=True):
-        if "id" not in line or "status" not in line:
+        status = line.get("status")
+        if status is None:
             continue
-        layer_id = line["id"]
-        layers.add(layer_id)
-        if line["status"] in ["Already exists", "Pull complete"]:
-            pulled.add(layer_id)
+        layer_id = line.get("id")
+        if layer_id is not None:
+            layers.add(layer_id)
+            if status in ["Already exists", "Pull complete"]:
+                pulled.add(layer_id)
         # update progress bar
         if progress:
             percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
+            pbar.set_detail(_pull_status_detail(line, len(pulled), len(layers)))
             pbar.update(percentage)
     if progress:
         pbar.done()
