@@ -1,0 +1,14 @@
+services:
+
+  pid-controller:
+    image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
+    container_name: pid-controller
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: duckiedrone-pid-controller-node
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
