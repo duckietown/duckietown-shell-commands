@@ -25,9 +25,14 @@ services:
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-camera
+      DT_CAMERA_SHM_OUT_PATH: ${DT_CAMERA_SHM_OUT_PATH:-/dtps-shm/front_center}
+      DT_CAMERA_SHM_ONLY_JPEG: ${DT_CAMERA_SHM_ONLY_JPEG:-0}
+      DT_CAMERA_SHM_ONLY_INFO: ${DT_CAMERA_SHM_ONLY_INFO:-0}
+      DT_CAMERA_SHM_ONLY_PARAMETERS: ${DT_CAMERA_SHM_ONLY_PARAMETERS:-0}
       DTPS_DATA_AVAILABILITY_TIMEOUT: 0.1
     volumes:
       - /data:/data
+      - camera-shm:/dtps-shm
       # dtps sockets
       - /data/ramdisk/dtps:/dtps
       # libcamera/picamera2 device discovery
@@ -263,3 +268,5 @@ services:
 
 volumes:
   compose-data:
+  camera-shm:
+    name: ${DT_CAMERA_SHM_VOLUME:-duckietown-camera-shm}
