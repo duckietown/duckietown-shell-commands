@@ -28,6 +28,12 @@ from utils.duckietown_utils import (
     WIRED_ROBOT_TYPES,
 )
 from utils.exceptions import InvalidUserInput
+from utils.host_runner import (
+    HOST_RUNNER_ACTIVE_ENV,
+    HostRunnerError,
+    delegate_init_sd_card_to_host,
+    should_delegate_to_host,
+)
 from utils.json_schema_form_utils import open_form_from_schema
 from utils.misc_utils import human_time, sudo_open
 from utils.progress_bar import ProgressBar
@@ -88,6 +94,19 @@ COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
 ROOT_PARTITIONS = ["root", "rootfs", "APP"]
+
+
+def _should_delegate_init_sd_card(parsed: argparse.Namespace) -> bool:
+    if not should_delegate_to_host():
+        return False
+    if parsed.local:
+        return False
+    if parsed.gui:
+        return False
+    device = parsed.device
+    if device is None:
+        return True
+    return device.startswith("/dev/")
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override=None):
@@ -235,6 +254,12 @@ class DTCommand(DTCommandAbs):
             help="Use (experimental) gui",
         )
         parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run locally instead of delegating SD card initialization to the host",
+        )
+        parser.add_argument(
             "--verify",
             default=False,
             action="store_true",
@@ -296,6 +321,17 @@ class DTCommand(DTCommandAbs):
             if "verify" in no_steps:
                 raise ValueError("You cannot use --verify together with --no-steps verify")
             steps += ["verify"]
+
+        if _should_delegate_init_sd_card(parsed):
+            dtslogger.info("Delegating SD card initialization to the host...")
+            try:
+                exit_code = delegate_init_sd_card_to_host(args)
+            except HostRunnerError as error:
+                dtslogger.error(str(error))
+                exit(1)
+            if exit_code != 0:
+                exit(exit_code)
+            return
 
         # GUI
         if gui:
@@ -656,6 +692,7 @@ def step_verify(_, parsed, data):
             # Check that parsed.device is not None
             if parsed.device is None:
                 dtslogger.error("Destination device is None. If you're skipping the flash step, please provide a device using the --device flag.")
+            _ensure_sudo_credentials_for_host_runner()
             with sudo_open(parsed.device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
@@ -809,6 +846,7 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             retries = 10 if is_sd_target and platform.system() == "Darwin" else 1
             for attempt in range(retries):
                 if is_sd_target:
+                    _ensure_sudo_credentials_for_host_runner()
                     _unmount_device(parsed.device)
                     if platform.system() == "Darwin":
                         time.sleep(0.5)
@@ -1007,6 +1045,8 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     env = copy.deepcopy(os.environ)
     # force English language
     env["LC_ALL"] = "C"
+    if _should_read_sudo_from_stdin(cmd, shell=shell, env=env):
+        cmd = ["sudo", "-S", *cmd[1:]]
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
@@ -1020,6 +1060,28 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         return subprocess.check_output(cmd, shell=shell, env=env).decode("utf-8")
     else:
         subprocess.check_call(cmd, shell=shell, env=env, **outputs)
+
+
+def _should_read_sudo_from_stdin(cmd, *, shell: bool, env: dict[str, str]) -> bool:
+    if shell:
+        return False
+    if not isinstance(cmd, list):
+        return False
+    if not cmd:
+        return False
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return False
+    if cmd[0] != "sudo":
+        return False
+    return "-S" not in cmd
+
+
+def _ensure_sudo_credentials_for_host_runner() -> None:
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return
+    subprocess.check_call(["sudo", "-S", "-v"], env=env)
 
 
 def _ensure_flash_dependencies():
