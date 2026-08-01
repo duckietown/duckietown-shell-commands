@@ -28,6 +28,7 @@ from utils.host_runner import (
     HOST_RUNNER_FRONTEND_URL_FORWARD_ENV,
     HostRunnerError,
     delegate_command_to_host,
+    host_runner_delegated_cwd,
     host_runner_engine_host,
     should_delegate_to_host,
 )
@@ -138,13 +139,7 @@ def build_host_viewer_command(
 
 
 def host_delegated_viewer_cwd() -> str:
-    path = Path(__file__)
-    resolved_path = path.resolve()
-    repo_root = resolved_path.parents[1]
-    workspace_root = repo_root.parent / "workspace"
-    if workspace_root.is_dir():
-        return str(workspace_root)
-    return str(repo_root.parent)
+    return host_runner_delegated_cwd()
 
 
 def get_macos_app_executable(app_path: str) -> str:

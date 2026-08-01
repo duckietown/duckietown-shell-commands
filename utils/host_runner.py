@@ -408,7 +408,7 @@ def _configured_host_runner_container_root() -> Optional[Path]:
     runtime_values = {key: str(value) for key, value in os.environ.items()}
     configured_root = _alias_value(runtime_values, HOST_RUNNER_CONTAINER_ROOT_ENV)
     if configured_root:
-        root_path = _workspace_container_root(Path(configured_root))
+        root_path = _resolve_directory_candidate(Path(configured_root))
         if root_path is not None:
             return root_path
 
@@ -420,7 +420,7 @@ def _configured_host_runner_container_root() -> Optional[Path]:
         )
         if not configured_root:
             continue
-        root_path = _workspace_container_root(Path(configured_root))
+        root_path = _resolve_directory_candidate(Path(configured_root))
         if root_path is not None:
             return root_path
     return None
@@ -431,6 +431,10 @@ def _host_runner_container_root() -> Path:
     configured_root = _configured_host_runner_container_root()
     if configured_root is not None:
         return configured_root
+
+    home_root = _resolve_directory_candidate(Path.home())
+    if home_root is not None:
+        return home_root
 
     cwd_path = Path.cwd()
     for candidate_root in (cwd_path, *cwd_path.parents):
@@ -464,6 +468,10 @@ def _host_runner_fallback_cwd() -> str:
     if workspace_root_path.is_dir():
         return str(workspace_root_path)
     return str(container_root_path)
+
+
+def host_runner_delegated_cwd() -> str:
+    return _host_runner_fallback_cwd()
 
 
 def _path_is_within_root(path: Path, root: Path) -> bool:
