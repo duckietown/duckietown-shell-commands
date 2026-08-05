@@ -687,7 +687,10 @@ def step_flash(_, parsed, data):
             )
 
     # use dd to flash
-    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
+    flash_device = parsed.device
+    if sd_type == "SD" and platform.system() == "Darwin":
+        flash_device = _get_darwin_raw_device(parsed.device)
+    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, flash_device))
     dd_py = os.path.join(ASSETS_DIR, "_dd.py")
     bsize = str(BLOCK_SIZE)
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
@@ -695,7 +698,7 @@ def step_flash(_, parsed, data):
         "--input",
         data["disk_img"],
         "--output",
-        parsed.device,
+        flash_device,
         "--block-size",
         bsize,
     ]
@@ -726,7 +729,8 @@ def step_verify(_, parsed, data):
             if parsed.device is None:
                 dtslogger.error("Destination device is None. If you're skipping the flash step, please provide a device using the --device flag.")
             _ensure_sudo_credentials_for_host_runner()
-            with sudo_open(parsed.device, "rb") as destination:
+            verify_device = _get_darwin_raw_device(parsed.device) if platform.system() == "Darwin" else parsed.device
+            with sudo_open(verify_device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
                     buf1_len = len(buffer1)
@@ -1655,6 +1659,14 @@ def _unmount_device(device: str):
 def _get_darwin_block_device(device: str) -> str:
     if device.startswith("/dev/rdisk"):
         return "/dev/disk" + device[len("/dev/rdisk") :]
+    return device
+
+
+def _get_darwin_raw_device(device: str) -> str:
+    if device.startswith("/dev/disk"):
+        raw_device = "/dev/rdisk" + device[len("/dev/disk") :]
+        if os.path.exists(raw_device):
+            return raw_device
     return device
 
 
