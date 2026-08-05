@@ -87,7 +87,7 @@ def _get_tmp_workdir() -> str:
 
 
 TMP_WORKDIR = _get_tmp_workdir()
-BLOCK_SIZE = 1024**2
+BLOCK_SIZE = 4 * 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
@@ -713,7 +713,7 @@ def step_flash(_, parsed, data):
 
 def step_verify(_, parsed, data):
     dtslogger.info("Verifying {}[{}]...".format(data.get("sd_type", ""), parsed.device))
-    buf_size = 16 * 1024
+    buf_size = BLOCK_SIZE
     # create a progress bar to track the progress
     pbar = ProgressBar(header="Verifying [ETA: ND]")
     tbytes = os.stat(data["disk_img"]).st_size

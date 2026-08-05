@@ -80,7 +80,7 @@ class ProgressBar:
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="Input device or file")
 parser.add_argument("-o", "--output", required=True, help="Output device or file")
-parser.add_argument("-b", "--block-size", default=1024**2, type=int, help="Block size")
+parser.add_argument("-b", "--block-size", default=4 * 1024**2, type=int, help="Block size")
 # parse arguments
 parsed = parser.parse_args()
 
@@ -109,9 +109,6 @@ try:
         written += len(chunk)
         new_progress = int(written / src_size * 100.0)
         if new_progress != current_progress:
-            # flush buffers and sync before notifying the new progress
-            tgt.flush()
-            os.fsync(tgt.fileno())
             # update progress and progress bar
             current_progress = new_progress
             bar.update(current_progress)
@@ -123,6 +120,7 @@ try:
         chunk = src.read(parsed.block_size)
     # flus`h I/O buffer
     logger.info("Flushing I/O buffer...")
+    tgt.flush()
     os.fsync(tgt.fileno())
     logger.info("`Done!")
 except KeyboardInterrupt:
