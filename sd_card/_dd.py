@@ -118,11 +118,11 @@ try:
             bar.set_header("Flashing [ETA: {}]".format(human_time(eta, True)))
         # read next chunk
         chunk = src.read(parsed.block_size)
-    # flus`h I/O buffer
+    # flush I/O buffer
     logger.info("Flushing I/O buffer...")
     tgt.flush()
     os.fsync(tgt.fileno())
-    logger.info("`Done!")
+    logger.info("Done!")
 except KeyboardInterrupt:
     logger.warning("Flashing cancelled. The destination may contain a partial image.")
     raise SystemExit(130)
