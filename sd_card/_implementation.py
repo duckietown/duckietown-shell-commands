@@ -349,7 +349,9 @@ class DTCommand(DTCommandAbs):
         if parsed.verify:
             if "verify" in no_steps:
                 raise ValueError("You cannot use --verify together with --no-steps verify")
-            steps += ["verify"]
+            if "verify" not in steps:
+                verify_index = steps.index("flash") + 1 if "flash" in steps else len(steps)
+                steps.insert(verify_index, "verify")
 
         if _should_delegate_sd_card(parsed):
             dtslogger.info("Delegating SD card initialization to the host...")
