@@ -554,10 +554,17 @@ def step_download(shell, parsed, data):
         if not os.path.isfile(parsed.image):
             dtslogger.error(f"The specified image file does not exist: {parsed.image}")
             exit(3)
+        local_metadata = f"{os.path.splitext(parsed.image)[0]}.json"
+        if "setup" in data["steps"] and not os.path.isfile(local_metadata):
+            raise InvalidUserInput(
+                f"The disk image metadata file is required for setup: {local_metadata}"
+            )
         # create temp dir if it doesn't exist
         _run_cmd(["mkdir", "-p", parsed.workdir])
         # copy .img to expected location
         shutil.copy(parsed.image, data["disk_img"])
+        if os.path.isfile(local_metadata):
+            shutil.copy(local_metadata, data["disk_metadata"])
         return {}
 
     # clear cache (if requested)
