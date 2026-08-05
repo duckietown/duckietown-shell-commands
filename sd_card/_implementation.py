@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 import re
+import select
 import shutil
 import socket
 import subprocess
@@ -481,9 +482,12 @@ class DTCommand(DTCommandAbs):
             "disk_metadata": in_file("json"),
             "steps": steps,
         }
-        # perform steps
-        for step_name in steps:
-            data.update(step2function[step_name](shell, parsed, data))
+        try:
+            # perform steps
+            for step_name in steps:
+                data.update(step2function[step_name](shell, parsed, data))
+        finally:
+            _stop_darwin_disk_mount_guard(data.pop("_darwin_disk_mount_guard", None))
         # ---
         if "flash" in steps:
             dtslogger.info("Flashing completed successfully!")
@@ -686,6 +690,9 @@ def step_flash(_, parsed, data):
                 "unmount all disks from your SD card before flashing the next time."
             )
 
+    if sd_type == "SD" and platform.system() == "Darwin":
+        _ensure_darwin_disk_mount_guard(parsed, data)
+
     # use dd to flash
     flash_device = parsed.device
     if sd_type == "SD" and platform.system() == "Darwin":
@@ -816,7 +823,10 @@ def update_sd_card(shell: DTShell, parsed: argparse.Namespace):
     data["selected_placeholders"] = _get_update_placeholders(parsed, disk_metadata["surgery_plan"])
     parsed.wifi = parsed.wifi or ""
     parsed.country = parsed.country or ""
-    step_update(shell, parsed, data)
+    try:
+        step_update(shell, parsed, data)
+    finally:
+        _stop_darwin_disk_mount_guard(data.pop("_darwin_disk_mount_guard", None))
 
 
 def _ensure_disk_metadata(shell: DTShell, parsed: argparse.Namespace, data: dict):
@@ -916,38 +926,51 @@ def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
     if platform.system() == "Darwin":
         time.sleep(0.5)
 
-    ext4_tools = None
-    prepared_ext4_updates = {}
-    for partition, partition_updates in updates_by_partition.items():
-        partition_device = partition_updates[0][2]
-        if partition in FAT_UPDATE_PARTITIONS:
-            continue
-        if ext4_tools is None:
-            ext4_tools = (_get_ext4_tool("debugfs"), _get_ext4_tool("e2fsck"))
-        debugfs, e2fsck = ext4_tools
-        _ensure_ext4_filesystem_ready(partition_device, e2fsck, repair=getattr(parsed, "repair", False))
-        prepared_ext4_updates[partition] = [
-            (surgery_bit, content, partition_device, *_get_ext4_file_layout(debugfs, partition_device, surgery_bit["path"], content))
-            for surgery_bit, content, _ in partition_updates
-        ]
-
     dtslogger.info("Updating files on the SD card...")
     for partition, partition_updates in updates_by_partition.items():
         if partition in FAT_UPDATE_PARTITIONS:
             _update_fat_partition(partition_updates)
-            continue
-        debugfs, _ = ext4_tools
-        for surgery_bit, content, partition_device, block_size, blocks in prepared_ext4_updates[partition]:
-            dtslogger.info("Updating [{partition}]:{path}.".format(**surgery_bit))
-            _update_ext4_file(
-                parsed.device,
-                debugfs,
-                partition_device,
-                surgery_bit["path"],
-                content,
-                block_size,
-                blocks,
-            )
+
+    ext4_partition_updates = [
+        (partition, partition_updates)
+        for partition, partition_updates in updates_by_partition.items()
+        if partition not in FAT_UPDATE_PARTITIONS
+    ]
+    mount_guard_active = False
+    if ext4_partition_updates and platform.system() == "Darwin":
+        _unmount_device(parsed.device)
+        time.sleep(0.5)
+        _ensure_darwin_disk_mount_guard(parsed, data)
+        mount_guard_active = data.get("_darwin_disk_mount_guard") is not None
+
+    if ext4_partition_updates:
+        debugfs, e2fsck = _get_ext4_tool("debugfs"), _get_ext4_tool("e2fsck")
+        prepared_ext4_updates = {}
+        for partition, partition_updates in ext4_partition_updates:
+            partition_device = partition_updates[0][2]
+            _ensure_ext4_filesystem_ready(partition_device, e2fsck, repair=getattr(parsed, "repair", False))
+            prepared_ext4_updates[partition] = [
+                (
+                    surgery_bit,
+                    content,
+                    partition_device,
+                    *_get_ext4_file_layout(debugfs, partition_device, surgery_bit["path"], content),
+                )
+                for surgery_bit, content, _ in partition_updates
+            ]
+        for partition_updates in prepared_ext4_updates.values():
+            for surgery_bit, content, partition_device, block_size, blocks in partition_updates:
+                dtslogger.info("Updating [{partition}]:{path}.".format(**surgery_bit))
+                _update_ext4_file(
+                    parsed.device,
+                    debugfs,
+                    partition_device,
+                    surgery_bit["path"],
+                    content,
+                    block_size,
+                    blocks,
+                    mount_guard_active=mount_guard_active,
+                )
     _run_cmd(["sync"])
     dtslogger.info("Update completed successfully!")
 
@@ -1122,13 +1145,21 @@ def _update_ext4_file(
     content: bytes,
     block_size: int,
     blocks: list[int],
+    mount_guard_active: bool = False,
 ):
     padded_content = content + b"\0" * (block_size * len(blocks) - len(content))
     for index, block in enumerate(blocks):
         chunk = padded_content[index * block_size : (index + 1) * block_size]
-        _write_ext4_block(device, partition_device, block_size, block, chunk)
+        _write_ext4_block(
+            device,
+            partition_device,
+            block_size,
+            block,
+            chunk,
+            mount_guard_active=mount_guard_active,
+        )
     _run_cmd(["sync"])
-    if platform.system() == "Darwin" and device.startswith("/dev/"):
+    if platform.system() == "Darwin" and device.startswith("/dev/") and not mount_guard_active:
         _unmount_device(device)
         time.sleep(0.5)
     _run_cmd(["sudo", debugfs, "-w", "-R", f"sif {path} size {len(content)}", partition_device])
@@ -1138,7 +1169,14 @@ def _update_ext4_file(
         raise InvalidUserInput(f"Could not verify the updated content of {path} on {partition_device}.")
 
 
-def _write_ext4_block(device: str, partition_device: str, block_size: int, block: int, content: bytes):
+def _write_ext4_block(
+    device: str,
+    partition_device: str,
+    block_size: int,
+    block: int,
+    content: bytes,
+    mount_guard_active: bool = False,
+):
     retries = 10 if platform.system() == "Darwin" else 1
     dd_cmd = [
         "sudo",
@@ -1150,7 +1188,7 @@ def _write_ext4_block(device: str, partition_device: str, block_size: int, block
         "conv=notrunc",
     ]
     for attempt in range(retries):
-        if platform.system() == "Darwin" and device.startswith("/dev/"):
+        if platform.system() == "Darwin" and device.startswith("/dev/") and not mount_guard_active:
             _unmount_device(device)
             time.sleep(0.5)
         _ensure_sudo_credentials_for_host_runner()
@@ -1262,10 +1300,16 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         parsed.device = _get_darwin_block_device(parsed.device)
     is_sd_target = parsed.device is not None and parsed.device.startswith("/dev/")
     if is_sd_target:
-        dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
-        _unmount_device(parsed.device)
         if platform.system() == "Darwin":
-            time.sleep(0.5)
+            if data.get("_darwin_disk_mount_guard") is None:
+                dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+                _unmount_device(parsed.device)
+                time.sleep(0.5)
+            _ensure_darwin_disk_mount_guard(parsed, data)
+            _ensure_sudo_credentials()
+        else:
+            dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+            _unmount_device(parsed.device)
     target_device = parsed.device
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
@@ -1385,6 +1429,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             for attempt in range(retries):
                 if is_sd_target:
                     _ensure_sudo_credentials_for_host_runner()
+                if is_sd_target and not (
+                    platform.system() == "Darwin" and data.get("_darwin_disk_mount_guard") is not None
+                ):
                     _unmount_device(parsed.device)
                     if platform.system() == "Darwin":
                         time.sleep(0.5)
@@ -1620,6 +1667,112 @@ def _ensure_sudo_credentials_for_host_runner() -> None:
     if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
         return
     subprocess.check_call(["sudo", "-S", "-v"], env=env)
+
+
+def _ensure_sudo_credentials() -> None:
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    command = ["sudo", "-v"]
+    if env.get(HOST_RUNNER_ACTIVE_ENV) == "1":
+        command = ["sudo", "-S", "-v"]
+    subprocess.check_call(command, env=env)
+
+
+def _read_darwin_disk_mount_guard_message(process: subprocess.Popen, timeout: float) -> str:
+    if process.stdout is None:
+        raise RuntimeError("The macOS disk mount guard did not provide a status channel.")
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Timed out waiting for the macOS disk mount guard.")
+        readable, _, _ = select.select([process.stdout], [], [], remaining)
+        if readable:
+            message = process.stdout.readline().strip()
+            if message:
+                return message
+            if process.poll() is not None:
+                raise RuntimeError("The macOS disk mount guard exited without reporting its status.")
+        elif process.poll() is not None:
+            raise RuntimeError("The macOS disk mount guard exited before it was ready.")
+
+
+def _terminate_darwin_disk_mount_guard(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+def _ensure_darwin_disk_mount_guard(parsed: argparse.Namespace, data: dict) -> None:
+    guard = data.get("_darwin_disk_mount_guard")
+    if guard is not None:
+        if guard.poll() is not None:
+            raise RuntimeError("The macOS disk mount guard stopped before flashing completed.")
+        return
+    if platform.system() != "Darwin" or not parsed.device or not parsed.device.startswith("/dev/"):
+        return
+
+    _ensure_sudo_credentials()
+    guard_path = os.path.join(ASSETS_DIR, "_darwin_disk_mount_guard.py")
+    command = [
+        "sudo",
+        "-n",
+        sys.executable,
+        guard_path,
+        "--device",
+        _get_darwin_block_device(parsed.device),
+        "--parent-pid",
+        str(os.getpid()),
+    ]
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    guard = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+    try:
+        message = _read_darwin_disk_mount_guard_message(guard, timeout=10)
+        if message != "READY":
+            raise RuntimeError(message.replace("ERROR ", "", 1))
+    except Exception:
+        _terminate_darwin_disk_mount_guard(guard)
+        raise
+    data["_darwin_disk_mount_guard"] = guard
+    dtslogger.debug(f"Disk Arbitration mount guard is active for {parsed.device}.")
+
+
+def _stop_darwin_disk_mount_guard(guard: Optional[subprocess.Popen]) -> None:
+    if guard is None:
+        return
+    if guard.poll() is not None:
+        if guard.returncode != 0:
+            dtslogger.warning("The macOS disk mount guard stopped before it could eject the SD card.")
+        return
+    dtslogger.info("Ejecting the SD card from macOS...")
+    try:
+        if guard.stdin is None:
+            raise RuntimeError("The macOS disk mount guard has no control channel.")
+        guard.stdin.write("EJECT\n")
+        guard.stdin.flush()
+        message = _read_darwin_disk_mount_guard_message(guard, timeout=10)
+        if message != "EJECTED":
+            raise RuntimeError(message.replace("EJECT_FAILED ", "", 1))
+        guard.wait(timeout=10)
+    except (BrokenPipeError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        dtslogger.warning(f"Could not eject the SD card through Disk Arbitration: {error}")
+        _terminate_darwin_disk_mount_guard(guard)
 
 
 def _ensure_flash_dependencies():
