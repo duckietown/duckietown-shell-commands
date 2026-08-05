@@ -560,9 +560,6 @@ def step_download(shell, parsed, data):
         shutil.copy(parsed.image, data["disk_img"])
         return {}
 
-    # check if dependencies are met
-    ensure_command_is_installed("unzip")
-
     # clear cache (if requested)
     if parsed.no_cache:
         dtslogger.info("Clearing cache")
@@ -643,18 +640,33 @@ def _cached_file_matches_archive_member(path, member):
 def _extract_zip_members(archive_path, members):
     output_dir = os.path.dirname(next(iter(members)))
     staging_dir = tempfile.mkdtemp(prefix=".dts-extract-", dir=output_dir)
+    total_bytes = sum(member.file_size for member in members.values())
+    extracted_bytes = 0
+    progress = 0
+    started_at = time.time()
+    pbar = ProgressBar(header="Extracting [ETA: ND]")
+    pbar.set_detail(os.path.basename(next(iter(members))))
+    pbar.update(progress)
     try:
-        _run_cmd(
-            [
-                "unzip",
-                "-o",
-                "-j",
-                archive_path,
-                *[member.filename for member in members.values()],
-                "-d",
-                staging_dir,
-            ]
-        )
+        with zipfile.ZipFile(archive_path) as archive:
+            for target, member in members.items():
+                staged_file = os.path.join(staging_dir, os.path.basename(target))
+                pbar.set_detail(os.path.basename(target))
+                pbar.update(progress)
+                with archive.open(member.filename) as source, open(staged_file, "xb") as destination:
+                    chunk = source.read(BLOCK_SIZE)
+                    while chunk:
+                        destination.write(chunk)
+                        extracted_bytes += len(chunk)
+                        next_progress = min(99, int(100 * extracted_bytes / total_bytes)) if total_bytes else 99
+                        if next_progress != progress:
+                            progress = next_progress
+                            if progress > 0:
+                                elapsed = time.time() - started_at
+                                eta = (100 - progress) * (elapsed / progress)
+                                pbar.set_header(f"Extracting [ETA: {human_time(eta, True)}]")
+                            pbar.update(progress)
+                        chunk = source.read(BLOCK_SIZE)
         for target, member in members.items():
             staged_file = os.path.join(staging_dir, os.path.basename(target))
             if not _cached_file_matches_archive_member(staged_file, member):
@@ -662,6 +674,10 @@ def _extract_zip_members(archive_path, members):
         for target in members:
             staged_file = os.path.join(staging_dir, os.path.basename(target))
             os.replace(staged_file, target)
+        pbar.done()
+    except BaseException:
+        print()
+        raise
     finally:
         shutil.rmtree(staging_dir, ignore_errors=True)
 
@@ -919,7 +935,6 @@ def _ensure_disk_metadata(shell: DTShell, parsed: argparse.Namespace, data: dict
     except FileNotFoundError:
         dtslogger.info("No standalone disk image metadata is available; falling back to the disk image archive.")
 
-    ensure_command_is_installed("unzip")
     if not os.path.isfile(data["disk_zip"]):
         dtslogger.info("Downloading disk image archive to retrieve its update metadata...")
         disk_image = DISK_IMAGE_CLOUD_LOCATION(
