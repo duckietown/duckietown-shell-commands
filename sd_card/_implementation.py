@@ -14,6 +14,7 @@ import plistlib
 import sys
 import tempfile
 import time
+import zipfile
 from collections import namedtuple
 from datetime import datetime
 from types import SimpleNamespace
@@ -588,13 +589,81 @@ def step_download(shell, parsed, data):
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{data['disk_zip']}].")
     # unzip (if necessary)
-    if not os.path.isfile(data["disk_img"]):
+    archive_members = _get_zip_members(
+        data["disk_zip"],
+        required_targets=(data["disk_img"],),
+        optional_targets=(data["disk_metadata"],),
+    )
+    members_to_extract = {
+        target: member
+        for target, member in archive_members.items()
+        if not _cached_file_matches_archive_member(target, member)
+    }
+    if members_to_extract:
+        for target in members_to_extract:
+            if os.path.lexists(target):
+                dtslogger.warning(f"Discarding incomplete cached file [{target}].")
+                os.unlink(target)
         dtslogger.info("Extracting ZIP image...")
-        _run_cmd(["unzip", data["disk_zip"], "-d", parsed.workdir])
+        _extract_zip_members(data["disk_zip"], members_to_extract)
     else:
         dtslogger.info(f"Reusing cached DISK image file [{data['disk_img']}].")
     # ---
     return {}
+
+
+def _get_zip_members(archive_path, required_targets, optional_targets=()):
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            archive_entries = [entry for entry in archive.infolist() if not entry.is_dir()]
+    except zipfile.BadZipFile as error:
+        raise InvalidUserInput(f"Disk image archive {archive_path} is invalid: {error}") from error
+
+    members = {}
+    for target in (*required_targets, *optional_targets):
+        target_name = os.path.basename(target)
+        matches = [entry for entry in archive_entries if os.path.basename(entry.filename) == target_name]
+        if len(matches) > 1:
+            raise InvalidUserInput(f"Disk image archive {archive_path} contains multiple files named {target_name}.")
+        if not matches:
+            if target in required_targets:
+                raise InvalidUserInput(f"Disk image archive {archive_path} does not contain {target_name}.")
+            continue
+        members[target] = matches[0]
+    return members
+
+
+def _cached_file_matches_archive_member(path, member):
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) == member.file_size
+    except OSError:
+        return False
+
+
+def _extract_zip_members(archive_path, members):
+    output_dir = os.path.dirname(next(iter(members)))
+    staging_dir = tempfile.mkdtemp(prefix=".dts-extract-", dir=output_dir)
+    try:
+        _run_cmd(
+            [
+                "unzip",
+                "-o",
+                "-j",
+                archive_path,
+                *[member.filename for member in members.values()],
+                "-d",
+                staging_dir,
+            ]
+        )
+        for target, member in members.items():
+            staged_file = os.path.join(staging_dir, os.path.basename(target))
+            if not _cached_file_matches_archive_member(staged_file, member):
+                raise RuntimeError(f"Archive extraction did not produce a complete file for {target}.")
+        for target in members:
+            staged_file = os.path.join(staging_dir, os.path.basename(target))
+            os.replace(staged_file, target)
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
 
 def step_flash(_, parsed, data):
@@ -864,22 +933,16 @@ def _ensure_disk_metadata(shell: DTShell, parsed: argparse.Namespace, data: dict
             parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public"),
         )
 
+    metadata_member = _get_zip_members(data["disk_zip"], required_targets=(data["disk_metadata"],))[
+        data["disk_metadata"]
+    ]
+    if _cached_file_matches_archive_member(data["disk_metadata"], metadata_member):
+        return
+    if os.path.lexists(data["disk_metadata"]):
+        dtslogger.warning(f"Discarding incomplete cached file [{data['disk_metadata']}].")
+        os.unlink(data["disk_metadata"])
     dtslogger.info("Extracting disk image update metadata...")
-    _run_cmd(
-        [
-            "unzip",
-            "-o",
-            "-j",
-            data["disk_zip"],
-            os.path.basename(data["disk_metadata"]),
-            "-d",
-            parsed.workdir,
-        ]
-    )
-    if not os.path.isfile(data["disk_metadata"]):
-        raise InvalidUserInput(
-            f"Disk image archive {data['disk_zip']} does not contain {os.path.basename(data['disk_metadata'])}."
-        )
+    _extract_zip_members(data["disk_zip"], {data["disk_metadata"]: metadata_member})
 
 
 def _get_update_placeholders(parsed: argparse.Namespace, surgery_plan: list[dict]) -> set[str]:
