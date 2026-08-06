@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import List, Optional
 
 from disk_image.create.steps import step_docker, step_push
+from dt_data_api.constants import PUBLIC_STORAGE_URL
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -93,8 +94,10 @@ DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
 DISK_IMAGE_NAME = f"raspios-bookworm-lite-v{OS_VERSION}-{DEVICE_ARCH}"
 INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/disk_image/disk_template/"
-    f"{DISK_IMAGE_NAME}.zip"
+    PUBLIC_STORAGE_URL.format(
+        bucket="public",
+        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/disk_template/{DISK_IMAGE_NAME}.zip",
+    )
 )
 TEMPLATE_FILE_VALIDATOR = {
     f"{ROOT_PARTITION}:/data/stacks/available/*.yaml":
