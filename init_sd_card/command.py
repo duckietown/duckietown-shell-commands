@@ -50,6 +50,7 @@ from .constants import (
 
 from disk_image.create.jetson_nano.private_command import DISK_IMAGE_VERSION as jetson_disk_image_version
 from disk_image.create.jetson_orin_nano.private_command import DISK_IMAGE_VERSION as jetson_orin_disk_image_version
+from disk_image.create.raspberry_pi_arm64v8.private_command import DISK_IMAGE_VERSION as raspberry_pi_arm64v8_disk_image_version
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
@@ -114,8 +115,8 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override
         return version_override
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
-        "raspberry_pi_64": {"stable": "4.0.0", "experimental": "4.0.0"},
-        "jetson_nano_4gb": {"stable": jetson_disk_image_version, "experimental": "1.4.3"},
+        "raspberry_pi_64": {"stable": raspberry_pi_arm64v8_disk_image_version, "experimental": raspberry_pi_arm64v8_disk_image_version},
+        "jetson_nano_4gb": {"stable": jetson_disk_image_version, "experimental": jetson_disk_image_version},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
         "jetson_orin_nano": {"stable": jetson_orin_disk_image_version, "experimental": jetson_orin_disk_image_version},
     }
@@ -134,7 +135,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False, version_overri
         },
         "raspberry_pi_64": {
             # - stable
-            "4.0.0": "2.0",
+            raspberry_pi_arm64v8_disk_image_version: "2.0",
             # - experimental
             "-----": "2.0",
         },
