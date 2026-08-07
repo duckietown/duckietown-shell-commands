@@ -1,4 +1,5 @@
 import argparse
+import base64
 import copy
 import getpass
 import json
@@ -1453,6 +1454,14 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         disk_metadata = json.load(fin)
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
+    darwin_disk_mount_guard = data.get("_darwin_disk_mount_guard")
+    darwin_surgery_writes = (
+        []
+        if is_sd_target
+        and platform.system() == "Darwin"
+        and darwin_disk_mount_guard is not None
+        else None
+    )
     # compile list of files to sanitize at first boot
     sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] in ROOT_PARTITIONS, surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
@@ -1501,6 +1510,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
             + "into [{partition}]:{path}.".format(**surgery_bit)
         )
+        if darwin_surgery_writes is not None:
+            darwin_surgery_writes.append((block_offset, masked_content))
+            continue
         # apply change
         dd_cmd = (["sudo"] if is_sd_target else []) + [
             "dd",
@@ -1546,6 +1558,8 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
                 )
             # flush I/O buffer
             _run_cmd(["sync"])
+    if darwin_surgery_writes:
+        _write_darwin_surgery(darwin_disk_mount_guard, darwin_surgery_writes)
     dtslogger.info("Surgery went OK!")
     # flush I/O buffer
     dtslogger.info("Flushing I/O buffer...")
@@ -1782,6 +1796,22 @@ def _read_darwin_disk_mount_guard_message(process: subprocess.Popen, timeout: fl
                 raise RuntimeError("The macOS disk mount guard exited without reporting its status.")
         elif process.poll() is not None:
             raise RuntimeError("The macOS disk mount guard exited before it was ready.")
+
+
+def _write_darwin_surgery(guard: subprocess.Popen, writes: list[tuple[int, bytes]]) -> None:
+    if guard.poll() is not None:
+        raise RuntimeError("The macOS disk mount guard stopped before surgery completed.")
+    if guard.stdin is None:
+        raise RuntimeError("The macOS disk mount guard has no control channel.")
+    payload = [
+        {"offset": offset, "content": base64.b64encode(content).decode("ascii")}
+        for offset, content in writes
+    ]
+    guard.stdin.write(f"WRITE {json.dumps(payload, separators=(',', ':'))}\n")
+    guard.stdin.flush()
+    message = _read_darwin_disk_mount_guard_message(guard, timeout=30)
+    if message != "WRITE_OK":
+        raise RuntimeError(f"Failed to apply macOS SD-card surgery: {message}")
 
 
 def _terminate_darwin_disk_mount_guard(process: subprocess.Popen) -> None:

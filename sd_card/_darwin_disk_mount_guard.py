@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import base64
 import ctypes
+import errno
+import json
 import os
 import re
 import select
@@ -13,6 +16,8 @@ import time
 K_DA_RETURN_NOT_PERMITTED = -119930872
 CLAIM_TIMEOUT_SECONDS = 10
 EJECT_TIMEOUT_SECONDS = 10
+WRITE_RETRIES = 10
+WRITE_RETRY_SECONDS = 0.5
 
 
 class DiskMountGuard:
@@ -196,7 +201,66 @@ class DiskMountGuard:
         command = sys.stdin.readline()
         if not command:
             return "EJECT"
-        return command.strip().upper()
+        return command.strip()
+
+    @staticmethod
+    def _decode_write_request(command: str):
+        _, payload = command.split(" ", maxsplit=1)
+        serialized_writes = json.loads(payload)
+        if not isinstance(serialized_writes, list) or not serialized_writes:
+            raise ValueError("Write request contains no surgery data.")
+        writes = []
+        for serialized_write in serialized_writes:
+            if not isinstance(serialized_write, dict):
+                raise ValueError("Invalid surgery write.")
+            offset = serialized_write.get("offset")
+            content = serialized_write.get("content")
+            if not isinstance(offset, int) or offset < 0 or not isinstance(content, str):
+                raise ValueError("Invalid surgery write.")
+            decoded_content = base64.b64decode(content, validate=True)
+            if not decoded_content:
+                raise ValueError("Surgery write content cannot be empty.")
+            writes.append((offset, decoded_content))
+        return writes
+
+    @staticmethod
+    def _write_all(file_descriptor: int, content: bytes, offset: int) -> None:
+        written = 0
+        while written < len(content):
+            bytes_written = os.pwrite(file_descriptor, content[written:], offset + written)
+            if bytes_written <= 0:
+                raise OSError(errno.EIO, "Could not write SD-card surgery data.")
+            written += bytes_written
+
+    @staticmethod
+    def _write_surgery_data(device: str, writes) -> None:
+        file_descriptor = os.open(device, os.O_WRONLY)
+        try:
+            for offset, content in writes:
+                DiskMountGuard._write_all(file_descriptor, content, offset)
+                DiskMountGuard._write_all(file_descriptor, content, offset)
+            os.fsync(file_descriptor)
+        finally:
+            os.close(file_descriptor)
+
+    @staticmethod
+    def _write_surgery_data_with_retries(device: str, writes) -> None:
+        for attempt in range(WRITE_RETRIES):
+            try:
+                DiskMountGuard._write_surgery_data(device, writes)
+                return
+            except OSError as error:
+                if error.errno != errno.EBUSY or attempt + 1 == WRITE_RETRIES:
+                    raise
+                time.sleep(WRITE_RETRY_SECONDS)
+
+    def _write_surgery(self, writes) -> None:
+        try:
+            self._write_surgery_data_with_retries(f"/dev/r{self._bsd_name}", writes)
+        except OSError as error:
+            if error.errno != errno.EINVAL:
+                raise
+            self._write_surgery_data_with_retries(f"/dev/{self._bsd_name}", writes)
 
     def _claim(self):
         self._session = self._disk_arbitration.DASessionCreate(None)
@@ -253,6 +317,15 @@ class DiskMountGuard:
                 if command == "EJECT" or not self._parent_is_alive():
                     self._stop_requested = True
                     break
+                if command and command.startswith("WRITE "):
+                    try:
+                        writes = self._decode_write_request(command)
+                        self._write_surgery(writes)
+                    except (OSError, ValueError) as error:
+                        print(f"WRITE_FAILED {error}", flush=True)
+                    else:
+                        print("WRITE_OK", flush=True)
+                    continue
                 self._run_loop_once(0.1)
             if self._eject():
                 print("EJECTED", flush=True)
