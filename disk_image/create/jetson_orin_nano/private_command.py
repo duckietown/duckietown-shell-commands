@@ -652,6 +652,11 @@ class DTCommand(DTCommandAbs):
                             "systemctl set-default multi-user.target 2>/dev/null || true"
                         )
 
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "sed -i 's|<SOC>|t234|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true",
+                        )
+
                         # update package index
                         run_cmd_in_partition(
                             ROOT_PARTITION,
