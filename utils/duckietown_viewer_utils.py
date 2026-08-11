@@ -4,6 +4,7 @@ import os
 import platform
 import plistlib
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -464,7 +465,14 @@ def mark_as_latest_version(token: str, version: str, os_family: str):
     upload.join()
 
 
-def ensure_duckietown_viewer_installed(os_family: str = "", log_prefix: str = ""):
+def ensure_duckietown_viewer_installed(
+    os_family: str = "",
+    log_prefix: str = "",
+    *,
+    version: Optional[str] = None,
+    update: bool = True,
+    force: bool = False,
+) -> Optional[str]:
     """Download and install the Duckietown Viewer if a newer version is available.
 
     Compares the most recently installed local version against the latest version
@@ -478,25 +486,40 @@ def ensure_duckietown_viewer_installed(os_family: str = "", log_prefix: str = ""
             empty.
         log_prefix: Prefix string prepended to every log message (defaults to
             ``" > "``).
+        version: A specific version to install. When omitted, installs the
+            latest available version.
+        update: Whether to replace an existing installation with the latest
+            version.
+        force: Whether to reinstall an already installed target version.
+
+    Returns:
+        The installed version, or ``None`` when no release is available.
     """
     shell: DTShell = dt_shell.shell
     log_prefix = log_prefix or " > "
+    if not os_family:
+        os_family = resolve_os_family()
 
     # make sure the app is not already installed
     installed_version: Optional[str] = get_most_recent_version_installed(os_family)
+    if installed_version is not None and not update and version is None:
+        dtslogger.info(
+            f"{log_prefix}Found version 'v{installed_version}' already installed. "
+            "Use -U/--update to update to the latest version (if any is available)."
+        )
+        return installed_version
     # get latest version available on the DCSS
-    latest: Optional[str] = get_latest_version(os_family)
+    latest: Optional[str] = version or get_latest_version(os_family)
     if latest is None:
         dtslogger.error(f"{log_prefix}No version available for installation.")
         return
-    # compare installed and latest versions
-    if installed_version:
-        if installed_version == latest:
-            return
-        os.remove(get_path_to_binary(installed_version, os_family))
-        os.rmdir(get_path_to_install(installed_version, os_family))
-    # download new version
+
     app_dir = os.path.join(APP_RELEASES_DIR, f"v{latest}-{os_family}")
+    if os.path.isdir(app_dir):
+        if not force:
+            return latest
+        dtslogger.info(f"{log_prefix}Removing installed version 'v{latest}'...")
+        shutil.rmtree(app_dir)
 
     dtslogger.info(f"{log_prefix}Downloading version v{latest}...")
     os.makedirs(app_dir, exist_ok=True)
@@ -576,6 +599,7 @@ def ensure_duckietown_viewer_installed(os_family: str = "", log_prefix: str = ""
     os.remove(zip_local)
     # ---
     dtslogger.info(f"{log_prefix}Installation completed successfully!")
+    return latest
 
 
 def launch_viewer(
