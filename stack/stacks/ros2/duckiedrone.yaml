@@ -47,77 +47,7 @@ services:
     depends_on:
       - zenoh-router
 
-  tof-front:
-    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
-    container_name: ros2-tof-front
-    restart: unless-stopped
-    network_mode: host
-    security_opt:
-      - seccomp=unconfined
-    environment:
-      DT_LAUNCHER: sensor-tof-front
-      DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-    depends_on:
-      - zenoh-router
-
-  tof-left:
-    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
-    container_name: ros2-tof-left
-    restart: unless-stopped
-    network_mode: host
-    security_opt:
-      - seccomp=unconfined
-    environment:
-      DT_LAUNCHER: sensor-tof-left
-      DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-    depends_on:
-      - zenoh-router
-
-  tof-right:
-    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
-    container_name: ros2-tof-right
-    restart: unless-stopped
-    network_mode: host
-    security_opt:
-      - seccomp=unconfined
-    environment:
-      DT_LAUNCHER: sensor-tof-right
-      DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-    depends_on:
-      - zenoh-router
-
-  tof-top:
-    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
-    container_name: ros2-tof-top
-    restart: unless-stopped
-    network_mode: host
-    security_opt:
-      - seccomp=unconfined
-    environment:
-      DT_LAUNCHER: sensor-tof-top
-      DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-    depends_on:
-      - zenoh-router
+  # The front/left/right/top ToF bridges live in the optional `duckiedrone/sensors-extras` stack.
 
   mavros:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -152,17 +82,7 @@ services:
       - zenoh-router
       - mavros
 
-  foxglove-bridge:
-    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
-    container_name: ros2-foxglove-bridge
-    restart: unless-stopped
-    network_mode: host
-    command: ["bash", "-c", ". /opt/ros/jazzy/setup.bash && ros2 launch foxglove_bridge foxglove_bridge_launch.xml"]
-    environment:
-      ROS_DOMAIN_ID: 42
-      RMW_IMPLEMENTATION: rmw_zenoh_cpp
-    depends_on:
-      - zenoh-router
+  # The Foxglove bridge lives in the optional `duckiedrone/tools-extras` stack.
 
   rosbridge-websocket:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
