@@ -1,12 +1,16 @@
 import argparse
-from typing import Optional, List
-
 from dt_shell.commands import DTCommandConfigurationAbs
 from dt_shell.environments import ShellCommandEnvironmentAbs
+from typing import Optional, List
 from utils.duckietown_viewer_utils import SUPPORTED_OS_FAMILIES
 
-
 class DTCommandConfiguration(DTCommandConfigurationAbs):
+    @classmethod
+    def aliases(cls) -> List[str]:
+        """
+        Alternative names for this command.
+        """
+        return ["graph_plotter"]
 
     @classmethod
     def environment(cls, *args, **kwargs) -> Optional[ShellCommandEnvironmentAbs]:
@@ -20,7 +24,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         """
         The parser this command will use.
         """
-        parser = argparse.ArgumentParser("dts duckiebot keyboard_control")
+        parser = argparse.ArgumentParser("dts duckiebot graph_plotter")
         parser.add_argument(
             "--fullscreen",
             default=False,
@@ -54,12 +58,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run in browser mode"
         )
         parser.add_argument(
-            "--local",
-            default=False,
-            action="store_true",
-            help="Run the native viewer locally instead of delegating it to the host"
-        )
-        parser.add_argument(
             "--no-pull",
             default=False,
             action="store_true",
@@ -75,13 +73,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         )
         parser.add_argument(
             "robot",
-            help="Name of the robot to control"
+            help="Name of the robot to connect to"
         )
         return parser
-
-    @classmethod
-    def aliases(cls) -> List[str]:
-        """
-        Alternative names for this command.
-        """
-        return ["keyboard_controller", "joystick_control", "joystick", "jc", "joy"]

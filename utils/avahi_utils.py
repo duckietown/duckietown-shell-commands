@@ -1,9 +1,9 @@
-import json
 import time
 from types import SimpleNamespace
 from zeroconf import ServiceBrowser, Zeroconf
 
 from dt_shell import dtslogger
+from utils.zeroconf_txt_utils import decode_txt_properties
 
 
 def wait_for_service(target_service: str, target_hostname: str = None, timeout: int = 10):
@@ -51,11 +51,7 @@ class DiscoverListener:
         txt = dict()
         try:
             sinfo = zeroconf.get_service_info(type, sname)
-            txt = (
-                json.loads(list(sinfo.properties.keys())[0].decode("utf-8"))
-                if len(sinfo.properties)
-                else dict()
-            )
+            txt = decode_txt_properties(sinfo.properties) if sinfo else dict()
         except:
             pass
         return name, hostname, txt

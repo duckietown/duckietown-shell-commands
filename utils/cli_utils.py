@@ -9,6 +9,12 @@ from dt_shell import dtslogger, UserError
 __all__ = ["get_clean_env", "start_command_in_subprocess", "ask_confirmation", "ensure_command_is_installed"]
 
 
+COMMAND_INSTALL_PACKAGES = {
+    "mkfs.fat": "dosfstools",
+    "fatlabel": "dosfstools",
+}
+
+
 def get_clean_env():
     env = {}
     env.update(os.environ)
@@ -82,9 +88,18 @@ def ensure_command_is_installed(command, dependant: Optional[str] = None):
         extra: str = ""
         if dependant:
             extra = f" by '{dependant}'"
+        package: Optional[str] = COMMAND_INSTALL_PACKAGES.get(command)
+        install_hint: str
+        if package is None:
+            install_hint = "Please, install it before continuing."
+        else:
+            install_hint = (
+                f"Install the package '{package}' and retry "
+                f"(for Debian/Ubuntu: sudo apt install -y {package})."
+            )
         msg = f"""
 
-        The command '{command}' is required{extra}. Please, install it before continuing.
+        The command '{command}' is required{extra}. {install_hint}
 
         """
         raise UserError(msg)

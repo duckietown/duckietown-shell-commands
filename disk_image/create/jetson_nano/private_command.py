@@ -6,6 +6,7 @@ import argparse
 import pathlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import time
@@ -396,6 +397,16 @@ class DTCommand(DTCommandAbs):
                 if not granted:
                     dtslogger.info("Aborting.")
                     return
+            existing_loopdev = VirtualSDCard.find_loopdev(
+                out_file_path("img"), quiet=True, include_deleted=True
+            )
+            if existing_loopdev:
+                dtslogger.warning(
+                    f"The destination file {out_file_path('img')} is still mounted to {existing_loopdev}. "
+                    "Detaching it before overwrite."
+                )
+                sd_card.set_loopdev(existing_loopdev)
+                sd_card.umount()
             # create empty disk image
             if not using_cached_step:
                 dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
@@ -522,26 +533,31 @@ class DTCommand(DTCommandAbs):
                     raise ValueError(f"Disk device {root_partition_disk} not found")
                 # mount `root` partition
                 sd_card.mount_partition(ROOT_PARTITION)
+                host_machine = platform.machine()
+                host_machine = host_machine.lower()
+                host_runs_arm64_natively = host_machine in {"aarch64", "arm64"}
                 # dev partition from the host is mounted to _dev
                 _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
                     # copy QEMU, resolvconf
-                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
                     _transfer_file(ROOT_PARTITION, ["run", "resolvconf", "resolv.conf"])
+                    if not host_runs_arm64_natively:
+                        _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
                     # mount /dev from the host
                     run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
+                    # configure the kernel for QEMU only for non-native hosts
+                    if not host_runs_arm64_natively:
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
+                        )
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -551,16 +567,25 @@ class DTCommand(DTCommandAbs):
                         if "Exec format error" in output:
                             raise Exception("Exec format error")
                     except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
+                        if host_runs_arm64_natively:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                f"The current host reports architecture '{host_machine}', "
+                                "so the chroot was expected to run natively.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                        else:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
                         exit(2)
                     # Fix the incorrect base image password for the `duckie` user (it should be `quackquack` rather than `quack`)
                     try:

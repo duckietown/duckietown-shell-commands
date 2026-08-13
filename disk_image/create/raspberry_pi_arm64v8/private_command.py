@@ -8,6 +8,7 @@ import argparse
 import pathlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import time
@@ -26,6 +27,7 @@ from disk_image.create.constants import (
     DISK_IMAGE_STATS_LOCATION,
     DOCKER_IMAGE_TEMPLATE,
     DATA_STORAGE_DISK_IMAGE_DIR,
+    MODULES_TO_LOAD as DEFAULT_MODULES_TO_LOAD,
 )
 
 from disk_image.create.utils import (
@@ -46,12 +48,16 @@ from disk_image.create.utils import (
     list_files,
     copy_file,
     get_validator_fcn,
+    wait_for_disk,
 )
 
-MODULES_TO_LOAD = [
-    {"owner": "duckietown", "module": "portainer"},
-    {"owner": "duckietown", "module": "dt-kvstore", "tag": "v0.2.0-arm64v8"},
-]
+MODULES_TO_LOAD = []
+for module in DEFAULT_MODULES_TO_LOAD:
+    module_to_load = dict(module)
+    if module_to_load["module"] == "dt-kvstore":
+        module_to_load["tag"] = "ente"
+    MODULES_TO_LOAD.append(module_to_load)
+
 DEFAULT_STACK = "robot"
 
 # NOTE: -----------------------------------
@@ -74,6 +80,7 @@ DEFAULT_STACK = "robot"
 DISK_IMAGE_PARTITION_TABLE = {"bootfs": 1, "rootfs": 2, "configfs": 3}
 DISK_IMAGE_PARTITION_MOUNTPOINT = {"bootfs": "/boot", "rootfs": "/", "configfs": "/config"}
 AVAILABLE_STACKS_DIR = "/data/stacks/available"
+BOOT_PARTITION = "bootfs"
 ROOT_PARTITION = "rootfs"
 CONFIG_PARTITION = "configfs"
 DEFAULT_HOSTNAME = "robot"
@@ -123,6 +130,53 @@ APT_PACKAGES_TO_HOLD = [
     # list here packages that cannot be updated through `chroot`
     # "initramfs-tools"
 ]
+
+
+def _host_resolv_conf_source():
+    candidates = [
+        "/run/systemd/resolve/resolv.conf",
+        "/etc/resolv.conf",
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate) and os.path.getsize(candidate) > 0:
+            return candidate
+    raise FileNotFoundError("Could not find a usable host resolv.conf file.")
+
+
+def _guest_path(partition, *parts):
+    return os.path.join(PARTITION_MOUNTPOINT(partition), *parts)
+
+
+def _guest_resolv_conf_target(partition):
+    guest_resolv_conf = _guest_path(partition, "etc", "resolv.conf")
+    if os.path.islink(guest_resolv_conf):
+        guest_resolv_conf = os.path.realpath(guest_resolv_conf)
+    guest_resolv_dir = os.path.dirname(guest_resolv_conf)
+    run_cmd(["sudo", "mkdir", "-p", guest_resolv_dir])
+    if not os.path.exists(guest_resolv_conf):
+        run_cmd(["sudo", "touch", guest_resolv_conf])
+    return guest_resolv_conf
+
+
+def _bind_mount(source, target):
+    target_dir = os.path.dirname(target)
+    run_cmd(["sudo", "mkdir", "-p", target_dir])
+    if not os.path.exists(target):
+        if os.path.isdir(source):
+            run_cmd(["sudo", "mkdir", "-p", target])
+        else:
+            run_cmd(["sudo", "touch", target])
+    run_cmd(["sudo", "mount", "--bind", source, target])
+
+
+def _umount_if_mounted(target):
+    if os.path.ismount(target):
+        run_cmd(["sudo", "umount", target])
+
+
+def _partition_is_mounted(partition):
+    mountpoint = PARTITION_MOUNTPOINT(partition)
+    return os.path.exists(mountpoint) and os.path.ismount(mountpoint)
 
 
 class DTCommand(DTCommandAbs):
@@ -369,6 +423,16 @@ class DTCommand(DTCommandAbs):
                 if not granted:
                     dtslogger.info("Aborting.")
                     return
+            existing_loopdev = VirtualSDCard.find_loopdev(
+                out_file_path("img"), quiet=True, include_deleted=True
+            )
+            if existing_loopdev:
+                dtslogger.warning(
+                    f"The destination file {out_file_path('img')} is still mounted to {existing_loopdev}. "
+                    "Detaching it before overwrite."
+                )
+                sd_card.set_loopdev(existing_loopdev)
+                sd_card.umount()
             # create empty disk image
             if not using_cached_step:
                 dtslogger.info(f"Creating empty disk image [{out_file_path('img')}]")
@@ -495,12 +559,12 @@ class DTCommand(DTCommandAbs):
                 f") | sudo fdisk {sd_card.loopdev}",
                 shell=True
             )
+            run_cmd(["sudo", "partprobe", sd_card.loopdev])
+            wait_for_disk(config_device, timeout=20)
             # make file system (FAT32 and 4096 bytes of block size (needed for comfortable surgery))
-            run_cmd(["sudo", "mkfs", "-t", "fat", "-F", "32", "-S", "4096", config_device])
+            run_cmd(["sudo", "mkfs.fat", "-F", "32", "-S", "4096", config_device])
             # label file system
             run_cmd(["sudo", "fatlabel", config_device, CONFIG_PARTITION])
-            # force reload partitions
-            run_cmd(["sudo", "partprobe"])
             # show info about disk
             dtslogger.debug("\n" + run_cmd(["sudo", "fdisk", "-l", sd_card.loopdev], True))
             # ---
@@ -523,27 +587,54 @@ class DTCommand(DTCommandAbs):
                 root_partition_disk = sd_card.partition_device(ROOT_PARTITION)
                 if not os.path.exists(root_partition_disk):
                     raise ValueError(f"Disk device {root_partition_disk} not found")
+                boot_partition_disk = sd_card.partition_device(BOOT_PARTITION)
+                if not os.path.exists(boot_partition_disk):
+                    raise ValueError(f"Disk device {boot_partition_disk} not found")
                 # mount `root` partition
                 sd_card.mount_partition(ROOT_PARTITION)
+                sd_card.mount_partition(BOOT_PARTITION)
+                host_machine = platform.machine()
+                host_machine = host_machine.lower()
+                host_runs_arm64_natively = host_machine in {"aarch64", "arm64"}
+                guest_dev = _guest_path(ROOT_PARTITION, "dev")
+                guest_dev_pts = _guest_path(ROOT_PARTITION, "dev", "pts")
+                guest_proc = _guest_path(ROOT_PARTITION, "proc")
+                guest_sys = _guest_path(ROOT_PARTITION, "sys")
+                guest_boot_firmware = _guest_path(ROOT_PARTITION, "boot", "firmware")
+                boot_partition_mountpoint = PARTITION_MOUNTPOINT(BOOT_PARTITION)
+                host_resolv_conf = _host_resolv_conf_source()
+                guest_resolv_conf = _guest_resolv_conf_target(ROOT_PARTITION)
+                mounted_targets = []
                 # from this point on, if anything weird happens, unmount the `root` disk
                 try:
-                    # copy QEMU, resolvconf
-                    _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
-                    _transfer_file(ROOT_PARTITION, ["run", "systemd", "resolve", "stub-resolv.conf"])
+                    # copy QEMU only when the host cannot execute arm64 binaries natively
+                    if not host_runs_arm64_natively:
+                        _transfer_file(ROOT_PARTITION, ["usr", "bin", "qemu-aarch64-static"])
+                    _bind_mount(host_resolv_conf, guest_resolv_conf)
+                    mounted_targets.append(guest_resolv_conf)
+                    _bind_mount(boot_partition_mountpoint, guest_boot_firmware)
+                    mounted_targets.append(guest_boot_firmware)
+                    _bind_mount("/proc", guest_proc)
+                    mounted_targets.append(guest_proc)
+                    _bind_mount("/sys", guest_sys)
+                    mounted_targets.append(guest_sys)
                     # mount /dev from the host
-                    _dev = os.path.join(PARTITION_MOUNTPOINT(ROOT_PARTITION), "dev")
-                    run_cmd(["sudo", "mount", "--bind", "/dev", _dev])
-                    # configure the kernel for QEMU
-                    run_cmd(
-                        [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "--privileged",
-                            "multiarch/qemu-user-static:register",
-                            "--reset",
-                        ]
-                    )
+                    _bind_mount("/dev", guest_dev)
+                    mounted_targets.append(guest_dev)
+                    _bind_mount("/dev/pts", guest_dev_pts)
+                    mounted_targets.append(guest_dev_pts)
+                    # configure the kernel for QEMU only for non-native hosts
+                    if not host_runs_arm64_natively:
+                        run_cmd(
+                            [
+                                "docker",
+                                "run",
+                                "--rm",
+                                "--privileged",
+                                "multiarch/qemu-user-static:register",
+                                "--reset",
+                            ]
+                        )
                     # try running a simple echo from the new chroot, if an error occurs, we need
                     # to check the QEMU configuration
                     try:
@@ -553,16 +644,25 @@ class DTCommand(DTCommandAbs):
                         if "Exec format error" in output:
                             raise Exception("Exec format error")
                     except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(
-                            "An error occurred while trying to run an ARM binary "
-                            "from the temporary chroot.\n"
-                            "This usually indicates a misconfiguration of QEMU "
-                            "on the host.\n"
-                            "Please, make sure that you have the packages "
-                            "'qemu-user-static' and 'binfmt-support' installed "
-                            "via APT.\n\n"
-                            "The full error is:\n\t%s" % str(e)
-                        )
+                        if host_runs_arm64_natively:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                f"The current host reports architecture '{host_machine}', "
+                                "so the chroot was expected to run natively.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
+                        else:
+                            dtslogger.error(
+                                "An error occurred while trying to run an ARM binary "
+                                "from the temporary chroot.\n"
+                                "This usually indicates a misconfiguration of QEMU "
+                                "on the host.\n"
+                                "Please, make sure that you have the packages "
+                                "'qemu-user-static' and 'binfmt-support' installed "
+                                "via APT.\n\n"
+                                "The full error is:\n\t%s" % str(e)
+                            )
                         exit(2)
                     # compile list of packages to hold
                     to_hold = " ".join(APT_PACKAGES_TO_HOLD)
@@ -590,15 +690,21 @@ class DTCommand(DTCommandAbs):
                         # clean packages
                         run_cmd_in_partition(
                             ROOT_PARTITION,
-                            f"apt autoremove --yes",
+                            "apt autoremove --yes",
                         )                        
                     except Exception as e:
                         raise e
-                    # unomunt bind /dev
-                    run_cmd(["sudo", "umount", _dev])
                 except Exception as e:
+                    for target in reversed(mounted_targets):
+                        _umount_if_mounted(target)
+                    if _partition_is_mounted(BOOT_PARTITION):
+                        sd_card.umount_partition(BOOT_PARTITION)
                     sd_card.umount_partition(ROOT_PARTITION)
                     raise e
+                for target in reversed(mounted_targets):
+                    _umount_if_mounted(target)
+                if _partition_is_mounted(BOOT_PARTITION):
+                    sd_card.umount_partition(BOOT_PARTITION)
                 # unmount ROOT_PARTITION
                 sd_card.umount_partition(ROOT_PARTITION)
                 # ---
@@ -623,9 +729,9 @@ class DTCommand(DTCommandAbs):
                 STACKS_BASE_DIR=STACKS_BASE_DIR,
                 DEVICE_PLATFORM="linux/arm64",
                 DIND_IMAGE_NAME="docker:20.10.5-dind",
-                cache_step_fn=cache_step,
                 architecture="arm64v8",
             )
+            cache_step("docker")
             dtslogger.info("Step END: docker\n")
             
         # ------>
@@ -661,7 +767,7 @@ class DTCommand(DTCommandAbs):
                         raise ValueError(f"Partition {partition} not declared in partition table")
                     # check if the corresponding disk device exists
                     partition_disk = sd_card.partition_device(partition)
-                    if not os.path.exists(partition_disk):
+                    if not wait_for_disk(partition_disk, timeout=20):
                         raise ValueError(f"Disk device {partition_disk} not found")
                     # mount device
                     sd_card.mount_partition(partition)
@@ -750,27 +856,33 @@ class DTCommand(DTCommandAbs):
                             with open(out_file_path("stats"), "wt") as fout:
                                 json.dump(stats, fout, indent=4, sort_keys=True)
                             run_cmd(["sudo", "cp", out_file_path("stats"), stats_filepath])
+                            host_resolv_conf = _host_resolv_conf_source()
+                            guest_resolv_conf = _guest_resolv_conf_target(ROOT_PARTITION)
                             # setup services
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "ln"
-                                " -s -f"
-                                " /etc/systemd/system/dt_init.service"
-                                " /etc/systemd/system/multi-user.target.wants/dt_init.service",
-                            )
-                                                        
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                "curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | sudo gpg " + 
-                                " --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
-                            )
-                            
-                            run_cmd_in_partition(
-                                ROOT_PARTITION,
-                                """echo "deb [arch=arm64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-                            https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-                            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"""
-                            )
+                            _bind_mount(host_resolv_conf, guest_resolv_conf)
+                            try:
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    "ln"
+                                    " -s -f"
+                                    " /etc/systemd/system/dt_init.service"
+                                    " /etc/systemd/system/multi-user.target.wants/dt_init.service",
+                                )
+
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    "curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | gpg "
+                                    " --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
+                                )
+
+                                run_cmd_in_partition(
+                                    ROOT_PARTITION,
+                                    """echo "deb [arch=arm64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+                                https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+                                | tee /etc/apt/sources.list.d/docker.list > /dev/null"""
+                                )
+                            finally:
+                                _umount_if_mounted(guest_resolv_conf)
 
                         # flush I/O buffer
                         dtslogger.info("Flushing I/O buffer...")

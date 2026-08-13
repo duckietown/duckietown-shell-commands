@@ -188,6 +188,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run in browser mode",
         )
         parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run the native renderer locally instead of delegating it to the host",
+        )
+        parser.add_argument(
             "--xvfb",
             default=False,
             action="store_true",

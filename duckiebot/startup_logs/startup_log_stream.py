@@ -7,7 +7,7 @@ def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--startup-started-at", type=int, required=True)
     parser.add_argument("--poll-interval", type=float, required=True)
-    parser.add_argument("--completion-marker", type=str, required=True)
+    parser.add_argument("--completion-marker", type=str, action="append", required=True)
     parser.add_argument("log_files", nargs="+")
     return parser.parse_args()
 
@@ -19,10 +19,11 @@ def _log_was_updated(path, startup_started_at):
         return False
 
 
-def _stream_startup_logs(log_files, startup_started_at, poll_interval, completion_marker):
+def _stream_startup_logs(log_files, startup_started_at, poll_interval, completion_markers):
     offsets = {path: 0 for path in log_files}
     pending_fragments = {path: "" for path in log_files}
     active_log_files = set()
+    completion_markers_set = set(completion_markers)
     stop_stream = False
     while not stop_stream:
         for path in log_files:
@@ -46,7 +47,7 @@ def _stream_startup_logs(log_files, startup_started_at, poll_interval, completio
                     continue
                 message = line.rstrip()
                 print(message, flush=True)
-                if message == completion_marker:
+                if message in completion_markers_set:
                     stop_stream = True
                     break
             if stop_stream:
@@ -57,7 +58,7 @@ def _stream_startup_logs(log_files, startup_started_at, poll_interval, completio
             continue
         message = pending_fragment.rstrip()
         print(message, flush=True)
-        if message == completion_marker:
+        if message in completion_markers_set:
             break
 
 
@@ -67,7 +68,7 @@ def main():
         log_files=args.log_files,
         startup_started_at=args.startup_started_at,
         poll_interval=args.poll_interval,
-        completion_marker=args.completion_marker,
+        completion_markers=args.completion_marker,
     )
 
 

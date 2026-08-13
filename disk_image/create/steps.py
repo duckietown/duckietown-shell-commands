@@ -5,7 +5,7 @@ import time
 from typing import Set
 import yaml
 import docker
-from disk_image.create.utils import VirtualSDCard
+from disk_image.create.utils import VirtualSDCard, pull_docker_image
 from disk_image.create.constants import PARTITION_MOUNTPOINT, DATA_STORAGE_DISK_IMAGE_DIR
 from types import SimpleNamespace
 
@@ -105,8 +105,7 @@ def step_docker(
             local_docker.images.get(DIND_IMAGE_NAME)
             dtslogger.debug(f"DIND image `{DIND_IMAGE_NAME}` already present locally.")
         except docker.errors.ImageNotFound:
-            dtslogger.info(f"Pulling DIND image `{DIND_IMAGE_NAME}`…")
-            local_docker.images.pull(DIND_IMAGE_NAME)
+            pull_docker_image(local_docker, DIND_IMAGE_NAME)
 
         remote_docker_dir = os.path.join(
             PARTITION_MOUNTPOINT(ROOT_PARTITION), "var", "lib", "docker"
@@ -157,9 +156,8 @@ def step_docker(
         if all_stack_images:
             dtslogger.info(f"Transferring {len(all_stack_images)} Docker images into the disk…")
             for img_name in sorted(all_stack_images):
-                dtslogger.info(f"  · Pulling {img_name}…")
                 try:
-                    remote_docker.images.pull(img_name, platform=DEVICE_PLATFORM)
+                    pull_docker_image(remote_docker, img_name, platform=DEVICE_PLATFORM)
                 except Exception as e:
                     dtslogger.warning(f"    ↳ failed to pull {img_name}: {e}")
             dtslogger.info("Finished transferring all stack images.")

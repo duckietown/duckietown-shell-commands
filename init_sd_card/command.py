@@ -28,6 +28,12 @@ from utils.duckietown_utils import (
     WIRED_ROBOT_TYPES,
 )
 from utils.exceptions import InvalidUserInput
+from utils.host_runner import (
+    HOST_RUNNER_ACTIVE_ENV,
+    HostRunnerError,
+    delegate_init_sd_card_to_host,
+    should_delegate_to_host,
+)
 from utils.json_schema_form_utils import open_form_from_schema
 from utils.misc_utils import human_time, sudo_open
 from utils.progress_bar import ProgressBar
@@ -49,7 +55,36 @@ INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
 Wifi = namedtuple("Wifi", "name ssid psk username password")
 
-TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
+LEGACY_TMP_WORKDIR = "/tmp/duckietown/dts/init_sd_card"
+HOME_DIR = os.path.expanduser("~")
+FALLBACK_TMP_WORKDIR = os.path.join(HOME_DIR, ".cache", "duckietown", "dts", "init_sd_card")
+
+
+def _get_existing_parent_dir(path: str) -> str:
+    parent_dir = path
+    while not os.path.isdir(parent_dir):
+        next_parent_dir = os.path.dirname(parent_dir)
+        if next_parent_dir == parent_dir:
+            break
+        parent_dir = next_parent_dir
+    return parent_dir
+
+
+def _can_create_workdir(path: str) -> bool:
+    existing_parent_dir = _get_existing_parent_dir(path)
+    required_mode = os.W_OK | os.X_OK
+    return os.access(existing_parent_dir, required_mode)
+
+
+def _get_tmp_workdir() -> str:
+    candidate_dirs = (LEGACY_TMP_WORKDIR, FALLBACK_TMP_WORKDIR)
+    for workdir in candidate_dirs:
+        if _can_create_workdir(workdir):
+            return workdir
+    raise OSError("Could not determine a writable init_sd_card working directory.")
+
+
+TMP_WORKDIR = _get_tmp_workdir()
 BLOCK_SIZE = 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
@@ -58,7 +93,20 @@ DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
 COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
 NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
-ROOT_PARTITIONS = ["root", "APP"]
+ROOT_PARTITIONS = ["root", "rootfs", "APP"]
+
+
+def _should_delegate_init_sd_card(parsed: argparse.Namespace) -> bool:
+    if not should_delegate_to_host():
+        return False
+    if parsed.local:
+        return False
+    if parsed.gui:
+        return False
+    device = parsed.device
+    if device is None:
+        return True
+    return device.startswith("/dev/")
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override=None):
@@ -206,6 +254,12 @@ class DTCommand(DTCommandAbs):
             help="Use (experimental) gui",
         )
         parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run locally instead of delegating SD card initialization to the host",
+        )
+        parser.add_argument(
             "--verify",
             default=False,
             action="store_true",
@@ -267,6 +321,17 @@ class DTCommand(DTCommandAbs):
             if "verify" in no_steps:
                 raise ValueError("You cannot use --verify together with --no-steps verify")
             steps += ["verify"]
+
+        if _should_delegate_init_sd_card(parsed):
+            dtslogger.info("Delegating SD card initialization to the host...")
+            try:
+                exit_code = delegate_init_sd_card_to_host(args)
+            except HostRunnerError as error:
+                dtslogger.error(str(error))
+                exit(1)
+            if exit_code != 0:
+                exit(exit_code)
+            return
 
         # GUI
         if gui:
@@ -627,6 +692,7 @@ def step_verify(_, parsed, data):
             # Check that parsed.device is not None
             if parsed.device is None:
                 dtslogger.error("Destination device is None. If you're skipping the flash step, please provide a device using the --device flag.")
+            _ensure_sudo_credentials_for_host_runner()
             with sudo_open(parsed.device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
@@ -665,6 +731,13 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     ensure_command_is_installed("dd")
     ensure_command_is_installed("sudo")
     ensure_command_is_installed("sync")
+    is_sd_target = parsed.device is not None and parsed.device.startswith("/dev/")
+    if is_sd_target:
+        dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+        _unmount_device(parsed.device)
+        if platform.system() == "Darwin":
+            time.sleep(0.5)
+    target_device = parsed.device
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
@@ -760,9 +833,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             + "into [{partition}]:{path}.".format(**surgery_bit)
         )
         # apply change
-        dd_cmd = (["sudo"] if data.get("sd_type", "SD") == "SD" else []) + [
+        dd_cmd = (["sudo"] if is_sd_target else []) + [
             "dd",
-            "of={}".format(parsed.device),
+            "of={}".format(target_device),
             "bs=1",
             "count={}".format(block_size),
             "seek={}".format(block_offset),
@@ -770,14 +843,35 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         ]
         # write twice (found to increase success rate)
         for wpass in range(2):
-            # launch dd
-            dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-            dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
-            # write
-            dd.stdin.write(masked_content)
-            dd.stdin.flush()
-            dd.stdin.close()
-            dd.wait()
+            retries = 10 if is_sd_target and platform.system() == "Darwin" else 1
+            for attempt in range(retries):
+                if is_sd_target:
+                    _ensure_sudo_credentials_for_host_runner()
+                    _unmount_device(parsed.device)
+                    if platform.system() == "Darwin":
+                        time.sleep(0.5)
+                # launch dd
+                dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+                dtslogger.debug(f"[{wpass + 1}/2] $ {dd_cmd}")
+                _, stderr = dd.communicate(masked_content)
+                if dd.returncode == 0:
+                    break
+                error = stderr.decode("utf-8", errors="replace").strip()
+                can_retry = (
+                    platform.system() == "Darwin"
+                    and "Resource busy" in error
+                    and attempt + 1 < retries
+                )
+                if can_retry:
+                    dtslogger.warning(
+                        f"Write target {target_device} is busy, retrying "
+                        f"({attempt + 1}/{retries})..."
+                    )
+                    time.sleep(0.5)
+                    continue
+                raise RuntimeError(
+                    f"Failed to inject placeholder {surgery_bit['placeholder']} into {target_device}: {error}"
+                )
             # flush I/O buffer
             _run_cmd(["sync"])
     dtslogger.info("Surgery went OK!")
@@ -951,6 +1045,8 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     env = copy.deepcopy(os.environ)
     # force English language
     env["LC_ALL"] = "C"
+    if _should_read_sudo_from_stdin(cmd, shell=shell, env=env):
+        cmd = ["sudo", "-S", *cmd[1:]]
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
@@ -964,6 +1060,28 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         return subprocess.check_output(cmd, shell=shell, env=env).decode("utf-8")
     else:
         subprocess.check_call(cmd, shell=shell, env=env, **outputs)
+
+
+def _should_read_sudo_from_stdin(cmd, *, shell: bool, env: dict[str, str]) -> bool:
+    if shell:
+        return False
+    if not isinstance(cmd, list):
+        return False
+    if not cmd:
+        return False
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return False
+    if cmd[0] != "sudo":
+        return False
+    return "-S" not in cmd
+
+
+def _ensure_sudo_credentials_for_host_runner() -> None:
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return
+    subprocess.check_call(["sudo", "-S", "-v"], env=env)
 
 
 def _ensure_flash_dependencies():
