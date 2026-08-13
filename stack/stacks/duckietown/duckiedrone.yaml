@@ -52,7 +52,8 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  # The front/left/right/top ToF sensors live in the optional `duckiedrone/sensors-extras` stack.
+  # The front, left, right, and top ToF sensors live in the optional
+  # `duckiedrone/extra_sensors` stack.
 
   dt-px4:
     image: ${REGISTRY}/duckietown/dt-px4:ente-${ARCH}
