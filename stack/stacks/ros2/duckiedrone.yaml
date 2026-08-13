@@ -47,7 +47,8 @@ services:
     depends_on:
       - zenoh-router
 
-  # The front/left/right/top ToF bridges live in the optional `duckiedrone/sensors-extras` stack.
+  # The front, left, right, and top ToF bridges live in the optional
+  # `duckiedrone/extra_sensors` stack.
 
   mavros:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -82,7 +83,7 @@ services:
       - zenoh-router
       - mavros
 
-  # The Foxglove bridge lives in the optional `duckiedrone/tools-extras` stack.
+  # The Foxglove bridge lives in the optional `duckiedrone/extra_tools` stack.
 
   rosbridge-websocket:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}

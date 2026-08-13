@@ -1,16 +1,20 @@
-# Optional Duckiedrone sensors. Nothing starts this stack automatically; only the bottom ToF is
-# needed to fly, so the other sensors are opt-in:
+# Optional Duckiedrone sensors. The base Duckiedrone stack includes the bottom ToF sensor.
+# This stack adds front, left, right, and top ToF sensors.
 #
-#   dts stack up   -H <robot> -d duckiedrone/sensors-extras
-#   dts stack down -H <robot>    duckiedrone/sensors-extras
+# To start this stack and detach from the running containers, run the following command, where
+# `DUCKIEDRONE_NAME` is the name of the Duckiedrone:
 #
-# The ROS2 bridges below need `zenoh-router` from the ros2/duckiedrone stack, which runs in a
-# different compose project. They cannot declare it in depends_on, they just retry until it is up.
+#   dts stack up -H DUCKIEDRONE_NAME -d duckiedrone/extra_sensors
 #
-# `name` pins the compose project. Without it the project would default to the name of this
-# directory, which the other optional drone stacks share, and taking one down would remove the
-# containers of the others.
-name: duckiedrone-sensors-extras
+# To stop this stack, run the following command, where `DUCKIEDRONE_NAME` is the name of the
+# Duckiedrone:
+#
+#   dts stack down -H DUCKIEDRONE_NAME duckiedrone/extra_sensors
+
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which the other optional Duckiedrone stacks share. Taking one down would remove the
+# others' containers.
+name: duckiedrone-extra-sensors
 
 services:
 
@@ -81,6 +85,10 @@ services:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  # The ROS 2 bridges below require `zenoh-router` from the `ros2/duckiedrone` stack, which runs
+  # in a different Compose project. They cannot declare it as a `depends_on` dependency, so they
+  # retry until it is available.
 
   tof-front:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
