@@ -1,3 +1,7 @@
+# `name` pins the compose project, otherwise this stack shares `robot` with `robot/basics` and an
+# orphan cleanup on one would remove the containers of the other.
+name: duckiematrix
+
 services:
 
   duckiematrix-interface:

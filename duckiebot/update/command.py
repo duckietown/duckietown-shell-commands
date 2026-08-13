@@ -508,7 +508,9 @@ class DTCommand(DTCommandAbs):
                         _delete_config_node_directory(client, run_image)
 
             # stack/up options
-            stack_up_options = ["--machine", robot, "--detach"]
+            # `--remove-orphans`: retire containers a stack no longer declares, they would
+            # otherwise keep restarting on already-deployed robots.
+            stack_up_options = ["--machine", robot, "--detach", "--remove-orphans"]
             if not parsed.no_pull:
                 stack_up_options.append("--pull")
 
