@@ -41,6 +41,7 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
+    cpus: 0.25
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof-bottom
@@ -58,6 +59,7 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
+    cpus: 0.25
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof-front
@@ -75,6 +77,7 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
+    cpus: 0.25
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof-left
@@ -92,6 +95,7 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
+    cpus: 0.25
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof-right
@@ -109,6 +113,7 @@ services:
     restart: unless-stopped
     network_mode: host
     privileged: true
+    cpus: 0.25
     environment:
       DT_SUPERUSER: 1
       DT_LAUNCHER: sensor-tof-top
