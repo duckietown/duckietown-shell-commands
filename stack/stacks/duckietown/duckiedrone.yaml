@@ -60,22 +60,8 @@ services:
     container_name: dt-px4
     restart: unless-stopped
     network_mode: host
-    # PX4 SITL only serves virtual duckiedrones; on real hardware the flight controller runs PX4.
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        if [ "$$(head -1 /data/config/robot_hardware 2>/dev/null)" = "virtual" ]; then
-          exec /usr/local/bin/px4_entrypoint.sh "$$@"
-        fi
-        echo "dt-px4 (PX4 SITL) not needed for real duckiedrones"
-        exec sleep infinity
-      - sh
+    # Only virtual Duckiedrones need PX4 SITL
     command: -d
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - '[ "$$(head -1 /data/config/robot_hardware 2>/dev/null)" != virtual ] || /usr/local/bin/px4_healthcheck.sh'
     volumes:
      - /data/config/robot_type:/data/config/robot_type:ro
      - /data/config/robot_hardware:/data/config/robot_hardware:ro
