@@ -1,5 +1,6 @@
-# `name` pins the compose project, otherwise this stack shares `robot` with `robot/basics` and an
-# orphan cleanup on one would remove the containers of the other.
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which `robot/basics` shares. Removing orphan containers from one stack would remove
+# the other's containers.
 name: duckiematrix
 
 services:
