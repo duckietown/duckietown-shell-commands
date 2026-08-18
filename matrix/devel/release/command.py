@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import dt_data_api
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
+from utils.data_endpoint_utils import create_data_client
 from utils.duckiematrix_utils import \
     APP_NAME, \
     DCSS_SPACE_NAME, \
@@ -60,10 +61,11 @@ class DTCommand(DTCommandAbs):
         token: str = parsed.token
         if token is None:
             token = shell.profile.secrets.dt_token
+        data_client = create_data_client(shell, token)
 
         if not version:
             # check whether the same version was already released
-            if is_version_released(release_version, os_family):
+            if is_version_released(release_version, os_family, client=data_client):
                 dtslogger.warn(f"The version v{release} was found "
                             f"already on the DCSS, are you re-releasing this version? "
                             f"(use -f/--force to continue)")
@@ -73,7 +75,7 @@ class DTCommand(DTCommandAbs):
                     dtslogger.warn("Forced!")
 
             # check whether we are releasing an older version
-            latest_version = get_latest_version(os_family)
+            latest_version = get_latest_version(os_family, client=data_client)
             latest = latest_version + "-" + os_family
             if versiontuple(latest_version) > versiontuple(release_version):
                 dtslogger.warn(f"The version v{latest} was found on the DCSS, are you releasing "
@@ -104,7 +106,7 @@ class DTCommand(DTCommandAbs):
         if not version:
             # mark this as latest (if needed)
             if versiontuple(latest_version) < versiontuple(release_version):
-                mark_as_latest_version(token, release_version, os_family)
+                mark_as_latest_version(token, release_version, os_family, client=data_client)
 
         dtslogger.info(f"Congrats! You just released version v{release}.")
 

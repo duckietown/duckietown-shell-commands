@@ -1,8 +1,9 @@
 import os
 import signal
 
-from dt_data_api import DataClient, TransferStatus
+from dt_data_api import TransferStatus
 from dt_shell import DTCommandAbs, dtslogger
+from utils.data_endpoint_utils import create_data_client, get_storage_endpoint
 from utils.misc_utils import human_size
 from utils.progress_bar import ProgressBar
 
@@ -80,8 +81,9 @@ Where <space> can be one of {str(VALID_SPACES)}.
         if token is None:
             token = shell.profile.secrets.dt_token
         # create storage client
-        client = DataClient(token)
+        client = create_data_client(shell, token)
         storage = client.storage(parsed.space)
+        endpoint = get_storage_endpoint(shell, parsed.space)
         # prepare progress bar
         pbar = ProgressBar()
 
@@ -106,7 +108,10 @@ Where <space> can be one of {str(VALID_SPACES)}.
             check_status(h)
 
         # download file
-        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object} -> {parsed.file}")
+        dtslogger.info(
+            f"Downloading via the '{endpoint}' endpoint "
+            f"[{parsed.space}]:{parsed.object} -> {parsed.file}"
+        )
         handler = storage.download(parsed.object, parsed.file)
         handler.register_callback(cb)
 

@@ -48,6 +48,13 @@ data:
   subcommands:
     cat:
       description: Get the contents of an object from the DCSS
+    endpoint:
+      description: DCSS endpoint commands
+      subcommands:
+        benchmark:
+          description: Benchmark download speed from a DCSS storage space
+        switch:
+          description: Switch the DCSS endpoint used by a storage space
     get:
       description: Get a file from the DCSS
     head:
