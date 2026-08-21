@@ -1,8 +1,11 @@
 from typing import Optional, Tuple
 
+from dt_shell import shell as dts_shell
 from dt_shell.commands import DTCommandSetConfigurationAbs
+from dt_shell.constants import IGNORE_ENVIRONMENTS
 from dt_shell.environments import ShellCommandEnvironmentAbs, VirtualPython3Environment
 
+from utils.virtual_robot_alert import register_running_virtual_robot_alert
 
 VERSION: str = "6.0.0"
 
@@ -37,3 +40,7 @@ class DTCommandSetConfiguration(DTCommandSetConfigurationAbs):
         Maximum version of the shell supported in the format (major, minor, patch).
         """
         return 999, 999, 999
+
+
+if not IGNORE_ENVIRONMENTS:
+    register_running_virtual_robot_alert(dts_shell)
