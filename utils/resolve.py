@@ -4,7 +4,7 @@ import socket
 import subprocess
 from typing import Iterable, Optional
 
-from utils.networking_utils import is_local_virtual_robot_running
+from utils.networking_utils import get_local_virtual_robot_ip
 
 
 def _is_reachable(host: str, port: int = 22, timeout: float = 1.5) -> bool:
@@ -43,7 +43,7 @@ def get_duckiebot_host(
     """Return the best hostname to reach the Duckiebot.
     Precedence:
       1) DUCKIEBOT_HOST (explicit override)
-      2) loopback if local virtual robot
+      2) Docker-network address if local virtual robot
       3) `duckiebot_name`.local (mDNS)
       4) `duckiebot_name` (MagicDNS short name)
       5) `duckiebot_name`.<TAILNET_DOMAIN> (MagicDNS FQDN, optional)
@@ -54,8 +54,9 @@ def get_duckiebot_host(
     if override:
         return override
 
-    if is_local_virtual_robot_running(duckiebot_name):
-        return "127.0.0.1"
+    local_virtual_robot_ip = get_local_virtual_robot_ip(duckiebot_name)
+    if local_virtual_robot_ip is not None:
+        return local_virtual_robot_ip
 
     candidates = [f"{duckiebot_name}.local", duckiebot_name]
     candidates += list(_magicdns_candidates(duckiebot_name))
