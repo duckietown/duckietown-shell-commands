@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from typing import List, Optional
 
-from disk_image.create.steps import step_docker
+from disk_image.create.steps import step_docker, step_push
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -292,7 +292,7 @@ class DTCommand(DTCommandAbs):
         distro: str = shell.profile.distro.name
         # create a virtual SD card object
         sd_card = VirtualSDCard(out_file_path("img"), DISK_IMAGE_PARTITION_TABLE)
-        # this is the surgey plan that will be performed by the init_sd_card command
+        # this is the surgery plan that will be performed by the sd_card init command
         surgery_plan = []
         # define disk image origin
         disk_image_origin = in_file_path("img")
@@ -931,7 +931,7 @@ class DTCommand(DTCommandAbs):
             sanitize = map(lambda _s: os.path.join(_s["mountpoint"], _s["path"].lstrip("/")), surgery_plan)
             surgery_data["sanitize_files"] = "\n".join(map(lambda _f: f'dt-sanitize-file "{_f}"', sanitize))
             # get disk image placeholders
-            placeholders_dir = os.path.join(COMMAND_DIR, "..", "..", "..", "init_sd_card", "placeholders",
+            placeholders_dir = os.path.join(COMMAND_DIR, "..", "..", "..", "sd_card", "_placeholders",
                                             f"v{PLACEHOLDERS_VERSION}")
             # perform surgery
             dtslogger.info("Performing default data surgery on the image disk...")
@@ -1051,20 +1051,7 @@ class DTCommand(DTCommandAbs):
             if "compress" not in parsed.steps:
                 dtslogger.warning("The step 'compress' was not performed. No artifacts to push.")
                 return
-            dtslogger.info("Step BEGIN: push")
-            dtslogger.info("Pushing disk image...")
-            shell.include.data.push.command(
-                shell,
-                [],
-                parsed=SimpleNamespace(
-                    file=[out_file_path("zip")],
-                    object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name("zip"))],
-                    space="public",
-                    compress=False
-                ),
-            )
-            dtslogger.info("Done!")
-            dtslogger.info("Step END: push\n")
+            step_push(shell, out_file_name("zip"), out_file_path("zip"))
         # Step: push
         # <------
         dtslogger.info(f"Completed in {human_time(time.time() - stime)}")

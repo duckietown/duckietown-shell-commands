@@ -244,7 +244,7 @@ class DTCommand(DTCommandAbs):
         distro = get_distro(shell)
         # create a virtual SD card object
         sd_card = VirtualSDCard(out_file_path("img"), DISK_IMAGE_PARTITION_TABLE)
-        # this is the surgey plan that will be performed by the init_sd_card command
+        # this is the surgery plan that will be performed by the sd_card init command
         surgery_plan = []
         # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
         # if a custom input image is provided, use it as the source

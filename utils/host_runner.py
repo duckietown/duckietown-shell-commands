@@ -1295,14 +1295,29 @@ def delegate_matrix_run_to_host(
     )
 
 
-def delegate_init_sd_card_to_host(args: Iterable[str]) -> int:
+def delegate_sd_card_init_to_host(args: Iterable[str]) -> int:
     args_list = list(args)
     emit_client_context = any(
         flag in args_list for flag in ("--debug", "--verbose", "-vv")
     )
     command_prefix = get_current_dts_cli_options()
     return delegate_command_to_host(
-        [*command_prefix, "init_sd_card"],
+        [*command_prefix, "sd_card", "init"],
+        args_list,
+        cwd=_host_runner_fallback_cwd(),
+        emit_client_context=emit_client_context,
+        interactive=True,
+    )
+
+
+def delegate_sd_card_update_to_host(args: Iterable[str]) -> int:
+    args_list = list(args)
+    emit_client_context = any(
+        flag in args_list for flag in ("--debug", "--verbose", "-vv")
+    )
+    command_prefix = get_current_dts_cli_options()
+    return delegate_command_to_host(
+        [*command_prefix, "sd_card", "update"],
         args_list,
         cwd=_host_runner_fallback_cwd(),
         emit_client_context=emit_client_context,

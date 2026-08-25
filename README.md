@@ -43,7 +43,11 @@ which means that the user is identified as uid 3 until the given expiration date
 
 This command will install DuckieOS on the SD-card:
 
-    $ dts init_sd_card
+    $ dts sd_card init
+
+To update selected settings on an already initialized card without reflashing it:
+
+    $ dts sd_card update --type duckiebot --configuration DB18 --hostname robot
 
 -----------------------
 

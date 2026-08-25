@@ -5,5 +5,5 @@ network:
       dhcp4: true
       optional: true
       access-points:
-        # These are the wifi networks that were provided through the init_sd_card command
+        # These are the WiFi networks provided through the sd_card init command
         {netplan_wifi_networks}
