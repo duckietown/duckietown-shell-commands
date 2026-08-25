@@ -104,6 +104,10 @@ UPDATEABLE_PLACEHOLDERS = {
 FAT_UPDATE_PARTITIONS = {"configfs"}
 
 
+class _Ext4JournalRecoveryRequired(InvalidUserInput):
+    pass
+
+
 def _should_delegate_sd_card(parsed: argparse.Namespace) -> bool:
     if not should_delegate_to_host():
         return False
@@ -907,7 +911,7 @@ def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
         if ext4_tools is None:
             ext4_tools = (_get_ext4_tool("debugfs"), _get_ext4_tool("e2fsck"))
         debugfs, e2fsck = ext4_tools
-        _verify_ext4_filesystem(partition_device, e2fsck)
+        _ensure_ext4_filesystem_ready(partition_device, e2fsck, repair=getattr(parsed, "repair", False))
         prepared_ext4_updates[partition] = [
             (surgery_bit, content, partition_device, *_get_ext4_file_layout(debugfs, partition_device, surgery_bit["path"], content))
             for surgery_bit, content, _ in partition_updates
@@ -1008,12 +1012,74 @@ def _get_ext4_tool(name: str) -> str:
 
 def _verify_ext4_filesystem(partition_device: str, e2fsck: str):
     try:
-        _run_cmd(["sudo", e2fsck, "-fn", partition_device], quiet=True)
+        _run_cmd(["sudo", e2fsck, "-fn", partition_device], get_output=True)
     except subprocess.CalledProcessError as error:
+        output = error.output.decode("utf-8", errors="replace") if error.output else ""
+        if "skipping journal recovery" in output:
+            raise _Ext4JournalRecoveryRequired(
+                f"Refusing to update {partition_device}: its ext4 journal needs replay. "
+                "No update settings were written."
+            ) from error
         raise InvalidUserInput(
             f"Refusing to update {partition_device}: its ext4 filesystem needs repair. "
-            "Boot the card and shut it down cleanly, repair it with e2fsck, or reflash it before retrying."
+            "No update settings were written. Boot the card and shut it down cleanly, repair it with e2fsck, "
+            "or reflash it before retrying."
         ) from error
+
+
+def _ensure_ext4_filesystem_ready(partition_device: str, e2fsck: str, repair: bool):
+    try:
+        _verify_ext4_filesystem(partition_device, e2fsck)
+        return
+    except _Ext4JournalRecoveryRequired:
+        _replay_ext4_journal(partition_device, e2fsck)
+        try:
+            _verify_ext4_filesystem(partition_device, e2fsck)
+            return
+        except InvalidUserInput:
+            pass
+    except InvalidUserInput:
+        pass
+
+    if not repair:
+        repair = ask_confirmation(
+            f"{partition_device} needs ext4 repair before it can be updated. No settings have been written",
+            default="n",
+            question="Attempt an automatic repair with e2fsck now?",
+        )
+    if not repair:
+        raise InvalidUserInput(
+            f"Refusing to update {partition_device}: its ext4 filesystem needs repair. "
+            "No update settings were written."
+        )
+
+    _repair_ext4_filesystem(partition_device, e2fsck)
+    _verify_ext4_filesystem(partition_device, e2fsck)
+
+
+def _replay_ext4_journal(partition_device: str, e2fsck: str):
+    dtslogger.info(f"Replaying the pending ext4 journal on {partition_device} before updating...")
+    try:
+        _run_cmd(["sudo", e2fsck, "-p", "-E", "journal_only", partition_device])
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 1:
+            raise InvalidUserInput(
+                f"Could not replay the ext4 journal on {partition_device}. No update settings were written. "
+                "Repair it manually with e2fsck or reflash it before retrying."
+            ) from error
+
+
+def _repair_ext4_filesystem(partition_device: str, e2fsck: str):
+    dtslogger.warning(f"Attempting automatic ext4 repair on {partition_device} before updating...")
+    try:
+        _run_cmd(["sudo", e2fsck, "-p", partition_device])
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 1:
+            raise InvalidUserInput(
+                f"Could not automatically repair {partition_device}. No update settings were written. "
+                "Boot the card and shut it down cleanly, repair it manually with e2fsck, "
+                "or reflash it before retrying."
+            ) from error
 
 
 def _get_ext4_file_layout(debugfs: str, partition_device: str, path: str, content: bytes):

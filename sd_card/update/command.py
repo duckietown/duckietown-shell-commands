@@ -66,6 +66,12 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Run locally instead of delegating the update to the host",
         )
+        parser.add_argument(
+            "--repair",
+            default=False,
+            action="store_true",
+            help="Attempt an automatic ext4 repair if preflight detects a problem",
+        )
         parsed = parser.parse_args(args=args)
 
         if all(value is None for value in (parsed.hostname, parsed.wifi, parsed.country)):
