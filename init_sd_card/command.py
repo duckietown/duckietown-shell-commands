@@ -194,7 +194,17 @@ def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False, version_o
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        parser = argparse.ArgumentParser()
+        robot_types = get_robot_types()
+        configuration_lines = []
+        for robot_type in robot_types:
+            configurations = get_robot_configurations(robot_type)
+            configuration_lines.append(
+                f"  {robot_type}: {', '.join(configurations)}"
+            )
+        parser = argparse.ArgumentParser(
+            epilog="Configurations by robot type:\n" + "\n".join(configuration_lines),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
         parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
@@ -232,7 +242,7 @@ class DTCommand(DTCommandAbs):
             "--type",
             dest="robot_type",
             default=None,
-            choices=get_robot_types(),
+            choices=robot_types,
             help="Which type of robot we are setting up",
         )
         parser.add_argument(
