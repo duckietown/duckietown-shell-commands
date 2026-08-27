@@ -70,9 +70,9 @@ DISK_IMAGE_PARTITION_TABLE = {
     "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.3.1"
+DISK_IMAGE_VERSION = "1.3.2"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "6.2.1-B"
+JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-orin-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
@@ -650,6 +650,11 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "systemctl set-default multi-user.target 2>/dev/null || true"
+                        )
+
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "sed -i 's|<SOC>|t234|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true",
                         )
 
                         # update package index

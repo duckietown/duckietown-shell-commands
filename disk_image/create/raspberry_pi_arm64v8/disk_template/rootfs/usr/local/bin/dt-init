@@ -119,7 +119,10 @@ run_on_setup_boot() {
 
     # expand rootfs
     # Why in 'setup' boot: this is needed before the swap file is created in the 'configuration' boot
-    sudo raspi-config nonint do_expand_rootfs
+    if ! sudo raspi-config nonint do_expand_rootfs; then
+        echo "Root filesystem expansion failed; setup boot will retry after reboot."
+        return 1
+    fi
 
     # enabled SSH server
     # Why in 'setup' boot: this is needed to allow remote access to the robot asap
@@ -337,6 +340,10 @@ else
     else
         echo "$SETUP_BOOT_EVIDENCE_FILE doe NOT exist, run setup boot sequence"
         run_on_setup_boot 2>&1 | tee /data/logs/setup_boot_init.log
+        setup_boot_status=${PIPESTATUS[0]}
+        if [ "$setup_boot_status" -ne 0 ]; then
+            exit "$setup_boot_status"
+        fi
         # mark robot as 'setup'
         touch "$SETUP_BOOT_EVIDENCE_FILE"
         reboot
