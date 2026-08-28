@@ -107,7 +107,7 @@ try:
     while chunk:
         tgt.write(chunk)
         written += len(chunk)
-        new_progress = int(written / src_size * 100.0)
+        new_progress = min(99, int(written / src_size * 100.0))
         if new_progress != current_progress:
             # update progress and progress bar
             current_progress = new_progress
