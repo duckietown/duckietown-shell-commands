@@ -1267,6 +1267,11 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
     params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
+    robot_board, _ = get_robot_hardware(parsed.robot_configuration)
+    robot_hardware = {
+        "jetson_nano_2gb": "jetson_nano",
+        "jetson_nano_4gb": "jetson_nano",
+    }.get(robot_board, robot_board)
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
@@ -1274,6 +1279,7 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         "robot_type": parsed.robot_type,
         "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
+        "robot_hardware": robot_hardware,
         "robot_distro": shell.profile.distro.name,
         "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
         # netplan configurations for v2.0 placeholders (Jetson Orin Nano)

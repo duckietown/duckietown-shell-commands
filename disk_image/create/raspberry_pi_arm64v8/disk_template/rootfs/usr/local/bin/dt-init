@@ -290,6 +290,11 @@ run_on_every_boot() {
     ROBOT_CONFIGURATION=$(file-or-default /data/config/robot_configuration "NOTSET")
     sed -i "s/NOTSET/${ROBOT_CONFIGURATION}/g" /etc/avahi/services/dt.robot_configuration.service.temp
     mv /etc/avahi/services/dt.robot_configuration.service.temp /etc/avahi/services/dt.robot_configuration.service
+    # - robot hardware
+    cp /etc/avahi/services/dt.robot_hardware.service.template /etc/avahi/services/dt.robot_hardware.service.temp
+    ROBOT_HARDWARE=$(file-or-default /data/config/robot_hardware "NOTSET")
+    sed -i "s/NOTSET/${ROBOT_HARDWARE}/g" /etc/avahi/services/dt.robot_hardware.service.temp
+    mv /etc/avahi/services/dt.robot_hardware.service.temp /etc/avahi/services/dt.robot_hardware.service
 
     # launch triggers handlers
     dt-serve-triggers
