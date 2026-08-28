@@ -261,8 +261,14 @@ hatchery:
   description: Start DT hatchery
 hub:
   description: Open the DT Hub
-init_sd_card:
-  description: Initialize an SD card
+sd_card:
+  description: SD card commands
+  subcommands:
+    init: &sd_card_init
+      description: Initialize an SD card
+    update:
+      description: Update selected settings on an initialized SD card
+init_sd_card: *sd_card_init
 install:
   description: Install a command set
 logs:

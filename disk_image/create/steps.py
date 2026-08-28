@@ -183,13 +183,24 @@ def step_docker(
 
 def step_push(shell, out_file_name, out_file_path):
     dtslogger.info("Step BEGIN: push")
-    dtslogger.info("Pushing disk image...")
-    shell.include.data.push.command(
+    metadata_file_name = os.path.splitext(out_file_name)[0] + ".json"
+    metadata_file_path = os.path.splitext(out_file_path)[0] + ".json"
+    artifacts = [
+        (metadata_file_name, metadata_file_path),
+        (out_file_name, out_file_path),
+    ]
+    missing_artifacts = [path for _, path in artifacts if not os.path.isfile(path)]
+    if missing_artifacts:
+        raise FileNotFoundError(f"Cannot publish disk image artifacts that do not exist: {', '.join(missing_artifacts)}")
+
+    dtslogger.info("Pushing disk image metadata and archive...")
+    for artifact_name, artifact_path in artifacts:
+        shell.include.data.push.command(
             shell,
             [],
             parsed=SimpleNamespace(
-                file=[out_file_path],
-                object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, out_file_name)],
+                file=[artifact_path],
+                object=[os.path.join(DATA_STORAGE_DISK_IMAGE_DIR, artifact_name)],
                 space="public",
                 token=shell.profile.secrets.dt_token,
                 compress=False,

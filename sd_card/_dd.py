@@ -126,7 +126,8 @@ try:
     os.fsync(tgt.fileno())
     logger.info("`Done!")
 except KeyboardInterrupt:
-    pass
+    logger.warning("Flashing cancelled. The destination may contain a partial image.")
+    raise SystemExit(130)
 finally:
     # close resources
     src.close()
