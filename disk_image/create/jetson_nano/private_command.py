@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from dt_data_api.constants import PUBLIC_STORAGE_URL
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -71,8 +72,10 @@ JETPACK_VERSION = "4.6.6"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
 INPUT_DISK_IMAGE_URL = (
-    lambda v: f"https://duckietown-public-storage.s3.amazonaws.com/"
-    f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
+    lambda v: PUBLIC_STORAGE_URL.format(
+        bucket="public",
+        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip",
+    )
 )
 TEMPLATE_FILE_VALIDATOR = {
     "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
