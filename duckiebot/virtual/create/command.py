@@ -16,6 +16,7 @@ from disk_image.create.utils import \
     pull_docker_image
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
+from utils.duckie_password_utils import hash_duckie_password, validate_duckie_password
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
 from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
@@ -53,11 +54,22 @@ class DTCommand(DTCommandAbs):
             type=str,
             help="Configuration of Duckiebot to create"
         )
+        parser.add_argument(
+            "--password",
+            metavar="PASSWORD",
+            required=True,
+            help="Password for the duckie account in the virtual robot",
+        )
         parser.add_argument("robot", nargs=1, help="Name of the Robot to create")
         # get version
         distro: str = shell.profile.distro.name
         # parse arguments
         parsed = parser.parse_args(args)
+        validation_error = validate_duckie_password(parsed.password)
+        if validation_error:
+            parser.error(validation_error)
+        parsed.duckie_password_hash = hash_duckie_password(parsed.password)
+        del parsed.password
         # sanitize arguments
         parsed.robot = parsed.robot[0]
         if not re.fullmatch(r"[a-z][a-z0-9]*", parsed.robot):
@@ -225,6 +237,9 @@ class DTCommand(DTCommandAbs):
             # - data/config/robot_distro
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_distro"), "wt") as fout:
                 fout.write(shell.profile.distro.name)
+            # - data/config/duckie_password_hash
+            with open(os.path.join(vbot_root_dir, "data", "config", "duckie_password_hash"), "wt") as fout:
+                fout.write(f"duckie:{parsed.duckie_password_hash}\n")
             # - data/stats/MAC/eth0
             with open(os.path.join(vbot_root_dir, "data", "stats", "MAC", "eth0"), "wt") as fout:
                 fout.write(random_virtual_mac_address())

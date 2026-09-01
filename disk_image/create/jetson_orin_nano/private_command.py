@@ -649,6 +649,8 @@ class DTCommand(DTCommandAbs):
                         dtslogger.info(f"Native ARM64 host detected ({host_arch}) - skipping QEMU setup")
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
+                        run_cmd_in_partition(ROOT_PARTITION, "usermod --lock duckie")
+
                         # Disable GUI first (before any apt operations)
                         run_cmd_in_partition(
                             ROOT_PARTITION,

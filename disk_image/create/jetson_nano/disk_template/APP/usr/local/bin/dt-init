@@ -47,6 +47,18 @@ store_event() {
     echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
+
+apply_duckie_password() {
+    local password_file=/data/config/duckie_password_hash
+    if [ -f "${password_file}" ] && grep -q '^duckie:\$6\$' "${password_file}"; then
+        if head -n 1 "${password_file}" | chpasswd --encrypted && usermod --unlock duckie; then
+            printf '%s' '!' > "${password_file}"
+        else
+            echo "Failed to update the duckie user password."
+        fi
+    fi
+}
+
 rootfs_uses_full_device() {
     local device_bytes partition_bytes filesystem_bytes expected_minimum_bytes
     local filesystem_metadata filesystem_block_count filesystem_block_size
@@ -105,6 +117,8 @@ run_on_first_boot() {
         echo "Root filesystem expansion failed; first-boot setup will retry after reboot."
         return 1
     fi
+
+    apply_duckie_password
 
     # sanitize files
     dt-sanitize-files
@@ -197,6 +211,7 @@ run_on_every_boot() {
 
     # setup /etc/hosts
     setup_etc_hosts
+    apply_duckie_password
 
     # set i2c bus clock rate to 400kHz
     echo 400000 > /sys/bus/i2c/devices/i2c-1/bus_clk_rate

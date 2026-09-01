@@ -95,6 +95,18 @@ store_event() {
 }
 
 
+apply_duckie_password() {
+    local password_file=/data/config/duckie_password_hash
+    if [ -f "${password_file}" ] && grep -q '^duckie:\$6\$' "${password_file}"; then
+        if head -n 1 "${password_file}" | chpasswd --encrypted && usermod --unlock duckie; then
+            printf '%s' '!' > "${password_file}"
+        else
+            echo "Failed to update the duckie user password."
+        fi
+    fi
+}
+
+
 run_on_setup_boot() {
     echo "Setting up the robot for its first ever (aka setup) boot..."
     setup_etc_hosts
@@ -161,6 +173,8 @@ run_on_configuration_boot() {
 
     # activate `booting` service
     mv /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
+
+    apply_duckie_password
 
     # sanitize files
     dt-sanitize-files
@@ -256,6 +270,7 @@ run_on_every_boot() {
 
     echo "Setting up the robot for this boot..."
     setup_etc_hosts
+    apply_duckie_password
 
     # copy hostname from the configuration partition
     setup_hostname
