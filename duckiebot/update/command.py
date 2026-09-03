@@ -269,6 +269,7 @@ def _config_node_directory_exists(client: DockerClient, run_image: str) -> bool:
         # Check if the /data/config/node directory exists
         client.containers.run(
             image=run_image,
+            entrypoint=[],
             command=["test", "-d", "/data/config/node"],
             volumes={
                 "/data": {
@@ -289,6 +290,7 @@ def _delete_config_node_directory(client: DockerClient, run_image: str) -> None:
         # Delete the /data/config/node directory
         client.containers.run(
             image=run_image,
+            entrypoint=[],
             command=["rm", "-rf", "/data/config/node"],
             volumes={
                 "/data": {
