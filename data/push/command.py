@@ -1,8 +1,11 @@
 import os
+import atexit
 import contextlib
+import fnmatch
+import gc
 import signal
-import subprocess
 import tempfile
+import zipfile
 
 from dt_data_api import DataClient, TransferStatus
 from dt_shell import DTCommandAbs, dtslogger
@@ -10,6 +13,49 @@ from utils.misc_utils import human_size
 from utils.progress_bar import ProgressBar
 
 VALID_SPACES = ["user", "public", "private"]
+
+
+def _remove_file_on_exit(file_path: str) -> None:
+    try:
+        os.remove(file_path)
+    except OSError:
+        pass
+
+
+def _is_excluded(relative_path: str, patterns) -> bool:
+    normalized_path = relative_path.replace(os.path.sep, "/").lstrip("./")
+    return any(
+        fnmatch.fnmatch(normalized_path, pattern.lstrip("./"))
+        or fnmatch.fnmatch(f"./{normalized_path}", pattern)
+        for pattern in patterns
+    )
+
+
+def _create_zip_archive(source_path: str, archive_path: str, exclude_patterns=()) -> None:
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        if os.path.isfile(source_path):
+            archive.write(source_path, arcname=os.path.basename(source_path))
+            return
+
+        for root, directory_names, file_names in os.walk(source_path):
+            relative_root = os.path.relpath(root, source_path)
+            relative_root = "" if relative_root == "." else relative_root.replace(os.path.sep, "/")
+
+            directory_names[:] = [
+                name for name in directory_names
+                if not _is_excluded(
+                    "/".join(filter(None, [relative_root, name])),
+                    exclude_patterns,
+                )
+            ]
+
+            if relative_root and not directory_names and not file_names:
+                archive.writestr(f"{relative_root}/", "")
+
+            for file_name in file_names:
+                relative_path = "/".join(filter(None, [relative_root, file_name]))
+                if not _is_excluded(relative_path, exclude_patterns):
+                    archive.write(os.path.join(root, file_name), arcname=relative_path)
 
 
 class TempZipFile:
@@ -25,7 +71,13 @@ class TempZipFile:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._tmpfile.__exit__(exc_type, exc_val, exc_tb)
         dtslogger.debug(f"Removing temporary file {self.fpath}.")
-        os.remove(self.fpath)
+        try:
+            os.remove(self.fpath)
+        except OSError:
+            dtslogger.warning(
+                f"Temporary file '{self.fpath}' is still in use; deferring cleanup until exit."
+            )
+            atexit.register(_remove_file_on_exit, self.fpath)
 
 
 class DTCommand(DTCommandAbs):
@@ -132,20 +184,15 @@ Where <space> can be one of {str(VALID_SPACES)}.
             ctx_mgr = TempZipFile()
             object_fpath = ctx_mgr.fpath
             exclude = parsed.exclude.split(",") if parsed.exclude else []
-            zip_opts = (["-x"] + exclude) if len(exclude) else []
             dtslogger.info(f"Compressing '{parsed.file}' to temporary file '{object_fpath}'...")
-            zip_cmd = ["zip"] + zip_opts + ["-r", object_fpath, "./"]
-            dtslogger.debug(f"$ {zip_cmd}")
-            subprocess.check_call(zip_cmd, cwd=parsed.file)
+            _create_zip_archive(parsed.file, object_fpath, exclude)
 
         # compress file
         if os.path.isfile(parsed.file) and parsed.compress:
             ctx_mgr = TempZipFile()
             object_fpath = ctx_mgr.fpath
             dtslogger.info(f"Compressing '{parsed.file}' to temporary file '{object_fpath}'...")
-            zip_cmd = ["zip", "-9", object_fpath, os.path.basename(parsed.file)]
-            dtslogger.debug(f"$ {zip_cmd}")
-            subprocess.check_call(zip_cmd, cwd=os.path.dirname(parsed.file))
+            _create_zip_archive(parsed.file, object_fpath)
 
         # upload file
         with ctx_mgr:
@@ -156,9 +203,9 @@ Where <space> can be one of {str(VALID_SPACES)}.
             signal.signal(signal.SIGINT, lambda *_: handler.abort())
             # wait for the upload to finish
             handler.join()
-
-        # check status
-        check_status(handler)
+            check_status(handler)
+            handler = None
+            gc.collect()
 
         # if we got here, the upload is completed
         dtslogger.info("Upload completed!")

@@ -6,8 +6,12 @@ import os
 import signal
 import time
 import uuid
-from pwd import getpwnam
 from typing import Optional, List, Tuple
+
+try:
+    from pwd import getpwnam
+except ImportError:
+    getpwnam = None
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
