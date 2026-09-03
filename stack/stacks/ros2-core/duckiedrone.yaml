@@ -1,5 +1,18 @@
 services:
 
+  altitude:
+    image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
+    container_name: altitude
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: duckiedrone-altitude-node
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
   visual-odometry:
     image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
     container_name: visual-odometry

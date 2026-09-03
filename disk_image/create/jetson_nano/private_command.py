@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from dt_data_api.constants import PUBLIC_STORAGE_URL
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -65,14 +66,16 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "2.0.8"
+DISK_IMAGE_VERSION = "2.0.11"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.6.6"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
 INPUT_DISK_IMAGE_URL = (
-    lambda v: f"https://duckietown-public-storage.s3.amazonaws.com/"
-    f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip"
+    lambda v: PUBLIC_STORAGE_URL.format(
+        bucket="public",
+        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip",
+    )
 )
 TEMPLATE_FILE_VALIDATOR = {
     "APP:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
@@ -233,7 +236,7 @@ class DTCommand(DTCommandAbs):
         distro = shell.profile.distro.name
         # create a virtual SD card object
         sd_card = VirtualSDCard(out_file_path("img"), DISK_IMAGE_PARTITION_TABLE)
-        # this is the surgey plan that will be performed by the init_sd_card command
+        # this is the surgery plan that will be performed by the sd_card init command
         surgery_plan = []
         # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
         disk_image_origin = in_file_path("img")

@@ -10,6 +10,7 @@ ln -s "${STACK_FILE}" "${ENABLED_STACK_FILE}"
 echo "Stack '${STACK_NAME}' is now enabled!"
 
 DOCKER_SOCKET=unix:///var/run/docker.sock
+export VEHICLE_NAME="$(hostname)"
 
 echo "Launching stack '${STACK_NAME}'..."
 set -e

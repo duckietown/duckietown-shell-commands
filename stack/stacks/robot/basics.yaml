@@ -19,6 +19,7 @@ services:
     privileged: true
     environment:
       DT_SUPERUSER: 1
+      VEHICLE_NAME: null
     volumes:
       - /data:/data
       # dtps sockets

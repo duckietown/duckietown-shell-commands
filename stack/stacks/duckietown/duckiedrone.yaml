@@ -52,79 +52,15 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
-  driver-tof-front:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-tof-front
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-tof-front
-      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
-    volumes:
-      - /data:/data
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  driver-tof-left:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-tof-left
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-tof-left
-      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
-    volumes:
-      - /data:/data
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  driver-tof-right:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-tof-right
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-tof-right
-      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
-    volumes:
-      - /data:/data
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  driver-tof-top:
-    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
-    container_name: driver-tof-top
-    restart: unless-stopped
-    network_mode: host
-    privileged: true
-    environment:
-      DT_SUPERUSER: 1
-      DT_LAUNCHER: sensor-tof-top
-      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
-    volumes:
-      - /data:/data
-      # dtps sockets
-      - /data/ramdisk/dtps:/dtps
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+  # The front, left, right, and top ToF sensors live in the optional
+  # `duckiedrone/extra_sensors` stack.
 
   dt-px4:
     image: ${REGISTRY}/duckietown/dt-px4:ente-${ARCH}
     container_name: dt-px4
     restart: unless-stopped
     network_mode: host
+    # Only virtual Duckiedrones need PX4 SITL
     command: -d
     volumes:
      - /data/config/robot_type:/data/config/robot_type:ro

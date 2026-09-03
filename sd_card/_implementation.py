@@ -1,17 +1,21 @@
 import argparse
+import base64
 import copy
 import getpass
 import json
 import os
 import pathlib
 import re
+import select
 import shutil
 import socket
 import subprocess
 import platform
 import plistlib
 import sys
+import tempfile
 import time
+import zipfile
 from collections import namedtuple
 from datetime import datetime
 from types import SimpleNamespace
@@ -28,10 +32,16 @@ from utils.duckietown_utils import (
     WIRED_ROBOT_TYPES,
 )
 from utils.exceptions import InvalidUserInput
+from utils.host_runner import (
+    HOST_RUNNER_ACTIVE_ENV,
+    HostRunnerError,
+    delegate_sd_card_init_to_host,
+    should_delegate_to_host,
+)
 from utils.json_schema_form_utils import open_form_from_schema
 from utils.misc_utils import human_time, sudo_open
 from utils.progress_bar import ProgressBar
-from .constants import (
+from ._constants import (
     LIST_DEVICES_CMD,
     TIPS_AND_TRICKS,
     WPA_EAP_NETWORK_CONFIG,
@@ -44,6 +54,7 @@ from .constants import (
 
 from disk_image.create.jetson_nano.private_command import DISK_IMAGE_VERSION as jetson_disk_image_version
 from disk_image.create.jetson_orin_nano.private_command import DISK_IMAGE_VERSION as jetson_orin_disk_image_version
+from disk_image.create.raspberry_pi_arm64v8.private_command import DISK_IMAGE_VERSION as raspberry_pi_arm64v8_disk_image_version
 
 INIT_SD_CARD_VERSION = "2.1.0"  # incremental number, semantic version
 
@@ -75,19 +86,42 @@ def _get_tmp_workdir() -> str:
     for workdir in candidate_dirs:
         if _can_create_workdir(workdir):
             return workdir
-    raise OSError("Could not determine a writable init_sd_card working directory.")
+    raise OSError("Could not determine a writable SD-card working directory.")
 
 
 TMP_WORKDIR = _get_tmp_workdir()
-BLOCK_SIZE = 1024**2
+BLOCK_SIZE = 4 * 1024**2
 SAFE_SD_SIZE_MIN = 16
 SAFE_SD_SIZE_MAX = 64
 DEFAULT_ROBOT_TYPE = "duckiebot"
 DEFAULT_WIFI_CONFIG = "duckietown:quackquack"
-COMMAND_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STEPS = ["license", "download", "flash", "setup"]
-NVIDIA_LICENSE_FILE = os.path.join(COMMAND_DIR, "nvidia-license.txt")
+NVIDIA_LICENSE_FILE = os.path.join(ASSETS_DIR, "_nvidia-license.txt")
 ROOT_PARTITIONS = ["root", "rootfs", "APP"]
+UPDATEABLE_PLACEHOLDERS = {
+    "hostname": {"HOSTNAME"},
+    "wifi": {"NETPLAN", "NETPLAN_WIFI_CONFIG", "WPA_SUPPLICANT"},
+    "country": {"COUNTRY", "WPA_SUPPLICANT"},
+}
+FAT_UPDATE_PARTITIONS = {"configfs"}
+
+
+class _Ext4JournalRecoveryRequired(InvalidUserInput):
+    pass
+
+
+def _should_delegate_sd_card(parsed: argparse.Namespace) -> bool:
+    if not should_delegate_to_host():
+        return False
+    if getattr(parsed, "local", False):
+        return False
+    if getattr(parsed, "gui", False):
+        return False
+    device = parsed.device
+    if device is None:
+        return True
+    return device.startswith("/dev/")
 
 
 def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override=None):
@@ -95,8 +129,8 @@ def DISK_IMAGE_VERSION(robot_configuration, experimental=False, version_override
         return version_override
     board_to_disk_image_version = {
         "raspberry_pi": {"stable": "1.2.1", "experimental": "1.2.1"},
-        "raspberry_pi_64": {"stable": "4.0.0", "experimental": "4.0.0"},
-        "jetson_nano_4gb": {"stable": jetson_disk_image_version, "experimental": "1.4.3"},
+        "raspberry_pi_64": {"stable": raspberry_pi_arm64v8_disk_image_version, "experimental": raspberry_pi_arm64v8_disk_image_version},
+        "jetson_nano_4gb": {"stable": jetson_disk_image_version, "experimental": jetson_disk_image_version},
         "jetson_nano_2gb": {"stable": "1.2.2", "experimental": "1.2.2"},
         "jetson_orin_nano": {"stable": jetson_orin_disk_image_version, "experimental": jetson_orin_disk_image_version},
     }
@@ -115,7 +149,7 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False, version_overri
         },
         "raspberry_pi_64": {
             # - stable
-            "4.0.0": "2.0",
+            raspberry_pi_arm64v8_disk_image_version: "2.0",
             # - experimental
             "-----": "2.0",
         },
@@ -157,11 +191,11 @@ def PLACEHOLDERS_VERSION(robot_configuration, experimental=False, version_overri
 def BASE_DISK_IMAGE(robot_configuration, experimental=False, version_override=None):
     disk_version = DISK_IMAGE_VERSION(robot_configuration, experimental, version_override)
     board_to_disk_image = {
-        "raspberry_pi": f"dt-hypriotos-rpi-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
-        "raspberry_pi_64": f"dt-raspios-bookworm-lite-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-arm64v8",
-        "jetson_nano_4gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-4gb",
-        "jetson_nano_2gb": f"dt-nvidia-jetpack-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}-2gb",
-        "jetson_orin_nano": f"dt-nvidia-jetpack-orin-v{DISK_IMAGE_VERSION(robot_configuration, experimental)}",
+        "raspberry_pi": f"dt-hypriotos-rpi-v{disk_version}",
+        "raspberry_pi_64": f"dt-raspios-bookworm-lite-v{disk_version}-arm64v8",
+        "jetson_nano_4gb": f"dt-nvidia-jetpack-v{disk_version}-4gb",
+        "jetson_nano_2gb": f"dt-nvidia-jetpack-v{disk_version}-2gb",
+        "jetson_orin_nano": f"dt-nvidia-jetpack-orin-v{disk_version}",
     }
     board, _ = get_robot_hardware(robot_configuration)
     return board_to_disk_image[board]
@@ -172,10 +206,25 @@ def DISK_IMAGE_CLOUD_LOCATION(robot_configuration, experimental=False, version_o
     return f"disk_image/{disk_image}.zip"
 
 
+def DISK_IMAGE_METADATA_CLOUD_LOCATION(robot_configuration, experimental=False, version_override=None):
+    disk_image = BASE_DISK_IMAGE(robot_configuration, experimental, version_override)
+    return f"disk_image/{disk_image}.json"
+
+
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
-        parser = argparse.ArgumentParser()
+        robot_types = get_robot_types()
+        configuration_lines = []
+        for robot_type in robot_types:
+            configurations = get_robot_configurations(robot_type)
+            configuration_lines.append(
+                f"  {robot_type}: {', '.join(configurations)}"
+            )
+        parser = argparse.ArgumentParser(
+            epilog="Configurations by robot type:\n" + "\n".join(configuration_lines),
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
         # configure parser
         parser.add_argument("--steps", default=",".join(SUPPORTED_STEPS), help="Steps to perform")
         parser.add_argument("--no-steps", default="", help="Steps NOT to perform")
@@ -213,7 +262,7 @@ class DTCommand(DTCommandAbs):
             "--type",
             dest="robot_type",
             default=None,
-            choices=get_robot_types(),
+            choices=robot_types,
             help="Which type of robot we are setting up",
         )
         parser.add_argument(
@@ -233,6 +282,12 @@ class DTCommand(DTCommandAbs):
             default=False,
             action="store_true",
             help="Use (experimental) gui",
+        )
+        parser.add_argument(
+            "--local",
+            default=False,
+            action="store_true",
+            help="Run locally instead of delegating SD card initialization to the host",
         )
         parser.add_argument(
             "--verify",
@@ -295,7 +350,20 @@ class DTCommand(DTCommandAbs):
         if parsed.verify:
             if "verify" in no_steps:
                 raise ValueError("You cannot use --verify together with --no-steps verify")
-            steps += ["verify"]
+            if "verify" not in steps:
+                verify_index = steps.index("flash") + 1 if "flash" in steps else len(steps)
+                steps.insert(verify_index, "verify")
+
+        if _should_delegate_sd_card(parsed):
+            dtslogger.info("Delegating SD card initialization to the host...")
+            try:
+                exit_code = delegate_sd_card_init_to_host(args)
+            except HostRunnerError as error:
+                dtslogger.error(str(error))
+                exit(1)
+            if exit_code != 0:
+                exit(exit_code)
+            return
 
         # GUI
         if gui:
@@ -418,9 +486,12 @@ class DTCommand(DTCommandAbs):
             "disk_metadata": in_file("json"),
             "steps": steps,
         }
-        # perform steps
-        for step_name in steps:
-            data.update(step2function[step_name](shell, parsed, data))
+        try:
+            # perform steps
+            for step_name in steps:
+                data.update(step2function[step_name](shell, parsed, data))
+        finally:
+            _stop_darwin_disk_mount_guard(data.pop("_darwin_disk_mount_guard", None))
         # ---
         if "flash" in steps:
             dtslogger.info("Flashing completed successfully!")
@@ -486,14 +557,18 @@ def step_download(shell, parsed, data):
         if not os.path.isfile(parsed.image):
             dtslogger.error(f"The specified image file does not exist: {parsed.image}")
             exit(3)
+        local_metadata = f"{os.path.splitext(parsed.image)[0]}.json"
+        if "setup" in data["steps"] and not os.path.isfile(local_metadata):
+            raise InvalidUserInput(
+                f"The disk image metadata file is required for setup: {local_metadata}"
+            )
         # create temp dir if it doesn't exist
         _run_cmd(["mkdir", "-p", parsed.workdir])
         # copy .img to expected location
         shutil.copy(parsed.image, data["disk_img"])
+        if os.path.isfile(local_metadata):
+            shutil.copy(local_metadata, data["disk_metadata"])
         return {}
-
-    # check if dependencies are met
-    ensure_command_is_installed("unzip")
 
     # clear cache (if requested)
     if parsed.no_cache:
@@ -521,13 +596,100 @@ def step_download(shell, parsed, data):
     else:
         dtslogger.info(f"Reusing cached ZIP image file [{data['disk_zip']}].")
     # unzip (if necessary)
-    if not os.path.isfile(data["disk_img"]):
+    archive_members = _get_zip_members(
+        data["disk_zip"],
+        required_targets=(data["disk_img"],),
+        optional_targets=(data["disk_metadata"],),
+    )
+    members_to_extract = {
+        target: member
+        for target, member in archive_members.items()
+        if not _cached_file_matches_archive_member(target, member)
+    }
+    if members_to_extract:
+        for target in members_to_extract:
+            if os.path.lexists(target):
+                dtslogger.warning(f"Discarding incomplete cached file [{target}].")
+                os.unlink(target)
         dtslogger.info("Extracting ZIP image...")
-        _run_cmd(["unzip", data["disk_zip"], "-d", parsed.workdir])
+        _extract_zip_members(data["disk_zip"], members_to_extract)
     else:
         dtslogger.info(f"Reusing cached DISK image file [{data['disk_img']}].")
     # ---
     return {}
+
+
+def _get_zip_members(archive_path, required_targets, optional_targets=()):
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            archive_entries = [entry for entry in archive.infolist() if not entry.is_dir()]
+    except zipfile.BadZipFile as error:
+        raise InvalidUserInput(f"Disk image archive {archive_path} is invalid: {error}") from error
+
+    members = {}
+    for target in (*required_targets, *optional_targets):
+        target_name = os.path.basename(target)
+        matches = [entry for entry in archive_entries if os.path.basename(entry.filename) == target_name]
+        if len(matches) > 1:
+            raise InvalidUserInput(f"Disk image archive {archive_path} contains multiple files named {target_name}.")
+        if not matches:
+            if target in required_targets:
+                raise InvalidUserInput(f"Disk image archive {archive_path} does not contain {target_name}.")
+            continue
+        members[target] = matches[0]
+    return members
+
+
+def _cached_file_matches_archive_member(path, member):
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) == member.file_size
+    except OSError:
+        return False
+
+
+def _extract_zip_members(archive_path, members):
+    output_dir = os.path.dirname(next(iter(members)))
+    staging_dir = tempfile.mkdtemp(prefix=".dts-extract-", dir=output_dir)
+    total_bytes = sum(member.file_size for member in members.values())
+    extracted_bytes = 0
+    progress = 0
+    started_at = time.time()
+    pbar = ProgressBar(header="Extracting [ETA: ND]")
+    pbar.set_detail(os.path.basename(next(iter(members))))
+    pbar.update(progress)
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            for target, member in members.items():
+                staged_file = os.path.join(staging_dir, os.path.basename(target))
+                pbar.set_detail(os.path.basename(target))
+                pbar.update(progress)
+                with archive.open(member.filename) as source, open(staged_file, "xb") as destination:
+                    chunk = source.read(BLOCK_SIZE)
+                    while chunk:
+                        destination.write(chunk)
+                        extracted_bytes += len(chunk)
+                        next_progress = min(99, int(100 * extracted_bytes / total_bytes)) if total_bytes else 99
+                        if next_progress != progress:
+                            progress = next_progress
+                            if progress > 0:
+                                elapsed = time.time() - started_at
+                                eta = (100 - progress) * (elapsed / progress)
+                                pbar.set_header(f"Extracting [ETA: {human_time(eta, True)}]")
+                            pbar.update(progress)
+                        chunk = source.read(BLOCK_SIZE)
+        for target, member in members.items():
+            staged_file = os.path.join(staging_dir, os.path.basename(target))
+            if not _cached_file_matches_archive_member(staged_file, member):
+                raise RuntimeError(f"Archive extraction did not produce a complete file for {target}.")
+        for target in members:
+            staged_file = os.path.join(staging_dir, os.path.basename(target))
+            os.replace(staged_file, target)
+        pbar.done()
+    except BaseException:
+        print()
+        raise
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
 
 def step_flash(_, parsed, data):
@@ -623,20 +785,32 @@ def step_flash(_, parsed, data):
                 "unmount all disks from your SD card before flashing the next time."
             )
 
+    if sd_type == "SD" and platform.system() == "Darwin":
+        _ensure_darwin_disk_mount_guard(parsed, data)
+
     # use dd to flash
-    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, parsed.device))
-    dd_py = os.path.join(pathlib.Path(__file__).parent.absolute(), "dd.py")
+    flash_device = parsed.device
+    if sd_type == "SD" and platform.system() == "Darwin":
+        flash_device = _get_darwin_raw_device(parsed.device)
+    dtslogger.info("Flashing File[{}] -> {}[{}]:".format(data["disk_img"], sd_type, flash_device))
+    dd_py = os.path.join(ASSETS_DIR, "_dd.py")
     bsize = str(BLOCK_SIZE)
     dd_cmd = (["sudo"] if sd_type == "SD" else []) + [
         dd_py,
         "--input",
         data["disk_img"],
         "--output",
-        parsed.device,
+        flash_device,
         "--block-size",
         bsize,
     ]
-    _run_cmd(dd_cmd)
+    try:
+        _run_cmd(dd_cmd)
+    except subprocess.CalledProcessError as error:
+        if error.returncode == 130:
+            dtslogger.warning("Flashing was cancelled; no setup steps will run.")
+            raise SystemExit(130)
+        raise
     # ---
     dtslogger.info("{}[{}] flashed!".format(sd_type, parsed.device))
     return {"sd_type": sd_type}
@@ -644,7 +818,7 @@ def step_flash(_, parsed, data):
 
 def step_verify(_, parsed, data):
     dtslogger.info("Verifying {}[{}]...".format(data.get("sd_type", ""), parsed.device))
-    buf_size = 16 * 1024
+    buf_size = BLOCK_SIZE
     # create a progress bar to track the progress
     pbar = ProgressBar(header="Verifying [ETA: ND]")
     tbytes = os.stat(data["disk_img"]).st_size
@@ -656,7 +830,9 @@ def step_verify(_, parsed, data):
             # Check that parsed.device is not None
             if parsed.device is None:
                 dtslogger.error("Destination device is None. If you're skipping the flash step, please provide a device using the --device flag.")
-            with sudo_open(parsed.device, "rb") as destination:
+            _ensure_sudo_credentials_for_host_runner()
+            verify_device = _get_darwin_raw_device(parsed.device) if platform.system() == "Darwin" else parsed.device
+            with sudo_open(verify_device, "rb") as destination:
                 buffer1 = origin.read(buf_size)
                 while buffer1:
                     buf1_len = len(buffer1)
@@ -689,22 +865,549 @@ def step_verify(_, parsed, data):
     return {}
 
 
+def update_sd_card(shell: DTShell, parsed: argparse.Namespace):
+    if parsed.device is None:
+        parsed.device = _select_sd_card_device(parsed.size)
+    if not parsed.device.startswith("/dev/"):
+        raise InvalidUserInput("SD card updates require a physical device path such as /dev/disk4.")
+    if not os.path.exists(parsed.device):
+        raise InvalidUserInput(f"Device {parsed.device} was not found on your system. Please, check.")
+
+    allowed_configs = get_robot_configurations(parsed.robot_type)
+    if parsed.robot_configuration not in allowed_configs:
+        raise InvalidUserInput(
+            f"Robot configuration {parsed.robot_configuration} is not recognized for robot type "
+            f"{parsed.robot_type}. Possible configurations are: {', '.join(allowed_configs)}"
+        )
+
+    if parsed.hostname is not None:
+        valid, valid_hostname = _validate_hostname(parsed.hostname)
+        if not valid:
+            raise InvalidUserInput("Operation aborted. Please provide a valid hostname and repeat the step.")
+        parsed.hostname = valid_hostname
+    if parsed.wifi is not None:
+        _interpret_wifi_string(parsed.wifi)
+
+    _ensure_flash_dependencies()
+    base_disk_image = BASE_DISK_IMAGE(
+        parsed.robot_configuration,
+        parsed.experimental,
+        version_override=parsed.disk_image_version,
+    )
+    data = {
+        "disk_zip": os.path.join(parsed.workdir, f"{base_disk_image}.zip"),
+        "disk_img": os.path.join(parsed.workdir, f"{base_disk_image}.img"),
+        "disk_metadata": os.path.join(parsed.workdir, f"{base_disk_image}.json"),
+        "steps": ["update"],
+    }
+    _ensure_disk_metadata(shell, parsed, data)
+    with open(data["disk_metadata"], "rt") as fin:
+        disk_metadata = json.load(fin)
+    expected_version = DISK_IMAGE_VERSION(
+        parsed.robot_configuration,
+        parsed.experimental,
+        version_override=parsed.disk_image_version,
+    )
+    metadata_version = str(disk_metadata.get("version", ""))
+    if metadata_version and metadata_version != expected_version:
+        raise InvalidUserInput(
+            f"Disk metadata version {metadata_version} does not match the requested "
+            f"image version {expected_version}."
+        )
+
+    data["selected_placeholders"] = _get_update_placeholders(parsed, disk_metadata["surgery_plan"])
+    parsed.wifi = parsed.wifi or ""
+    parsed.country = parsed.country or ""
+    try:
+        step_update(shell, parsed, data)
+    finally:
+        _stop_darwin_disk_mount_guard(data.pop("_darwin_disk_mount_guard", None))
+
+
+def _ensure_disk_metadata(shell: DTShell, parsed: argparse.Namespace, data: dict):
+    if os.path.isfile(data["disk_metadata"]):
+        return
+
+    _run_cmd(["mkdir", "-p", parsed.workdir])
+    disk_metadata = DISK_IMAGE_METADATA_CLOUD_LOCATION(
+        parsed.robot_configuration,
+        parsed.experimental,
+        version_override=parsed.disk_image_version,
+    )
+    try:
+        dtslogger.info("Downloading disk image update metadata...")
+        shell.include.data.get.command(
+            shell,
+            [],
+            parsed=SimpleNamespace(object=[disk_metadata], file=[data["disk_metadata"]], space="public"),
+        )
+        return
+    except FileNotFoundError:
+        dtslogger.info("No standalone disk image metadata is available; falling back to the disk image archive.")
+
+    if not os.path.isfile(data["disk_zip"]):
+        dtslogger.info("Downloading disk image archive to retrieve its update metadata...")
+        disk_image = DISK_IMAGE_CLOUD_LOCATION(
+            parsed.robot_configuration,
+            parsed.experimental,
+            version_override=parsed.disk_image_version,
+        )
+        shell.include.data.get.command(
+            shell,
+            [],
+            parsed=SimpleNamespace(object=[disk_image], file=[data["disk_zip"]], space="public"),
+        )
+
+    metadata_member = _get_zip_members(data["disk_zip"], required_targets=(data["disk_metadata"],))[
+        data["disk_metadata"]
+    ]
+    if _cached_file_matches_archive_member(data["disk_metadata"], metadata_member):
+        return
+    if os.path.lexists(data["disk_metadata"]):
+        dtslogger.warning(f"Discarding incomplete cached file [{data['disk_metadata']}].")
+        os.unlink(data["disk_metadata"])
+    dtslogger.info("Extracting disk image update metadata...")
+    _extract_zip_members(data["disk_zip"], {data["disk_metadata"]: metadata_member})
+
+
+def _get_update_placeholders(parsed: argparse.Namespace, surgery_plan: list[dict]) -> set[str]:
+    available_placeholders = {bit["placeholder"] for bit in surgery_plan}
+    selected_placeholders: set[str] = set()
+    requested_options = {
+        "hostname": parsed.hostname is not None,
+        "wifi": parsed.wifi is not None,
+        "country": parsed.country is not None,
+    }
+    for option, requested in requested_options.items():
+        if not requested:
+            continue
+        matching_placeholders = UPDATEABLE_PLACEHOLDERS[option].intersection(available_placeholders)
+        if not matching_placeholders:
+            raise InvalidUserInput(f"The selected disk image does not support updating {option}.")
+        selected_placeholders.update(matching_placeholders)
+
+    if "WPA_SUPPLICANT" in selected_placeholders and requested_options["wifi"] != requested_options["country"]:
+        raise InvalidUserInput(
+            "This disk image stores WiFi and country together. Specify both --wifi and --country when updating it."
+        )
+    return selected_placeholders
+
+
+def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
+    if parsed.device is None or not parsed.device.startswith("/dev/"):
+        raise InvalidUserInput("SD card updates require a physical device path such as /dev/disk4.")
+    ensure_command_is_installed("dd")
+    ensure_command_is_installed("sudo")
+    ensure_command_is_installed("sync")
+    if platform.system() == "Darwin":
+        parsed.device = _get_darwin_block_device(parsed.device)
+    if not os.path.exists(parsed.device):
+        raise InvalidUserInput(f"Device {parsed.device} was not found on your system. Please, check.")
+
+    with open(data["disk_metadata"], "rt") as fin:
+        surgery_plan = json.load(fin)["surgery_plan"]
+    updates = _get_update_file_updates(parsed, data["selected_placeholders"], surgery_plan)
+    updates_by_partition = _group_updates_by_partition(parsed.device, updates)
+
+    dtslogger.info(f"Unmounting device {parsed.device} before applying update data...")
+    _unmount_device(parsed.device)
+    if platform.system() == "Darwin":
+        time.sleep(0.5)
+
+    dtslogger.info("Updating files on the SD card...")
+    for partition, partition_updates in updates_by_partition.items():
+        if partition in FAT_UPDATE_PARTITIONS:
+            _update_fat_partition(partition_updates)
+
+    ext4_partition_updates = [
+        (partition, partition_updates)
+        for partition, partition_updates in updates_by_partition.items()
+        if partition not in FAT_UPDATE_PARTITIONS
+    ]
+    mount_guard_active = False
+    if ext4_partition_updates and platform.system() == "Darwin":
+        _unmount_device(parsed.device)
+        time.sleep(0.5)
+        _ensure_darwin_disk_mount_guard(parsed, data)
+        mount_guard_active = data.get("_darwin_disk_mount_guard") is not None
+
+    if ext4_partition_updates:
+        debugfs, e2fsck = _get_ext4_tool("debugfs"), _get_ext4_tool("e2fsck")
+        prepared_ext4_updates = {}
+        for partition, partition_updates in ext4_partition_updates:
+            partition_device = partition_updates[0][2]
+            _ensure_ext4_filesystem_ready(partition_device, e2fsck, repair=getattr(parsed, "repair", False))
+            prepared_ext4_updates[partition] = [
+                (
+                    surgery_bit,
+                    content,
+                    partition_device,
+                    *_get_ext4_file_layout(debugfs, partition_device, surgery_bit["path"], content),
+                )
+                for surgery_bit, content, _ in partition_updates
+            ]
+        for partition_updates in prepared_ext4_updates.values():
+            for surgery_bit, content, partition_device, block_size, blocks in partition_updates:
+                dtslogger.info("Updating [{partition}]:{path}.".format(**surgery_bit))
+                _update_ext4_file(
+                    parsed.device,
+                    debugfs,
+                    partition_device,
+                    surgery_bit["path"],
+                    content,
+                    block_size,
+                    blocks,
+                    mount_guard_active=mount_guard_active,
+                )
+    _run_cmd(["sync"])
+    dtslogger.info("Update completed successfully!")
+
+
+def _get_update_file_updates(parsed: argparse.Namespace, selected_placeholders: set[str], surgery_plan: list[dict]):
+    surgery_data = {
+        "hostname": parsed.hostname,
+        "country": parsed.country,
+        "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
+        "netplan_open_networks": _get_netplan_networks(parsed, "open"),
+        "netplan_wpa_psk_networks": _get_netplan_networks(parsed, "psk"),
+        "netplan_wpa_eap_networks": _get_netplan_networks(parsed, "eap"),
+        "wpa_networks": _get_wpa_supplicant_wifi_configuration(parsed),
+        "wpa_country": parsed.country,
+    }
+    if parsed.placeholders_version is not None:
+        placeholders_version = parsed.placeholders_version
+    else:
+        placeholders_version = PLACEHOLDERS_VERSION(
+            parsed.robot_configuration,
+            parsed.experimental,
+            version_override=parsed.disk_image_version,
+        )
+    placeholders_dir = os.path.join(ASSETS_DIR, "_placeholders", "v" + placeholders_version)
+    updates = []
+    for surgery_bit in surgery_plan:
+        if surgery_bit["placeholder"] not in selected_placeholders:
+            continue
+        placeholder_file = os.path.join(placeholders_dir, surgery_bit["placeholder"])
+        if not os.path.isfile(placeholder_file):
+            raise InvalidUserInput(f"The placeholder {surgery_bit['placeholder']} is not recognized.")
+        with open(placeholder_file, "rt") as fin:
+            content = fin.read().format(**surgery_data).encode()
+        if len(content) > surgery_bit["length_bytes"]:
+            raise InvalidUserInput(
+                "File [{partition}]:{path} exceeds its update budget of {length_bytes} bytes.".format(**surgery_bit)
+            )
+        updates.append((surgery_bit, content))
+    return updates
+
+
+def _group_updates_by_partition(device: str, updates: list[tuple[dict, bytes]]):
+    updates_by_partition = {}
+    for surgery_bit, content in updates:
+        partition = surgery_bit["partition"]
+        partition_device = _get_partition_device(device, surgery_bit["partition_id"])
+        if not os.path.exists(partition_device):
+            raise InvalidUserInput(
+                f"Partition {partition} ({partition_device}) was not found on the selected SD card."
+            )
+        updates_by_partition.setdefault(partition, []).append((surgery_bit, content, partition_device))
+    return updates_by_partition
+
+
+def _get_partition_device(device: str, partition_id: int) -> str:
+    if platform.system() == "Darwin":
+        return f"{_get_darwin_block_device(device)}s{partition_id}"
+    separator = "p" if device[-1:].isdigit() else ""
+    return f"{device}{separator}{partition_id}"
+
+
+def _get_ext4_tool(name: str) -> str:
+    candidates = [shutil.which(name)]
+    if platform.system() == "Darwin":
+        candidates.extend(
+            os.path.join(prefix, "sbin", name)
+            for prefix in ("/opt/homebrew/opt/e2fsprogs", "/usr/local/opt/e2fsprogs")
+        )
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    raise InvalidUserInput(
+        f"Updating this ext4 SD card requires '{name}'. Install e2fsprogs and retry."
+    )
+
+
+def _verify_ext4_filesystem(partition_device: str, e2fsck: str):
+    try:
+        _run_cmd(["sudo", e2fsck, "-fn", partition_device], get_output=True)
+    except subprocess.CalledProcessError as error:
+        output = error.output.decode("utf-8", errors="replace") if error.output else ""
+        if "skipping journal recovery" in output:
+            raise _Ext4JournalRecoveryRequired(
+                f"Refusing to update {partition_device}: its ext4 journal needs replay. "
+                "No update settings were written."
+            ) from error
+        raise InvalidUserInput(
+            f"Refusing to update {partition_device}: its ext4 filesystem needs repair. "
+            "No update settings were written. Boot the card and shut it down cleanly, repair it with e2fsck, "
+            "or reflash it before retrying."
+        ) from error
+
+
+def _ensure_ext4_filesystem_ready(partition_device: str, e2fsck: str, repair: bool):
+    try:
+        _verify_ext4_filesystem(partition_device, e2fsck)
+        return
+    except _Ext4JournalRecoveryRequired:
+        _replay_ext4_journal(partition_device, e2fsck)
+        try:
+            _verify_ext4_filesystem(partition_device, e2fsck)
+            return
+        except InvalidUserInput:
+            pass
+    except InvalidUserInput:
+        pass
+
+    if not repair:
+        repair = ask_confirmation(
+            f"{partition_device} needs ext4 repair before it can be updated. No settings have been written",
+            default="n",
+            question="Attempt an automatic repair with e2fsck now?",
+        )
+    if not repair:
+        raise InvalidUserInput(
+            f"Refusing to update {partition_device}: its ext4 filesystem needs repair. "
+            "No update settings were written."
+        )
+
+    _repair_ext4_filesystem(partition_device, e2fsck)
+    _verify_ext4_filesystem(partition_device, e2fsck)
+
+
+def _replay_ext4_journal(partition_device: str, e2fsck: str):
+    dtslogger.info(f"Replaying the pending ext4 journal on {partition_device} before updating...")
+    try:
+        _run_cmd(["sudo", e2fsck, "-p", "-E", "journal_only", partition_device])
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 1:
+            raise InvalidUserInput(
+                f"Could not replay the ext4 journal on {partition_device}. No update settings were written. "
+                "Repair it manually with e2fsck or reflash it before retrying."
+            ) from error
+
+
+def _repair_ext4_filesystem(partition_device: str, e2fsck: str):
+    dtslogger.warning(f"Attempting automatic ext4 repair on {partition_device} before updating...")
+    try:
+        _run_cmd(["sudo", e2fsck, "-p", partition_device])
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 1:
+            raise InvalidUserInput(
+                f"Could not automatically repair {partition_device}. No update settings were written. "
+                "Boot the card and shut it down cleanly, repair it manually with e2fsck, "
+                "or reflash it before retrying."
+            ) from error
+
+
+def _get_ext4_file_layout(debugfs: str, partition_device: str, path: str, content: bytes):
+    stats = _run_cmd(["sudo", debugfs, "-R", "stats", partition_device], get_output=True)
+    match = re.search(r"^Block size:\s*(\d+)\s*$", stats, re.MULTILINE)
+    if match is None:
+        raise InvalidUserInput(f"Could not determine the ext4 block size for {partition_device}.")
+    block_size = int(match.group(1))
+    blocks_output = _run_cmd(["sudo", debugfs, "-R", f"blocks {path}", partition_device], get_output=True)
+    block_tokens = blocks_output.split()
+    if not block_tokens or not all(token.isdigit() for token in block_tokens):
+        raise InvalidUserInput(f"Could not determine the current storage blocks for {path}.")
+    blocks = [int(token) for token in block_tokens]
+    if len(content) > block_size * len(blocks):
+        raise InvalidUserInput(
+            f"Updated content for {path} does not fit in its current ext4 allocation on {partition_device}."
+        )
+    return block_size, blocks
+
+
+def _update_ext4_file(
+    device: str,
+    debugfs: str,
+    partition_device: str,
+    path: str,
+    content: bytes,
+    block_size: int,
+    blocks: list[int],
+    mount_guard_active: bool = False,
+):
+    padded_content = content + b"\0" * (block_size * len(blocks) - len(content))
+    for index, block in enumerate(blocks):
+        chunk = padded_content[index * block_size : (index + 1) * block_size]
+        _write_ext4_block(
+            device,
+            partition_device,
+            block_size,
+            block,
+            chunk,
+            mount_guard_active=mount_guard_active,
+        )
+    _run_cmd(["sync"])
+    if platform.system() == "Darwin" and device.startswith("/dev/") and not mount_guard_active:
+        _unmount_device(device)
+        time.sleep(0.5)
+    _run_cmd(["sudo", debugfs, "-w", "-R", f"sif {path} size {len(content)}", partition_device])
+    _run_cmd(["sync"])
+    actual_content = _run_cmd(["sudo", debugfs, "-R", f"cat {path}", partition_device], get_output=True).encode()
+    if actual_content != content:
+        raise InvalidUserInput(f"Could not verify the updated content of {path} on {partition_device}.")
+
+
+def _write_ext4_block(
+    device: str,
+    partition_device: str,
+    block_size: int,
+    block: int,
+    content: bytes,
+    mount_guard_active: bool = False,
+):
+    retries = 10 if platform.system() == "Darwin" else 1
+    dd_cmd = [
+        "sudo",
+        "dd",
+        f"of={partition_device}",
+        f"bs={block_size}",
+        "count=1",
+        f"seek={block}",
+        "conv=notrunc",
+    ]
+    for attempt in range(retries):
+        if platform.system() == "Darwin" and device.startswith("/dev/") and not mount_guard_active:
+            _unmount_device(device)
+            time.sleep(0.5)
+        _ensure_sudo_credentials_for_host_runner()
+        dd = subprocess.Popen(dd_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, stderr = dd.communicate(content)
+        if dd.returncode == 0:
+            return
+        error = stderr.decode("utf-8", errors="replace").strip()
+        if platform.system() == "Darwin" and "Resource busy" in error and attempt + 1 < retries:
+            dtslogger.warning(f"Write target {partition_device} is busy, retrying ({attempt + 1}/{retries})...")
+            time.sleep(0.5)
+            continue
+        raise InvalidUserInput(f"Failed to update {partition_device}: {error}")
+
+
+def _update_fat_partition(partition_updates: list[tuple[dict, bytes, str]]):
+    partition_device = partition_updates[0][2]
+    mountpoint = _mount_fat_partition(partition_device)
+    try:
+        for surgery_bit, content, _ in partition_updates:
+            dtslogger.info("Updating [{partition}]:{path}.".format(**surgery_bit))
+            target_path = _get_mounted_partition_path(mountpoint, surgery_bit["path"])
+            if not os.path.isfile(target_path):
+                raise InvalidUserInput(f"Expected update target {surgery_bit['path']} was not found on {partition_device}.")
+            _replace_mounted_file(target_path, content)
+    finally:
+        _unmount_fat_partition(partition_device, mountpoint)
+
+
+def _mount_fat_partition(partition_device: str) -> str:
+    if platform.system() == "Darwin":
+        mountpoint = _get_darwin_mountpoint(partition_device)
+        if mountpoint:
+            return mountpoint
+        try:
+            _run_cmd(["diskutil", "mount", partition_device], quiet=True)
+        except subprocess.CalledProcessError:
+            mountpoint = _get_darwin_mountpoint(partition_device)
+            if mountpoint:
+                return mountpoint
+            raise
+        for _ in range(5):
+            mountpoint = _get_darwin_mountpoint(partition_device)
+            if mountpoint:
+                return mountpoint
+            time.sleep(0.2)
+        if not mountpoint:
+            raise InvalidUserInput(f"Could not mount {partition_device} for update.")
+        return mountpoint
+    mountpoint = tempfile.mkdtemp(prefix="dts-sd-card-update-")
+    try:
+        _run_cmd(["sudo", "mount", partition_device, mountpoint])
+    except BaseException:
+        os.rmdir(mountpoint)
+        raise
+    return mountpoint
+
+
+def _unmount_fat_partition(partition_device: str, mountpoint: str):
+    if platform.system() == "Darwin":
+        if _get_darwin_mountpoint(partition_device):
+            _run_cmd(["diskutil", "unmount", partition_device], quiet=True)
+        return
+    try:
+        _run_cmd(["sudo", "umount", mountpoint])
+    finally:
+        os.rmdir(mountpoint)
+
+
+def _get_mounted_partition_path(mountpoint: str, path: str) -> str:
+    mountpoint = os.path.abspath(mountpoint)
+    target_path = os.path.abspath(os.path.join(mountpoint, path.lstrip("/")))
+    if os.path.commonpath((mountpoint, target_path)) != mountpoint:
+        raise InvalidUserInput(f"Invalid update target path {path}.")
+    return target_path
+
+
+def _get_darwin_mountpoint(partition_device: str) -> Optional[str]:
+    partition_info = plistlib.loads(
+        _run_cmd(["diskutil", "info", "-plist", partition_device], get_output=True).encode("utf-8")
+    )
+    return partition_info.get("MountPoint")
+
+
+def _replace_mounted_file(target_path: str, content: bytes):
+    with tempfile.NamedTemporaryFile("wb", delete=False) as temp_file:
+        temp_file.write(content)
+        temp_path = temp_file.name
+    replacement_path = f"{target_path}.dts-update-{os.getpid()}"
+    try:
+        _run_cmd(["sudo", "rm", "-f", replacement_path], quiet=True)
+        _run_cmd(["sudo", "cp", temp_path, replacement_path])
+        _run_cmd(["sudo", "mv", "-f", replacement_path, target_path])
+        actual_content = _run_cmd(["sudo", "cat", target_path], get_output=True).encode()
+        if actual_content != content:
+            raise InvalidUserInput(f"Could not verify the updated content of {target_path}.")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        _run_cmd(["sudo", "rm", "-f", replacement_path], quiet=True)
+
+
 def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     # check if dependencies are met
     ensure_command_is_installed("dd")
     ensure_command_is_installed("sudo")
     ensure_command_is_installed("sync")
+    if platform.system() == "Darwin" and parsed.device is not None:
+        parsed.device = _get_darwin_block_device(parsed.device)
     is_sd_target = parsed.device is not None and parsed.device.startswith("/dev/")
     if is_sd_target:
-        dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
-        _unmount_device(parsed.device)
         if platform.system() == "Darwin":
-            time.sleep(0.5)
+            if data.get("_darwin_disk_mount_guard") is None:
+                dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+                _unmount_device(parsed.device)
+                time.sleep(0.5)
+            _ensure_darwin_disk_mount_guard(parsed, data)
+            _ensure_sudo_credentials()
+        else:
+            dtslogger.info(f"Unmounting device {parsed.device} before applying setup data...")
+            _unmount_device(parsed.device)
     target_device = parsed.device
     # make a copy of the command parameters and remove wifi passwords
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
     params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
+    robot_board, _ = get_robot_hardware(parsed.robot_configuration)
+    robot_hardware = {
+        "jetson_nano_2gb": "jetson_nano",
+        "jetson_nano_4gb": "jetson_nano",
+    }.get(robot_board, robot_board)
     # compile data used to format placeholders
     surgery_data = {
         "hostname": parsed.hostname,  # contains value after _validate_hostname
@@ -712,6 +1415,7 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         "robot_type": parsed.robot_type,
         "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
+        "robot_hardware": robot_hardware,
         "robot_distro": shell.profile.distro.name,
         "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
         # netplan configurations for v2.0 placeholders (Jetson Orin Nano)
@@ -750,6 +1454,14 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         disk_metadata = json.load(fin)
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
+    darwin_disk_mount_guard = data.get("_darwin_disk_mount_guard")
+    darwin_surgery_writes = (
+        []
+        if is_sd_target
+        and platform.system() == "Darwin"
+        and darwin_disk_mount_guard is not None
+        else None
+    )
     # compile list of files to sanitize at first boot
     sanitize = map(lambda s: s["path"], filter(lambda s: s["partition"] in ROOT_PARTITIONS, surgery_plan))
     surgery_data["sanitize_files"] = "\n".join(map(lambda f: f'dt-sanitize-file "{f}"', sanitize))
@@ -758,10 +1470,13 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         placeholders_version = parsed.placeholders_version
     else:
         placeholders_version = PLACEHOLDERS_VERSION(parsed.robot_configuration, parsed.experimental, version_override=getattr(parsed, "disk_image_version", None))
-    placeholders_dir = os.path.join(COMMAND_DIR, "placeholders", "v" + placeholders_version)
+    placeholders_dir = os.path.join(ASSETS_DIR, "_placeholders", "v" + placeholders_version)
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
+    selected_placeholders = data.get("selected_placeholders")
     for surgery_bit in surgery_plan:
+        if selected_placeholders is not None and surgery_bit["placeholder"] not in selected_placeholders:
+            continue
         dtslogger.info("Performing surgery on [{partition}]:{path}.".format(**surgery_bit))
         # get placeholder info
         surgery_bit["placeholder"] = surgery_bit["placeholder"]
@@ -795,6 +1510,9 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             "Injecting {}/{} bytes ({}%) ".format(used_bytes, block_size, block_usage)
             + "into [{partition}]:{path}.".format(**surgery_bit)
         )
+        if darwin_surgery_writes is not None:
+            darwin_surgery_writes.append((block_offset, masked_content))
+            continue
         # apply change
         dd_cmd = (["sudo"] if is_sd_target else []) + [
             "dd",
@@ -809,6 +1527,10 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
             retries = 10 if is_sd_target and platform.system() == "Darwin" else 1
             for attempt in range(retries):
                 if is_sd_target:
+                    _ensure_sudo_credentials_for_host_runner()
+                if is_sd_target and not (
+                    platform.system() == "Darwin" and data.get("_darwin_disk_mount_guard") is not None
+                ):
                     _unmount_device(parsed.device)
                     if platform.system() == "Darwin":
                         time.sleep(0.5)
@@ -836,6 +1558,8 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
                 )
             # flush I/O buffer
             _run_cmd(["sync"])
+    if darwin_surgery_writes:
+        _write_darwin_surgery(darwin_disk_mount_guard, darwin_surgery_writes)
     dtslogger.info("Surgery went OK!")
     # flush I/O buffer
     dtslogger.info("Flushing I/O buffer...")
@@ -903,7 +1627,7 @@ def _interpret_wifi_string(s) -> List[Wifi]:
         #
         if len(tokens) not in [1, 2, 3]:
             msg = "Invalid wifi string %r" % s
-            raise Exception(msg)
+            raise InvalidUserInput(msg)
         # parse tokens
         wifissid, arg1, arg2, *_ = tokens + [None] * 2
         if arg1 is None:
@@ -1007,6 +1731,8 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
     env = copy.deepcopy(os.environ)
     # force English language
     env["LC_ALL"] = "C"
+    if _should_read_sudo_from_stdin(cmd, shell=shell, env=env):
+        cmd = ["sudo", "-S", *cmd[1:]]
     # turn [cmd] into "cmd" if shell is set to True
     if isinstance(cmd, list) and shell:
         cmd = " ".join(cmd)
@@ -1022,6 +1748,150 @@ def _run_cmd(cmd, get_output=False, shell=False, quiet=False):
         subprocess.check_call(cmd, shell=shell, env=env, **outputs)
 
 
+def _should_read_sudo_from_stdin(cmd, *, shell: bool, env: dict[str, str]) -> bool:
+    if shell:
+        return False
+    if not isinstance(cmd, list):
+        return False
+    if not cmd:
+        return False
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return False
+    if cmd[0] != "sudo":
+        return False
+    return "-S" not in cmd
+
+
+def _ensure_sudo_credentials_for_host_runner() -> None:
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    if env.get(HOST_RUNNER_ACTIVE_ENV) != "1":
+        return
+    subprocess.check_call(["sudo", "-S", "-v"], env=env)
+
+
+def _ensure_sudo_credentials() -> None:
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    command = ["sudo", "-v"]
+    if env.get(HOST_RUNNER_ACTIVE_ENV) == "1":
+        command = ["sudo", "-S", "-v"]
+    subprocess.check_call(command, env=env)
+
+
+def _read_darwin_disk_mount_guard_message(process: subprocess.Popen, timeout: float) -> str:
+    if process.stdout is None:
+        raise RuntimeError("The macOS disk mount guard did not provide a status channel.")
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Timed out waiting for the macOS disk mount guard.")
+        readable, _, _ = select.select([process.stdout], [], [], remaining)
+        if readable:
+            message = process.stdout.readline().strip()
+            if message:
+                return message
+            if process.poll() is not None:
+                raise RuntimeError("The macOS disk mount guard exited without reporting its status.")
+        elif process.poll() is not None:
+            raise RuntimeError("The macOS disk mount guard exited before it was ready.")
+
+
+def _write_darwin_surgery(guard: subprocess.Popen, writes: list[tuple[int, bytes]]) -> None:
+    if guard.poll() is not None:
+        raise RuntimeError("The macOS disk mount guard stopped before surgery completed.")
+    if guard.stdin is None:
+        raise RuntimeError("The macOS disk mount guard has no control channel.")
+    payload = [
+        {"offset": offset, "content": base64.b64encode(content).decode("ascii")}
+        for offset, content in writes
+    ]
+    guard.stdin.write(f"WRITE {json.dumps(payload, separators=(',', ':'))}\n")
+    guard.stdin.flush()
+    message = _read_darwin_disk_mount_guard_message(guard, timeout=30)
+    if message != "WRITE_OK":
+        raise RuntimeError(f"Failed to apply macOS SD-card surgery: {message}")
+
+
+def _terminate_darwin_disk_mount_guard(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+def _ensure_darwin_disk_mount_guard(parsed: argparse.Namespace, data: dict) -> None:
+    guard = data.get("_darwin_disk_mount_guard")
+    if guard is not None:
+        if guard.poll() is not None:
+            raise RuntimeError("The macOS disk mount guard stopped before flashing completed.")
+        return
+    if platform.system() != "Darwin" or not parsed.device or not parsed.device.startswith("/dev/"):
+        return
+
+    _ensure_sudo_credentials()
+    guard_path = os.path.join(ASSETS_DIR, "_darwin_disk_mount_guard.py")
+    command = [
+        "sudo",
+        "-n",
+        sys.executable,
+        guard_path,
+        "--device",
+        _get_darwin_block_device(parsed.device),
+        "--parent-pid",
+        str(os.getpid()),
+    ]
+    env = copy.deepcopy(os.environ)
+    env["LC_ALL"] = "C"
+    guard = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+    try:
+        message = _read_darwin_disk_mount_guard_message(guard, timeout=10)
+        if message != "READY":
+            raise RuntimeError(message.replace("ERROR ", "", 1))
+    except Exception:
+        _terminate_darwin_disk_mount_guard(guard)
+        raise
+    data["_darwin_disk_mount_guard"] = guard
+    dtslogger.debug(f"Disk Arbitration mount guard is active for {parsed.device}.")
+
+
+def _stop_darwin_disk_mount_guard(guard: Optional[subprocess.Popen]) -> None:
+    if guard is None:
+        return
+    if guard.poll() is not None:
+        if guard.returncode != 0:
+            dtslogger.warning("The macOS disk mount guard stopped before it could eject the SD card.")
+        return
+    dtslogger.info("Ejecting the SD card from macOS...")
+    try:
+        if guard.stdin is None:
+            raise RuntimeError("The macOS disk mount guard has no control channel.")
+        guard.stdin.write("EJECT\n")
+        guard.stdin.flush()
+        message = _read_darwin_disk_mount_guard_message(guard, timeout=10)
+        if message != "EJECTED":
+            raise RuntimeError(message.replace("EJECT_FAILED ", "", 1))
+        guard.wait(timeout=10)
+    except (BrokenPipeError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        dtslogger.warning(f"Could not eject the SD card through Disk Arbitration: {error}")
+        _terminate_darwin_disk_mount_guard(guard)
+
+
 def _ensure_flash_dependencies():
     ensure_command_is_installed("sudo")
     if platform.system() == "Darwin":
@@ -1029,6 +1899,23 @@ def _ensure_flash_dependencies():
         return
     ensure_command_is_installed("lsblk")
     ensure_command_is_installed("umount")
+
+
+def _select_sd_card_device(size: Optional[int] = None) -> str:
+    devices = _get_devices()
+    if size is not None:
+        devices = [device for device in devices if abs(device.size_gb - size) < (0.2 * size)]
+    if not devices:
+        raise InvalidUserInput("No suitable SD card devices were found.")
+
+    print("The following devices are available:")
+    _print_devices_table(devices)
+    allowed_devices = {device.device for device in devices}
+    while True:
+        device = input("Type the name of the device of choice (from the list above): ").strip()
+        if device in allowed_devices:
+            return device
+        dtslogger.warning("Please select one of the listed devices.")
 
 
 def _unmount_device(device: str):
@@ -1042,6 +1929,14 @@ def _unmount_device(device: str):
 def _get_darwin_block_device(device: str) -> str:
     if device.startswith("/dev/rdisk"):
         return "/dev/disk" + device[len("/dev/rdisk") :]
+    return device
+
+
+def _get_darwin_raw_device(device: str) -> str:
+    if device.startswith("/dev/disk"):
+        raw_device = "/dev/rdisk" + device[len("/dev/disk") :]
+        if os.path.exists(raw_device):
+            return raw_device
     return device
 
 

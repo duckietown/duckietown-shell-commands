@@ -1,0 +1,155 @@
+# Optional Duckiedrone sensors. The base Duckiedrone stack includes the bottom ToF sensor.
+# This stack adds front, left, right, and top ToF sensors.
+#
+# To start this stack and detach from the running containers, run the following command, where
+# `DUCKIEDRONE_NAME` is the name of the Duckiedrone:
+#
+#   dts stack up -H DUCKIEDRONE_NAME -d duckiedrone/extra_sensors
+#
+# To stop this stack, run the following command, where `DUCKIEDRONE_NAME` is the name of the
+# Duckiedrone:
+#
+#   dts stack down -H DUCKIEDRONE_NAME duckiedrone/extra_sensors
+
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which the other optional Duckiedrone stacks share. Taking one down would remove the
+# others' containers.
+name: duckiedrone-extra-sensors
+
+services:
+
+  driver-tof-front:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-tof-front
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-tof-front
+      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
+    volumes:
+      - /data:/data
+      # dtps sockets
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-tof-left:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-tof-left
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-tof-left
+      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
+    volumes:
+      - /data:/data
+      # dtps sockets
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-tof-right:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-tof-right
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-tof-right
+      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
+    volumes:
+      - /data:/data
+      # dtps sockets
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  driver-tof-top:
+    image: ${REGISTRY}/duckietown/dt-duckiebot-interface:ente-${ARCH}
+    container_name: driver-tof-top
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      DT_SUPERUSER: 1
+      DT_LAUNCHER: sensor-tof-top
+      DTPS_DATA_AVAILABILITY_TIMEOUT: 1
+    volumes:
+      - /data:/data
+      # dtps sockets
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  # The ROS 2 bridges below require `zenoh-router` from the `ros2/duckiedrone` stack, which runs
+  # in a different Compose project. They cannot declare it as a `depends_on` dependency, so they
+  # retry until it is available.
+
+  tof-front:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-front
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-front
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  tof-left:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-left
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-left
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  tof-right:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-right
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-right
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  tof-top:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-tof-top
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      DT_LAUNCHER: sensor-tof-top
+      DT_SUPERUSER: 1
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket

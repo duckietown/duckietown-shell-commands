@@ -4,7 +4,7 @@ TIPS_AND_TRICKS = """
 
 ### Multiple networks
 
-    dts init_sd_card --wifi network1:password1,network2:password2 --country US
+    dts sd_card init --wifi network1:password1,network2:password2 --country US
 
 
 
@@ -19,11 +19,11 @@ Without arguments the script performs the steps:
 
 You can use --steps to run only some of those:
 
-    dts init_sd_card --steps flash,setup
+    dts sd_card init --steps flash,setup
 
 You can use --no-steps to exclude some steps:
 
-    dts init_sd_card --no-steps download
+    dts sd_card init --no-steps download
 
 
 """

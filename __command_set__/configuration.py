@@ -1,10 +1,34 @@
 from typing import Optional, Tuple
 
+from dt_shell import DTShell, shell as dts_shell
 from dt_shell.commands import DTCommandSetConfigurationAbs
+from dt_shell.constants import IGNORE_ENVIRONMENTS
 from dt_shell.environments import ShellCommandEnvironmentAbs, VirtualPython3Environment
 
+from utils.virtual_robot_alert import register_running_virtual_robot_alert
 
 VERSION: str = "6.0.0"
+
+
+def _legacy_init_sd_card_args(line: str) -> str:
+    return f"init {line}".strip()
+
+
+def _do_init_sd_card(shell: DTShell, line: str):
+    return shell.do_sd_card(_legacy_init_sd_card_args(line))
+
+
+def _get_init_sd_card(shell: DTShell, line: str):
+    return shell.get_sd_card(_legacy_init_sd_card_args(line))
+
+
+def _help_init_sd_card(shell: DTShell):
+    return shell.help_sd_card()
+
+
+DTShell.do_init_sd_card = _do_init_sd_card
+DTShell.get_init_sd_card = _get_init_sd_card
+DTShell.help_init_sd_card = _help_init_sd_card
 
 
 class DTCommandSetConfiguration(DTCommandSetConfigurationAbs):
@@ -37,3 +61,7 @@ class DTCommandSetConfiguration(DTCommandSetConfigurationAbs):
         Maximum version of the shell supported in the format (major, minor, patch).
         """
         return 999, 999, 999
+
+
+if not IGNORE_ENVIRONMENTS:
+    register_running_virtual_robot_alert(dts_shell)

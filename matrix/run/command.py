@@ -16,7 +16,7 @@ import platform
 import socket
 import sys
 import uuid
-from socket import AF_INET, SOCK_STREAM
+from socket import AF_INET6
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from typing import BinaryIO, Optional, Callable
@@ -78,6 +78,18 @@ def resolve_delegated_engine_host(parsed_engine_hostname: Optional[str]) -> Opti
     return host_runner_engine_host()
 
 
+def should_use_ipv6_loopback_browser_server(host: str) -> bool:
+    return host == "localhost"
+
+
+def format_http_host(host: str) -> str:
+    if ":" not in host:
+        return host
+    if host.startswith("[") and host.endswith("]"):
+        return host
+    return f"[{host}]"
+
+
 def _mask_token_value(token: str) -> str:
     parts = token.split("-", maxsplit=2)
     if len(parts) == 3:
@@ -125,6 +137,80 @@ class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
         )
         super_ = super()
         super_.log_message(format, *sanitized_args)
+
+
+class DualStackHTTPServer(HTTPServer):
+
+    address_family = AF_INET6
+
+    def server_bind(self) -> None:
+        if socket.has_dualstack_ipv6():
+            try:
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            except OSError:
+                pass
+        super_ = super()
+        super_.server_bind()
+
+
+@dataclass
+class BrowserHTTPServerConfiguration:
+    server: HTTPServer
+    bind_host: str
+    display_host: str
+    port: int
+
+
+def create_browser_http_server(
+    host: str,
+    port: Optional[int],
+) -> BrowserHTTPServerConfiguration:
+    requested_port = 0 if port is None else port
+    if should_use_ipv6_loopback_browser_server(host):
+        dtslogger.info(
+            "Serving the browser frontend through an IPv6 loopback HTTP server..."
+        )
+        try:
+            server = DualStackHTTPServer(
+                ("::1", requested_port),
+                RedactingSimpleHTTPRequestHandler,
+            )
+        except OSError as error:
+            error_text = str(error)
+            message = "Could not start the IPv6 loopback HTTP server for localhost."
+            if error_text:
+                message = f"{message} {error_text}"
+            message = f"{message} Falling back to IPv4 localhost."
+            dtslogger.warning(message)
+        else:
+            return BrowserHTTPServerConfiguration(
+                server=server,
+                bind_host="::1",
+                display_host="localhost",
+                port=server.server_port,
+            )
+        bind_host = "127.0.0.1"
+        server = HTTPServer(
+            (bind_host, requested_port),
+            RedactingSimpleHTTPRequestHandler,
+        )
+        return BrowserHTTPServerConfiguration(
+            server=server,
+            bind_host=bind_host,
+            display_host="localhost",
+            port=server.server_port,
+        )
+    bind_host = host
+    server = HTTPServer(
+        (bind_host, requested_port),
+        RedactingSimpleHTTPRequestHandler,
+    )
+    return BrowserHTTPServerConfiguration(
+        server=server,
+        bind_host=bind_host,
+        display_host=host,
+        port=server.server_port,
+    )
 
 
 def _build_renderer_container_command(
@@ -669,17 +755,10 @@ class DTCommand(DTCommandAbs):
                     dtslogger.info("Launching Renderer in browser...")
                     os.chdir(app_path)
                     host = parsed.host
-                    port = parsed.port
-                    if port is None:
-                        with socket.socket(AF_INET, SOCK_STREAM) as socket_:
-                            socket_.bind((host, 0))
-                            socket_.listen(1)
-                            sock_name = socket_.getsockname()
-                            port = sock_name[1]
-                    server = HTTPServer((host, port), RedactingSimpleHTTPRequestHandler)
-                    server_thread = Thread(target=server.serve_forever)
+                    server_configuration = create_browser_http_server(host, parsed.port)
+                    server_thread = Thread(target=server_configuration.server.serve_forever)
                     server_thread.daemon = True
-                    url = f"http://{host}:{port}/?"
+                    url = f"http://{format_http_host(server_configuration.display_host)}:{server_configuration.port}/?"
                     if parsed.renderer_id is not None:
                         url += f"renderer-id={parsed.renderer_id}&"
                     if parsed.renderer_key is not None:

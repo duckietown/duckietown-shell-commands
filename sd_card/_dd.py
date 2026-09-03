@@ -80,7 +80,7 @@ class ProgressBar:
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="Input device or file")
 parser.add_argument("-o", "--output", required=True, help="Output device or file")
-parser.add_argument("-b", "--block-size", default=1024**2, type=int, help="Block size")
+parser.add_argument("-b", "--block-size", default=4 * 1024**2, type=int, help="Block size")
 # parse arguments
 parsed = parser.parse_args()
 
@@ -107,11 +107,8 @@ try:
     while chunk:
         tgt.write(chunk)
         written += len(chunk)
-        new_progress = int(written / src_size * 100.0)
+        new_progress = min(99, int(written / src_size * 100.0))
         if new_progress != current_progress:
-            # flush buffers and sync before notifying the new progress
-            tgt.flush()
-            os.fsync(tgt.fileno())
             # update progress and progress bar
             current_progress = new_progress
             bar.update(current_progress)
@@ -121,12 +118,14 @@ try:
             bar.set_header("Flashing [ETA: {}]".format(human_time(eta, True)))
         # read next chunk
         chunk = src.read(parsed.block_size)
-    # flus`h I/O buffer
+    # flush I/O buffer
     logger.info("Flushing I/O buffer...")
+    tgt.flush()
     os.fsync(tgt.fileno())
-    logger.info("`Done!")
+    logger.info("Done!")
 except KeyboardInterrupt:
-    pass
+    logger.warning("Flashing cancelled. The destination may contain a partial image.")
+    raise SystemExit(130)
 finally:
     # close resources
     src.close()

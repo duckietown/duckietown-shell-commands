@@ -26,7 +26,7 @@ except ImportError:
 from dockertown import DockerClient
 from utils.buildx_utils import DOCKER_INFO
 from utils.docker_utils import DEFAULT_REGISTRY, get_endpoint_architecture, sanitize_docker_baseurl
-from utils.misc_utils import human_size, sanitize_hostname, SimpleWindowBrowser
+from utils.misc_utils import human_size, open_browser_url, sanitize_hostname
 
 VSCODE_PORT = 8088
 CONTAINER_SECRETS_DIR = "/run/secrets"
@@ -306,8 +306,7 @@ class DTCommand(DTCommandAbs):
 
         # open web browser tab, give the web browser a second to get up
         time.sleep(1)
-        browser = SimpleWindowBrowser()
-        browser.open(url)
+        open_browser_url(url)
 
         # attach
         if parsed.detach:

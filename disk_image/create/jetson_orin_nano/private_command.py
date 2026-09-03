@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from dt_data_api.constants import PUBLIC_STORAGE_URL
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -70,14 +71,16 @@ DISK_IMAGE_PARTITION_TABLE = {
     "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.3.1"
+DISK_IMAGE_VERSION = "1.3.4"
 ROOT_PARTITION = "APP"
-JETPACK_VERSION = "6.2.1-B"
+JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = f"nvidia-jetpack-orin-v{JETPACK_VERSION}"
 INPUT_DISK_IMAGE_URL = (
-    f"https://duckietown-public-storage.s3.amazonaws.com/"
-    f"disk_image/disk_template/{JETPACK_DISK_IMAGE_NAME}.zip"
+    PUBLIC_STORAGE_URL.format(
+        bucket="public",
+        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/{JETPACK_DISK_IMAGE_NAME}.img.zip",
+    )
 )
 TEMPLATE_FILE_VALIDATOR = {
     f"{ROOT_PARTITION}:/data/autoboot/*.yaml": lambda *a, **kwa: validator_autoboot_stack(*a, **kwa),
@@ -244,7 +247,7 @@ class DTCommand(DTCommandAbs):
         distro = get_distro(shell)
         # create a virtual SD card object
         sd_card = VirtualSDCard(out_file_path("img"), DISK_IMAGE_PARTITION_TABLE)
-        # this is the surgey plan that will be performed by the init_sd_card command
+        # this is the surgery plan that will be performed by the sd_card init command
         surgery_plan = []
         # define disk image origin (by default we use the official vanilla nVidia JetPack OS)
         # if a custom input image is provided, use it as the source
@@ -650,6 +653,11 @@ class DTCommand(DTCommandAbs):
                         run_cmd_in_partition(
                             ROOT_PARTITION,
                             "systemctl set-default multi-user.target 2>/dev/null || true"
+                        )
+
+                        run_cmd_in_partition(
+                            ROOT_PARTITION,
+                            "sed -i 's|<SOC>|t234|g' /etc/apt/sources.list.d/*.list 2>/dev/null || true",
                         )
 
                         # update package index

@@ -10,25 +10,21 @@ ROBOT_TYPE_FILE=${CONFIG_DIR}/robot_type
 ROBOT_HARDWARE_FILE=${CONFIG_DIR}/robot_hardware
 # Nvidia Jetson-based duckiebots need the GPIO pin #29 (aka sysfs gpio149) to be set to HIGH to keep the DTHut alive
 HUT_RESET_SYSFS_PIN_NO=149
+ROOT_GROWTH_TOLERANCE_BYTES=$((64 * 1024 * 1024))
 
-# Identify the SD_DEVICE based on the hardware
-if [[ -e /dev/mmcblk0 && -e /dev/mmcblk1 ]]; then
-    echo "Both /dev/mmcblk0 and /dev/mmcblk1 are present, Waveshare Jetson Nano identified"
-    SD_DEVICE=/dev/mmcblk1
-    PARTITION=${SD_DEVICE}p${ROOT_PART_ID}
-elif [[ -e /dev/mmcblk0 && -e /dev/sda ]]; then
-    echo "/dev/mmcblk0 and /dev/sda are present, Blue Jetson Nano identified"
-    SD_DEVICE=/dev/sda
-    PARTITION=${SD_DEVICE}${ROOT_PART_ID}
-elif [[ -e /dev/mmcblk0 && ! -e /dev/mmcblk1 && ! -e /dev/sda ]]; then
-    echo "Only /dev/mmcblk0 is present, Original Jetson Nano identified"
-    SD_DEVICE=/dev/mmcblk0
-    PARTITION=${SD_DEVICE}p${ROOT_PART_ID}
-else
-    echo "Unexpected disk configuration, defaulting to /dev/mmcblk0"
-    SD_DEVICE=/dev/mmcblk0
-    PARTITION=${SD_DEVICE}p${ROOT_PART_ID}
-fi
+detect_root_blockdevs() {
+    local parent_device
+
+    PARTITION="$(findmnt -n -o SOURCE /)" || return 1
+    parent_device="$(lsblk -no PKNAME "$PARTITION")" || return 1
+    ROOT_PART_ID="$(echo "$PARTITION" | grep -oE '[0-9]+$')" || return 1
+    if [[ -z "$PARTITION" || -z "$parent_device" || -z "$ROOT_PART_ID" ]]; then
+        return 1
+    fi
+    SD_DEVICE="/dev/${parent_device}"
+
+    echo "Detected root: SD_DEVICE=${SD_DEVICE} PARTITION=${PARTITION}"
+}
 
 setup_etc_hosts() {
     cat >/etc/hosts <<EOL
@@ -51,6 +47,50 @@ store_event() {
     echo "{\"type\": \"${type}\", \"stamp\": ${now}}" > "${EVENTS_DIR}/${now}.json"
 }
 
+rootfs_uses_full_device() {
+    local device_bytes partition_bytes filesystem_bytes expected_minimum_bytes
+    local filesystem_metadata filesystem_block_count filesystem_block_size
+
+    device_bytes=$(blockdev --getsize64 "${SD_DEVICE}") || return 1
+    partition_bytes=$(blockdev --getsize64 "${PARTITION}") || return 1
+    # `df` excludes ext4 metadata blocks, so read the filesystem size from its superblock.
+    filesystem_metadata=$(tune2fs -l "${PARTITION}") || return 1
+    filesystem_block_count=$(awk '$1 == "Block" && $2 == "count:" { print $3; exit }' <<< "${filesystem_metadata}")
+    filesystem_block_size=$(awk '$1 == "Block" && $2 == "size:" { print $3; exit }' <<< "${filesystem_metadata}")
+    if [[ ! "${filesystem_block_count}" =~ ^[0-9]+$ || ! "${filesystem_block_size}" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    filesystem_bytes=$((filesystem_block_count * filesystem_block_size))
+    expected_minimum_bytes=$((device_bytes - ROOT_GROWTH_TOLERANCE_BYTES))
+
+    if ((partition_bytes < expected_minimum_bytes)); then
+        echo "Root partition is ${partition_bytes} bytes; expected at least ${expected_minimum_bytes} bytes."
+        return 1
+    fi
+    if ((filesystem_bytes < expected_minimum_bytes)); then
+        echo "Root filesystem is ${filesystem_bytes} bytes; expected at least ${expected_minimum_bytes} bytes."
+        return 1
+    fi
+}
+
+expand_rootfs() {
+    detect_root_blockdevs || return 1
+
+    if rootfs_uses_full_device; then
+        echo "Root filesystem already uses the full SD card."
+        return 0
+    fi
+
+    echo "Expanding root partition to use the full SD card..."
+    sgdisk --move-second-header "${SD_DEVICE}" || return 1
+    partprobe "${SD_DEVICE}" || return 1
+    growpart "${SD_DEVICE}" "${ROOT_PART_ID}" || return 1
+    partprobe "${SD_DEVICE}" || return 1
+    sleep 1
+    resize2fs "${PARTITION}" || return 1
+    rootfs_uses_full_device
+}
+
 run_on_first_boot() {
     echo "Setting up the robot for its first ever boot..."
 
@@ -61,11 +101,10 @@ run_on_first_boot() {
     # activate `booting` service
     cp /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
 
-    # resize root partition
-    sgdisk --move-second-header ${SD_DEVICE}
-    growpart ${SD_DEVICE} ${ROOT_PART_ID}
-    resize2fs ${PARTITION}
-    partprobe ${SD_DEVICE}
+    if ! expand_rootfs; then
+        echo "Root filesystem expansion failed; first-boot setup will retry after reboot."
+        return 1
+    fi
 
     # sanitize files
     dt-sanitize-files
@@ -211,6 +250,10 @@ if test -f "$FIRST_BOOT_EVIDENCE_FILE"; then
 else
     echo "$FIRST_BOOT_EVIDENCE_FILE does not exist so we assume this is the first boot!"
     run_on_first_boot 2>&1 | tee /data/logs/first_boot_init.log
+    first_boot_status=${PIPESTATUS[0]}
+    if [ "$first_boot_status" -ne 0 ]; then
+        exit "$first_boot_status"
+    fi
     touch "$FIRST_BOOT_EVIDENCE_FILE"
     reboot
 fi
