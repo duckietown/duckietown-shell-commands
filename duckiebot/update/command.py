@@ -364,7 +364,7 @@ class DTCommand(DTCommandAbs):
         if rtype is None and parsed.robot_type is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
             rtype = questionary.select(
-                "Select robot type:", choices=["duckiebot", "duckiedrone"]
+                "Select robot type:", choices=["duckiebot", "duckiedrone", "traffic_light"]
             ).unsafe_ask()
             if rtype is None:
                 raise UserAborted()
