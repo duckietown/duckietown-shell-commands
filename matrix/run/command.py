@@ -580,6 +580,8 @@ def configure_renderer_launch(
         app_config += ["--tutorial"]
     if parsed.profiler:
         app_config += ["--profiler"]
+    if parsed.on_top:
+        app_config += ["--on-top"]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
