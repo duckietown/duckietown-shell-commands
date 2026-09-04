@@ -233,13 +233,26 @@ class DiskMountGuard:
             written += bytes_written
 
     @staticmethod
+    def _read_all(file_descriptor: int, size: int, offset: int) -> bytes:
+        content = bytearray()
+        while len(content) < size:
+            chunk = os.pread(file_descriptor, size - len(content), offset + len(content))
+            if not chunk:
+                raise OSError(errno.EIO, "Could not read back SD-card surgery data.")
+            content.extend(chunk)
+        return bytes(content)
+
+    @staticmethod
     def _write_surgery_data(device: str, writes) -> None:
-        file_descriptor = os.open(device, os.O_WRONLY)
+        file_descriptor = os.open(device, os.O_RDWR)
         try:
             for offset, content in writes:
                 DiskMountGuard._write_all(file_descriptor, content, offset)
                 DiskMountGuard._write_all(file_descriptor, content, offset)
             os.fsync(file_descriptor)
+            for offset, content in writes:
+                if DiskMountGuard._read_all(file_descriptor, len(content), offset) != content:
+                    raise OSError(errno.EIO, "Could not verify SD-card surgery data.")
         finally:
             os.close(file_descriptor)
 

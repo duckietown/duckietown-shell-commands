@@ -111,6 +111,10 @@ class _Ext4JournalRecoveryRequired(InvalidUserInput):
     pass
 
 
+class _DarwinFATMountUnavailable(RuntimeError):
+    pass
+
+
 def _should_delegate_sd_card(parsed: argparse.Namespace) -> bool:
     if not should_delegate_to_host():
         return False
@@ -1017,7 +1021,7 @@ def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
     dtslogger.info("Updating files on the SD card...")
     for partition, partition_updates in updates_by_partition.items():
         if partition in FAT_UPDATE_PARTITIONS:
-            _update_fat_partition(partition_updates)
+            _update_fat_partition(parsed, data, partition_updates)
 
     ext4_partition_updates = [
         (partition, partition_updates)
@@ -1026,8 +1030,9 @@ def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
     ]
     mount_guard_active = False
     if ext4_partition_updates and platform.system() == "Darwin":
-        _unmount_device(parsed.device)
-        time.sleep(0.5)
+        if data.get("_darwin_disk_mount_guard") is None:
+            _unmount_device(parsed.device)
+            time.sleep(0.5)
         _ensure_darwin_disk_mount_guard(parsed, data)
         mount_guard_active = data.get("_darwin_disk_mount_guard") is not None
 
@@ -1292,9 +1297,17 @@ def _write_ext4_block(
         raise InvalidUserInput(f"Failed to update {partition_device}: {error}")
 
 
-def _update_fat_partition(partition_updates: list[tuple[dict, bytes, str]]):
+def _update_fat_partition(
+    parsed: argparse.Namespace,
+    data: dict,
+    partition_updates: list[tuple[dict, bytes, str]],
+):
     partition_device = partition_updates[0][2]
-    mountpoint = _mount_fat_partition(partition_device)
+    try:
+        mountpoint = _mount_fat_partition(partition_device)
+    except _DarwinFATMountUnavailable:
+        _update_darwin_fat_partition_by_surgery(parsed, data, partition_updates)
+        return
     try:
         for surgery_bit, content, _ in partition_updates:
             dtslogger.info("Updating [{partition}]:{path}.".format(**surgery_bit))
@@ -1304,6 +1317,48 @@ def _update_fat_partition(partition_updates: list[tuple[dict, bytes, str]]):
             _replace_mounted_file(target_path, content)
     finally:
         _unmount_fat_partition(partition_device, mountpoint)
+
+
+def _update_darwin_fat_partition_by_surgery(
+    parsed: argparse.Namespace,
+    data: dict,
+    partition_updates: list[tuple[dict, bytes, str]],
+):
+    partition_device = partition_updates[0][2]
+    partition_info = _get_darwin_partition_info(partition_device)
+    partition_offset = partition_info.get("PartitionMapPartitionOffset")
+    partition_size = partition_info.get("Size")
+    if partition_info.get("Content") != "Windows_FAT_32" or not isinstance(partition_offset, int) or not isinstance(partition_size, int):
+        raise InvalidUserInput(
+            f"macOS could not mount {partition_device}; refusing to update it with raw writes."
+        )
+
+    partition_end = partition_offset + partition_size
+    writes = []
+    for surgery_bit, content, _ in partition_updates:
+        offset = surgery_bit.get("offset_bytes")
+        length = surgery_bit.get("length_bytes")
+        if surgery_bit.get("partition") != "configfs" or not isinstance(offset, int) or not isinstance(length, int):
+            raise InvalidUserInput(
+                f"macOS could not mount {partition_device}; its update metadata cannot be safely applied."
+            )
+        if length <= 0 or len(content) > length or offset < partition_offset or offset + length > partition_end:
+            raise InvalidUserInput(
+                f"macOS could not mount {partition_device}; its update metadata falls outside the configfs partition."
+            )
+        dtslogger.info("Updating [{partition}]:{path} using fixed disk-image offsets.".format(**surgery_bit))
+        writes.append((offset, content + b"\n" * (length - len(content))))
+
+    dtslogger.warning(
+        f"macOS cannot mount {partition_device}; applying validated configfs updates directly."
+    )
+    _unmount_device(parsed.device)
+    time.sleep(0.5)
+    _ensure_darwin_disk_mount_guard(parsed, data)
+    guard = data.get("_darwin_disk_mount_guard")
+    if guard is None:
+        raise RuntimeError("Could not start the macOS disk mount guard for configfs updates.")
+    _write_darwin_surgery(guard, writes)
 
 
 def _mount_fat_partition(partition_device: str) -> str:
@@ -1317,14 +1372,14 @@ def _mount_fat_partition(partition_device: str) -> str:
             mountpoint = _get_darwin_mountpoint(partition_device)
             if mountpoint:
                 return mountpoint
-            raise
+            raise _DarwinFATMountUnavailable(partition_device)
         for _ in range(5):
             mountpoint = _get_darwin_mountpoint(partition_device)
             if mountpoint:
                 return mountpoint
             time.sleep(0.2)
         if not mountpoint:
-            raise InvalidUserInput(f"Could not mount {partition_device} for update.")
+            raise _DarwinFATMountUnavailable(partition_device)
         return mountpoint
     mountpoint = tempfile.mkdtemp(prefix="dts-sd-card-update-")
     try:
@@ -1355,10 +1410,13 @@ def _get_mounted_partition_path(mountpoint: str, path: str) -> str:
 
 
 def _get_darwin_mountpoint(partition_device: str) -> Optional[str]:
-    partition_info = plistlib.loads(
+    return _get_darwin_partition_info(partition_device).get("MountPoint")
+
+
+def _get_darwin_partition_info(partition_device: str) -> dict:
+    return plistlib.loads(
         _run_cmd(["diskutil", "info", "-plist", partition_device], get_output=True).encode("utf-8")
     )
-    return partition_info.get("MountPoint")
 
 
 def _replace_mounted_file(target_path: str, content: bytes):
