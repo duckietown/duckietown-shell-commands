@@ -925,6 +925,7 @@ class DTCommand(DTCommandAbs):
                 "token": "",
                 "robot_type": "",
                 "robot_configuration": "",
+                "duckie_password_hash": "!",
                 "robot_distro": shell.profile.distro.name,
                 "netplan_wifi_networks": "{}",
                 "sanitize_files": None,

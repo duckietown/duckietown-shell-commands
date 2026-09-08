@@ -16,6 +16,7 @@ from disk_image.create.utils import \
     pull_docker_image
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
+from utils.duckie_password_utils import prompt_and_hash_duckie_password
 from utils.duckietown_utils import get_robot_types, get_robot_configurations, USER_DATA_DIR
 from utils.misc_utils import pretty_json, pretty_exc
 from ..destroy.command import DTCommand as DestroyVirtualDuckiebotCommand
@@ -108,6 +109,7 @@ class DTCommand(DTCommandAbs):
         if os.path.exists(vbot_dir):
             dtslogger.error("Another virtual robot already exists with the same name.")
             return
+        parsed.duckie_password_hash = prompt_and_hash_duckie_password()
         # create virtual bot directory
         dtslogger.info(f"Create root directory for your virtual robot at {vbot_dir}.")
         os.makedirs(vbot_dir)
@@ -225,6 +227,9 @@ class DTCommand(DTCommandAbs):
             # - data/config/robot_distro
             with open(os.path.join(vbot_root_dir, "data", "config", "robot_distro"), "wt") as fout:
                 fout.write(shell.profile.distro.name)
+            # - data/config/duckie_password_hash
+            with open(os.path.join(vbot_root_dir, "data", "config", "duckie_password_hash"), "wt") as fout:
+                fout.write(f"duckie:{parsed.duckie_password_hash}\n")
             # - data/stats/MAC/eth0
             with open(os.path.join(vbot_root_dir, "data", "stats", "MAC", "eth0"), "wt") as fout:
                 fout.write(random_virtual_mac_address())

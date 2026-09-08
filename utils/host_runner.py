@@ -56,7 +56,7 @@ HOST_RUNNER_HEARTBEAT_INTERVAL_SECONDS = 1
 HOST_RUNNER_WORKSPACE_MARKER = Path("workspace/.devcontainer/scripts/host_runner.py")
 PASSWORD_PROMPT_LINE_LIMIT = 256
 PASSWORD_PROMPT_PATTERN = re.compile(
-    r"(?:\[sudo\]\s*)?(?:password|passphrase)(?: for [^:\r\n]+)?:\s*$",
+    r"(?:\[sudo\]\s*)?(?:confirm\s+)?(?:password|passphrase)(?: for [^:\r\n]+)?:\s*$",
     re.IGNORECASE,
 )
 FORWARDED_ENVIRONMENT_KEYS = (

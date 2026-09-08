@@ -25,6 +25,11 @@ from math import floor, log2
 
 from dt_shell import __version__ as shell_version, DTCommandAbs, DTShell, dtslogger
 from utils.cli_utils import ask_confirmation, ensure_command_is_installed
+from utils.duckie_password_utils import (
+    hash_duckie_password,
+    prompt_and_hash_duckie_password,
+    validate_duckie_password,
+)
 from utils.duckietown_utils import (
     get_robot_configurations,
     get_robot_hardware,
@@ -103,6 +108,7 @@ UPDATEABLE_PLACEHOLDERS = {
     "hostname": {"HOSTNAME"},
     "wifi": {"NETPLAN", "NETPLAN_WIFI_CONFIG", "WPA_SUPPLICANT"},
     "country": {"COUNTRY", "WPA_SUPPLICANT"},
+    "password": {"DUCKIE_PASSWORD_HASH"},
 }
 FAT_UPDATE_PARTITIONS = {"configfs"}
 
@@ -380,6 +386,16 @@ class DTCommand(DTCommandAbs):
                 dtslogger.info("No configuration received, exiting...")
                 exit(0)
             # populate args
+            password = values["password"]
+            password_confirmation = values["password_confirmation"]
+            if password != password_confirmation:
+                parser.error("Passwords do not match.")
+            if validate_duckie_password(password) is not None:
+                parser.error(
+                    "Invalid password. It must contain at least 8 characters and "
+                    "cannot contain colons or line breaks."
+                )
+            parsed.duckie_password_hash = hash_duckie_password(password)
             parsed.hostname = values["hostname"]
             parsed.robot_type = values["type"]
             parsed.robot_configuration = values[f"{parsed.robot_type}_configuration"]
@@ -453,6 +469,10 @@ class DTCommand(DTCommandAbs):
             if step_name not in step2function:
                 msg = "Cannot find step %r in %s" % (step_name, list(step2function))
                 raise InvalidUserInput(msg)
+
+        if "setup" in steps and not gui:
+            parsed.duckie_password_hash = prompt_and_hash_duckie_password()
+
         # compile hardware specific disk image name and url
         base_disk_image = BASE_DISK_IMAGE(parsed.robot_configuration, parsed.experimental, version_override=parsed.disk_image_version)
 
@@ -977,6 +997,7 @@ def _get_update_placeholders(parsed: argparse.Namespace, surgery_plan: list[dict
         "hostname": parsed.hostname is not None,
         "wifi": parsed.wifi is not None,
         "country": parsed.country is not None,
+        "password": getattr(parsed, "update_password", False),
     }
     for option, requested in requested_options.items():
         if not requested:
@@ -1064,9 +1085,13 @@ def step_update(shell: DTShell, parsed: argparse.Namespace, data: dict):
 
 
 def _get_update_file_updates(parsed: argparse.Namespace, selected_placeholders: set[str], surgery_plan: list[dict]):
+    password_hash = getattr(parsed, "duckie_password_hash", None)
+    if "DUCKIE_PASSWORD_HASH" in selected_placeholders and not password_hash:
+        raise InvalidUserInput("A password for the duckie user is required during SD card update.")
     surgery_data = {
         "hostname": parsed.hostname,
         "country": parsed.country,
+        "duckie_password_hash": password_hash,
         "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
         "netplan_open_networks": _get_netplan_networks(parsed, "open"),
         "netplan_wpa_psk_networks": _get_netplan_networks(parsed, "psk"),
@@ -1403,6 +1428,13 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     params = copy.deepcopy(parsed.__dict__)
     wfstr = lambda w: w if ":" not in w else (w.split(":")[0] + ":***")
     params["wifi"] = ",".join(list(map(wfstr, params["wifi"].split(","))))
+    password_hash = params.pop("duckie_password_hash", None)
+    selected_placeholders = data.get("selected_placeholders")
+    password_update_requested = (
+        selected_placeholders is None or "DUCKIE_PASSWORD_HASH" in selected_placeholders
+    )
+    if password_update_requested and not password_hash:
+        raise InvalidUserInput("A password for the duckie user is required during SD card setup.")
     robot_board, _ = get_robot_hardware(parsed.robot_configuration)
     robot_hardware = {
         "jetson_nano_2gb": "jetson_nano",
@@ -1416,6 +1448,7 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         "token": shell.profile.secrets.dt_token,
         "robot_configuration": parsed.robot_configuration,
         "robot_hardware": robot_hardware,
+        "duckie_password_hash": password_hash or "!",
         "robot_distro": shell.profile.distro.name,
         "netplan_wifi_networks": _get_netplan_wifi_configuration(parsed),
         # netplan configurations for v2.0 placeholders (Jetson Orin Nano)
@@ -1454,6 +1487,13 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
         disk_metadata = json.load(fin)
     # get surgery plan
     surgery_plan = disk_metadata["surgery_plan"]
+    if password_update_requested and not any(
+        step.get("placeholder") == "DUCKIE_PASSWORD_HASH" for step in surgery_plan
+    ):
+        raise InvalidUserInput(
+            "The selected disk image does not support setting a password for the duckie user. "
+            "Use the current disk image version."
+        )
     darwin_disk_mount_guard = data.get("_darwin_disk_mount_guard")
     darwin_surgery_writes = (
         []
@@ -1473,7 +1513,6 @@ def step_setup(shell: DTShell, parsed: argparse.Namespace, data: dict):
     placeholders_dir = os.path.join(ASSETS_DIR, "_placeholders", "v" + placeholders_version)
     # perform surgery
     dtslogger.info("Performing surgery on the SD card...")
-    selected_placeholders = data.get("selected_placeholders")
     for surgery_bit in surgery_plan:
         if selected_placeholders is not None and surgery_bit["placeholder"] not in selected_placeholders:
             continue

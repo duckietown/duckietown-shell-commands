@@ -3,6 +3,7 @@ import argparse
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from .. import _implementation as sd_card_impl
+from utils.duckie_password_utils import prompt_and_hash_duckie_password
 from utils.exceptions import InvalidUserInput
 from utils.host_runner import HostRunnerError, delegate_sd_card_update_to_host
 
@@ -30,6 +31,11 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--hostname", default=None, help="New hostname for the device")
         parser.add_argument("--wifi", default=None, help="Replacement WiFi network list")
         parser.add_argument("--country", default=None, help="Replacement 2-letter WiFi country code")
+        parser.add_argument(
+            "--password",
+            action="store_true",
+            help="Prompt securely for a new duckie account password",
+        )
         parser.add_argument(
             "--experimental",
             default=False,
@@ -74,8 +80,11 @@ class DTCommand(DTCommandAbs):
         )
         parsed = parser.parse_args(args=args)
 
-        if all(value is None for value in (parsed.hostname, parsed.wifi, parsed.country)):
-            parser.error("Specify at least one setting to update: --hostname, --wifi, or --country.")
+        if (
+            all(value is None for value in (parsed.hostname, parsed.wifi, parsed.country))
+            and not parsed.password
+        ):
+            parser.error("Specify at least one setting to update: --hostname, --wifi, --country, or --password.")
 
         if sd_card_impl._should_delegate_sd_card(parsed):
             dtslogger.info("Delegating SD card update to the host...")
@@ -86,6 +95,11 @@ class DTCommand(DTCommandAbs):
             if exit_code != 0:
                 exit(exit_code)
             return
+
+        parsed.update_password = parsed.password
+        del parsed.password
+        if parsed.update_password:
+            parsed.duckie_password_hash = prompt_and_hash_duckie_password()
 
         try:
             sd_card_impl.update_sd_card(shell, parsed)
