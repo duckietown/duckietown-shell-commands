@@ -66,7 +66,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "RP4": 14,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "2.0.11"
+DISK_IMAGE_VERSION = "2.0.12"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.6.6"
 DEVICE_ARCH = "arm64v8"
@@ -590,13 +590,13 @@ class DTCommand(DTCommandAbs):
                                 "The full error is:\n\t%s" % str(e)
                             )
                         exit(2)
-                    # Fix the incorrect base image password for the `duckie` user (it should be `quackquack` rather than `quack`)
+                    # Lock the generic image account until sd_card init applies a user-provided password.
                     try:
                         output = run_cmd_in_partition(
-                            ROOT_PARTITION, 'echo "duckie:quackquack" | chpasswd', get_output=True
+                            ROOT_PARTITION, "usermod --lock duckie", get_output=True
                         )
                     except (BaseException, subprocess.CalledProcessError) as e:
-                        dtslogger.error(f"An error occurred when fixing the `duckie` user password:\n{e}")
+                        dtslogger.error(f"An error occurred when locking the `duckie` user password:\n{e}")
 
                     # compile list of packages to hold
                     to_hold = " ".join(APT_PACKAGES_TO_HOLD)

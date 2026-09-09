@@ -71,7 +71,7 @@ DISK_IMAGE_PARTITION_TABLE = {
     "reserved": 15,
 }
 DISK_IMAGE_SIZE_GB = 20
-DISK_IMAGE_VERSION = "1.3.4"
+DISK_IMAGE_VERSION = "1.3.5"
 ROOT_PARTITION = "APP"
 JETPACK_VERSION = "6.2.1"
 DEVICE_ARCH = "arm64v8"
@@ -649,6 +649,8 @@ class DTCommand(DTCommandAbs):
                         dtslogger.info(f"Native ARM64 host detected ({host_arch}) - skipping QEMU setup")
                     # from this point on, if anything weird happens, unmount the `root` disk
                     try:
+                        run_cmd_in_partition(ROOT_PARTITION, "usermod --lock duckie")
+
                         # Disable GUI first (before any apt operations)
                         run_cmd_in_partition(
                             ROOT_PARTITION,

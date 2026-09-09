@@ -13,7 +13,7 @@ from dt_shell import DTShell, dtslogger
 
 from utils.assets_utils import load_schema, get_schema_icon_filepath, get_schema_html_filepath
 from utils.docker_utils import get_registry_to_use, get_endpoint_architecture
-from utils.misc_utils import indent_block, pretty_json
+from utils.misc_utils import indent_block
 
 UTILITY_DASHBORD_IMAGE = "{registry}/duckietown/jsonschema-form:{distro}-{arch}"
 UTILITY_DASHBORD_PORT = "8080"
@@ -158,10 +158,7 @@ def open_form(
                     assert os.path.exists(values_fpath)
                     with open(values_fpath, "rt") as fin:
                         values = json.load(fin)
-                        dtslogger.debug(
-                            f"Container '{container_name}' returned values:\n"
-                            f"{pretty_json(values, indent=4)}"
-                        )
+                        dtslogger.debug(f"Container '{container_name}' returned form values.")
                 elif not user_terminated:
                     raise e
             # user terminated
