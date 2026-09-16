@@ -9,6 +9,20 @@
             "maxLength": 12,
             "required": true
         },
+        "password": {
+            "title": "Duckie Account Password",
+            "description": "Password for the duckie account",
+            "type": "password",
+            "minLength": 8,
+            "required": true
+        },
+        "password_confirmation": {
+            "title": "Confirm Duckie Account Password",
+            "description": "Re-enter the password for the duckie account",
+            "type": "password",
+            "minLength": 8,
+            "required": true
+        },
         "type": {
             "title": "Type",
             "description": "What type of robot are we initializing today?",
@@ -128,6 +142,8 @@
     },
     "form": [
         "hostname",
+        "password",
+        "password_confirmation",
         {
             "type": "selectfieldset",
             "key": "type",

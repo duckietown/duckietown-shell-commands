@@ -54,6 +54,7 @@ from dtproject.utils.misc import dtlabel
 from utils.duckietown_utils import DEFAULT_OWNER
 from utils.misc_utils import human_size, human_time, parse_version, pretty_json
 from utils.multi_command_utils import MultiCommand
+from utils.progress_bar import ProgressBar
 from utils.resolve import get_duckiebot_host
 from utils.pip_utils import get_pip_index_url
 
@@ -70,6 +71,9 @@ MIN_FORMAT_PER_DISTRO = {
 }
 
 GIT_LFS_POINTER_HEADER = b"version https://git-lfs.github.com/spec/v1\n"
+IMAGE_TRANSFER_MAX_ATTEMPTS = 3
+IMAGE_TRANSFER_RETRY_DELAY = 5
+IMAGE_TRANSFER_CHUNK_SIZE = 1024 * 1024
 
 
 def _project_uses_git_lfs(workdir: str) -> bool:
@@ -699,6 +703,18 @@ class DTCommand(DTCommandAbs):
         dimage: Image = docker.image.inspect(image)
         dtslogger.info("Project packaged successfully!")
 
+        if parsed.destination and parsed.machine != parsed.destination:
+            try:
+                _transfer_image(
+                    origin=parsed.machine,
+                    destination=parsed.destination,
+                    image=image,
+                    image_size=dimage.size,
+                )
+            except ProjectBuildError as e:
+                dtslogger.error(f"An error occurred while transferring the project image:\n{e}")
+                exit(1)
+
         # update manifest
         dmanifest: Optional[Manifest] = None
         if parsed.manifest:
@@ -843,6 +859,124 @@ class DTCommand(DTCommandAbs):
 
 class ProjectBuildError(Exception):
     pass
+
+
+class ImageTransferInterruptedError(ProjectBuildError):
+    pass
+
+
+def _stop_transfer_process(process: subprocess.Popen) -> None:
+    try:
+        if process.poll() is None:
+            process.terminate()
+    except OSError:
+        pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def _transfer_image(origin: Optional[str], destination: str, image: str, image_size: int) -> None:
+    source_endpoint = sanitize_docker_baseurl(origin)
+    destination_endpoint = sanitize_docker_baseurl(destination)
+    if destination_endpoint is None:
+        raise ProjectBuildError("No Docker endpoint was provided for the image destination.")
+    if image_size <= 0:
+        raise ProjectBuildError(f"Cannot determine the size of image '{image}'.")
+
+    source_command = ["docker"]
+    if source_endpoint is not None:
+        source_command.extend(["--host", source_endpoint])
+    source_command.extend(["image", "save", str(image)])
+    destination_command = ["docker", "--host", destination_endpoint, "image", "load"]
+
+    source_name = source_endpoint or "local Docker endpoint"
+    dtslogger.info(f'Transferring image "{image}": [{source_name}] -> [{destination_endpoint}]...')
+
+    for attempt in range(1, IMAGE_TRANSFER_MAX_ATTEMPTS + 1):
+        try:
+            _transfer_image_attempt(
+                source_command=source_command,
+                destination_command=destination_command,
+                image_size=image_size,
+            )
+        except ImageTransferInterruptedError as e:
+            if attempt == IMAGE_TRANSFER_MAX_ATTEMPTS:
+                raise ProjectBuildError(
+                    f"Image transfer failed after {IMAGE_TRANSFER_MAX_ATTEMPTS} attempts: {e}"
+                ) from e
+            retry_delay = IMAGE_TRANSFER_RETRY_DELAY * 2 ** (attempt - 1)
+            dtslogger.warning(
+                f"Image transfer interrupted (attempt {attempt}/{IMAGE_TRANSFER_MAX_ATTEMPTS}): {e}. "
+                f"Retrying in {retry_delay} seconds..."
+            )
+            time.sleep(retry_delay)
+        else:
+            dtslogger.info("Image transferred successfully!")
+            return
+
+
+def _transfer_image_attempt(
+    source_command: List[str], destination_command: List[str], image_size: int
+) -> None:
+    pbar = ProgressBar(header="Transferring image")
+    pbar.set_detail(f"{human_size(0)} transferred; ~{human_size(image_size)} expected")
+    pbar.update(0)
+
+    try:
+        source_process = subprocess.Popen(source_command, stdout=subprocess.PIPE)
+    except OSError as e:
+        raise ProjectBuildError(f"Cannot save the source image: {e}") from e
+
+    try:
+        destination_process = subprocess.Popen(destination_command, stdin=subprocess.PIPE)
+    except OSError as e:
+        _stop_transfer_process(source_process)
+        raise ProjectBuildError(f"Cannot load the image at the destination: {e}") from e
+
+    try:
+        transfer_error: Optional[OSError] = None
+        bytes_transferred = 0
+        try:
+            if source_process.stdout is None or destination_process.stdin is None:
+                raise ProjectBuildError("Cannot create the image transfer stream.")
+            while chunk := source_process.stdout.read(IMAGE_TRANSFER_CHUNK_SIZE):
+                destination_process.stdin.write(chunk)
+                bytes_transferred += len(chunk)
+                pbar.set_detail(
+                    f"{human_size(bytes_transferred)} transferred; ~{human_size(image_size)} expected"
+                )
+                pbar.update(min(99.0, 100.0 * bytes_transferred / image_size))
+        except OSError as e:
+            transfer_error = e
+        finally:
+            if source_process.stdout is not None:
+                source_process.stdout.close()
+            if destination_process.stdin is not None:
+                try:
+                    destination_process.stdin.close()
+                except OSError as e:
+                    transfer_error = transfer_error or e
+
+        if transfer_error is not None:
+            raise ImageTransferInterruptedError(
+                f"Image transfer stream failed: {transfer_error}"
+            ) from transfer_error
+        source_returncode = source_process.wait()
+        destination_returncode = destination_process.wait()
+        if source_returncode != 0 or destination_returncode != 0:
+            raise ImageTransferInterruptedError(
+                "Image transfer failed "
+                f"(source exit code: {source_returncode}, destination exit code: {destination_returncode})."
+            )
+    except BaseException:
+        _stop_transfer_process(source_process)
+        _stop_transfer_process(destination_process)
+        raise
+
+    pbar.done()
 
 
 def _build_line(line):

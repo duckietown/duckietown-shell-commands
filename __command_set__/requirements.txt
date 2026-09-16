@@ -7,6 +7,7 @@ GitPython==3.1.50
 python-dateutil==2.8.2
 pytz==2023.3
 psutil>=5.9.0 # FIXME: this had to be pinned to get the dependencies to resolve on aarch64
+passlib==1.7.4
 
 # force pyyaml away from specific versions: https://github.com/yaml/pyyaml/issues/724
 # Use 6.0.1+ for pre-built wheels on macOS ARM (Python 3.12+)

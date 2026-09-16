@@ -364,7 +364,7 @@ class DTCommand(DTCommandAbs):
         if rtype is None and parsed.robot_type is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
             rtype = questionary.select(
-                "Select robot type:", choices=["duckiebot", "duckiedrone"]
+                "Select robot type:", choices=["duckiebot", "duckiedrone", "traffic_light"]
             ).unsafe_ask()
             if rtype is None:
                 raise UserAborted()
@@ -508,7 +508,10 @@ class DTCommand(DTCommandAbs):
                         _delete_config_node_directory(client, run_image)
 
             # stack/up options
-            stack_up_options = ["--machine", robot, "--detach"]
+
+            # `--remove-orphans` removes containers a stack no longer declares; otherwise,
+            # they can keep restarting on already-deployed robots.
+            stack_up_options = ["--machine", robot, "--detach", "--remove-orphans"]
             if not parsed.no_pull:
                 stack_up_options.append("--pull")
 

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROBOT_TYPE=$(head -1 /data/config/robot_type)
 DOCKER_SOCKET=unix:///var/run/docker.sock
+export VEHICLE_NAME="$(hostname)"
 BOOTED=false
 
 BOOT_STACKS=(

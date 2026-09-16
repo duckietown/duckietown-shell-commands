@@ -95,6 +95,18 @@ store_event() {
 }
 
 
+apply_duckie_password() {
+    local password_file=/data/config/duckie_password_hash
+    if [ -f "${password_file}" ] && grep -q '^duckie:\$6\$' "${password_file}"; then
+        if head -n 1 "${password_file}" | chpasswd --encrypted && usermod --unlock duckie; then
+            printf '%s' '!' > "${password_file}"
+        else
+            echo "Failed to update the duckie user password."
+        fi
+    fi
+}
+
+
 run_on_setup_boot() {
     echo "Setting up the robot for its first ever (aka setup) boot..."
     setup_etc_hosts
@@ -119,7 +131,10 @@ run_on_setup_boot() {
 
     # expand rootfs
     # Why in 'setup' boot: this is needed before the swap file is created in the 'configuration' boot
-    sudo raspi-config nonint do_expand_rootfs
+    if ! sudo raspi-config nonint do_expand_rootfs; then
+        echo "Root filesystem expansion failed; setup boot will retry after reboot."
+        return 1
+    fi
 
     # enabled SSH server
     # Why in 'setup' boot: this is needed to allow remote access to the robot asap
@@ -158,6 +173,8 @@ run_on_configuration_boot() {
 
     # activate `booting` service
     mv /etc/avahi/services/dt.booting.service.disabled /etc/avahi/services/dt.booting.service
+
+    apply_duckie_password
 
     # sanitize files
     dt-sanitize-files
@@ -253,6 +270,7 @@ run_on_every_boot() {
 
     echo "Setting up the robot for this boot..."
     setup_etc_hosts
+    apply_duckie_password
 
     # copy hostname from the configuration partition
     setup_hostname
@@ -287,6 +305,11 @@ run_on_every_boot() {
     ROBOT_CONFIGURATION=$(file-or-default /data/config/robot_configuration "NOTSET")
     sed -i "s/NOTSET/${ROBOT_CONFIGURATION}/g" /etc/avahi/services/dt.robot_configuration.service.temp
     mv /etc/avahi/services/dt.robot_configuration.service.temp /etc/avahi/services/dt.robot_configuration.service
+    # - robot hardware
+    cp /etc/avahi/services/dt.robot_hardware.service.template /etc/avahi/services/dt.robot_hardware.service.temp
+    ROBOT_HARDWARE=$(file-or-default /data/config/robot_hardware "NOTSET")
+    sed -i "s/NOTSET/${ROBOT_HARDWARE}/g" /etc/avahi/services/dt.robot_hardware.service.temp
+    mv /etc/avahi/services/dt.robot_hardware.service.temp /etc/avahi/services/dt.robot_hardware.service
 
     # launch triggers handlers
     dt-serve-triggers
@@ -337,6 +360,10 @@ else
     else
         echo "$SETUP_BOOT_EVIDENCE_FILE doe NOT exist, run setup boot sequence"
         run_on_setup_boot 2>&1 | tee /data/logs/setup_boot_init.log
+        setup_boot_status=${PIPESTATUS[0]}
+        if [ "$setup_boot_status" -ne 0 ]; then
+            exit "$setup_boot_status"
+        fi
         # mark robot as 'setup'
         touch "$SETUP_BOOT_EVIDENCE_FILE"
         reboot

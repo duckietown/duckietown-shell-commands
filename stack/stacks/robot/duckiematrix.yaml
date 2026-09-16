@@ -1,3 +1,8 @@
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which `robot/basics` shares. Removing orphan containers from one stack would remove
+# the other's containers.
+name: duckiematrix
+
 services:
 
   duckiematrix-interface:

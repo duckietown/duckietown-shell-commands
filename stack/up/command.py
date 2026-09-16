@@ -50,6 +50,12 @@ class DTCommand(DTCommandAbs):
             help="Pull images before running",
         )
         parser.add_argument(
+            "--remove-orphans",
+            action="store_true",
+            default=False,
+            help="Remove containers of the project that the stack no longer declares",
+        )
+        parser.add_argument(
             "-p",
             "--project",
             required=False,
@@ -85,6 +91,9 @@ class DTCommand(DTCommandAbs):
         docker_arguments = []
         if parsed.detach:
             docker_arguments.append("--detach")
+        # --remove-orphans
+        if parsed.remove_orphans:
+            docker_arguments.append("--remove-orphans")
         # process each stack
         for stack in stacks:
             # TODO: When processing multiple stacks with a single project name, 

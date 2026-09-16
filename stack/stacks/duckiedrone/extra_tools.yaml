@@ -1,0 +1,33 @@
+# Optional Duckiedrone tools for inspecting the robot. This stack is not needed to fly or use the
+# Dashboard.
+#
+# To start this stack and detach from the running containers, run the following command, where
+# `DUCKIEDRONE_NAME` is the name of the Duckiedrone:
+#
+#   dts stack up -H DUCKIEDRONE_NAME -d duckiedrone/extra_tools
+#
+# To stop this stack, run the following command, where `DUCKIEDRONE_NAME` is the name of the
+# Duckiedrone:
+#
+#   dts stack down -H DUCKIEDRONE_NAME duckiedrone/extra_tools
+
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which the other optional Duckiedrone stacks share. Taking one down would remove the
+# others' containers.
+name: duckiedrone-extra-tools
+
+services:
+
+  # The ROS 2 bridge below requires `zenoh-router` from the `ros2/duckiedrone` stack, which runs
+  # in a different Compose project. It cannot declare it as a `depends_on` dependency, so it
+  # retries until it is available.
+
+  foxglove-bridge:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-foxglove-bridge
+    restart: unless-stopped
+    network_mode: host
+    command: ["bash", "-c", ". /opt/ros/jazzy/setup.bash && ros2 launch foxglove_bridge foxglove_bridge_launch.xml"]
+    environment:
+      ROS_DOMAIN_ID: 42
+      RMW_IMPLEMENTATION: rmw_zenoh_cpp
