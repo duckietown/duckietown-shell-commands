@@ -10,7 +10,12 @@ services:
     environment:
       DT_LAUNCHER: default
       DT_SUPERUSER: 1
+      DT_CAMERA_SHM_IN_PATH: ${DT_CAMERA_SHM_IN_PATH:-/dtps-shm/front_center}
+      DT_CAMERA_SHM_ONLY_JPEG: ${DT_CAMERA_SHM_ONLY_JPEG:-0}
+      DT_CAMERA_SHM_ONLY_INFO: ${DT_CAMERA_SHM_ONLY_INFO:-0}
+      DT_CAMERA_SHM_ONLY_PARAMETERS: ${DT_CAMERA_SHM_ONLY_PARAMETERS:-0}
     volumes:
+      - camera-shm:/dtps-shm
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
@@ -40,3 +45,8 @@ services:
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
       - /data:/data
+
+volumes:
+  camera-shm:
+    external: true
+    name: ${DT_CAMERA_SHM_VOLUME:-duckietown-camera-shm}
