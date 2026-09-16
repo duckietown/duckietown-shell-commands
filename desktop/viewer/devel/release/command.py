@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import yaml
+from utils.data_endpoint_utils import create_data_client
 from utils.duckietown_viewer_utils import \
     DCSS_SPACE_NAME, \
     remote_zip_obj, \
@@ -52,15 +53,26 @@ class DTCommand(DTCommandAbs):
         token: str = parsed.token
         if token is None:
             token = shell.profile.secrets.dt_token
+        data_client = create_data_client(shell, token)
 
         # release each OS family
         for os_family in os_families:
-            DTCommand._release_single_architecture(shell, os_family, build_dir, build_dir_rel, token, parsed.force)
+            DTCommand._release_single_architecture(
+                shell, os_family, build_dir, build_dir_rel, token, parsed.force, data_client
+            )
 
         dtslogger.info(f"Congrats! You just released {len(os_families)} architecture(s): {', '.join(os_families)}.")
 
     @staticmethod
-    def _release_single_architecture(shell: DTShell, os_family: str, build_dir: str, build_dir_rel: str, token: str, force: bool):
+    def _release_single_architecture(
+        shell: DTShell,
+        os_family: str,
+        build_dir: str,
+        build_dir_rel: str,
+        token: str,
+        force: bool,
+        data_client=None,
+    ):
         dtslogger.info(f"\n--- Releasing {os_family} ---")
         
         # read latest-{os_family}.yml
@@ -78,7 +90,7 @@ class DTCommand(DTCommandAbs):
         dtslogger.info(f"Release version: v{release_version}")
 
         # check whether the same version was already released
-        if is_version_released(release_version, os_family):
+        if is_version_released(release_version, os_family, client=data_client):
             dtslogger.warn(f"The version v{release_version} for OS Family '{os_family}' was found "
                            f"already on the DCSS, are you re-releasing this version? "
                            f"(use -f/--force to continue)")
@@ -89,7 +101,7 @@ class DTCommand(DTCommandAbs):
                 dtslogger.warn("Forced!")
 
         # check whether we are releasing an older version
-        latest: Optional[str] = get_latest_version(os_family)
+        latest: Optional[str] = get_latest_version(os_family, client=data_client)
         if latest is not None and versiontuple(latest) > versiontuple(release_version):
             dtslogger.warn(f"The version v{latest} was found on the DCSS, are you releasing "
                            f"an older version? (use -f/--force to continue)")
@@ -121,7 +133,7 @@ class DTCommand(DTCommandAbs):
 
         # mark this as latest (if needed)
         if latest is None or versiontuple(latest) < versiontuple(release_version):
-            mark_as_latest_version(token, release_version, os_family)
+            mark_as_latest_version(token, release_version, os_family, client=data_client)
 
         dtslogger.info(f"Successfully released {os_family} v{release_version}.")
 

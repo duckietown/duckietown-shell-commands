@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import dt_data_api
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
+from utils.data_endpoint_utils import create_data_client
 from utils.duckiematrix_utils import \
     APP_NAME, \
     DCSS_SPACE_NAME, \
@@ -42,6 +43,7 @@ class DTCommand(DTCommandAbs):
         else:
             os_family = get_os_family()
         version = parsed.version
+        data_client = create_data_client(shell)
         installed_version = None
         if version:
             latest_version = version
@@ -53,13 +55,15 @@ class DTCommand(DTCommandAbs):
                             f"-U/--update to update to the latest version (if any is available).")
                 return
             # get latest version available on the DCSS
-            latest_version = get_latest_version(os_family, webgl)
+            latest_version = get_latest_version(os_family, webgl, client=data_client)
         latest = latest_version + "-" + ("webgl" if webgl else os_family)
         app_dir = os.path.join(APP_RELEASES_DIR, f"v{latest}")
         remote_checksum = None
         if os.path.isdir(app_dir):
             try:
-                remote_checksum = get_remote_release_checksum(latest_version, os_family, webgl)
+                remote_checksum = get_remote_release_checksum(
+                    latest_version, os_family, webgl, client=data_client
+                )
             except Exception as e:
                 dtslogger.debug(f"Could not fetch release checksum for 'v{latest}': {e}")
             local_checksum = get_installed_release_checksum(os_family, latest_version, webgl)
@@ -106,7 +110,9 @@ class DTCommand(DTCommandAbs):
         subprocess.check_call(["unzip", f"v{latest}.zip"], cwd=app_dir)
         if remote_checksum is None:
             try:
-                remote_checksum = get_remote_release_checksum(latest_version, os_family, webgl)
+                remote_checksum = get_remote_release_checksum(
+                    latest_version, os_family, webgl, client=data_client
+                )
             except Exception as e:
                 dtslogger.debug(f"Could not store release checksum for 'v{latest}': {e}")
         if remote_checksum is not None:

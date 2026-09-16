@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from dt_data_api.constants import PUBLIC_STORAGE_URL
+from utils.data_endpoint_utils import get_public_storage_url
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -71,10 +71,9 @@ ROOT_PARTITION = "APP"
 JETPACK_VERSION = "4.6.6"
 DEVICE_ARCH = "arm64v8"
 JETPACK_DISK_IMAGE_NAME = lambda v: f"nvidia-jetpack-v{JETPACK_VERSION}-{v}"
-INPUT_DISK_IMAGE_URL = (
-    lambda v: PUBLIC_STORAGE_URL.format(
-        bucket="public",
-        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/disk_template/{JETPACK_DISK_IMAGE_NAME(v)}.zip",
+INPUT_DISK_IMAGE_OBJECT = (
+    lambda v: os.path.join(
+        DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{JETPACK_DISK_IMAGE_NAME(v)}.zip"
     )
 )
 TEMPLATE_FILE_VALIDATOR = {
@@ -246,7 +245,9 @@ class DTCommand(DTCommandAbs):
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
-            "input_url": INPUT_DISK_IMAGE_URL(parsed.jetson_version),
+            "input_url": get_public_storage_url(
+                shell, INPUT_DISK_IMAGE_OBJECT(parsed.jetson_version)
+            ),
             "base_type": "Nvidia Jetpack",
             "base_version": JETPACK_VERSION,
             "environment": {
@@ -359,11 +360,7 @@ class DTCommand(DTCommandAbs):
                     [],
                     parsed=SimpleNamespace(
                         file=[in_file_path("zip")],
-                        object=[
-                            os.path.join(
-                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{jetpack_disk_image_name}.zip"
-                            )
-                        ],
+                        object=[INPUT_DISK_IMAGE_OBJECT(parsed.jetson_version)],
                         space="public",
                     ),
                 )

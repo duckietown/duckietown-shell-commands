@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from typing import List, Optional
 
+from utils.data_endpoint_utils import get_public_storage_url
 from disk_image.create.steps import step_docker, step_push
-from dt_data_api.constants import PUBLIC_STORAGE_URL
 from dt_shell import DTCommandAbs, dtslogger, DTShell, __version__ as shell_version
 
 import argparse
@@ -93,11 +93,8 @@ OS_VERSION = "01jul2024"
 DEVICE_ARCH = "arm64v8"
 DEFAULT_DOCKER_REGISTRY = "docker.io"
 DISK_IMAGE_NAME = f"raspios-bookworm-lite-v{OS_VERSION}-{DEVICE_ARCH}"
-INPUT_DISK_IMAGE_URL = (
-    PUBLIC_STORAGE_URL.format(
-        bucket="public",
-        object=f"{DATA_STORAGE_DISK_IMAGE_DIR}/disk_template/{DISK_IMAGE_NAME}.zip",
-    )
+INPUT_DISK_IMAGE_OBJECT = os.path.join(
+    DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{DISK_IMAGE_NAME}.zip"
 )
 TEMPLATE_FILE_VALIDATOR = {
     f"{ROOT_PARTITION}:/data/stacks/available/*.yaml":
@@ -305,7 +302,7 @@ class DTCommand(DTCommandAbs):
             "steps": {step: bool(step in parsed.steps) for step in SUPPORTED_STEPS},
             "version": DISK_IMAGE_VERSION,
             "input_name": input_image_name,
-            "input_url": INPUT_DISK_IMAGE_URL,
+            "input_url": get_public_storage_url(shell, INPUT_DISK_IMAGE_OBJECT),
             "base_type": "Raspberry Pi OS",
             "base_version": OS_VERSION,
             "environment": {
@@ -385,11 +382,7 @@ class DTCommand(DTCommandAbs):
                     [],
                     parsed=SimpleNamespace(
                         file=[in_file_path("zip")],
-                        object=[
-                            os.path.join(
-                                DATA_STORAGE_DISK_IMAGE_DIR, "disk_template", f"{DISK_IMAGE_NAME}.zip"
-                            )
-                        ],
+                        object=[INPUT_DISK_IMAGE_OBJECT],
                         space="public",
                     ),
                 )

@@ -33,9 +33,11 @@ def get_os_family() -> str:
         return "macos"
 
 
-def get_latest_version(os_family: str = "", webgl: bool = False) -> str:
+def get_latest_version(
+    os_family: str = "", webgl: bool = False, client: Optional[DataClient] = None
+) -> str:
     # create storage client
-    client = DataClient()
+    client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{'webgl' if webgl else os_family}")
@@ -117,8 +119,10 @@ def get_release_checksum(metadata: Mapping[str, str]) -> Optional[str]:
     return None
 
 
-def get_remote_release_checksum(version: str, os_family: str = "", webgl: bool = False) -> Optional[str]:
-    client = DataClient()
+def get_remote_release_checksum(
+    version: str, os_family: str = "", webgl: bool = False, client: Optional[DataClient] = None
+) -> Optional[str]:
+    client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     release_obj = remote_zip_obj(version, os_family, webgl)
     metadata = storage.head(release_obj)
@@ -153,9 +157,11 @@ def write_installed_release_checksum(app_dir: str, checksum: Optional[str]) -> N
         fout.write("\n")
 
 
-def is_version_released(version: str, os_family: str = "") -> bool:
+def is_version_released(
+    version: str, os_family: str = "", client: Optional[DataClient] = None
+) -> bool:
     # create storage client
-    client = DataClient()
+    client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # check whether the object exists
     release_obj = remote_zip_obj(version, os_family)
@@ -170,9 +176,11 @@ def remote_zip_obj(version: str, os_family: str = "", webgl: bool = False) -> st
     return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{('webgl' if webgl else os_family)}.zip")
 
 
-def mark_as_latest_version(token: str, version: str, os_family: str):
+def mark_as_latest_version(
+    token: str, version: str, os_family: str, client: Optional[DataClient] = None
+):
     # create storage client
-    client = DataClient(token)
+    client = client or DataClient(token)
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")

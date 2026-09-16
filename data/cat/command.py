@@ -2,7 +2,7 @@ import signal
 
 from dt_shell import DTCommandAbs, dtslogger
 
-from dt_data_api import DataClient
+from utils.data_endpoint_utils import create_data_client, get_storage_endpoint
 
 VALID_SPACES = ["user", "public", "private"]
 
@@ -64,11 +64,15 @@ Where <space> can be one of {str(VALID_SPACES)}.
         token: str = shell.profile.secrets.dt_token
 
         # create storage client
-        client = DataClient(token)
+        client = create_data_client(shell, token)
         storage = client.storage(parsed.space)
+        endpoint = get_storage_endpoint(shell, parsed.space)
 
         # download file
-        dtslogger.info(f"Downloading [{parsed.space}]:{parsed.object}")
+        dtslogger.info(
+            f"Downloading via the '{endpoint}' endpoint "
+            f"[{parsed.space}]:{parsed.object}"
+        )
         handler = storage.download(parsed.object)
 
         # capture SIGINT and abort

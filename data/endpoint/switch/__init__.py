@@ -1,0 +1,1 @@
+"""Endpoint switch command."""

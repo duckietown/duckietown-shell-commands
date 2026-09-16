@@ -23,6 +23,7 @@ from dockertown.exceptions import NoSuchContainer, NoSuchImage
 from dt_data_api import DataClient
 
 import dt_shell
+from utils.data_endpoint_utils import create_data_client
 from dt_shell import dtslogger, DTShell, UserError
 from utils.host_runner import (
     HOST_RUNNER_FRONTEND_URL_ENV,
@@ -297,7 +298,9 @@ def resolve_os_family(os_family: str = "", browser: bool = False) -> str:
     return os_family
 
 
-def get_latest_version(os_family: str = "") -> Optional[str]:
+def get_latest_version(
+    os_family: str = "", client: Optional[DataClient] = None
+) -> Optional[str]:
     """Fetch the latest available version string from the Duckietown Cloud Storage.
 
     Args:
@@ -309,7 +312,7 @@ def get_latest_version(os_family: str = "") -> Optional[str]:
         been published for the given OS family.
     """
     # create storage client
-    client = DataClient()
+    client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
@@ -411,7 +414,9 @@ def get_path_to_binary(version: str, os_family: str = ""):
     return os.path.join(app_dir, f"{APP_NAME}-v{version}.{ext}")
 
 
-def is_version_released(version: str, os_family: str = "") -> bool:
+def is_version_released(
+    version: str, os_family: str = "", client: Optional[DataClient] = None
+) -> bool:
     """Check whether a specific version has been published on the Duckietown Cloud Storage.
 
     Args:
@@ -423,7 +428,7 @@ def is_version_released(version: str, os_family: str = "") -> bool:
         ``False`` otherwise.
     """
     # create storage client
-    client = DataClient()
+    client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
     # check whether the object exists
     release_obj = remote_zip_obj(version, os_family)
@@ -448,7 +453,9 @@ def remote_zip_obj(version: str, os_family: str = ""):
     return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
 
 
-def mark_as_latest_version(token: str, version: str, os_family: str):
+def mark_as_latest_version(
+    token: str, version: str, os_family: str, client: Optional[DataClient] = None
+):
     """Upload a pointer file to the cloud storage that designates a version as the latest.
 
     Args:
@@ -457,7 +464,7 @@ def mark_as_latest_version(token: str, version: str, os_family: str):
         os_family: The OS family for which this version should be marked latest.
     """
     # create storage client
-    client = DataClient(token)
+    client = client or DataClient(token)
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
     latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
@@ -496,6 +503,7 @@ def ensure_duckietown_viewer_installed(
         The installed version, or ``None`` when no release is available.
     """
     shell: DTShell = dt_shell.shell
+    data_client = create_data_client(shell)
     log_prefix = log_prefix or " > "
     if not os_family:
         os_family = resolve_os_family()
@@ -509,7 +517,9 @@ def ensure_duckietown_viewer_installed(
         )
         return installed_version
     # get latest version available on the DCSS
-    latest: Optional[str] = version or get_latest_version(os_family)
+    latest: Optional[str] = version or get_latest_version(
+        os_family, client=data_client
+    )
     if latest is None:
         dtslogger.error(f"{log_prefix}No version available for installation.")
         return

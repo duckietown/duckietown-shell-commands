@@ -1,7 +1,8 @@
 from typing import List
 
-from dt_data_api import DataClient
 from dt_shell import DTCommandAbs, dtslogger
+
+from utils.data_endpoint_utils import create_data_client
 
 VALID_SPACES = ["user", "public", "private"]
 
@@ -61,7 +62,7 @@ Where <space> can be one of {str(VALID_SPACES)}.
         # get the token
         token: str = shell.profile.secrets.dt_token
         # create storage client
-        client = DataClient(token)
+        client = create_data_client(shell, token)
         storage = client.storage(parsed.space)
 
         # list objects
