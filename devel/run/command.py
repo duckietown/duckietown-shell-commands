@@ -255,6 +255,32 @@ class DTCommand(DTCommandAbs):
                         else:
                             cc_mountpoints.append((local_src, destination_src, "ro"))
 
+                        # If this project is a git submodule, its ".git" is a *file*
+                        # containing "gitdir: <relpath>" pointing into the superproject's
+                        # .git/modules. That relative pointer is dangling inside the
+                        # container (the superproject is not mounted), so in-container
+                        # `git` fails with "fatal: not a git repository". Mount the real
+                        # git dir where the pointer resolves so in-container git keeps
+                        # working. No-op for regular checkouts (".git" is a directory).
+                        # Only relevant for local bind-mounts (no -H): the synced
+                        # paths strip ".git" instead (see _exclude_git_from_tar and
+                        # the rsync "--exclude='.git'"). Here local_src is a real
+                        # host path, so a submodule ".git" file would be bind-mounted
+                        # with a dangling gitdir pointer; mount the real git dir where
+                        # that pointer resolves so in-container git keeps working.
+                        git_file = os.path.join(local_src, ".git")
+                        if os.path.isfile(git_file):
+                            with open(git_file) as f:
+                                content = f.read().strip()
+                            if content.startswith("gitdir:"):
+                                rel = content.split("gitdir:", 1)[1].strip()
+                                host_gitdir = os.path.realpath(os.path.join(local_src, rel))
+                                container_gitdir = os.path.normpath(
+                                    os.path.join(destination_src, rel)
+                                )
+                                if os.path.isdir(host_gitdir):
+                                    cc_mountpoints.append((host_gitdir, container_gitdir, "ro"))
+
                 # mount launchers
                 if not parsed.no_mount_launchers:
                     # get local and remote paths to launchers
@@ -581,6 +607,13 @@ def args_to_docker_compose(
     return cfg
 
 
+def _exclude_git_from_tar(tarinfo: "tarfile.TarInfo") -> "Optional[tarfile.TarInfo]":
+    """Tar filter that drops any ".git" file/dir, mirroring rsync's --exclude='.git'."""
+    if ".git" in tarinfo.name.split("/"):
+        return None
+    return tarinfo
+
+
 def _sync_projects_to_local_virtual_robot(robot_name: str, projects_to_sync: List[str], sync_destination: str):
     container_name = f"dts-virtual-{robot_name}"
     try:
@@ -599,7 +632,12 @@ def _sync_projects_to_local_virtual_robot(robot_name: str, projects_to_sync: Lis
         _exec_in_local_virtual_robot(container, ["rm", "-rf", target_dir])
         archive = BytesIO()
         with tarfile.open(fileobj=archive, mode="w", dereference=True) as tar:
-            tar.add(normalized_project_path, arcname=project_name)
+            # Exclude any ".git" entry, mirroring the rsync sync path's
+            # "--exclude='.git'". This is important for git submodules, whose
+            # ".git" is a *file* pointing into the superproject's .git/modules;
+            # carried into the container that pointer dangles and any in-container
+            # git call fails with "fatal: not a git repository".
+            tar.add(normalized_project_path, arcname=project_name, filter=_exclude_git_from_tar)
         archive.seek(0)
         if not container.put_archive(path=destination, data=archive):
             raise RuntimeError(
