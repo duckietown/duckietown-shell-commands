@@ -1,8 +1,11 @@
 import copy
 import os
+import queue
 import re
 import platform
 import subprocess
+import threading
+import time
 import traceback
 from os.path import expanduser
 from typing import Tuple, Optional, Union, Dict, List
@@ -39,6 +42,8 @@ DEFAULT_API_TIMEOUT = 240
 
 DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
+PULL_PROGRESS_HEARTBEAT_SECONDS = 15
+PULL_READER_JOIN_TIMEOUT_SECONDS = 1
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -355,26 +360,86 @@ def _pull_status_detail(line: dict, pulled_count: int, layer_count: int) -> str:
     return " | ".join([parts[0], " ".join(parts[1:])])
 
 
+def _read_pull_events(event_stream, events: queue.Queue, stop_event: threading.Event) -> None:
+    try:
+        for line in event_stream:
+            events.put(("event", line))
+            if stop_event.is_set():
+                break
+    except Exception as e:
+        events.put(("error", e))
+    finally:
+        events.put(("done", None))
+
+
 # TODO: this should be removed
 def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
     layers = set()
     pulled = set()
     pbar = ProgressBar() if progress else None
-    for line in client.api.pull(image, stream=True, decode=True):
-        status = line.get("status")
-        if status is None:
-            continue
-        layer_id = line.get("id")
-        if layer_id is not None:
-            layers.add(layer_id)
-            if status in ["Already exists", "Pull complete"]:
-                pulled.add(layer_id)
-        # update progress bar
-        if progress:
-            percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
-            pbar.set_detail(_pull_status_detail(line, len(pulled), len(layers)))
-            pbar.update(percentage)
+    events = queue.Queue()
+    event_stream = client.api.pull(image, stream=True, decode=True)
+    reader_stop_event = threading.Event()
+    reader = threading.Thread(
+        target=_read_pull_events,
+        args=(event_stream, events, reader_stop_event),
+        daemon=True,
+    )
+    reader.start()
+    last_event_at = time.monotonic()
+    last_percentage = 0.0
+    last_detail = "Waiting for Docker pull status"
+
+    try:
+        while True:
+            try:
+                event_type, payload = events.get(timeout=PULL_PROGRESS_HEARTBEAT_SECONDS)
+            except queue.Empty:
+                idle_seconds = int(time.monotonic() - last_event_at)
+                heartbeat_detail = f"No Docker update for {idle_seconds}s | {last_detail}"
+                if progress:
+                    pbar.set_detail(heartbeat_detail)
+                    pbar.update(last_percentage)
+                else:
+                    dtslogger.info(f"Still pulling `{image}`: {heartbeat_detail}.")
+                continue
+
+            if event_type == "done":
+                break
+            if event_type == "error":
+                raise payload
+
+            line = payload
+            last_event_at = time.monotonic()
+            if not isinstance(line, dict):
+                continue
+            if "error" in line:
+                error_message = line.get("errorDetail", {}).get("message", line["error"])
+                raise UserError(f"Could not pull image '{image}': {error_message}")
+            status = line.get("status")
+            if status is None:
+                continue
+            layer_id = line.get("id")
+            if layer_id is not None:
+                layers.add(layer_id)
+                if status in ["Already exists", "Pull complete"]:
+                    pulled.add(layer_id)
+            # update progress bar
+            last_percentage = max(0.0, min(1.0, len(pulled) / max(1.0, len(layers)))) * 100.0
+            last_detail = _pull_status_detail(line, len(pulled), len(layers))
+            if progress:
+                pbar.set_detail(last_detail)
+                pbar.update(last_percentage)
+    finally:
+        reader_stop_event.set()
+        reader.join(timeout=PULL_READER_JOIN_TIMEOUT_SECONDS)
+        if reader.is_alive():
+            dtslogger.warning(f"Docker pull reader for '{image}' is still closing in the background.")
+        else:
+            close = getattr(event_stream, "close", None)
+            if callable(close):
+                close()
     if progress:
         pbar.done()
 
