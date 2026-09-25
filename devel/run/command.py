@@ -32,6 +32,7 @@ from utils.docker_utils import (
 )
 from utils.misc_utils import human_size, pretty_exc, pretty_yaml, random_string
 from utils.multi_command_utils import MultiCommand
+from utils.networking_utils import is_local_virtual_robot_running
 from utils.resolve import resolve_robot_host
 
 from .configuration import DEFAULT_TRUE
@@ -126,12 +127,14 @@ class DTCommand(DTCommandAbs):
                 # be passed through robot host resolution
                 if ":" not in parsed.machine and "://" not in parsed.machine:
                     requested_machine = parsed.machine
-                    # resolve hostname, including loopback for local virtual robots
+                    requested_robot_name = requested_machine.removesuffix(".local")
+                    if (
+                        requested_machine not in {"127.0.0.1", "localhost"}
+                        and is_local_virtual_robot_running(requested_robot_name)
+                    ):
+                        local_virtual_robot_name = requested_robot_name
+                    # Resolve local virtual robots to their Docker-network address.
                     parsed.machine = resolve_robot_host(requested_machine)
-                    if parsed.machine == "127.0.0.1" and requested_machine not in {"127.0.0.1", "localhost"}:
-                        local_virtual_robot_name = (
-                            requested_machine[:-6] if requested_machine.endswith(".local") else requested_machine
-                        )
             else:
                 parsed.machine = DEFAULT_MACHINE
 

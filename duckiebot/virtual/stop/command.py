@@ -3,6 +3,13 @@ import argparse
 import docker
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
+from ..gateway import (
+    gateway_leader_election,
+    has_other_virtual_robots,
+    is_gateway_leader,
+    refresh_gateway_backends,
+)
+
 
 class DTCommand(DTCommandAbs):
 
@@ -21,11 +28,23 @@ class DTCommand(DTCommandAbs):
         # make sure the virtual robot is actually running
         local_docker = docker.from_env()
         try:
-            vbot_container = local_docker.containers.get(f"dts-virtual-{parsed.robot}")
-            dtslogger.info(f"Shutting down virtual robot '{parsed.robot}', "
-                           f"this might take up to a minute...")
-            vbot_container.exec_run(cmd="shutdown")
-            vbot_container.wait()
+            containers = local_docker.containers
+            container_name = f"dts-virtual-{parsed.robot}"
+            vbot_container = containers.get(container_name)
+            with gateway_leader_election():
+                is_leader = is_gateway_leader(vbot_container)
+                has_followers = has_other_virtual_robots(local_docker, parsed.robot)
+                if is_leader and has_followers:
+                    dtslogger.error(
+                        f"Virtual robot '{parsed.robot}' is routing fleet browser traffic. "
+                        "Stop the other virtual robots first."
+                    )
+                    return False
+                dtslogger.info(f"Shutting down virtual robot '{parsed.robot}', "
+                               f"this might take up to a minute...")
+                vbot_container.exec_run(cmd="shutdown")
+                vbot_container.wait()
+                refresh_gateway_backends(local_docker)
             dtslogger.info("Done!")
             return True
         except docker.errors.NotFound:
