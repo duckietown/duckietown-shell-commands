@@ -5,6 +5,7 @@ from typing import Dict, Any, cast, Iterable, List, Optional
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell, UserError
 from dtproject import DTProject
+from utils.networking_utils import best_host_for_robot, is_local_virtual_robot_running
 from utils.yaml_utils import load_yaml
 import multiprocessing
 
@@ -105,7 +106,12 @@ class DTCommand(DTCommandAbs):
         # docker args
         docker_args: List[str] = ["--privileged"]
         # - ros master uri
-        docker_args.extend(["-e", f"ROS_MASTER_URI=http://{parsed.robot}.local:11311/"])
+        ros_master = (
+            f"{parsed.robot}.local"
+            if is_local_virtual_robot_running(parsed.robot)
+            else best_host_for_robot(parsed.robot)
+        )
+        docker_args.extend(["-e", f"ROS_MASTER_URI=http://{ros_master}:11311/"])
 
         # attach to running container if --shell is requested
         if parsed.shell:

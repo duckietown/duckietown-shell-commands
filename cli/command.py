@@ -32,7 +32,7 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname where to run the image",
+            help="Docker endpoint (socket URL, robot name, .local/FQDN host, or IPv4 address)",
         )
         parser.add_argument("-i", "--image", default=None, help="Docker image to run the command in")
         parser.add_argument(
@@ -45,7 +45,10 @@ class DTCommand(DTCommandAbs):
             action="store_true",
             help="Use x-docker as runtime",
         )
-        parser.add_argument("-M", "--master", default=None, type=str, help="Hostname of the ROS Master node")
+        parser.add_argument(
+            "-M", "--master", default=None, type=str,
+            help="ROS master robot name, .local/FQDN host, or IPv4 address",
+        )
         parser.add_argument(
             "-e",
             "--env",

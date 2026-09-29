@@ -35,12 +35,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Prevent from pulling the latest duckiematrix image"
         )
         parser.add_argument(
-            "-R",
-            "--robot",
-            default=None,
-            help="Name of the virtual robot to connect to the matrix",
-        )
-        parser.add_argument(
             "--recipe",
             default=None,
             help="Path to use if specifying a custom local recipe path",

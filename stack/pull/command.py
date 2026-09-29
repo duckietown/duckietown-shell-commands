@@ -5,7 +5,7 @@ import pathlib
 import yaml
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.avahi_utils import wait_for_service
+from utils.robot_utils import get_robot_type
 from utils.docker_utils import get_endpoint_architecture, get_registry_to_use, pull_image_OLD
 from utils.multi_command_utils import MultiCommand
 from utils.networking_utils import best_host_for_robot
@@ -25,7 +25,7 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             required=True,
-            help="Docker socket or hostname where to run the image",
+            help="Robot name, .local/FQDN hostname, or IPv4 address for the stack",
         )
 
         parser.add_argument("stack", nargs=1, default=None)
@@ -44,8 +44,7 @@ class DTCommand(DTCommandAbs):
         if parsed.stack == DUCKIETOWN_STACK:
             # retrieve robot type from device
             dtslogger.info(f'Waiting for robot "{robot}"...')
-            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
-            rtype = data["type"]
+            rtype = get_robot_type(robot, hostname)
             dtslogger.info(f'Detected device type is "{rtype}".')
             parsed.stack = f"{DUCKIETOWN_STACK}/{rtype}"
         # sanitize stack

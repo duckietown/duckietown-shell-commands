@@ -30,7 +30,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=DEFAULT_MACHINE,
-            help="Docker socket or hostname from where to push the image",
+            help="Docker endpoint to push from (socket URL, DNS hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--ci",

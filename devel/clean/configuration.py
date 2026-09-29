@@ -30,7 +30,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=DEFAULT_MACHINE,
-            help="Docker socket or hostname where to clean the image",
+            help="Docker endpoint to clean (socket URL, DNS hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"

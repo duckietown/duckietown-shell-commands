@@ -50,7 +50,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument("--force", action="store_true", default=False, help="Force the update")
         parser.add_argument("--version", type=str, default=None, help="Force a specific version")
         parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
-        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
+        parser.add_argument(
+            "duckiebot", default=None, help="Robot hostname or IPv4 address (short name, .local name, or FQDN)"
+        )
         parsed = parser.parse_args(args)
         # want the use NOT TO interrupt this command
         dtslogger.warning(

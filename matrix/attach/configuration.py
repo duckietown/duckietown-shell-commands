@@ -35,7 +35,10 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             action="store_true",
             help="Enable dreamwalking (physical robots only)"
         )
-        parser.add_argument("robot", nargs=1, help="Name of the robot to attach to the Matrix")
+        parser.add_argument(
+            "robot", nargs=1,
+            help="Robot hostname or IPv4 address to attach (short name, .local name, or FQDN)",
+        )
         parser.add_argument("entity", nargs=1, help="Name of the Duckiematrix entity to attach the robot to")
         # ---
         return parser

@@ -2,11 +2,12 @@ import sys
 import json
 import argparse
 import subprocess
+from urllib.parse import urlsplit
 
 from utils.duckietown_utils import get_robot_types
-from utils.avahi_utils import wait_for_service
 from utils.docker_utils import DEFAULT_MACHINE
 from utils.misc_utils import sanitize_hostname
+from utils.robot_utils import get_robot_type
 from dtproject.constants import CANONICAL_ARCH
 
 from dt_shell import DTCommandAbs, dtslogger
@@ -40,11 +41,11 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             default=DEFAULT_MACHINE,
-            help="Docker socket or hostname where to run the image "
-            + "(NOTE: this is not the target of the diagnostics)",
+            help="Monitor host (not the target): Docker socket URL, robot name, .local/FQDN host, or IPv4 address",
         )
         parser.add_argument(
-            "-T", "--target", default=DEFAULT_TARGET, help="Specify a Docker endpoint to monitor"
+            "-T", "--target", default=DEFAULT_TARGET,
+            help="Docker endpoint to monitor (socket URL, robot name, .local/FQDN host, or IPv4 address)",
         )
         parser.add_argument(
             "--type",
@@ -125,6 +126,7 @@ class DTCommand(DTCommandAbs):
             parsed.app_id = LOG_DEFAULT_APP_ID
         if parsed.app_secret is None:
             parsed.app_secret = LOG_DEFAULT_APP_SECRET
+        source_machine, source_target = parsed.machine, parsed.target
         # sanitize hostname
         if parsed.machine is not None and parsed.machine != DEFAULT_MACHINE:
             parsed.machine = sanitize_hostname(parsed.machine)
@@ -142,10 +144,10 @@ class DTCommand(DTCommandAbs):
         if parsed.system and is_remote:
             dtslogger.error("You cannot run with option --system when the target is monitored remotely")
             sys.exit(2)
-        if parsed.machine == DEFAULT_MACHINE and parsed.target != DEFAULT_TARGET:
-            fetch_type_from = parsed.target
-        if parsed.machine != DEFAULT_MACHINE and parsed.target == DEFAULT_TARGET:
-            fetch_type_from = parsed.machine
+        if parsed.target != DEFAULT_TARGET:
+            fetch_type_from = source_target
+        elif parsed.machine != DEFAULT_MACHINE:
+            fetch_type_from = source_machine
         # get info about docker endpoint
         dtslogger.info("Retrieving info about Docker endpoint...")
         epoint = _run_cmd(
@@ -160,9 +162,12 @@ class DTCommand(DTCommandAbs):
         if parsed.type == "auto":
             # retrieve robot type from device
             dtslogger.info(f'Waiting for device "{fetch_type_from}"...')
-            hostname = fetch_type_from.replace(".local", "")
-            _, _, data = wait_for_service("DT::ROBOT_TYPE", hostname)
-            parsed.type = data["type"]
+            endpoint = fetch_type_from if "://" in fetch_type_from else f"//{fetch_type_from}"
+            hostname = urlsplit(endpoint).hostname
+            if hostname is None:
+                raise ValueError("A robot hostname is required to detect the device type")
+            robot = hostname[:-6] if hostname.endswith(".local") else hostname
+            parsed.type = get_robot_type(robot, sanitize_hostname(hostname))
             dtslogger.info(f'Detected device type is "{parsed.type}".')
         else:
             dtslogger.info(f'Device type forced to "{parsed.type}".')

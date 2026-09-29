@@ -32,13 +32,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or robot name to run the agent on"
+            help="Agent Docker endpoint (socket URL, robot name, .local/FQDN host, or IPv4 address)"
         )
         parser.add_argument(
             "-R",
             "--robot",
             default=None,
-            help="Name of the robot to connect this agent to",
+            help="Robot name, .local/FQDN host, or IPv4 address for the agent's ROS connection",
         )
         parser.add_argument(
             "-u",

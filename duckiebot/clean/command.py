@@ -32,7 +32,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "-y", "--yes", action="store_true", default=False, help="Do not ask for confirmation"
         )
-        parser.add_argument("robot", nargs=1, help="Name of the Robot to clean")
+        parser.add_argument(
+            "robot", nargs=1, help="Robot hostname or IPv4 address to clean (short name, .local name, or FQDN)"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments

@@ -23,7 +23,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname where to run the image",
+            help="Robot name, .local/FQDN host, or IPv4 address to sync with",
         )
         parser.add_argument(
             "-M",

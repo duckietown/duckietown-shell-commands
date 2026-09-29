@@ -70,7 +70,7 @@ class DTCommand(DTCommandAbs):
             "-R",
             "--robot",
             default=None,
-            help="Name of the robot to connect this agent to",
+            help="Robot name, .local/FQDN host, or IPv4 address for the VNC agent",
         )
 
         parser.add_argument(

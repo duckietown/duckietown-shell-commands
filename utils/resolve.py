@@ -1,32 +1,17 @@
 from __future__ import annotations
 import os
 import socket
-import subprocess
 from typing import Iterable, Optional
 
 from utils.networking_utils import is_local_virtual_robot_running
 
 
-def _is_reachable(host: str, port: int = 22, timeout: float = 1.5) -> bool:
-    """Fast check: try TCP connect; if blocked, fall back to getaddrinfo + ping."""
+def _resolves(host: str) -> bool:
     try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except Exception:
-        # DNS ok but SSH closed? Still verify host resolves and responds to ping.
-        try:
-            socket.getaddrinfo(host, None)
-        except socket.gaierror:
-            return False
-        try:
-            # -c 1 one packet, -W timeout seconds (Linux/BusyBox compatible)
-            subprocess.run(
-                ["ping", "-c", "1", "-W", str(timeout), host],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
-            )
-            return True
-        except Exception:
-            return False
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    return True
 
 
 def _magicdns_candidates(bot_name: str) -> Iterable[str]:
@@ -48,37 +33,39 @@ def get_duckiebot_host(
       4) `duckiebot_name` (MagicDNS short name)
       5) `duckiebot_name`.<TAILNET_DOMAIN> (MagicDNS FQDN, optional)
       6) any extra candidates passed in
-    Raises RuntimeError if none are reachable.
+    Raises RuntimeError if none resolve.
     """
     override = os.environ.get("DUCKIEBOT_HOST")
     if override:
         return override
 
-    if is_local_virtual_robot_running(duckiebot_name):
+    if "." not in duckiebot_name and is_local_virtual_robot_running(duckiebot_name):
         return "127.0.0.1"
 
-    candidates = [f"{duckiebot_name}.local", duckiebot_name]
-    candidates += list(_magicdns_candidates(duckiebot_name))
+    robot_name = duckiebot_name[:-6] if duckiebot_name.endswith(".local") else duckiebot_name
+    if duckiebot_name.endswith(".local"):
+        candidates = [duckiebot_name, robot_name]
+    elif "." in duckiebot_name:
+        candidates = [duckiebot_name]
+    else:
+        candidates = [f"{robot_name}.local", robot_name]
+    if "." not in robot_name:
+        candidates += list(_magicdns_candidates(robot_name))
     if extra_candidates:
         candidates += list(extra_candidates)
 
     tried = []
     for host in candidates:
-        if _is_reachable(host):
+        if _resolves(host):
             return host
         tried.append(host)
 
     raise RuntimeError(
-        f"Could not reach Duckiebot via any hostname. Tried: {', '.join(tried)}.\n"
+        f"Could not resolve Duckiebot via any hostname. Tried: {', '.join(tried)}.\n"
         "Tip: export DUCKIEBOT_HOST=<ip-or-host>, or set TAILNET_DOMAIN=tailnet-xyz.ts.net."
     )
 
 
 def resolve_robot_host(robot_name: str) -> str:
-    """Resolve a robot name to its best reachable host.
-    
-    Handles .local suffix stripping and passes the original name as an extra
-    candidate so get_duckiebot_host can fall back to it if needed.
-    """
-    stripped = robot_name[:-6] if robot_name.endswith(".local") else robot_name
-    return get_duckiebot_host(stripped, extra_candidates=[robot_name])
+    """Resolve a robot name without losing an explicitly supplied hostname."""
+    return get_duckiebot_host(robot_name)

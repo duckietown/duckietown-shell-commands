@@ -63,7 +63,8 @@ class DTCommand(DTCommandAbs):
             help="Directory containing the book to work on",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the book"
+            "-H", "--machine", default=None,
+            help="Book build Docker endpoint (socket URL, DNS hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--image",

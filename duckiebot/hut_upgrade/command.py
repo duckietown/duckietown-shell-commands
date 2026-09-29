@@ -26,7 +26,9 @@ class DTCommand(DTCommandAbs):
         parser.add_argument(
             "--image", default=None, help="Specific docker image to use (skip pulling)"
         )
-        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
+        parser.add_argument(
+            "duckiebot", default=None, help="Robot hostname or IPv4 address (short name, .local name, or FQDN)"
+        )
         parsed = parser.parse_args(args)
 
         # retrieve robot hostname and the docker endpoint

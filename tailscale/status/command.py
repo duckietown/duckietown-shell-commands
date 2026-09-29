@@ -414,7 +414,7 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             default=DEFAULT_MACHINE,
-            help="Docker socket or hostname where Tailscale is running",
+            help="Tailscale Docker endpoint (socket URL, robot name, .local/FQDN host, or IPv4 address)",
         )
         parser.add_argument(
             "--json",

@@ -79,6 +79,6 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         )
         parser.add_argument(
             "robot",
-            help="Name of the robot to connect to"
+            help="Robot name, .local/FQDN hostname, or IPv4 address to connect to"
         )
         return parser

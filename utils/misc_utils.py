@@ -19,6 +19,7 @@ from typing import Any
 import yaml
 
 from dt_shell import dtslogger
+from utils.networking_utils import best_host_for_robot
 
 NotSet = object()
 
@@ -53,12 +54,12 @@ def human_size(value, suffix="B", precision=2):
 def sanitize_hostname(hostname):
     if "://" in hostname:
         return hostname
+    host, separator, port = hostname.partition(":")
     try:
-        ip = hostname.split(":")[0]
-        ipaddress.ip_address(ip)
-        return hostname
+        ipaddress.ip_address(host)
     except ValueError:
-        return f"{hostname}.local" if not hostname.endswith(".local") else hostname
+        host = best_host_for_robot(host)
+    return f"{host}{separator}{port}"
 
 
 def sudo_open(path, mode, *_, **__):

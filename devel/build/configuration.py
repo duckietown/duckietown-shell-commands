@@ -32,7 +32,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname where to build the image",
+            help="Build Docker endpoint (socket URL, robot name, .local/FQDN hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--pull",
@@ -175,7 +175,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-D",
             "--destination",
             default=None,
-            help="Docker socket or hostname where to deliver the image",
+            help="Destination Docker endpoint (socket URL, robot name, .local/FQDN hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--docs",

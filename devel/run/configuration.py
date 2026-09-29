@@ -35,13 +35,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname where to run the image",
+            help="Run Docker endpoint (socket URL, robot name, .local/FQDN hostname, or IPv4 address)",
         )
         parser.add_argument(
             "-R",
             "--robot",
             default=None,
-            help="Name of the robot we want this project to connect to",
+            help="Robot name passed as VEHICLE_NAME to the container (not the Docker host)",
         )
         parser.add_argument("-n", "--name", default=None, help="Name of the container")
         parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
