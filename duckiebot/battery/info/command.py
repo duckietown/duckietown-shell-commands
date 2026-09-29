@@ -15,7 +15,9 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts duckiebot battery info DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog)
-        parser.add_argument("duckiebot", default=None, help="Name of the Duckiebot")
+        parser.add_argument(
+            "duckiebot", default=None, help="Robot hostname or IPv4 address (short name, .local name, or FQDN)"
+        )
         parsed = parser.parse_args(args)
         # fetch data from the health API
         hostname = resolve_robot_host(parsed.duckiebot)

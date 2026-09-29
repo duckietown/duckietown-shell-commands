@@ -176,8 +176,7 @@ class DiscoverListener:
             device_to_hostname[x["name"]] = x["hostname"]
         # - from mDNS
         for device in devices:
-            # only overwrite an IP address if we have talked to this device via mDNS
-            if device in self.services["DT::ROBOT_TYPE"]:
+            if device in self.services["DT::ROBOT_TYPE"] and self._hostname_resolves(device):
                 device_to_hostname[device] = f"{device}.local"
 
         # prepare table
@@ -191,7 +190,7 @@ class DiscoverListener:
             # "Busy",  # No [grey], Yes [green]
         ]
         columns = list(map(lambda c: " %s " % c, columns))
-        header = ["Hardware", "Type", "Model"] + columns + ["Hostname"]
+        header = ["Hardware", "Type", "Model"] + columns + ["Address"]
         data = []
 
         for device in list(sorted(devices)):

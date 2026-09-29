@@ -335,7 +335,9 @@ class DTCommand(DTCommandAbs):
             "--reset-node-configs", action="store_true", default=False, help="Reset node configurations after next boot"
         )
 
-        parser.add_argument("robot", nargs=1, help="Name of the Robot to update")
+        parser.add_argument(
+            "robot", nargs=1, help="Robot hostname or IPv4 address to update (short name, .local name, or FQDN)"
+        )
         # parse arguments
         parsed = parser.parse_args(args)
         # sanitize arguments

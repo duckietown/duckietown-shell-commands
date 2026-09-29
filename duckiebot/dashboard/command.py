@@ -1,6 +1,7 @@
 import webbrowser
 
 from dt_shell import DTCommandAbs, DTShell
+from utils.networking_utils import best_host_for_robot
 
 
 class DTCommand(DTCommandAbs):
@@ -12,4 +13,5 @@ class DTCommand(DTCommandAbs):
         page = parsed.page.strip("/") if parsed.page else ""
         if page:
             page += "/"
-        webbrowser.open(f"http://{parsed.robot}.local/dashboard/{page}")
+        hostname = best_host_for_robot(parsed.robot)
+        webbrowser.open(f"http://{hostname}/dashboard/{page}")

@@ -26,9 +26,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             dest="engine_hostname",
             default=None,
             type=str,
-            help="Hostname or IP address of the engine to attach the robot to"
+            help="Hostname or IP address of the engine to detach the robot from"
         )
-        parser.add_argument("robot", nargs=1, help="Name of the robot to detach from the Matrix")
+        parser.add_argument(
+            "robot", nargs=1,
+            help="Robot hostname or IPv4 address to detach (short name, .local name, or FQDN)",
+        )
         # ---
         return parser
 

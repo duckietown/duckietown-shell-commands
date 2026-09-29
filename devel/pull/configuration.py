@@ -29,7 +29,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname from where to push the image",
+            help="Docker endpoint to pull to (socket URL, DNS hostname, or IPv4 address)",
         )
         parser.add_argument(
             "--tag", default=None, help="Overrides 'version' (usually taken to be branch name)"

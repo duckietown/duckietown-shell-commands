@@ -39,7 +39,9 @@ class DTCommand(DTCommandAbs):
         prog = "dts duckiebot support request"
         parser = argparse.ArgumentParser(prog=prog, usage=usage)
 
-        parser.add_argument("robot", nargs=1, help="Name of the robot to support")
+        parser.add_argument(
+            "robot", nargs=1, help="Robot hostname or IPv4 address to support (short name, .local name, or FQDN)"
+        )
 
         parser.add_argument("--pull", action="store_true", default=False, help="Update the support image")
 

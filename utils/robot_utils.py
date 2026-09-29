@@ -4,7 +4,26 @@ from typing import Optional
 
 import requests
 
+from dt_shell import dtslogger
 from utils.misc_utils import sanitize_hostname
+
+
+def get_robot_type(robot: str, hostname: str) -> str:
+    try:
+        from utils.kvstore_utils import KVStore
+
+        store = KVStore(hostname)
+        if store.is_available():
+            robot_type = store.get(str, "robot/type", None)
+            if robot_type:
+                return robot_type
+    except Exception as error:
+        dtslogger.debug(f"Could not get robot type from KVStore at '{hostname}': {error}")
+
+    from utils.avahi_utils import wait_for_service
+
+    _, _, data = wait_for_service("DT::ROBOT_TYPE", robot)
+    return data["type"]
 
 
 def create_file_in_robot_data_dir(hostname: str, filepath: str, content: str):

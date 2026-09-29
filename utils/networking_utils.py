@@ -21,16 +21,8 @@ def get_ip_from_ping(alias):
 
 
 def get_duckiebot_ip(duckiebot_name):
-    if is_local_virtual_robot_running(duckiebot_name):
-        return "127.0.0.1"
-    
-    try:
-        duckiebot_ip = get_ip_from_ping("%s.local" % duckiebot_name)
-    except Exception as e:
-        print(e)
-        duckiebot_ip = get_ip_from_ping(duckiebot_name)
-
-    return duckiebot_ip
+    host = best_host_for_robot(duckiebot_name)
+    return socket.gethostbyname(host)
 
 
 def resolve_hostname(hostname: str) -> str:
@@ -92,21 +84,25 @@ def is_local_virtual_robot_running(robot: str) -> bool:
 @lru_cache
 def best_host_for_robot(robot: str, allow_static: bool = True) -> str:
     robot_name = robot[:-6] if robot.endswith(".local") else robot
-    if is_local_virtual_robot_running(robot_name):
+    if "." not in robot and is_local_virtual_robot_running(robot):
         dtslogger.debug(
             f"Best host for robot '{robot}' is loopback because it is a locally running virtual robot"
         )
         return "127.0.0.1"
-    mdns: str = f"{robot_name}.local" if not robot.endswith(".local") else robot
-    # try to get the IP address first (this is a static option)
+    if robot.endswith(".local"):
+        hostnames = [robot, robot_name]
+    elif "." in robot:
+        hostnames = [robot]
+    else:
+        hostnames = [f"{robot}.local", robot]
     if allow_static:
-        try:
-            ip = socket.gethostbyname(mdns)
-            # ---
+        for hostname in hostnames:
+            try:
+                ip = socket.gethostbyname(hostname)
+            except socket.gaierror:
+                dtslogger.debug(f"Failed to resolve IP address from hostname '{hostname}'.")
+                continue
             dtslogger.debug(f"Best host for robot '{robot}' is its IP address '{ip}' (static)")
             return ip
-        except socket.gaierror:
-            dtslogger.debug(f"Failed to resolve IP address from mDNS name '{mdns}'.")
-    # ---
-    dtslogger.debug(f"Best host for robot '{robot}' is its local mDNS name '{mdns}'")
-    return mdns
+    dtslogger.debug(f"Best host for robot '{robot}' is its hostname '{hostnames[0]}'")
+    return hostnames[0]

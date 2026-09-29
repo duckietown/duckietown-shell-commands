@@ -37,7 +37,8 @@ class DTCommand(DTCommandAbs):
             help="Directory containing the book to work on",
         )
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to build the image"
+            "-H", "--machine", default=None,
+            help="Build Docker endpoint (socket URL, DNS hostname, or IPv4 address)",
         )
         parser.add_argument("--distro", default=None, help="Which base distro (jupyter-book) to use")
         parser.add_argument(

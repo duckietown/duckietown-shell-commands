@@ -12,7 +12,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         The parser this command will use.
         """
         parser = argparse.ArgumentParser()
-        parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
+        parser.add_argument("hostname", nargs="?", default=None, help="Robot name, .local/FQDN host, or IPv4 address")
         parser.add_argument(
             "--network", default="host", help="Name of the network to connect the container to"
         )
@@ -43,7 +43,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         parser.add_argument(
             "--ip",
             action="store_true",
-            help="(Optional) Use the IP address to reach the robot instead of mDNS",
+            help="Compatibility flag; robot ROS connections already use the resolved IPv4 address",
         )
         parser.add_argument(
             "--mount",

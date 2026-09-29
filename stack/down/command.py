@@ -3,7 +3,7 @@ import os
 import pathlib
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.avahi_utils import wait_for_service
+from utils.robot_utils import get_robot_type
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
@@ -28,7 +28,7 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             required=True,
-            help="Docker socket or hostname where to run the image",
+            help="Robot name, .local/FQDN hostname, or IPv4 address for the stack",
         )
         parser.add_argument(
             "-p",
@@ -55,8 +55,7 @@ class DTCommand(DTCommandAbs):
         if project_name == DUCKIETOWN_STACK:
             # retrieve robot type from device
             dtslogger.info(f'Waiting for robot "{robot}"...')
-            _, _, data = wait_for_service("DT::ROBOT_TYPE", robot)
-            rtype = data["type"]
+            rtype = get_robot_type(robot, hostname)
             dtslogger.info(f'Detected device type is "{rtype}".')
             stack = f"{DUCKIETOWN_STACK}/{rtype}"
             project_name = DUCKIETOWN_STACK

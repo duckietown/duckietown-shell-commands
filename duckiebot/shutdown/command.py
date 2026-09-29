@@ -16,7 +16,7 @@ class DTCommand(DTCommandAbs):
             "robot",
             nargs=1,
             type=str,
-            help="Duckiebot to shutdown",
+            help="Robot hostname or IPv4 address to shut down (short name, .local name, or FQDN)",
         )
         parsed = parser.parse_args(args)
         # ---

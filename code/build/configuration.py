@@ -32,14 +32,14 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or robot name to build the agent on"
+            help="Docker endpoint for --local builds (socket URL, hostname, or IPv4 address)"
         )
 
         parser.add_argument(
             "-R",
             "--robot",
             default=None,
-            help="Name of the robot we want to build the code on",
+            help="Robot name, .local/FQDN hostname, or IPv4 address to build on",
         )
         parser.add_argument(
             "--local",

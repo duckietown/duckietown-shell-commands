@@ -45,7 +45,8 @@ class DTCommand(DTCommandAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "-H", "--machine", default=None, help="Docker socket or hostname where to run the image"
+            "-H", "--machine", default=None,
+            help="Docker endpoint (socket URL, robot name, .local/FQDN host, or IPv4 address)",
         )
         parser.add_argument(
             "-d",

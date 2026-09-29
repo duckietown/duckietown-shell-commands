@@ -29,7 +29,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "-H",
             "--machine",
             default=None,
-            help="Docker socket or hostname where to build the image",
+            help="Docker endpoint for pip resolution (socket URL, robot name, .local/FQDN host, or IPv4 address)",
         )
         parser.add_argument(
             "--no-pull",

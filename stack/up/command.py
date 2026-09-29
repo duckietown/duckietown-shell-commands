@@ -7,7 +7,6 @@ import yaml
 from docker.errors import NotFound
 
 from dt_shell import DTCommandAbs, DTShell, dtslogger
-from utils.avahi_utils import wait_for_service
 from utils.cli_utils import start_command_in_subprocess
 from utils.docker_utils import (
     DEFAULT_DOCKER_TCP_PORT,
@@ -34,7 +33,7 @@ class DTCommand(DTCommandAbs):
             "-H",
             "--machine",
             required=True,
-            help="Docker socket or hostname where to run the image",
+            help="Robot name, .local/FQDN hostname, or IPv4 address for the stack",
         )
         parser.add_argument(
             "-d",

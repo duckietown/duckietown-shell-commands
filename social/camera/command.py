@@ -12,7 +12,7 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args):
         prog = "dts start_gui_tools DUCKIEBOT_NAME"
         parser = argparse.ArgumentParser(prog=prog)
-        parser.add_argument("hostname", nargs="?", default=None, help="Name of the Duckiebot")
+        parser.add_argument("hostname", nargs="?", default=None, help="Robot name, .local/FQDN host, or IPv4 address")
         parser.add_argument(
             "--pull",
             action="store_true",
