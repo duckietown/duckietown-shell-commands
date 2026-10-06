@@ -191,16 +191,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run the renderer binary in the given container image",
         )
         parser.add_argument(
-            "--disable-contracts",
-            default=False,
-            action="store_true",
-            help="Disable PyContracts in the standalone engine",
-        )
-        parser.add_argument(
             "--shm-path",
             default=None,
             type=str,
-            help="Path to a shared-memory socket for standalone gym mode",
+            help=(
+                "DTPS shared-memory base path for standalone gym mode, in a "
+                "private directory owned by the current user with permissions 0700"
+            ),
         )
         parser.add_argument(
             "--target-frame-rate",

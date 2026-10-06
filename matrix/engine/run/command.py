@@ -3,6 +3,7 @@ import logging
 import os
 import platform
 import shlex
+import stat
 import subprocess
 import time
 from threading import Thread
@@ -97,6 +98,29 @@ def _apply_extra_environment(engine_config: dict):
         if "=" not in spec:
             raise ValueError("DTS_MATRIX_ENGINE_EXTRA_ENV entries must be KEY=VALUE")
         command += ["--env", spec]
+
+
+def _apply_shm_path(engine_config: dict, shm_path: str):
+    host_shm_path = os.path.abspath(os.path.expanduser(shm_path))
+    host_shm_dir = os.path.dirname(host_shm_path)
+    os.makedirs(host_shm_dir, mode=0o700, exist_ok=True)
+    directory = os.lstat(host_shm_dir)
+    if (
+        not stat.S_ISDIR(directory.st_mode)
+        or directory.st_uid != os.getuid()
+        or stat.S_IMODE(directory.st_mode) != 0o700
+    ):
+        raise ValueError(
+            "--shm-path requires a private directory owned by the current "
+            "user with permissions 0700; choose a dedicated directory."
+        )
+    engine_config.setdefault("volumes", {})[host_shm_dir] = {
+        "bind": host_shm_dir,
+        "mode": "rw",
+    }
+    environment = engine_config.setdefault("environment", {})
+    environment["DT_SUPERUSER"] = "1" if os.getuid() == 0 else "0"
+    engine_config["command"] += ["--env", f"DTSHELL_SHM_PATH={host_shm_path}"]
 
 
 class MatrixEngine:
@@ -281,21 +305,13 @@ class MatrixEngine:
         # profiler
         if parsed.profiler:
             engine_config["command"] += ["--profiler"]
-        if parsed.disable_contracts:
-            engine_config["command"] += ["--disable-contracts"]
-        if parsed.shm_path:
-            host_shm_path = os.path.abspath(os.path.expanduser(parsed.shm_path))
-            host_shm_dir = os.path.dirname(host_shm_path)
-            engine_config.setdefault("volumes", {})[host_shm_dir] = {
-                "bind": host_shm_dir,
-                "mode": "rw",
-            }
-            engine_config["command"] += ["--env", f"DTSHELL_SHM_PATH={host_shm_path}"]
         try:
+            if parsed.shm_path:
+                _apply_shm_path(engine_config, parsed.shm_path)
             _apply_extra_volumes(engine_config)
             _apply_extra_pythonpath(engine_config)
             _apply_extra_environment(engine_config)
-        except ValueError as e:
+        except (ValueError, OSError) as e:
             dtslogger.error(str(e))
             return False
         # run engine container

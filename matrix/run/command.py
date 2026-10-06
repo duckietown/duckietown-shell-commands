@@ -683,9 +683,6 @@ class DTCommand(DTCommandAbs):
         if parsed.profiler and not run_engine and not host_renderer_only:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
             return
-        if parsed.disable_contracts and not run_engine and not host_renderer_only:
-            dtslogger.error("You cannot use --disable-contracts without -S/--standalone.")
-            return
         if container_image and platform.system() != "Linux":
             dtslogger.error("You cannot use --container or --container-image outside Linux.")
             return
