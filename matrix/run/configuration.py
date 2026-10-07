@@ -123,6 +123,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="(Advanced) Force the use of the OpenGL rendering API",
         )
         parser.add_argument(
+            "--on-top",
+            default=False,
+            action="store_true",
+            help="Always stay on top of other windows",
+        )
+        parser.add_argument(
             "--link",
             dest="links",
             nargs=2,
