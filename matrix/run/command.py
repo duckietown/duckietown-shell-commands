@@ -477,14 +477,15 @@ def configure_renderer_launch(
             os_family = get_os_family()
         version = parsed.version
         if version:
-            shell.include.matrix.install.command(shell, ("--version", version))
+            install_args = ["--version", version]
         else:
             install_args = ["--update"]
-            if browser:
-                install_args.append("--webgl")
-            else:
-                install_args.extend(["--os-family", os_family])
-            shell.include.matrix.install.command(shell, install_args)
+        if browser:
+            install_args.append("--webgl")
+        else:
+            install_args.extend(["--os-family", os_family])
+        shell.include.matrix.install.command(shell, install_args)
+        if not version:
             version = get_most_recent_version_installed(os_family, browser)
         if version is not None:
             app_path = get_path_to_app(os_family, version, browser)
