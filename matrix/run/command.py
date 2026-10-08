@@ -663,10 +663,17 @@ class DTCommand(DTCommandAbs):
                             "Standalone mode, or use a default map with -s/--sandbox.")
             return
         # make sure the time step is only given in gym mode
-        # if parsed.delta_t is not None and not parsed.simulation:
-        #     dtslogger.error("You can specify a --delta-t only when running with "
-        #                     "--gym/--simulation.")
-        #     return
+        if parsed.delta_t is not None and not parsed.simulation:
+            dtslogger.error("You can specify a --delta-t only when running with "
+                            "--gym/--simulation.")
+            return
+        if parsed.shm_path:
+            if not parsed.simulation:
+                dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
+                return
+            if not run_engine and not host_renderer_only:
+                dtslogger.error("You cannot use --shm-path without -S/--standalone.")
+                return
         # profiler
         if parsed.profiler and not run_engine and not host_renderer_only:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
@@ -804,13 +811,14 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
+                    os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
                     time.sleep(2)
                     if container_image:
                         container_cmd, container_name = _build_renderer_container_command(
                             app_bin,
                             app_config,
-                            parsed.container_image,
+                            container_image,
                         )
                         dtslogger.info(f"Launching Renderer container ({container_name})...")
                         dtslogger.debug(f"$ > {container_cmd}")

@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import platform
+import stat
 import subprocess
 import time
 from threading import Thread
@@ -36,6 +37,33 @@ DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
     "layer-data-out-port": 17516,
     "layer-data-in-port": 17517,
 }
+
+
+def _apply_shm_path(engine_config: dict, shm_path: str):
+    host_shm_path = os.path.abspath(os.path.expanduser(shm_path))
+    host_shm_dir = os.path.dirname(host_shm_path)
+    os.makedirs(host_shm_dir, mode=0o700, exist_ok=True)
+    directory = os.lstat(host_shm_dir)
+    if (
+        not stat.S_ISDIR(directory.st_mode)
+        or directory.st_uid != os.getuid()
+        or stat.S_IMODE(directory.st_mode) != 0o700
+    ):
+        raise ValueError(
+            "--shm-path requires a private directory owned by the current "
+            "user with permissions 0700; choose a dedicated directory."
+        )
+    container_shm_dir = "/tmp/duckietown/shm"
+    container_shm_path = os.path.join(
+        container_shm_dir, os.path.basename(host_shm_path)
+    )
+    engine_config.setdefault("volumes", {})[host_shm_dir] = {
+        "bind": container_shm_dir,
+        "mode": "rw",
+    }
+    environment = engine_config.setdefault("environment", {})
+    environment["DT_SUPERUSER"] = "1" if os.getuid() == 0 else "0"
+    environment["DTSHELL_SHM_PATH"] = container_shm_path
 
 
 class MatrixEngine:
@@ -88,6 +116,9 @@ class MatrixEngine:
             dtslogger.error("You can specify a --delta-t only when running with "
                             "--gym/--simulation.")
             return False
+        if parsed.shm_path and not parsed.simulation:
+            dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
+            return False
         # configure engine
         dtslogger.info("Configuring Engine...")
         docker_registry = os.environ.get("DOCKER_REGISTRY", DEFAULT_REGISTRY)
@@ -125,17 +156,22 @@ class MatrixEngine:
                     )
                     return False
         # engine container configuration
+        engine_environment = {
+            "PYTHONUNBUFFERED": "1",
+        }
+        uid = os.getuid()
+        gid = os.getgid()
+        if uid != 0:
+            engine_environment["IMPERSONATE_UID"] = uid
+        if gid != 0:
+            engine_environment["IMPERSONATE_GID"] = gid
         engine_config = {
             "image": engine_image,
             "command": ["--"],
             "detach": True,
             "stdout": True,
             "stderr": True,
-            "environment": {
-                "PYTHONUNBUFFERED": "1",
-                "IMPERSONATE_UID": os.getuid(),
-                "IMPERSONATE_GID": os.getgid(),
-            },
+            "environment": engine_environment,
             "ports": {},
             "name": engine_container_name
         }
@@ -212,6 +248,12 @@ class MatrixEngine:
         # profiler
         if parsed.profiler:
             engine_config["command"] += ["--profiler"]
+        try:
+            if parsed.shm_path:
+                _apply_shm_path(engine_config, parsed.shm_path)
+        except (ValueError, OSError) as e:
+            dtslogger.error(str(e))
+            return False
         # run engine container
         dtslogger.debug(engine_config)
         self.config = engine_config
