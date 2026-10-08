@@ -47,6 +47,7 @@ from utils.duckiematrix_utils import \
     get_os_family
 
 EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
+RENDERER_CONTAINER_IMAGE = "ubuntu:20.04"
 RENDERER_EXIT_POLL_SECONDS = 0.1
 RENDERER_TAILED_SHUTDOWN_WAIT_SECONDS = 2
 RENDERER_FORCE_KILL_WAIT_SECONDS = 5
@@ -503,7 +504,7 @@ def configure_renderer_launch(
         return None
     if parsed.container_image and os_family != "linux":
         dtslogger.error(
-            "You cannot use --container-image with a non-Linux renderer.",
+            "You cannot use --container or --container-image with a non-Linux renderer.",
         )
         return None
     if not browser:
@@ -520,9 +521,9 @@ def configure_renderer_launch(
         if should_run_linux_renderer_through_fex(os_family):
             if parsed.container_image:
                 dtslogger.error(
-                    "You cannot use --container-image on an ARM64 Linux host with the native "
-                    "x86-64 renderer. Use the native launcher with FEX-EMU, or use "
-                    "--browser."
+                    "You cannot use --container or --container-image on an ARM64 Linux host "
+                    "with the native x86-64 renderer. Use the native launcher with FEX-EMU, "
+                    "or use --browser."
                 )
                 return None
             fex_executable = find_fex_executable()
@@ -583,6 +584,8 @@ def configure_renderer_launch(
         app_config += ["--profiler"]
     if parsed.on_top:
         app_config += ["--on-top"]
+    if parsed.target_frame_rate is not None:
+        app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -612,6 +615,9 @@ class DTCommand(DTCommandAbs):
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         container_image = parsed.container_image
+        if parsed.container and container_image is None:
+            container_image = RENDERER_CONTAINER_IMAGE
+            parsed.container_image = container_image
         host_renderer_only = should_run_host_renderer_only()
         delegate_renderer_to_host = (
             should_delegate_matrix_run()
@@ -646,7 +652,7 @@ class DTCommand(DTCommandAbs):
             return
         if parsed.xvfb and container_image:
             dtslogger.error(
-                "You cannot use --xvfb together with --container-image.",
+                "You cannot use --xvfb together with --container or --container-image.",
             )
             return
         if parsed.renderer_binary and parsed.browser:
@@ -654,7 +660,7 @@ class DTCommand(DTCommandAbs):
             return
         if container_image and parsed.browser:
             dtslogger.error(
-                "You cannot use --container-image together with --browser.",
+                "You cannot use --container or --container-image together with --browser.",
             )
             return
         # make sure the map is given (in standalone mode)
@@ -663,16 +669,23 @@ class DTCommand(DTCommandAbs):
                             "Standalone mode, or use a default map with -s/--sandbox.")
             return
         # make sure the time step is only given in gym mode
-        # if parsed.delta_t is not None and not parsed.simulation:
-        #     dtslogger.error("You can specify a --delta-t only when running with "
-        #                     "--gym/--simulation.")
-        #     return
+        if parsed.delta_t is not None and not parsed.simulation:
+            dtslogger.error("You can specify a --delta-t only when running with "
+                            "--gym/--simulation.")
+            return
+        if parsed.shm_path:
+            if not parsed.simulation:
+                dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
+                return
+            if not run_engine and not host_renderer_only:
+                dtslogger.error("You cannot use --shm-path without -S/--standalone.")
+                return
         # profiler
         if parsed.profiler and not run_engine and not host_renderer_only:
             dtslogger.error("You cannot use --profiler without -S/--standalone.")
             return
         if container_image and platform.system() != "Linux":
-            dtslogger.error("You cannot use --container-image outside Linux.")
+            dtslogger.error("You cannot use --container or --container-image outside Linux.")
             return
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
@@ -774,6 +787,8 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-control-port={_ep}&"
                     if _ewp is not None:
                         url += f"engine-ws-control-port={_ewp}&"
+                    if parsed.target_frame_rate is not None:
+                        url += f"target-frame-rate={parsed.target_frame_rate}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
                     token = shell.profile.secrets.dt_token
@@ -804,13 +819,14 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
+                    os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
                     time.sleep(2)
                     if container_image:
                         container_cmd, container_name = _build_renderer_container_command(
                             app_bin,
                             app_config,
-                            parsed.container_image,
+                            container_image,
                         )
                         dtslogger.info(f"Launching Renderer container ({container_name})...")
                         dtslogger.debug(f"$ > {container_cmd}")
