@@ -583,6 +583,8 @@ def configure_renderer_launch(
         app_config += ["--profiler"]
     if parsed.on_top:
         app_config += ["--on-top"]
+    if parsed.target_frame_rate is not None:
+        app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -774,6 +776,8 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-control-port={_ep}&"
                     if _ewp is not None:
                         url += f"engine-ws-control-port={_ewp}&"
+                    if parsed.target_frame_rate is not None:
+                        url += f"target-frame-rate={parsed.target_frame_rate}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
                     token = shell.profile.secrets.dt_token

@@ -181,6 +181,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run the renderer binary in the given container image",
         )
         parser.add_argument(
+            "--target-frame-rate",
+            default=None,
+            type=int,
+            help="Target renderer frame rate",
+        )
+        parser.add_argument(
             "-os",
             "--os-family",
             default=None,
