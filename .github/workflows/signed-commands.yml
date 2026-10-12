@@ -1,0 +1,77 @@
+name: Publish signed DTS commands
+
+on:
+  push:
+    branches: [ente, ente-staging, daffy, daffy-staging]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Command channel to publish
+        required: true
+        type: choice
+        options: [ente, ente-staging, daffy, daffy-staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-commands-${{ inputs.channel || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: command-signing
+    permissions:
+      contents: write
+    env:
+      CHANNEL: ${{ inputs.channel || github.ref_name }}
+      DTS_COMMANDS_PUBLIC_KEY: ${{ vars.DTS_COMMANDS_PUBLIC_KEY }}
+    steps:
+      - name: Require pinned signing tools
+        env:
+          TOOLS_REF: ${{ vars.DTS_COMMAND_SIGNING_TOOLS_REF }}
+        run: |
+          if [[ ! "$TOOLS_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "DTS_COMMAND_SIGNING_TOOLS_REF must be an approved duckietown-shell commit SHA."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHANNEL }}
+          path: commands
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: duckietown/duckietown-shell
+          ref: ${{ vars.DTS_COMMAND_SIGNING_TOOLS_REF }}
+          path: shell
+          persist-credentials: false
+          token: ${{ secrets.DTS_SIGNING_TOOLS_READ_TOKEN || github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install trusted signing tools
+        run: python -m pip install -r shell/requirements-release.txt
+      - name: Build and sign command inventory and safe runtime fixture
+        env:
+          DTS_COMMANDS_SIGNING_KEY: ${{ secrets.DTS_COMMANDS_SIGNING_KEY }}
+          COMMAND_REPOSITORY: github.com/${{ github.repository }}
+          COMMAND_REVISION: ${{ github.run_number }}
+        run: |
+          python shell/tools/commands_release.py build commands artifacts \
+            --repository "$COMMAND_REPOSITORY" --branch "$CHANNEL" \
+            --distribution "${CHANNEL%%-*}" --revision "$COMMAND_REVISION"
+          python shell/tools/commands_release.py fixture commands fixture \
+            --repository "$COMMAND_REPOSITORY" --branch "$CHANNEL" \
+            --distribution "${CHANNEL%%-*}" --revision "$COMMAND_REVISION"
+      - name: Validate artifacts before publishing
+        run: |
+          python shell/tools/commands_release.py verify artifacts
+          python shell/tools/commands_release.py verify fixture --fixture
+      - name: Publish archive before signed channel metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python shell/tools/commands_release.py publish artifacts
+          python shell/tools/commands_release.py publish fixture --fixture

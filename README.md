@@ -2,6 +2,26 @@
 
 -----------------------
 
+## Signed command releases
+
+Official DTS builds load signed artifacts rather than executing a Git checkout.
+This applies to both `ente` and `daffy`; `daffy` remains plan-free. Configuration,
+initialization, utility code, implementations, dependencies, metadata, and the
+complete file inventory are authenticated before loading.
+
+The [publishing workflow](.github/workflows/signed-commands.yml) signs clean
+checkouts using the dedicated command-signing key in a protected
+`command-signing` environment. It uses signing tools from an approved, pinned
+commit in `duckietown-shell`, not scripts or hooks from the checkout being
+packaged. Keep this workflow on all four release branches and publish signed
+`daffy` artifacts before releasing the new official client.
+
+See the shell's [signed command delivery guidance](../duckietown-shell/devel.md#signed-command-delivery)
+for signing-key configuration, branch rollout, custom command sets, and cache
+recovery. Source checkouts remain available to Duckietown developers through
+the explicit source-development workflow; repository access or a plan
+exemption does not enable unsigned overrides in official builds.
+
 TODO: this should get polished and updated. 
 
 **You need to have successfully installed the Duckietown Shell. If you know what you want to do with it go ahead. Below are some examples of things you can do with the Duckietown Shell** 
