@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import dt_data_api
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell.authorization import get_ente_authorization
 from utils.data_endpoint_utils import create_data_client
 from utils.duckiematrix_utils import \
     APP_NAME, \
@@ -28,6 +29,7 @@ class DTCommand(DTCommandAbs):
 
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
+        get_ente_authorization(shell)
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
         # ---
         if versiontuple(dt_data_api.__version__) < (1, 0, 1):

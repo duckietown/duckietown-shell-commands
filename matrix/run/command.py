@@ -28,6 +28,7 @@ except ImportError:
     pty = None
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
+from dt_shell.authorization import get_ente_authorization
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
 from ..engine.run.command import MatrixEngine
@@ -450,6 +451,7 @@ def configure_renderer_launch(
     parsed,
     delegated_engine_host: Optional[str],
 ) -> Optional[RendererLaunchConfiguration]:
+    authorization = get_ente_authorization(shell)
     app_path: Optional[str] = None
     app_config: list[str] = []
     app_prefix: list[str] = []
@@ -583,7 +585,7 @@ def configure_renderer_launch(
         app_config += ["--profiler"]
     if parsed.on_top:
         app_config += ["--on-top"]
-    app_config += ["--token", shell.profile.secrets.dt_token]
+    app_config += ["--token", authorization]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
     if billboard_names:
@@ -776,8 +778,8 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
-                    token = shell.profile.secrets.dt_token
-                    url += f"token={token}/"
+                    token = get_ente_authorization(shell)
+                    url += f"token={token}"
                     server_thread.start()
                     browser_opened = False
                     if os_family == "windows":
