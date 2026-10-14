@@ -28,10 +28,22 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run a specific version",
         )
         parser.add_argument(
+            "--renderer-editor",
+            default=False,
+            action="store_true",
+            help="Authorize Unity Editor Play mode and keep the live developer session running (staff/superuser only)",
+        )
+        parser.add_argument(
+            "--renew-authorization",
+            default=False,
+            action="store_true",
+            help="Request a fresh renderer permission instead of using its signed cache",
+        )
+        parser.add_argument(
             "--renderer-binary",
             default=None,
             type=str,
-            help="Path to a local renderer binary",
+            help="Path to a local renderer binary (unsigned development builds require staff/superuser authorization)",
         )
         parser.add_argument(
             "-S",

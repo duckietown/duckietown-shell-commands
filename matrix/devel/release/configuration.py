@@ -6,7 +6,6 @@ from dt_shell.environments import ShellCommandEnvironmentAbs
 
 
 class DTCommandConfiguration(DTCommandConfigurationAbs):
-
     @classmethod
     def environment(cls, *args, **kwargs) -> Optional[ShellCommandEnvironmentAbs]:
         """
@@ -20,6 +19,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         The parser this command will use.
         """
         parser = argparse.ArgumentParser(prog="dts matrix devel release")
+        parser.add_argument(
+            "--directory",
+            default=None,
+            type=str,
+            help="Unity build or signed renderer directory (automatically detects Release or Release/<os-family>; rejects ambiguous builds)",
+        )
         parser.add_argument(
             "-f",
             "--force",
