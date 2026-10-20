@@ -8,7 +8,6 @@ services:
     network_mode: host
     environment:
       ZENOH_ROUTER_ID: duckiedrone_router
-      ROS_DOMAIN_ID: 42
 
   camera:
     image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
@@ -25,7 +24,6 @@ services:
       DT_CAMERA_SHM_ONLY_JPEG: ${DT_CAMERA_SHM_ONLY_JPEG:-0}
       DT_CAMERA_SHM_ONLY_INFO: ${DT_CAMERA_SHM_ONLY_INFO:-0}
       DT_CAMERA_SHM_ONLY_PARAMETERS: ${DT_CAMERA_SHM_ONLY_PARAMETERS:-0}
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data/ramdisk:/data/ramdisk
       - camera-shm:/dtps-shm
@@ -45,7 +43,6 @@ services:
     environment:
       DT_LAUNCHER: sensor-tof-bottom
       DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -67,7 +64,6 @@ services:
     environment:
       DT_LAUNCHER: mavros
       DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data/ramdisk/dtps:/dtps
       # avahi socket
@@ -84,7 +80,6 @@ services:
     environment:
       DT_LAUNCHER: px4-calibration
       DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
     depends_on:
       - zenoh-router
       - mavros
@@ -98,7 +93,6 @@ services:
     network_mode: host
     environment:
       DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
       DT_LAUNCHER: rosbridge
     volumes:
       # avahi socket
