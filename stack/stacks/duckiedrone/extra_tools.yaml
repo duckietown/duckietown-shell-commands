@@ -29,5 +29,4 @@ services:
     network_mode: host
     command: ["bash", "-c", ". /opt/ros/jazzy/setup.bash && ros2 launch foxglove_bridge foxglove_bridge_launch.xml"]
     environment:
-      ROS_DOMAIN_ID: 42
       RMW_IMPLEMENTATION: rmw_zenoh_cpp
