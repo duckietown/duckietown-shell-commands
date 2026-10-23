@@ -14,6 +14,18 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         # configure arguments
         parser = argparse.ArgumentParser()
         parser.add_argument(
+            "--engine-image", default=None,
+            help="Custom Engine image (requires staff/superuser Engine developer authorization)",
+        )
+        parser.add_argument(
+            "--prepare-session", default=None, metavar="PRIVATE_FILE",
+            help="Keep an Engine developer session running for source work instead of starting a container",
+        )
+        parser.add_argument(
+            "--renew-authorization", default=False, action="store_true",
+            help="Request a fresh Engine permission instead of using its signed cache",
+        )
+        parser.add_argument(
             "-m",
             "--map",
             default=None,

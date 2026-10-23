@@ -10,6 +10,8 @@ import threading
 from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
+from functools import partial
+from urllib.parse import quote
 
 import subprocess
 import platform
@@ -30,6 +32,8 @@ except ImportError:
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
+from dt_shell.exceptions import UserError
+from dt_shell.renderer import RENDERER_MANIFEST, RendererSession, verify_renderer_release
 from ..engine.run.command import MatrixEngine
 from utils.host_runner import (
     HOST_RUNNER_ACTIVE_ENV,
@@ -90,15 +94,6 @@ def format_http_host(host: str) -> str:
     return f"[{host}]"
 
 
-def _mask_token_value(token: str) -> str:
-    parts = token.split("-", maxsplit=2)
-    if len(parts) == 3:
-        return f"{parts[0]}-{parts[1]}-{'*' * len(parts[2])}"
-    if len(parts) == 2:
-        return f"{parts[0]}-{'*' * len(parts[1])}"
-    return "*" * len(token)
-
-
 def _supports_terminal_hyperlinks() -> bool:
     if not sys.stdout.isatty():
         return False
@@ -110,33 +105,11 @@ def _supports_terminal_hyperlinks() -> bool:
     return vte_version is not None and vte_version.isdigit() and int(vte_version) >= 5000
 
 
-def _mask_token_in_text(text: str) -> str:
-    def replace(match: re.Match[str]) -> str:
-        token = match.group("token")
-        suffix = "/" if token.endswith("/") else ""
-        token = token[:-1] if suffix else token
-        return f"token={_mask_token_value(token)}{suffix}"
-
-    return re.sub(r"token=(?P<token>[^&\s\"]+)", replace, text)
-
-
-def _format_navigation_url(url: str, token: str) -> str:
-    display_url = _mask_token_in_text(url)
+def _format_navigation_url(url: str) -> str:
     if not _supports_terminal_hyperlinks():
-        return display_url
+        return url
     escape = "\033"
-    return f"{escape}]8;;{url}{escape}\\{display_url}{escape}]8;;{escape}\\"
-
-
-class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
-
-    def log_message(self, format: str, *args) -> None:
-        sanitized_args = tuple(
-            _mask_token_in_text(arg) if isinstance(arg, str) else arg
-            for arg in args
-        )
-        super_ = super()
-        super_.log_message(format, *sanitized_args)
+    return f"{escape}]8;;{url}{escape}\\{url}{escape}]8;;{escape}\\"
 
 
 class DualStackHTTPServer(HTTPServer):
@@ -164,8 +137,11 @@ class BrowserHTTPServerConfiguration:
 def create_browser_http_server(
     host: str,
     port: Optional[int],
+    *,
+    directory: Optional[str] = None,
 ) -> BrowserHTTPServerConfiguration:
     requested_port = 0 if port is None else port
+    handler = partial(SimpleHTTPRequestHandler, directory=directory)
     if should_use_ipv6_loopback_browser_server(host):
         dtslogger.info(
             "Serving the browser frontend through an IPv6 loopback HTTP server..."
@@ -173,7 +149,7 @@ def create_browser_http_server(
         try:
             server = DualStackHTTPServer(
                 ("::1", requested_port),
-                RedactingSimpleHTTPRequestHandler,
+                handler,
             )
         except OSError as error:
             error_text = str(error)
@@ -192,7 +168,7 @@ def create_browser_http_server(
         bind_host = "127.0.0.1"
         server = HTTPServer(
             (bind_host, requested_port),
-            RedactingSimpleHTTPRequestHandler,
+            handler,
         )
         return BrowserHTTPServerConfiguration(
             server=server,
@@ -203,7 +179,7 @@ def create_browser_http_server(
     bind_host = host
     server = HTTPServer(
         (bind_host, requested_port),
-        RedactingSimpleHTTPRequestHandler,
+        handler,
     )
     return BrowserHTTPServerConfiguration(
         server=server,
@@ -240,6 +216,14 @@ def _build_renderer_container_command(
         f"./{app_name}",
         *app_config,
     ]
+    for machine_id in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        if os.path.isfile(machine_id):
+            command[command.index(container_image):command.index(container_image)] = [
+                "-v", f"{machine_id}:{machine_id}:ro",
+            ]
+            break
+    else:
+        raise UserError("A renderer container requires the DTS host's machine identity.")
     return command, container_name
 
 
@@ -443,6 +427,8 @@ class RendererLaunchConfiguration:
     app_prefix: list[str]
     os_family: str
     renderer_log_path: Optional[Path]
+    release: Optional[dict]
+    development: bool
 
 
 def configure_renderer_launch(
@@ -456,6 +442,12 @@ def configure_renderer_launch(
     os_family = parsed.os_family
     browser = parsed.browser
     app_bin: Optional[str] = None
+    if parsed.renderer_editor:
+        return RendererLaunchConfiguration(
+            app_bin=None, app_config=[], app_path=os.getcwd(), app_prefix=[],
+            os_family=get_os_family(), renderer_log_path=None, release=None,
+            development=True,
+        )
 
     if parsed.renderer_binary:
         os_family = os_family or get_os_family()
@@ -583,7 +575,6 @@ def configure_renderer_launch(
         app_config += ["--profiler"]
     if parsed.on_top:
         app_config += ["--on-top"]
-    app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
     if billboard_names:
@@ -594,6 +585,17 @@ def configure_renderer_launch(
         counter = Counter(billboard_names)
         billboard_names_dict = dict(counter)
         app_config += ["--billboard-names", json.dumps(billboard_names_dict)]
+    release_root = Path(app_path).parent
+    development = bool(parsed.renderer_binary) and not (release_root / RENDERER_MANIFEST).exists()
+    release = None if development else verify_renderer_release(
+        release_root,
+        version=None if parsed.renderer_binary else version,
+        os_family="webgl" if browser else os_family,
+    )
+    if release is not None and Path(app_path).resolve() != (
+        release_root / release["entrypoint"]
+    ).resolve() and not browser:
+        raise UserError("The requested renderer is not the signed release entrypoint.")
     dtslogger.info("Renderer configured!")
     return RendererLaunchConfiguration(
         app_bin=app_bin,
@@ -602,6 +604,8 @@ def configure_renderer_launch(
         app_prefix=app_prefix,
         os_family=os_family,
         renderer_log_path=renderer_log_path,
+        release=release,
+        development=development,
     )
 
 class DTCommand(DTCommandAbs):
@@ -619,6 +623,7 @@ class DTCommand(DTCommandAbs):
             and not parsed.local
             and container_image is None
             and not parsed.xvfb
+            and not parsed.renderer_editor
         )
         delegated_engine_host = resolve_delegated_engine_host(parsed.engine_hostname)
         if delegate_renderer_to_host:
@@ -657,6 +662,10 @@ class DTCommand(DTCommandAbs):
                 "You cannot use --container-image together with --browser.",
             )
             return
+        if parsed.renderer_editor and (
+            parsed.browser or parsed.renderer_binary or container_image or parsed.xvfb
+        ):
+            raise UserError("--renderer-editor cannot be combined with another renderer launch mode.")
         # make sure the map is given (in standalone mode)
         if run_engine and not parsed.map and not parsed.sandbox:
             dtslogger.error("You need to specify a map with -m/--map when running in "
@@ -698,6 +707,9 @@ class DTCommand(DTCommandAbs):
         renderer_shutdown_event: Optional[threading.Event] = None
         renderer_log_thread: Optional[Thread] = None
         renderer_configuration: Optional[RendererLaunchConfiguration] = None
+        renderer_session: Optional[RendererSession] = None
+        browser_server: Optional[HTTPServer] = None
+        browser_server_thread: Optional[Thread] = None
         if run_renderer and not delegate_renderer_to_host:
             renderer_configuration = configure_renderer_launch(
                 shell,
@@ -715,6 +727,15 @@ class DTCommand(DTCommandAbs):
 
         # run
         try:
+            if renderer_configuration is not None:
+                renderer_session = RendererSession(
+                    shell,
+                    os_family="webgl" if browser else renderer_configuration.os_family,
+                    release=renderer_configuration.release,
+                    development=renderer_configuration.development,
+                    renew=parsed.renew_authorization,
+                )
+                app_config += ["--dts-session", renderer_session.url]
             # - engine
             if run_engine:
                 if not parsed.no_pull:
@@ -754,14 +775,29 @@ class DTCommand(DTCommandAbs):
                             dtslogger.error(f"Host-side 'dts matrix run' exited with code {exit_code}.")
                         return
 
-                if browser:
+                if parsed.renderer_editor:
+                    dtslogger.info(
+                        "Renderer developer session is ready. In Unity, set AppLauncher's "
+                        f"editorOnlyDtsSessionEndpoint to {renderer_session.url}. "
+                        "Keep this DTS command running; press Ctrl+C to end the session."
+                    )
+                    while not renderer_session.stop_event.wait(1):
+                        if renderer_session.error is not None:
+                            raise UserError(renderer_session.error)
+                elif browser:
                     dtslogger.info("Launching Renderer in browser...")
-                    os.chdir(app_path)
                     host = parsed.host
-                    server_configuration = create_browser_http_server(host, parsed.port)
+                    server_configuration = create_browser_http_server(
+                        host, parsed.port, directory=str(Path(app_path).parent),
+                    )
+                    browser_server = server_configuration.server
                     server_thread = Thread(target=server_configuration.server.serve_forever)
                     server_thread.daemon = True
-                    url = f"http://{format_http_host(server_configuration.display_host)}:{server_configuration.port}/?"
+                    browser_server_thread = server_thread
+                    renderer_session.origin = (
+                        f"http://{format_http_host(server_configuration.display_host)}:{server_configuration.port}"
+                    )
+                    url = f"http://{format_http_host(server_configuration.display_host)}:{server_configuration.port}/duckiematrix/?"
                     if parsed.renderer_id is not None:
                         url += f"renderer-id={parsed.renderer_id}&"
                     if parsed.renderer_key is not None:
@@ -776,26 +812,12 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
-                    token = shell.profile.secrets.dt_token
-                    url += f"token={token}/"
+                    url += "dts-session=" + quote(renderer_session.url, safe="")
                     server_thread.start()
-                    browser_opened = False
-                    if os_family == "windows":
-                        try:
-                            url = url.replace("&", "^&")
-                            subprocess.run(
-                                ["cmd.exe", "/c", "start", f"{url}"], 
-                                stderr=subprocess.DEVNULL, 
-                                stdout=subprocess.DEVNULL,
-                            )
-                            browser_opened = True
-                        except Exception:
-                            pass
-                    if not browser_opened:
-                        browser_opened = open_browser_url(url)
+                    browser_opened = open_browser_url(url)
                     if not browser_opened:
                         dtslogger.warning("Could not open browser.")
-                    formatted_url = _format_navigation_url(url, token)
+                    formatted_url = _format_navigation_url(url)
                     dtslogger.info(f"Navigate to {formatted_url}.")
                     # wait for the engine to terminate
                     if run_engine:
@@ -906,6 +928,14 @@ class DTCommand(DTCommandAbs):
                 engine.join()
 
         finally:
+            if renderer_session is not None:
+                renderer_session.close()
+            if browser_server is not None:
+                if browser_server_thread is not None and browser_server_thread.is_alive():
+                    browser_server.shutdown()
+                browser_server.server_close()
+                if browser_server_thread is not None:
+                    browser_server_thread.join(timeout=5)
             if run_engine:
                 engine.stop()
             if run_renderer and terminate_renderer and process_is_running(renderer):

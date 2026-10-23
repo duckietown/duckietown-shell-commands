@@ -28,6 +28,7 @@ HOST_RUNNER_FRONTEND_URL_ENV = "DTS_HOST_RUNNER_FRONTEND_URL"
 HOST_RUNNER_CONTAINER_ROOT_ENV = "DTS_HOST_RUNNER_CONTAINER_ROOT"
 HOST_RUNNER_ENGINE_HOST_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_ENGINE_HOST"
 HOST_RUNNER_FRONTEND_URL_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_FRONTEND_URL"
+HOST_RUNNER_VIEWER_HANDOFF_FORWARD_ENV = "HOST_DTS_VIEWER_HANDOFF"
 HOST_RUNNER_MATRIX_RENDERER_ONLY_ENV = "DTS_HOST_RUNNER_MATRIX_RENDERER_ONLY"
 HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_MATRIX_RENDERER_ONLY"
 HOST_RUNNER_TIMEOUT_ENV = "DTS_HOST_RUNNER_TIMEOUT"
@@ -64,6 +65,7 @@ FORWARDED_ENVIRONMENT_KEYS = (
     "HOST_DTSHELL_COMMANDS",
     HOST_RUNNER_ENGINE_HOST_FORWARD_ENV,
     HOST_RUNNER_FRONTEND_URL_FORWARD_ENV,
+    HOST_RUNNER_VIEWER_HANDOFF_FORWARD_ENV,
     HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV,
 )
 
@@ -1179,6 +1181,22 @@ def delegate_command_to_host(
     }
 
     resolved_requests_dir = _resolve_host_runner_requests_dir(verbose=emit_client_context)
+    viewer_handoff = forwarded_environment.get(HOST_RUNNER_VIEWER_HANDOFF_FORWARD_ENV)
+    if viewer_handoff:
+        if resolved_requests_dir is None:
+            raise HostRunnerError("Viewer handoffs require a shared host-runner request directory.")
+        handoff = Path(viewer_handoff)
+        try:
+            if handoff.is_symlink() or not handoff.is_file():
+                raise HostRunnerError("Viewer handoffs must be regular private files.")
+            relative = handoff.resolve(strict=True).relative_to(
+                resolved_requests_dir[0].resolve(strict=True),
+            )
+        except (OSError, ValueError) as error:
+            raise HostRunnerError("The Viewer handoff must be inside the shared host-runner request directory.") from error
+        if len(relative.parts) != 2 or relative.name != "desktop.json":
+            raise HostRunnerError("The Viewer desktop handoff must be in its private shared session directory.")
+        forwarded_environment[HOST_RUNNER_VIEWER_HANDOFF_FORWARD_ENV] = relative.as_posix()
     if resolved_requests_dir is not None:
         requests_dir, timeout = resolved_requests_dir
         if emit_client_context:

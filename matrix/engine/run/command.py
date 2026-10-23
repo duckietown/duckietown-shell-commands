@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import platform
+from pathlib import Path
 import subprocess
 import time
 from threading import Thread
@@ -9,11 +10,17 @@ from typing import Optional, Dict
 
 import yaml
 from docker.models.containers import Container
+from docker.errors import DockerException
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD, get_endpoint_architecture
 from utils.duckiematrix_utils import \
     APP_NAME
+from utils.engine_authorization import (
+    CONTAINER_HANDOFF, EngineLaunch, image_record, prepare_session, verify_image,
+)
+from dt_shell.engine_runtime import HANDOFF_ENV
+from dt_shell.exceptions import UserError
 
 DUCKIEMATRIX_ENGINE_IMAGE_FMT = "{registry}/duckietown/dt-duckiematrix:{distro}-{arch}"
 EXTERNAL_SHUTDOWN_REQUEST = "===REQUESTED-EXTERNAL-SHUTDOWN==="
@@ -44,6 +51,11 @@ class MatrixEngine:
         self.config: Optional[dict] = None
         self.engine: Optional[Container] = None
         self.verbose = False
+        self.authorization = None
+        self.shell = None
+        self.record = None
+        self.development = False
+        self.renew_authorization = False
 
     @property
     def is_configured(self) -> bool:
@@ -54,6 +66,7 @@ class MatrixEngine:
         return self.engine is not None and self.engine.status == "running"
 
     def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
+        self.shell = shell
         self.verbose = parsed.verbose
         # check for conflicting arguments
         # - map VS sandbox
@@ -94,11 +107,15 @@ class MatrixEngine:
         if docker_registry != DEFAULT_REGISTRY:
             dtslogger.warning(f"Using custom DOCKER_REGISTRY='{docker_registry}'.")
         # compile engine image name
-        engine_image = DUCKIEMATRIX_ENGINE_IMAGE_FMT.format(
-            registry=docker_registry,
-            distro=shell.profile.distro.name,
-            arch=get_endpoint_architecture()
+        custom_image = getattr(parsed, "engine_image", None)
+        if docker_registry != DEFAULT_REGISTRY and custom_image is None:
+            raise UserError("Custom Engine registries require an explicit --engine-image and Engine developer authorization.")
+        self.development = custom_image is not None
+        self.renew_authorization = getattr(parsed, "renew_authorization", False)
+        self.record = None if self.development else image_record(
+            shell, get_endpoint_architecture(), update=not parsed.no_pull,
         )
+        engine_image = custom_image if self.development else self.record["reference"]
         # check if a default-named engine container already exists
         engine_container_name: str = parsed.engine_name if parsed.engine_name else "dts-matrix-engine"
         if not parsed.engine_name:
@@ -135,11 +152,14 @@ class MatrixEngine:
                 "PYTHONUNBUFFERED": "1",
                 "IMPERSONATE_UID": os.getuid(),
                 "IMPERSONATE_GID": os.getgid(),
+                HANDOFF_ENV: CONTAINER_HANDOFF,
             },
             "ports": {},
             "name": engine_container_name
         }
         engine_config.update(DUCKIEMATRIX_ENGINE_IMAGE_CONFIG)
+        if engine_config["image"] != engine_image:
+            raise UserError("Engine image overrides must use --engine-image and Engine developer authorization.")
         # set the mode
         engine_mode = "realtime" if not parsed.simulation else "gym"
         engine_config["command"] += ["--mode", engine_mode]
@@ -222,22 +242,29 @@ class MatrixEngine:
         if self.config is None:
             raise ValueError("Configure the engine first.")
         dtslogger.info("Cleaning up containers...")
-        if self.is_running:
-            # noinspection PyBroadException
-            try:
-                self.engine.stop()
-            except Exception:
-                dtslogger.warn("We couldn't ensure that the engine container was stopped. "
-                               "Just a heads up that it might still be running.")
-        # noinspection PyBroadException
         try:
-            self.engine.remove()
-        except Exception:
-            dtslogger.warn("We couldn't ensure that the engine container was removed. "
-                           "Just a heads up that it might still be there.")
-        self.engine = None
+            if self.engine is not None:
+                try:
+                    self.engine.reload()
+                    if self.engine.status in ("running", "restarting", "paused"):
+                        self.engine.stop()
+                    self.engine.remove()
+                except DockerException as error:
+                    dtslogger.error(f"Could not stop or remove the Engine container: {error}")
+        finally:
+            self.engine = None
+            if self.authorization is not None:
+                self.authorization.close()
+                self.authorization = None
+
+    def _authorize(self):
+        if self.authorization is None:
+            self.authorization = EngineLaunch(
+                self.shell, record=self.record, development=self.development, renew=self.renew_authorization,
+            )
 
     def pull(self):
+        self._authorize()
         # download engine image
         image: str = self.config["image"]
         dtslogger.info(f"Download image '{image}'...")
@@ -249,10 +276,15 @@ class MatrixEngine:
             raise ValueError("Configure the engine first.")
         # create docker client
         docker = get_client_OLD()
-        # run
+        started = False
         try:
+            self._authorize()
+            if self.record is not None:
+                verify_image(docker, self.config["image"], self.record)
             dtslogger.info("Launching Engine...")
-            self.engine = docker.containers.run(**self.config)
+            self.engine = docker.containers.create(**self.config)
+            self.authorization.copy_handoff(self.engine)
+            self.engine.start()
             # print out logs if we are in verbose mode
             if self.verbose:
                 def verbose_reader(stream):
@@ -265,17 +297,15 @@ class MatrixEngine:
 
                 container_stream = self.engine.logs(stream=True)
                 Thread(target=verbose_reader, args=(container_stream,), daemon=True).start()
-        except BaseException as e:
-            dtslogger.error(f"An error occurred while running the engine. The error reads:\n{e}")
-            self.stop()
-            return False
-        # make sure the engine is running
-        try:
             self.engine.reload()
-        except BaseException as e:
-            dtslogger.error(f"An error occurred while running the engine. The error reads:\n{e}")
-            self.stop()
-            return False
+            if self.engine.status != "running":
+                raise UserError("The Engine exited during startup. Use --verbose to inspect its authorization or startup error.")
+            started = True
+        except DockerException as error:
+            raise UserError(f"Could not start the authorized Engine: {error}") from error
+        finally:
+            if not started:
+                self.stop()
         # join (if needed)
         return True if not join else self.join()
 
@@ -287,6 +317,9 @@ class MatrixEngine:
         # ---
         stime = time.time()
         while True:
+            self.engine.reload()
+            if self.engine.status not in ("running", "restarting"):
+                raise UserError("The Engine exited before becoming healthy. Use --verbose to inspect its error.")
             _, health = self.engine.exec_run("cat /health", stderr=False)
             if health == b"healthy":
                 return
@@ -298,9 +331,11 @@ class MatrixEngine:
     def join(self) -> bool:
         try:
             # wait for the engine to terminate
-            self.engine.wait()
-        except BaseException:
-            return False
+            result = self.engine.wait()
+            if result["StatusCode"] != 0:
+                raise UserError(f"The Engine exited with status {result['StatusCode']}. Use --verbose to inspect its error.")
+        except DockerException as error:
+            raise UserError(f"Could not wait for the Engine: {error}") from error
         finally:
             self.stop()
         return True
@@ -326,15 +361,21 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
+        if parsed.prepare_session is not None:
+            prepare_session(shell, Path(parsed.prepare_session), renew=parsed.renew_authorization)
+            return
         # ---
         engine = DTCommand.make_engine(shell, parsed)
         if engine is None:
             return
         # ---
-        if not parsed.no_pull:
-            engine.pull()
-        engine.start()
-        engine.join()
+        try:
+            if not parsed.no_pull:
+                engine.pull()
+            engine.start()
+            engine.join()
+        finally:
+            engine.stop()
 
     @staticmethod
     def complete(shell, word, line):

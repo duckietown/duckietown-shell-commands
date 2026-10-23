@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from urllib.parse import urlsplit
 import time
 from pathlib import Path
 from threading import Thread
@@ -62,6 +63,14 @@ HOST_DELEGATED_VIEWER_COMMANDS = {
 
 FRONTEND_URL_REACHABILITY_TIMEOUT_SECONDS = 10
 FRONTEND_URL_REACHABILITY_RETRY_INTERVAL_SECONDS = 0.5
+
+
+def _protected_viewer() -> bool:
+    return get_distro(dt_shell.shell).name in ("ente", "ente-staging")
+
+
+def _release_directory() -> str:
+    return os.path.join(APP_RELEASES_DIR, "ente") if _protected_viewer() else APP_RELEASES_DIR
 
 
 def forwarded_frontend_url() -> Optional[str]:
@@ -311,6 +320,9 @@ def get_latest_version(
         The version string (e.g. ``"1.2.3"``), or ``None`` if no release has
         been published for the given OS family.
     """
+    if _protected_viewer():
+        from utils.viewer_authorization import latest_version
+        return latest_version(os_family, client or create_data_client(dt_shell.shell))
     # create storage client
     client = client or DataClient()
     storage = client.storage(DCSS_SPACE_NAME)
@@ -333,7 +345,7 @@ def get_all_installed_releases(os_family: str = "") -> List[str]:
     Returns:
         A list of version strings (e.g. ``["1.0.0-linux", "1.2.3-linux"]``).
     """
-    app_dir = os.path.join(APP_RELEASES_DIR, f"*-{os_family}")
+    app_dir = os.path.join(_release_directory(), f"*-{os_family}")
     dirs = glob.glob(app_dir)
     version_regex = r"v([0-9]+)\.([0-9]+)\.([0-9]+)"
     version_pattern = re.compile(version_regex)
@@ -373,7 +385,7 @@ def get_path_to_install(version: str, os_family: str = ""):
         The absolute path to the installation directory, or ``None`` if the
         directory does not exist.
     """
-    app_dir = os.path.join(APP_RELEASES_DIR, f"v{version}-{os_family}")
+    app_dir = os.path.join(_release_directory(), f"v{version}-{os_family}")
     if not os.path.isdir(app_dir):
         app_dir = None
     return app_dir
@@ -399,6 +411,12 @@ def get_path_to_binary(version: str, os_family: str = ""):
     app_dir = get_path_to_install(version, os_family)
     if app_dir is None:
         return None
+    if _protected_viewer():
+        from dt_shell.viewer import verify_viewer_release
+        release = verify_viewer_release(Path(app_dir))
+        if release["platform"] != os_family:
+            raise UserError("The signed Viewer payload is for a different platform.")
+        return str(Path(app_dir) / release["entrypoint"])
     if os_family == "macos" or os_family == "macos-arm64":
         return os.path.join(app_dir, "Duckietown Viewer.app")
     if os_family == "linux" or os_family == "linux-arm64":
@@ -450,7 +468,15 @@ def remote_zip_obj(version: str, os_family: str = ""):
         The object path (key) of the release ``.zip`` on the Duckietown Cloud
         Storage Service.
     """
-    return os.path.join(DCSS_APP_RELEASES_DIR, f"{APP_NAME}-{version}-{os_family}.zip")
+    directory = DCSS_APP_RELEASES_DIR
+    if _protected_viewer():
+        from utils.viewer_authorization import CHANNEL
+        if re.fullmatch(r"\d+\.\d+\.\d+", version) is None or os_family not in (
+            "linux", "linux-arm64", "macos", "macos-arm64", "windows", "windows-arm64",
+        ):
+            raise UserError("Invalid signed Viewer release coordinates.")
+        directory = f"{CHANNEL}/releases"
+    return os.path.join(directory, f"{APP_NAME}-{version}-{os_family}.zip")
 
 
 def mark_as_latest_version(
@@ -467,7 +493,11 @@ def mark_as_latest_version(
     client = client or DataClient(token)
     storage = client.storage(DCSS_SPACE_NAME)
     # get latest version
-    latest_version_obj = os.path.join(DCSS_APP_DIR, f"latest-{os_family}")
+    directory = DCSS_APP_DIR
+    if _protected_viewer():
+        from utils.viewer_authorization import CHANNEL
+        directory = CHANNEL
+    latest_version_obj = os.path.join(directory, f"latest-{os_family}")
     upload = storage.upload(version.encode("ascii"), latest_version_obj)
     upload.join()
 
@@ -479,6 +509,7 @@ def ensure_duckietown_viewer_installed(
     version: Optional[str] = None,
     update: bool = True,
     force: bool = False,
+    app: str = "empty_viewer",
 ) -> Optional[str]:
     """Download and install the Duckietown Viewer if a newer version is available.
 
@@ -502,6 +533,12 @@ def ensure_duckietown_viewer_installed(
     Returns:
         The installed version, or ``None`` when no release is available.
     """
+    if _protected_viewer():
+        from utils.viewer_authorization import ensure_installed
+        return ensure_installed(
+            os_family or resolve_os_family(), version=version,
+            update=update if app == "empty_viewer" else False, force=force, app=app,
+        )
     shell: DTShell = dt_shell.shell
     data_client = create_data_client(shell)
     log_prefix = log_prefix or " > "
@@ -672,6 +709,21 @@ def launch_viewer(
     return viewer
 
 
+def _frontend_environment():
+    return {
+        key: value for key, value in os.environ.items()
+        if key.upper() not in {
+            "DTSHELL_TOKEN", "DUCKIETOWN_TOKEN", "DUCKIETOWN_CI_DT_TOKEN",
+            "DTHUB_TOKEN", "DTS_TOKEN", "DT_TOKEN",
+            "PYTHONPATH", "PYTHONHOME", "NODE_OPTIONS", "ELECTRON_RUN_AS_NODE",
+        }
+        and not (
+            key.upper().startswith(("DTS_", "DTM_", "DTV_", "DUCKIETOWN_"))
+            and key.upper().endswith(("_PRIVATE_KEY", "_SIGNING_KEY"))
+        )
+    }
+
+
 class DuckietownViewerInstance:
     """Manages the lifecycle of a Duckietown Viewer session.
 
@@ -698,6 +750,8 @@ class DuckietownViewerInstance:
         "extrinsics_calibrator",
         "led_controller",
         "graph_plotter",
+        "empty_viewer",
+        "form_generator",
         "dashboard"
     ]
 
@@ -719,6 +773,13 @@ class DuckietownViewerInstance:
         self._frontend_debug_log_path: Optional[str] = None
         self._backend_url: Optional[str] = None
         self._host_port: Optional[str] = None
+        self._viewer_session = None
+        self._viewer_lease = None
+        self._viewer_handoff = None
+        self._viewer_backend_handoff = None
+        self._viewer_temporary = None
+        self._viewer_image = None
+        self._viewer_ready = None
 
     @staticmethod
     def _find_free_host_port() -> str:
@@ -856,6 +917,15 @@ class DuckietownViewerInstance:
             no_pull: Use a local backend image without pulling updates.
             window_args: Additional ``--key=value`` arguments for the frontend.
         """
+        if _protected_viewer():
+            from utils.viewer_authorization import run
+            if not self._os_family:
+                self._os_family = resolve_os_family(browser=browser)
+            return run(
+                self, app, robot, fullscreen=fullscreen, menu=menu, on_top=on_top,
+                enable_hardware_acceleration=enable_hardware_acceleration,
+                browser=browser, local=local, no_pull=no_pull, window_args=window_args,
+            )
         resolved_window_args: WindowArgs = {}
         if window_args is not None:
             resolved_window_args = dict(window_args)
@@ -944,6 +1014,10 @@ class DuckietownViewerInstance:
                 command_args,
                 cwd=cwd,
                 emit_client_context=self._verbose,
+                forwarded_env=(
+                    {"HOST_DTS_VIEWER_HANDOFF": str(self._viewer_handoff)}
+                    if self._viewer_handoff is not None else None
+                ),
             )
         except HostRunnerError as error:
             error_string = str(error)
@@ -984,19 +1058,20 @@ class DuckietownViewerInstance:
         # create docker client
         docker: DockerClient = get_client()
         # compile image name
-        image = self._backend_image(docker, no_pull)
+        image = self._viewer_image or self._backend_image(docker, no_pull)
         dtslogger.debug(f"Using image '{image}'")
         # create container
         container_name: str = f"duckietown-viewer-backend-{random_string()}"
         backend_port = str(self._BACKEND_REMOTE_PORT)
-        self._host_port = None
+        if self._viewer_session is None:
+            self._host_port = None
         use_host_network = self._use_host_network_for_backend()
         vehicle_ip, add_hosts = self._resolve_backend_vehicle_ip(ip, use_host_network)
         network_cfg: dict = {
-            "publish": [(0, self._BACKEND_REMOTE_PORT)],
+            "publish": [(int(self._host_port or 0), self._BACKEND_REMOTE_PORT)],
         }
         if use_host_network:
-            backend_port = self._find_free_host_port()
+            backend_port = self._host_port or self._find_free_host_port()
             self._host_port = backend_port
             network_cfg = {
                 "x_passthrough_args": ["--net=host"],
@@ -1016,6 +1091,12 @@ class DuckietownViewerInstance:
         }
         if add_hosts:
             container_cfg["add_hosts"] = add_hosts
+        if self._viewer_backend_handoff is not None:
+            container_cfg.setdefault("add_hosts", []).append(("host.docker.internal", "host-gateway"))
+            container_cfg["envs"]["DT_VIEWER_HANDOFF"] = "/run/duckietown-viewer/backend.json"
+            container_cfg["volumes"].append(
+                (str(self._viewer_backend_handoff), "/run/duckietown-viewer/backend.json", "ro"),
+            )
         # mount avahi socket (if it is available)
         if os.path.exists(AVAHI_SOCKET):
             container_cfg["volumes"].append((AVAHI_SOCKET, AVAHI_SOCKET))
@@ -1074,27 +1155,43 @@ class DuckietownViewerInstance:
         backend_url = f"localhost:{self._host_port}"
         dtslogger.debug(f"Container '{container_name}' is reachable at '{backend_url}'")
         # wait for the backend to be ready
-        stime: float = time.time()
+        stime: float = time.monotonic()
         timeout: float = 10
         while True:
-            url: str = f"http://{backend_url}/"
+            if time.monotonic() - stime > timeout:
+                raise UserError(f"Timeout reached ({timeout}s) while waiting for Viewer container '{container_name}'.")
+            protected = self._viewer_session is not None
+            url: str = f"http://{backend_url}/" + ("__viewer__/ready" if protected else "")
             try:
-                response = requests.get(url)
+                response = requests.get(
+                    url, timeout=(1, 2),
+                    headers={
+                        "X-Viewer-Ready": self._viewer_ready,
+                        "Host": urlsplit(self._viewer_session.context["endpoint"]).netloc,
+                    } if protected else {},
+                    allow_redirects=False,
+                )
                 dtslogger.debug(f"GET: {url}\n < {response.status_code} {response.reason}")
-            except requests.exceptions.ConnectionError:
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
                 # retry
                 time.sleep(0.5)
                 continue
 
             # ready
             if response.status_code == 200:
+                if protected:
+                    try:
+                        readiness = response.json()
+                    except ValueError as error:
+                        raise UserError("The Viewer backend returned invalid authenticated readiness.") from error
+                    if readiness != {"ready": True, "session_id": self._viewer_session.session_id}:
+                        raise UserError("The Viewer backend readiness belongs to a different launch.")
                 dtslogger.debug(f"Container '{container_name}' is ready")
                 self._backend_url = backend_url
                 return True
             # timeout
-            if time.time() - stime > timeout:
-                dtslogger.error(f"Timeout reached ({timeout}s) while waiting for container '{container_name}'")
-                return False
+            if protected and response.status_code in (401, 403):
+                raise UserError("The Viewer backend rejected the live DTS authorization.")
             # retry
             time.sleep(0.5)
 
@@ -1131,16 +1228,28 @@ class DuckietownViewerInstance:
         if enable_hardware_acceleration:
             app_config.append("--enable-hardware-acceleration")
         os_family = self._os_family
-        if os_family == "windows" or os_family == "windows-arm64":
+        if (os_family == "windows" or os_family == "windows-arm64") and not _protected_viewer():
             app_bin = get_installed_windows_app_path()
         else:
-            app_bin = get_path_to_binary(get_most_recent_version_installed(os_family), os_family)
+            context = (
+                self._viewer_session.context if self._viewer_session is not None
+                else self._viewer_lease.handoff["context"] if self._viewer_lease is not None else None
+            )
+            version = context["desktop_version"] if context is not None else get_most_recent_version_installed(os_family)
+            app_bin = get_path_to_binary(version, os_family)
+        if self._viewer_handoff is not None:
+            handoff = str(self._viewer_handoff)
+            if os_family.startswith("windows") and sys.platform.startswith("linux"):
+                handoff = linux_path_to_windows(handoff)
+                if not handoff:
+                    raise UserError("Could not translate the Viewer handoff path for the native Windows frontend.")
+            app_config.extend(["--viewer-handoff", handoff])
         # add extra arguments
         for k, v in args.items():
             app_config.append(f"--{k}={v}")
         # run the app
         dtslogger.info("Launching viewer...")
-        popen_kwargs = {}
+        popen_kwargs = {"env": _frontend_environment()}
         self._frontend_app_path = None
         if (os_family == "macos" or os_family == "macos-arm64") and app_bin.endswith(".app"):
             if not os.path.isdir(app_bin):
@@ -1148,9 +1257,6 @@ class DuckietownViewerInstance:
                     f"Could not find macOS app bundle '{app_bin}'."
                 )
             self._frontend_app_path = app_bin
-            environment = os.environ.copy()
-            environment.pop("ELECTRON_RUN_AS_NODE", None)
-            popen_kwargs["env"] = environment
             popen_kwargs["stdin"] = subprocess.DEVNULL
             app_cmd = ["open", "-n", "-W", app_bin, "--args"] + app_config
             if self._verbose:
@@ -1203,15 +1309,28 @@ class DuckietownViewerInstance:
 
     def _stop(self):
         """Terminate the frontend process and stop the backend container."""
-        if self._frontend is not None and self._frontend.poll() is None:
-            self._frontend.terminate()
-        frontend_app_path = self._frontend_app_path
-        self._frontend_app_path = None
-        if frontend_app_path is not None:
+        try:
+            if self._frontend is not None and self._frontend.poll() is None:
+                try:
+                    self._frontend.terminate()
+                except ProcessLookupError:
+                    dtslogger.debug("The Viewer frontend already exited during cleanup.")
+            frontend_app_path = self._frontend_app_path
+            self._frontend_app_path = None
+            if frontend_app_path is not None and self._viewer_handoff is None:
+                try:
+                    terminate_macos_app(frontend_app_path)
+                except FileNotFoundError:
+                    pass
+        finally:
             try:
-                terminate_macos_app(frontend_app_path)
-            except FileNotFoundError:
-                pass
-        if self._backend is not None:
-            self._backend.stop()
-        self._cleanup_frontend_debug_log()
+                if self._backend is not None:
+                    self._backend.stop()
+            finally:
+                try:
+                    if self._viewer_session is not None:
+                        self._viewer_session.close()
+                finally:
+                    if self._viewer_temporary is not None:
+                        self._viewer_temporary.cleanup()
+                    self._cleanup_frontend_debug_log()
