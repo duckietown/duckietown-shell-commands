@@ -14,7 +14,7 @@ from typing import List, Optional, Dict, Tuple
 import docker
 import yaml
 
-from dt_shell import DTCommandAbs, dtslogger
+from dt_shell import DTCommandAbs, UserError, dtslogger
 
 from dtproject import DTProject
 from dtproject.constants import (
@@ -210,6 +210,37 @@ class DTCommand(DTCommandAbs):
         mount_code = parsed.mount is True or isinstance(parsed.mount, str)
 
         cc_mountpoints: List[Tuple[str, str, str]] = []
+        if project.name == "dt-duckietown-viewer" and project.distro in ("ente", "ente-staging"):
+            from pathlib import Path
+            from dt_shell.viewer import _trust
+            from dt_shell.viewer_runtime import ViewerAuthorizationError, ViewerLease, read_handoff
+
+            if not parsed.viewer_handoff:
+                raise UserError(
+                    "Viewer source runs require a separate staff/superuser developer session. "
+                    "Keep 'dts viewer prepare --app <launcher> --directory <private-directory>' running, "
+                    "then pass --viewer-handoff <private-directory>/backend.json."
+                )
+            if parsed.machine != DEFAULT_MACHINE:
+                raise UserError("Viewer source handoffs must be mounted through the local Docker endpoint.")
+            path = Path(parsed.viewer_handoff).expanduser().absolute()
+            viewer_app = (
+                "empty_viewer" if parsed.launcher in (None, "default", "ci-smoke-test")
+                else parsed.launcher
+            )
+            _, issuers = _trust()
+            try:
+                handoff = read_handoff(path)
+                if (
+                    handoff["consumer"] != "backend" or not handoff["context"]["development"]
+                    or handoff["context"]["app"] != viewer_app
+                ):
+                    raise ViewerAuthorizationError("This is not a Viewer developer handoff for the selected launcher.")
+                ViewerLease(handoff, issuer_keys=issuers)
+            except ViewerAuthorizationError as error:
+                raise UserError(str(error)) from error
+            cc_environment["DT_VIEWER_HANDOFF"] = "/run/duckietown-viewer/backend.json"
+            cc_mountpoints.append((str(path), "/run/duckietown-viewer/backend.json", "ro"))
 
         # add default mount points
         for mountpoint in DEFAULT_MOUNTS:

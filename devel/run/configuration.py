@@ -46,6 +46,10 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
         parser.add_argument("-n", "--name", default=None, help="Name of the container")
         parser.add_argument("-c", "--cmd", default=None, help="Command to run in the Docker container")
         parser.add_argument(
+            "--viewer-handoff", default=None,
+            help="Private backend handoff from 'dts viewer prepare' for staff/superuser Viewer source work",
+        )
+        parser.add_argument(
             "--pull", default=False, action="store_true", help="Whether to pull the image of the project"
         )
         parser.add_argument(

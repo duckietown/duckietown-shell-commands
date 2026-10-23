@@ -23,6 +23,10 @@ class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args, **kwargs):
         parsed = DTCommand._resolve_parsed(args, kwargs.get("parsed"))
+        from utils.viewer_authorization import enabled
+        if enabled(shell):
+            from utils.viewer_release import publish
+            return publish(shell, parsed)
         # ---
 
         # make sure we are in the right place

@@ -20,8 +20,8 @@ class DTCommand(DTCommandAbs):
         local = parsed.local
         delegate_frontend = should_delegate_viewer_frontend(browser, local)
         os_family = resolve_os_family(parsed.os_family, browser)
-        if not delegate_frontend:
-            ensure_duckietown_viewer_installed(os_family)
+        if not delegate_frontend and not browser:
+            ensure_duckietown_viewer_installed(os_family, app=LAUNCHER_NAME)
         # launch viewer
         launch_viewer(
             LAUNCHER_NAME,

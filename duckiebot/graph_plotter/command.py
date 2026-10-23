@@ -18,7 +18,8 @@ class DTCommand(DTCommandAbs):
         # make sure the app is installed
         browser = parsed.browser
         os_family = resolve_os_family(parsed.os_family, browser)
-        ensure_duckietown_viewer_installed(os_family)
+        if not browser:
+            ensure_duckietown_viewer_installed(os_family, app=LAUNCHER_NAME)
         # launch viewer
         launch_viewer(
             LAUNCHER_NAME,
