@@ -41,6 +41,22 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Run both engine and renderer",
         )
         parser.add_argument(
+            "--gym",
+            "--simulation",
+            dest="simulation",
+            default=False,
+            action="store_true",
+            help="Run the standalone engine in simulation mode",
+        )
+        parser.add_argument(
+            "-t",
+            "-dt",
+            "--delta-t",
+            default=None,
+            type=float,
+            help="Time step (requires --gym/--simulation)",
+        )
+        parser.add_argument(
             "--engine-name",
             default=None,
             type=str,
@@ -185,6 +201,15 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=None,
             type=int,
             help="Target renderer frame rate",
+        )
+        parser.add_argument(
+            "--shm-path",
+            default=None,
+            type=str,
+            help=(
+                "DTPS shared-memory base path for standalone gym mode, in a "
+                "private directory owned by the current user with permissions 0700"
+            ),
         )
         parser.add_argument(
             "-os",

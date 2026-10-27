@@ -52,7 +52,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--delta-t",
             default=None,
             type=float,
-            help="Time step (gym mode only)",
+            help="Time step (requires --gym/--simulation)",
         )
         parser.add_argument(
             "--link",
@@ -111,6 +111,15 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             default=False,
             action="store_true",
             help="Enable the profiler"
+        )
+        parser.add_argument(
+            "--shm-path",
+            default=None,
+            type=str,
+            help=(
+                "DTPS shared-memory base path for gym mode, in a private "
+                "directory owned by the current user with permissions 0700"
+            )
         )
         # ---
         return parser
