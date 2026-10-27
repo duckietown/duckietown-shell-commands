@@ -577,7 +577,7 @@ def configure_renderer_launch(
         app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
     if parsed.renderer_key is not None:
         app_config += ["--renderer-key", parsed.renderer_key]
-    if not parsed.no_tutorial:
+    if not parsed.no_tutorial and not parsed.cameras_only:
         app_config += ["--tutorial"]
     if parsed.profiler:
         app_config += ["--profiler"]
@@ -585,6 +585,8 @@ def configure_renderer_launch(
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
         app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
+    if parsed.cameras_only:
+        app_config += ["--cameras-only"]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -629,6 +631,9 @@ class DTCommand(DTCommandAbs):
         # check for conflicting arguments
         run_engine: bool = parsed.standalone and not host_renderer_only
         run_renderer: bool = True
+        if parsed.cameras_only and parsed.no_tutorial:
+            dtslogger.error("You cannot use --cameras-only and --no-tutorial together.")
+            return
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
@@ -785,8 +790,9 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
+                    url += f"cameras-only={'true' if parsed.cameras_only else 'false'}&"
                     url += f"profiler={'true' if parsed.profiler else 'false'}&"
-                    url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
+                    url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.cameras_only else 'false'}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
                     server_thread.start()

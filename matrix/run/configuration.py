@@ -203,6 +203,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Target renderer frame rate",
         )
         parser.add_argument(
+            "--cameras-only",
+            default=False,
+            action="store_true",
+            help="Render sensor cameras without the spectator's 3D world view",
+        )
+        parser.add_argument(
             "--shm-path",
             default=None,
             type=str,
