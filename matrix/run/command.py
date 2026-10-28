@@ -581,6 +581,8 @@ def configure_renderer_launch(
         app_config += ["--tutorial"]
     if parsed.profiler:
         app_config += ["--profiler"]
+    if parsed.gym_async_tof:
+        app_config += ["--gym-async-tof"]
     if parsed.on_top:
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
@@ -653,6 +655,9 @@ class DTCommand(DTCommandAbs):
             return
         if parsed.renderer_binary and parsed.browser:
             dtslogger.error("You cannot use --renderer-binary together with --browser.")
+            return
+        if parsed.gym_async_tof and parsed.browser:
+            dtslogger.error("You cannot use --gym-async-tof together with --browser.")
             return
         if container_image and parsed.browser:
             dtslogger.error(

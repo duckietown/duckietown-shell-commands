@@ -191,6 +191,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Enable the profiler (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--gym-async-tof",
+            default=False,
+            action="store_true",
+            help="Use asynchronous ToF capture in native Gym mode",
+        )
+        parser.add_argument(
             "--container-image",
             default=None,
             type=str,
