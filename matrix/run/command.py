@@ -50,6 +50,7 @@ EXTERNAL_SHUTDOWN_REQUEST: str = "===REQUESTED-EXTERNAL-SHUTDOWN==="
 RENDERER_EXIT_POLL_SECONDS = 0.1
 RENDERER_TAILED_SHUTDOWN_WAIT_SECONDS = 2
 RENDERER_FORCE_KILL_WAIT_SECONDS = 5
+RENDERER_MACOS_SHUTDOWN_TIMEOUT_SECONDS = 2
 FEX_EXECUTABLES = ("FEX", "FEXInterpreter")
 ARM64_MACHINES = ("aarch64", "arm64")
 FEX_SETUP_GUIDANCE = (
@@ -581,6 +582,8 @@ def configure_renderer_launch(
         app_config += ["--tutorial"]
     if parsed.profiler:
         app_config += ["--profiler"]
+    elif parsed.live_profiler:
+        app_config += ["--live-profiler"]
     if parsed.on_top:
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
@@ -638,6 +641,9 @@ class DTCommand(DTCommandAbs):
         if parsed.force_vulkan and parsed.force_opengl:
             dtslogger.error("You cannot use --force-vulkan and --force-opengl together.")
             return
+        if parsed.profiler and parsed.live_profiler:
+            dtslogger.error("You cannot use --profiler and --live-profiler together.")
+            return
         # - links VS renderer-only
         if len(parsed.links) > 0 and not run_engine and not host_renderer_only:
             dtslogger.error("You cannot use --links without -S/--standalone.")
@@ -665,13 +671,20 @@ class DTCommand(DTCommandAbs):
                             "Standalone mode, or use a default map with -s/--sandbox.")
             return
         # make sure the time step is only given in gym mode
-        # if parsed.delta_t is not None and not parsed.simulation:
-        #     dtslogger.error("You can specify a --delta-t only when running with "
-        #                     "--gym/--simulation.")
-        #     return
+        if parsed.delta_t is not None and not parsed.simulation:
+            dtslogger.error("You can specify a --delta-t only when running with "
+                            "--gym/--simulation.")
+            return
+        if parsed.shm_path:
+            if not parsed.simulation:
+                dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
+                return
+            if not run_engine and not host_renderer_only:
+                dtslogger.error("You cannot use --shm-path without -S/--standalone.")
+                return
         # profiler
-        if parsed.profiler and not run_engine and not host_renderer_only:
-            dtslogger.error("You cannot use --profiler without -S/--standalone.")
+        if (parsed.profiler or parsed.live_profiler) and not run_engine and not host_renderer_only:
+            dtslogger.error("Profiling requires -S/--standalone.")
             return
         if container_image and platform.system() != "Linux":
             dtslogger.error("You cannot use --container-image outside Linux.")
@@ -715,6 +728,12 @@ class DTCommand(DTCommandAbs):
             os_family = renderer_configuration.os_family
             renderer_log_path = renderer_configuration.renderer_log_path
 
+        profiler_output = None
+        if parsed.live_profiler and not host_renderer_only:
+            from utils.matrix_profiler import LiveProfilerOutput
+
+            profiler_output = LiveProfilerOutput()
+            profiler_output.start()
         # run
         try:
             # - engine
@@ -778,7 +797,10 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
-                    url += f"profiler={'true' if parsed.profiler else 'false'}&"
+                    if parsed.profiler:
+                        url += "profiler=true&"
+                    elif parsed.live_profiler:
+                        url += "live-profiler=true&"
                     url += f"tutorial={'true' if not parsed.no_tutorial else 'false'}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
@@ -808,13 +830,14 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
+                    os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
                     time.sleep(2)
                     if container_image:
                         container_cmd, container_name = _build_renderer_container_command(
                             app_bin,
                             app_config,
-                            parsed.container_image,
+                            container_image,
                         )
                         dtslogger.info(f"Launching Renderer container ({container_name})...")
                         dtslogger.debug(f"$ > {container_cmd}")
@@ -874,7 +897,7 @@ class DTCommand(DTCommandAbs):
                             raise
                         renderer_log_stop_event, renderer_shutdown_event, renderer_log_thread = start_renderer_log_tailer(
                             renderer_log_path,
-                            parsed.verbose,
+                            parsed.verbose or parsed.profiler or parsed.live_profiler,
                         )
                         # this is how we terminate the renderer
 
@@ -901,7 +924,7 @@ class DTCommand(DTCommandAbs):
                     join_renderer(
                         renderer,
                         renderer_stream,
-                        parsed.verbose,
+                        parsed.verbose or parsed.profiler or parsed.live_profiler,
                         renderer_shutdown_event,
                         terminate_renderer,
                     )
@@ -910,15 +933,26 @@ class DTCommand(DTCommandAbs):
                 engine.join()
 
         finally:
-            if run_engine:
-                engine.stop()
-            if run_renderer and terminate_renderer and process_is_running(renderer):
-                terminate_renderer()
-            stop_renderer_log_tailer(
-                renderer_log_stop_event,
-                renderer_log_thread,
-            )
-            remove_renderer_log_file(renderer_log_path)
+            try:
+                if run_engine:
+                    engine.stop()
+                if (
+                    run_renderer
+                    and terminate_renderer is not None
+                    and (
+                        (os_family == "macos" and host_renderer_only)
+                        or process_is_running(renderer)
+                    )
+                ):
+                    terminate_renderer()
+                stop_renderer_log_tailer(
+                    renderer_log_stop_event,
+                    renderer_log_thread,
+                )
+                remove_renderer_log_file(renderer_log_path)
+            finally:
+                if profiler_output is not None:
+                    profiler_output.stop()
 
     @staticmethod
     def complete(shell, word, line):
@@ -932,21 +966,15 @@ def join_renderer(
     shutdown_event: Optional[threading.Event] = None,
     terminate_process: Optional[Callable] = None,
 ):
-    if shutdown_event is not None:
-        try:
+    output_reader = None
+    try:
+        if shutdown_event is not None:
             wait_for_tailed_renderer_shutdown(
                 process,
                 shutdown_event,
                 terminate_process,
             )
-        except KeyboardInterrupt:
-            if terminate_process is not None:
-                terminate_process()
-            raise
-        finally:
-            stream.close()
-        return
-    try:
+            return
         while True:
             line = read_renderer_stream_line(stream)
             if not line:
@@ -959,11 +987,37 @@ def join_renderer(
             if verbose:
                 print(line_text, end="")
     except KeyboardInterrupt:
+        if shutdown_event is None:
+            output_reader = Thread(
+                target=forward_renderer_shutdown_output,
+                args=(stream, verbose),
+                daemon=True,
+            )
+            output_reader.start()
         if terminate_process is not None:
             terminate_process()
+        else:
+            process.terminate()
+        if not wait_for_process_exit(process, RENDERER_FORCE_KILL_WAIT_SECONDS):
+            process.kill()
+            wait_for_process_exit(process, RENDERER_FORCE_KILL_WAIT_SECONDS)
         raise
     finally:
+        if output_reader is not None:
+            output_reader.join(timeout=RENDERER_FORCE_KILL_WAIT_SECONDS)
         stream.close()
+
+
+def forward_renderer_shutdown_output(stream: BinaryIO, verbose: bool) -> None:
+    try:
+        while True:
+            line = read_renderer_stream_line(stream)
+            if not line:
+                return
+            if verbose:
+                write_renderer_output(line.decode("utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return
 
 
 def is_arm64_machine() -> bool:
@@ -1042,12 +1096,50 @@ def build_macos_app_command(app_path: str, app_config: list[str]) -> list[str]:
 def terminate_macos_app(app_path: str) -> None:
     executable_path = get_macos_app_executable(app_path)
     executable_name = os.path.basename(executable_path)
-    subprocess.run(
-        ["pkill", "-x", executable_name],
-        check=False,
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
+    exited = False
+    deadline = time.monotonic() + RENDERER_MACOS_SHUTDOWN_TIMEOUT_SECONDS
+    try:
+        subprocess.run(
+            [
+                "osascript",
+                "-e", "on run argv",
+                "-e", "if application (item 1 of argv) is running then",
+                "-e", "tell application (item 1 of argv) to quit",
+                "-e", "end if",
+                "-e", "end run",
+                app_path,
+            ],
+            check=False,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            timeout=RENDERER_MACOS_SHUTDOWN_TIMEOUT_SECONDS,
+        )
+        while time.monotonic() < deadline:
+            running = subprocess.run(
+                ["pgrep", "-x", executable_name],
+                check=False,
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                timeout=RENDERER_EXIT_POLL_SECONDS,
+            )
+            if running.returncode == 1:
+                exited = True
+                return
+            if running.returncode != 0:
+                break
+            time.sleep(RENDERER_EXIT_POLL_SECONDS)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    finally:
+        if not exited:
+            subprocess.run(
+                ["pkill", "-KILL", "-x", executable_name],
+                check=False,
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                timeout=RENDERER_MACOS_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+
 
 def get_macos_app_executable(app_path: str) -> str:
     app_bundle = Path(app_path)

@@ -988,8 +988,7 @@ def _delegate_command_via_requests_dir(
     try:
         while time.monotonic() < deadline:
             if interrupt_event is not None and interrupt_event.is_set():
-                _emit_interrupt_newline()
-                return 130
+                raise KeyboardInterrupt
             if time.monotonic() >= next_heartbeat_refresh:
                 _refresh_request_heartbeat(heartbeat_file)
                 next_heartbeat_refresh = (
@@ -1046,8 +1045,33 @@ def _delegate_command_via_requests_dir(
             _emit_interrupt_newline()
             return 130
 
-        _write_request_control_file(cancel_file, "interrupt\n")
+        try:
+            _write_request_control_file(cancel_file, "interrupt\n")
+        except FileNotFoundError:
+            _emit_interrupt_newline()
+            return 130
         _emit_interrupt_newline()
+        if stdin_stop_event is not None:
+            stdin_stop_event.set()
+        interrupt_deadline = time.monotonic() + HOST_RUNNER_INTERRUPT_GRACE_SECONDS
+        while time.monotonic() < interrupt_deadline:
+            exit_code, buffered, offset, next_chunk_index = _drain_request_stream_output(
+                request_file,
+                processing_file,
+                stream_file,
+                buffered=buffered,
+                offset=offset,
+                next_chunk_index=next_chunk_index,
+                echo_state=echo_state,
+                password_prompt_state=password_prompt_state,
+            )
+            if exit_code is not None:
+                break
+            try:
+                _refresh_request_heartbeat(heartbeat_file)
+            except FileNotFoundError:
+                break
+            time.sleep(0.1)
         return 130
     finally:
         if stdin_stop_event is not None:
