@@ -1,0 +1,43 @@
+# Object detector sidecar + its ROS 2 relay.
+#
+#   dts stack up -R ROBOT ml/object-detector
+#
+# The detector reads the camera over DTPS and publishes detections on
+# `switchboard/<robot>/object_detector/detections` (and an annotated JPEG). The relay republishes them as
+# `duckietown_msgs` topics for the ROS 2 stack (`dts stack up -R ROBOT ros2/duckiebot` must be running).
+# On Jetson robots the GPU is available because the NVIDIA runtime is the default Docker runtime there;
+# the model is read from /data/models/object_detector/best.onnx (see dt-object-detector/README.md).
+name: object-detector
+
+services:
+
+  object-detector:
+    image: ${REGISTRY}/duckietown/dt-object-detector:ente-${ARCH}
+    container_name: object-detector
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_SUPERUSER: 1
+      OBJECT_DETECTOR_MODEL: ${OBJECT_DETECTOR_MODEL:-/data/models/object_detector/best.onnx}
+      OBJECT_DETECTOR_CONF: ${OBJECT_DETECTOR_CONF:-0.5}
+      OBJECT_DETECTOR_MAX_RATE: ${OBJECT_DETECTOR_MAX_RATE:-10}
+    volumes:
+      - /data:/data
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+  ros2-detection-relayer:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-detection-relayer
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: detection-relayer
+      DT_SUPERUSER: 1
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    depends_on:
+      - object-detector
