@@ -50,7 +50,10 @@ class DTCommand(DTCommandAbs):
         header = ["Type", "Model", "Status", "Uptime"]
         data = []
         for robot_dir in sorted(robots):
-            robot_config_dir = os.path.join(robot_dir, DISK_NAME, "data", "config")
+            robot_root_dir = os.path.join(robot_dir, DISK_NAME)
+            if not os.path.isdir(robot_root_dir):
+                continue
+            robot_config_dir = os.path.join(robot_root_dir, "data", "config")
             name = os.path.basename(robot_dir)
             # read robot type
             robot_type_fpath = os.path.join(robot_config_dir, "robot_type")
