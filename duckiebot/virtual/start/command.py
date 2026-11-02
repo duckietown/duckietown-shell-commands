@@ -7,6 +7,13 @@ from dockertown import DockerClient
 from dt_shell import DTCommandAbs, DTShell, dtslogger
 
 from ...startup_logs.common import stream_local_virtual_robot_startup_logs
+from ..gateway import (
+    GATEWAY_PORT_MAPPINGS,
+    gateway_leader_election,
+    gateway_leader_options,
+    refresh_gateway_backends,
+    should_start_gateway,
+)
 from disk_image.create.utils import pull_docker_image
 from utils.duckietown_utils import USER_DATA_DIR
 from utils.misc_utils import pretty_yaml
@@ -114,16 +121,6 @@ class DTCommand(DTCommandAbs):
             "detach": True,
             "remove": True,
             "cgroupns": "private",
-            "publish": [
-                ["14551", "14551", "udp"],          # Ardupilot SITL
-                ["80", "80", "tcp"],                # device-proxy HTTP entrypoint for robot.local/dashboard/... 
-                ["127.0.0.1:2375", "2375", "tcp"],  # Docker API (only on loopback for security)
-                ["7447", "7447", "tcp"],            # ROS2 zenoh bridge
-                ["8080", "8080", "tcp"],            # Dashboard backend (HTTP)
-                ["9001", "9001", "tcp"],            # rosbridge WebSocket
-                ["11411", "11411", "tcp"],          # DTPS KV store
-                ["11911", "11911", "tcp"],          # DTPS switchboard
-            ],
             "volumes": [
                 # Keep var/lib/docker as bind mount for Docker daemon data
                 (os.path.join(vbot_root_dir, "var", "lib", "docker"), "/var/lib/docker", "rw"),
@@ -134,7 +131,19 @@ class DTCommand(DTCommandAbs):
         dtslogger.debug(f"Booting up virtual robot '{parsed.robot}' with the following options:"
                         f"\n{pretty_yaml(opts, indent=4)}\n")
         startup_started_at = time.time()
-        docker.container.run(**opts)
+        with gateway_leader_election():
+            if should_start_gateway(local_docker):
+                refresh_gateway_backends(local_docker)
+                environment, labels, state_volume = gateway_leader_options()
+                opts["envs"] = environment
+                opts["labels"] = labels
+                opts["publish"] = GATEWAY_PORT_MAPPINGS
+                container_volumes = opts["volumes"]
+                container_volumes.append(state_volume)
+                dtslogger.info(f"Virtual robot '{parsed.robot}' will route fleet browser traffic.")
+            container_client = docker.container
+            container_client.run(**opts)
+            refresh_gateway_backends(local_docker)
         dtslogger.info("Your virtual robot is booting up. "
                        "It should appear on 'dts fleet discover' soon.")
         if not parsed.no_logs:

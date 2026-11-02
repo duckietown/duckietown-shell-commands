@@ -3,7 +3,6 @@ import platform
 import re
 import socket
 import subprocess
-from functools import lru_cache
 
 import docker
 
@@ -71,24 +70,50 @@ def get_interface_ip_address(ifname):
     return m.group(1) if m else None
 
 
-def is_local_virtual_robot_running(robot: str) -> bool:
-    container_name = f"dts-virtual-{robot}"
+def get_local_virtual_robot_ip(robot: str):
+    robot_name = robot.removesuffix(".local")
+    container_name = f"dts-virtual-{robot_name}"
     try:
         client = docker.from_env()
-        container = client.containers.get(container_name)
+        containers = client.containers
+        container = containers.get(container_name)
+        if container.status != "running":
+            return None
+        attributes = container.attrs
+        network_settings = attributes.get("NetworkSettings", {})
+        networks = network_settings.get("Networks", {})
+        network_values = networks.values()
+        for network in network_values:
+            ip_address = network.get("IPAddress")
+            if ip_address:
+                return ip_address
+    except (docker.errors.NotFound, docker.errors.DockerException):
+        return None
+    return None
+
+
+def is_local_virtual_robot_running(robot: str) -> bool:
+    robot_name = robot.removesuffix(".local")
+    container_name = f"dts-virtual-{robot_name}"
+    try:
+        client = docker.from_env()
+        containers = client.containers
+        container = containers.get(container_name)
         return container.status == "running"
     except (docker.errors.NotFound, docker.errors.DockerException):
         return False
 
 
-@lru_cache
 def best_host_for_robot(robot: str, allow_static: bool = True) -> str:
     robot_name = robot[:-6] if robot.endswith(".local") else robot
-    if "." not in robot and is_local_virtual_robot_running(robot):
-        dtslogger.debug(
-            f"Best host for robot '{robot}' is loopback because it is a locally running virtual robot"
-        )
-        return "127.0.0.1"
+    if "." not in robot:
+        local_virtual_robot_ip = get_local_virtual_robot_ip(robot)
+        if local_virtual_robot_ip is not None:
+            dtslogger.debug(
+                f"Best host for robot '{robot}' is Docker-network address '{local_virtual_robot_ip}' "
+                "because it is a locally running virtual robot"
+            )
+            return local_virtual_robot_ip
     if robot.endswith(".local"):
         hostnames = [robot, robot_name]
     elif "." in robot:
