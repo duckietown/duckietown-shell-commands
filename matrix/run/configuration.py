@@ -76,6 +76,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Use the embedded map directory as the root directory for '--map'",
         )
         parser.add_argument(
+            "--environments",
+            default=1,
+            type=int,
+            help="Number of co-located environments (requires --standalone)",
+        )
+        parser.add_argument(
             "-e",
             "--engine",
             dest="engine_hostname",
@@ -209,10 +215,14 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Target renderer frame rate",
         )
         parser.add_argument(
-            "--cameras-only",
+            "--no-spectator-cameras",
             default=False,
             action="store_true",
-            help="Render sensor cameras without the spectator's 3D world view",
+            help=(
+                "Disable Main Camera, Bird View, and their associated controls. "
+                "Robot camera and telemetry views remain available. "
+                "Sensor publishing and external actuator control remain enabled."
+            ),
         )
         parser.add_argument(
             "--shm-path",

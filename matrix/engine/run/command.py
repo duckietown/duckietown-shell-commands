@@ -86,6 +86,20 @@ class MatrixEngine:
 
     def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
         self.verbose = parsed.verbose or parsed.profiler or parsed.live_profiler
+        environments = getattr(parsed, "environments", 1)
+        if (
+            isinstance(environments, bool)
+            or not isinstance(environments, int)
+            or environments < 1
+        ):
+            dtslogger.error("--environments must be a positive integer.")
+            return False
+        if environments > 1 and (
+            parsed.renderers != 1 or parsed.links or parsed.build_assets
+        ):
+            dtslogger.error("Replicated environments require one Renderer, no physical links, "
+                            "and no --build-assets.")
+            return False
         if parsed.profiler and parsed.live_profiler:
             dtslogger.error("You cannot use --profiler and --live-profiler together.")
             return False
@@ -96,6 +110,10 @@ class MatrixEngine:
         if sandbox and map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
                             "cannot be used together.")
+            return False
+        if sandbox and environments > 1:
+            dtslogger.error("The sandbox map contains scripts and cannot be replicated. "
+                            "Use --embedded --map loop with --environments instead.")
             return False
         # make sure the map is given (when not in sandbox standalone mode)
         if not map and not sandbox:
@@ -185,6 +203,8 @@ class MatrixEngine:
         # set the mode
         engine_mode = "realtime" if not parsed.simulation else "gym"
         engine_config["command"] += ["--mode", engine_mode]
+        if environments > 1:
+            engine_config["command"] += ["--environments", str(environments)]
         # set the number of renderers
         num_renderers = min(max(1, parsed.renderers), MAX_RENDERERS)
         engine_config["command"] += ["--renderers", str(num_renderers)]
