@@ -76,6 +76,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Use the embedded map directory as the root directory for '--map'",
         )
         parser.add_argument(
+            "--environments",
+            default=1,
+            type=int,
+            help="Number of co-located environments (requires --standalone)",
+        )
+        parser.add_argument(
             "-e",
             "--engine",
             dest="engine_hostname",

@@ -634,6 +634,18 @@ class DTCommand(DTCommandAbs):
         # check for conflicting arguments
         run_engine: bool = parsed.standalone and not host_renderer_only
         run_renderer: bool = True
+        environments = getattr(parsed, "environments", 1)
+        if (
+            isinstance(environments, bool)
+            or not isinstance(environments, int)
+            or environments < 1
+        ):
+            dtslogger.error("--environments must be a positive integer.")
+            return
+        if environments > 1 and not parsed.standalone:
+            dtslogger.error("--environments requires --standalone; "
+                            "the Engine owns replication.")
+            return
         if parsed.cameras_only and parsed.no_tutorial:
             dtslogger.error("You cannot use --cameras-only and --no-tutorial together.")
             return
