@@ -137,6 +137,34 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT) -> st
     return get_endpoint_architecture_from_client_OLD(client)
 
 
+# JetPack major version of each NVIDIA L4T kernel series. Only JetPack 4 (Jetson Nano: DB21M, DB21J) is listed because
+# it is the only one images have a Jetson variant for; add a series here once its variants are published.
+JETPACK_PER_L4T_KERNEL = {
+    "4.9": "4",
+}
+
+
+def jetpack_from_kernel_version(kernel: str) -> Optional[str]:
+    """JetPack major version for an NVIDIA L4T kernel (e.g., '4.9.337-tegra'), None for any other kernel."""
+    if "tegra" not in kernel:
+        return None
+    return JETPACK_PER_L4T_KERNEL.get(".".join(kernel.split(".")[:2]))
+
+
+def get_endpoint_jetpack(epoint=None) -> Optional[str]:
+    """JetPack major version of a Docker endpoint that is an NVIDIA Jetson, None otherwise.
+
+    A Jetson and, e.g., a Mac with Apple Silicon are both linux/arm64 to Docker; their kernels tell them apart.
+    """
+    client = get_client_OLD(epoint)
+    try:
+        kernel = client.info().get("KernelVersion", "")
+    except BaseException:
+        dtslogger.warning("Failed to retrieve the kernel version of the Docker endpoint. Assuming it is not a Jetson.")
+        return None
+    return jetpack_from_kernel_version(kernel)
+
+
 def sanitize_docker_baseurl(baseurl: str, port=DEFAULT_DOCKER_TCP_PORT) -> Optional[str]:
     if baseurl is None:
         return None

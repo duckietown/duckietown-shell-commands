@@ -37,6 +37,7 @@ from utils.docker_utils import (
     CLOUD_BUILDERS,
     copy_docker_env_into_configuration,
     get_endpoint_architecture,
+    get_endpoint_jetpack,
     get_endpoint_ncpus,
     get_registry_to_use,
     sanitize_docker_baseurl,
@@ -468,6 +469,15 @@ class DTCommand(DTCommandAbs):
         docker_build_args["ARCH"] = parsed.arch
         if "BASE_TAG" in docker_build_args:
             docker_build_args["BASE_TAG"] = docker_build_args["BASE_TAG"].replace("${ARCH}", parsed.arch)
+
+        # NVIDIA Jetson endpoints (e.g., Duckiebots): tell the build which JetPack the host provides, so that images
+        # with a Jetson variant (e.g., the machine learning base images) can select it; other images ignore the argument.
+        # A `--build-arg JETPACK ...` given by the user overrides it.
+        if parsed.arch == endpoint_arch:
+            jetpack: Optional[str] = get_endpoint_jetpack(parsed.machine)
+            if jetpack is not None:
+                docker_build_args["JETPACK"] = jetpack
+                dtslogger.info(f"Building on an NVIDIA Jetson with JetPack {jetpack} (build argument JETPACK={jetpack}).")
 
         # create defaults
         image = project.image(
