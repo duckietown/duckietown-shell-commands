@@ -2,8 +2,10 @@ import argparse
 import logging
 import os
 import platform
+import stat
 import subprocess
 import time
+from contextlib import nullcontext
 from threading import Thread
 from typing import Optional, Dict
 
@@ -38,12 +40,41 @@ DEFAULT_STATIC_NETWORK_PORTS: Dict[str, int] = {
 }
 
 
+def _apply_shm_path(engine_config: dict, shm_path: str):
+    host_shm_path = os.path.abspath(os.path.expanduser(shm_path))
+    host_shm_dir = os.path.dirname(host_shm_path)
+    os.makedirs(host_shm_dir, mode=0o700, exist_ok=True)
+    directory = os.lstat(host_shm_dir)
+    if (
+        not stat.S_ISDIR(directory.st_mode)
+        or directory.st_uid != os.getuid()
+        or (directory.st_mode & 0o777) != 0o700
+    ):
+        raise ValueError(
+            f"--shm-path requires a private directory at {host_shm_dir!r}, "
+            "owned by the current user with permissions 0700; choose a "
+            "dedicated directory."
+        )
+    container_shm_dir = "/tmp/duckietown/shm"
+    container_shm_path = os.path.join(
+        container_shm_dir, os.path.basename(host_shm_path)
+    )
+    engine_config.setdefault("volumes", {})[host_shm_dir] = {
+        "bind": container_shm_dir,
+        "mode": "rw",
+    }
+    environment = engine_config.setdefault("environment", {})
+    environment["DT_SUPERUSER"] = "1" if os.getuid() == 0 else "0"
+    environment["DTSHELL_SHM_PATH"] = container_shm_path
+
+
 class MatrixEngine:
 
     def __init__(self):
         self.config: Optional[dict] = None
         self.engine: Optional[Container] = None
         self.verbose = False
+        self.log_thread = None
 
     @property
     def is_configured(self) -> bool:
@@ -54,7 +85,10 @@ class MatrixEngine:
         return self.engine is not None and self.engine.status == "running"
 
     def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
-        self.verbose = parsed.verbose
+        self.verbose = parsed.verbose or parsed.profiler or parsed.live_profiler
+        if parsed.profiler and parsed.live_profiler:
+            dtslogger.error("You cannot use --profiler and --live-profiler together.")
+            return False
         # check for conflicting arguments
         # - map VS sandbox
         sandbox = parsed.sandbox
@@ -87,6 +121,9 @@ class MatrixEngine:
         if parsed.delta_t is not None and not parsed.simulation:
             dtslogger.error("You can specify a --delta-t only when running with "
                             "--gym/--simulation.")
+            return False
+        if parsed.shm_path and not parsed.simulation:
+            dtslogger.error("You cannot use --shm-path without --gym/--simulation.")
             return False
         # configure engine
         dtslogger.info("Configuring Engine...")
@@ -125,17 +162,22 @@ class MatrixEngine:
                     )
                     return False
         # engine container configuration
+        engine_environment = {
+            "PYTHONUNBUFFERED": "1",
+        }
+        uid = os.getuid()
+        gid = os.getgid()
+        if uid != 0:
+            engine_environment["IMPERSONATE_UID"] = uid
+        if gid != 0:
+            engine_environment["IMPERSONATE_GID"] = gid
         engine_config = {
             "image": engine_image,
             "command": ["--"],
             "detach": True,
             "stdout": True,
             "stderr": True,
-            "environment": {
-                "PYTHONUNBUFFERED": "1",
-                "IMPERSONATE_UID": os.getuid(),
-                "IMPERSONATE_GID": os.getgid(),
-            },
+            "environment": engine_environment,
             "ports": {},
             "name": engine_container_name
         }
@@ -212,6 +254,14 @@ class MatrixEngine:
         # profiler
         if parsed.profiler:
             engine_config["command"] += ["--profiler"]
+        elif parsed.live_profiler:
+            engine_config["command"] += ["--live-profiler"]
+        try:
+            if parsed.shm_path:
+                _apply_shm_path(engine_config, parsed.shm_path)
+        except (ValueError, OSError) as e:
+            dtslogger.error(str(e))
+            return False
         # run engine container
         dtslogger.debug(engine_config)
         self.config = engine_config
@@ -229,6 +279,9 @@ class MatrixEngine:
             except Exception:
                 dtslogger.warn("We couldn't ensure that the engine container was stopped. "
                                "Just a heads up that it might still be running.")
+        if self.log_thread is not None:
+            self.log_thread.join(timeout=5)
+            self.log_thread = None
         # noinspection PyBroadException
         try:
             self.engine.remove()
@@ -264,7 +317,8 @@ class MatrixEngine:
                         dtslogger.info('Engine container terminated.')
 
                 container_stream = self.engine.logs(stream=True)
-                Thread(target=verbose_reader, args=(container_stream,), daemon=True).start()
+                self.log_thread = Thread(target=verbose_reader, args=(container_stream,), daemon=True)
+                self.log_thread.start()
         except BaseException as e:
             dtslogger.error(f"An error occurred while running the engine. The error reads:\n{e}")
             self.stop()
@@ -333,8 +387,14 @@ class DTCommand(DTCommandAbs):
         # ---
         if not parsed.no_pull:
             engine.pull()
-        engine.start()
-        engine.join()
+        profiler_output = nullcontext()
+        if parsed.live_profiler:
+            from utils.matrix_profiler import LiveProfilerOutput
+
+            profiler_output = LiveProfilerOutput()
+        with profiler_output:
+            engine.start()
+            engine.join()
 
     @staticmethod
     def complete(shell, word, line):
