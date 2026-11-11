@@ -203,6 +203,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Continuously update profiling tables (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--profiler-level",
+            choices=("counters", "timeline"),
+            default=None,
+            help="Collect counters only or include sampled camera timelines (default: timeline)",
+        )
+        parser.add_argument(
             "--trace",
             default=False,
             action="store_true",
