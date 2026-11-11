@@ -607,6 +607,9 @@ def configure_renderer_launch(
         app_config += ["--profiler"]
     elif parsed.live_profiler:
         app_config += ["--live-profiler"]
+    profiler_level = getattr(parsed, "profiler_level", None)
+    if profiler_level is not None:
+        app_config += ["--profiler-level", profiler_level]
     if parsed.on_top:
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
@@ -685,6 +688,10 @@ class DTCommand(DTCommandAbs):
             return
         if parsed.profiler and parsed.live_profiler:
             dtslogger.error("You cannot use --profiler and --live-profiler together.")
+            return
+        profiler_level = getattr(parsed, "profiler_level", None)
+        if profiler_level is not None and not (parsed.profiler or parsed.live_profiler):
+            dtslogger.error("--profiler-level requires --profiler or --live-profiler.")
             return
         # - links VS renderer-only
         if len(parsed.links) > 0 and not run_engine and not host_renderer_only:
@@ -899,6 +906,8 @@ class DTCommand(DTCommandAbs):
                         url += "profiler=true&"
                     elif parsed.live_profiler:
                         url += "live-profiler=true&"
+                    if profiler_level is not None:
+                        url += f"profiler-level={profiler_level}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
                     if renderer_configuration.screen_billboard:
                         url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
