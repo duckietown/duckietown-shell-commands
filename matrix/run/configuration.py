@@ -203,6 +203,86 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Continuously update profiling tables (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--trace",
+            default=False,
+            action="store_true",
+            help="Record the native macOS Renderer with Instruments Metal System Trace",
+        )
+        parser.add_argument(
+            "--trace-export",
+            default=False,
+            action="store_true",
+            help="Export selected CPU/Metal XML tables beside the recording (requires --trace)",
+        )
+        parser.add_argument(
+            "--trace-template",
+            default=None,
+            metavar="PATH.tracetemplate",
+            help="Use a saved Instruments template containing Metal Application and Time Profiler (requires --trace)",
+        )
+        parser.add_argument(
+            "--trace-performance-state",
+            choices=("default", "minimum", "medium", "maximum"),
+            default=None,
+            help=(
+                "Verify the template and recording use this GPU performance selector; "
+                "non-default states require --trace-template saved with that state "
+                "(requires --trace; does not guarantee fixed hardware clocks)"
+            ),
+        )
+        for option, description in (
+            ("--trace-waiting-threads", "Record waiting-thread call stacks"),
+            ("--trace-kernel-callstacks", "Record kernel call stacks"),
+            ("--trace-context-switch-sampling", "Sample context switches"),
+        ):
+            parser.add_argument(
+                option,
+                default=False,
+                action="store_true",
+                help=f"{description} (requires --trace and Xcode recording-options support)",
+            )
+        parser.add_argument(
+            "--trace-start-session",
+            default=None,
+            type=int,
+            metavar="SESSION",
+            help=(
+                "Wait for Renderer session 1-1000000 before recording "
+                "(requires --trace --live-profiler; default: record at launch)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-duration",
+            default=30,
+            type=int,
+            metavar="SECONDS",
+            help=(
+                "Request a stop after 1-300 seconds, or -1 until the Renderer exits "
+                "(default: 30; Instruments setup/shutdown can extend the run envelope)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-window",
+            default=None,
+            type=int,
+            metavar="SECONDS",
+            help=(
+                "Retain only the last 1-60 seconds, or -1 for the entire recording; "
+                "this does not stop recording (default: 10, or the duration if shorter; "
+                "an equal-duration window retains the whole capture without rolling)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-output",
+            default=None,
+            type=str,
+            metavar="PATH.trace",
+            help=(
+                "Save --trace to this path on the calling machine "
+                "(default: ~/.duckietown/duckiematrix/traces/<unique-name>.trace)"
+            ),
+        )
+        parser.add_argument(
             "--container-image",
             default=None,
             type=str,
