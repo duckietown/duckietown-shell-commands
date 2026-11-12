@@ -124,6 +124,9 @@ MANDATORY_STEPS = ["create", "mount", "unmount"]
 
 APT_PACKAGES_TO_INSTALL = [
     "netplan.io",
+    "systemd-resolved",
+    "libnss-resolve",
+    "libnss-myhostname",
 ]
 
 APT_PACKAGES_TO_HOLD = [
@@ -699,6 +702,16 @@ class DTCommand(DTCommandAbs):
                     raise e
                 for target in reversed(mounted_targets):
                     _umount_if_mounted(target)
+                # systemd-resolved cannot replace /etc/resolv.conf while the host's copy is bind-mounted on it
+                run_cmd(
+                    [
+                        "sudo",
+                        "ln",
+                        "-sf",
+                        "../run/systemd/resolve/stub-resolv.conf",
+                        _guest_path(ROOT_PARTITION, "etc", "resolv.conf"),
+                    ]
+                )
                 if _partition_is_mounted(BOOT_PARTITION):
                     sd_card.umount_partition(BOOT_PARTITION)
                 # unmount ROOT_PARTITION
