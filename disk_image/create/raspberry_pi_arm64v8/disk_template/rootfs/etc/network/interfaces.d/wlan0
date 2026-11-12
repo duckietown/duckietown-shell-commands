@@ -1,2 +1,4 @@
+# DHCP on wlan0 is done by systemd-networkd (netplan), not here.
+# Keep this file: listing wlan0 makes NetworkManager leave it alone ([ifupdown] managed=false).
 allow-hotplug wlan0
 iface wlan0 inet manual
