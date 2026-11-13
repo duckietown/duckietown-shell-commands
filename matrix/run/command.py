@@ -608,6 +608,13 @@ def configure_renderer_launch(
     profiler_level = getattr(parsed, "profiler_level", None)
     if profiler_level is not None:
         app_config += ["--profiler-level", profiler_level]
+    if getattr(parsed, "profiler_memory", False):
+        app_config += ["--profiler-memory"]
+    if getattr(parsed, "profiler_no_table", False):
+        app_config += ["--profiler-no-table"]
+    profiler_report_interval = getattr(parsed, "profiler_report_interval", None)
+    if profiler_report_interval is not None:
+        app_config += ["--profiler-report-interval", str(profiler_report_interval)]
     if parsed.on_top:
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
@@ -688,6 +695,31 @@ class DTCommand(DTCommandAbs):
         profiler_level = getattr(parsed, "profiler_level", None)
         if profiler_level is not None and not (parsed.profiler or parsed.live_profiler):
             dtslogger.error("--profiler-level requires --profiler or --live-profiler.")
+            return
+        profiler_memory = getattr(parsed, "profiler_memory", False)
+        profiler_no_table = getattr(parsed, "profiler_no_table", False)
+        profiler_report_interval = getattr(parsed, "profiler_report_interval", None)
+        if profiler_memory and not parsed.live_profiler:
+            dtslogger.error("--profiler-memory requires --live-profiler.")
+            return
+        if (
+            (profiler_no_table or profiler_report_interval is not None)
+            and not parsed.live_profiler
+        ):
+            dtslogger.error("--profiler-no-table and --profiler-report-interval "
+                            "require --live-profiler.")
+            return
+        if profiler_report_interval is not None and (
+            isinstance(profiler_report_interval, bool)
+            or not isinstance(profiler_report_interval, int)
+            or profiler_report_interval <= 0
+        ):
+            dtslogger.error("--profiler-report-interval must be a positive "
+                            "number of seconds.")
+            return
+        if parsed.browser and (profiler_memory or profiler_no_table):
+            dtslogger.error("--profiler-memory and --profiler-no-table "
+                            "require a native Renderer.")
             return
         # - links VS renderer-only
         if len(parsed.links) > 0 and not run_engine and not host_renderer_only:
@@ -904,6 +936,8 @@ class DTCommand(DTCommandAbs):
                         url += "live-profiler=true&"
                     if profiler_level is not None:
                         url += f"profiler-level={profiler_level}&"
+                    if profiler_report_interval is not None:
+                        url += f"profiler-report-interval={profiler_report_interval}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.cameras_only else 'false'}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"

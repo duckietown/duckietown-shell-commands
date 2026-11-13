@@ -209,6 +209,24 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Collect counters only or include sampled camera timelines (default: timeline)",
         )
         parser.add_argument(
+            "--profiler-memory",
+            default=False,
+            action="store_true",
+            help="Collect native allocation bytes and GC marker time (requires --live-profiler and a Development Renderer)",
+        )
+        parser.add_argument(
+            "--profiler-no-table",
+            default=False,
+            action="store_true",
+            help="Omit table formatting from native live-profiler JSON snapshots",
+        )
+        parser.add_argument(
+            "--profiler-report-interval",
+            type=int,
+            default=None,
+            help="Positive live-profiler reporting interval in seconds (default: 1)",
+        )
+        parser.add_argument(
             "--trace",
             default=False,
             action="store_true",
