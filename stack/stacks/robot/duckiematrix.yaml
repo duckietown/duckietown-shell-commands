@@ -44,7 +44,6 @@ services:
     environment:
       DT_LAUNCHER: duckiematrix-interface
       DT_SUPERUSER: 1
-      ROS_DOMAIN_ID: 42
     volumes:
       # dtps sockets
       - /data/ramdisk/dtps:/dtps

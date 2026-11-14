@@ -1,0 +1,5 @@
+# Robot-level physical parameters, shared by kinematics, odometry and state estimation.
+# Per-robot overrides go in `<robot_name>.yaml` next to this file.
+wheel_baseline: 0.1       # [m] distance between the two wheels
+wheel_radius: 0.0318      # [m] wheel radius
+encoder_resolution: 135   # [ticks] encoder ticks per wheel revolution
