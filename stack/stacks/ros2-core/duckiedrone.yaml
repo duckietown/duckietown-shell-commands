@@ -7,7 +7,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-altitude-node
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data
       # avahi socket
@@ -20,7 +19,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-state-estimation-node
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data
       # avahi socket
@@ -33,7 +31,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-visual-odometry
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data
       # avahi socket
