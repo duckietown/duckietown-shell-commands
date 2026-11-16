@@ -560,6 +560,7 @@ def configure_renderer_launch(
     use_tailed_log_file = (
         os_family == "macos" and (
             should_run_host_renderer_only() or getattr(parsed, "trace", False)
+            or getattr(parsed, "metal_capture", False)
         )
     )
 
@@ -576,6 +577,8 @@ def configure_renderer_launch(
         app_config += ["-force-opengl"]
     elif parsed.force_vulkan:
         app_config += ["-force-vulkan"]
+    elif getattr(parsed, "metal_capture", False):
+        app_config += ["-force-metal"]
     else:
         if os_family != "windows" and not getattr(parsed, "trace", False):
             app_config += ["-force-vulkan"]
@@ -766,6 +769,17 @@ class DTCommand(DTCommandAbs):
         if container_image and platform.system() != "Linux":
             dtslogger.error("You cannot use --container-image outside Linux.")
             return
+        metal_capture = getattr(parsed, "metal_capture", False)
+        if metal_capture:
+            if parsed.browser or container_image is not None or parsed.xvfb:
+                dtslogger.error("--metal-capture requires a native macOS Renderer, without --browser, --container-image, or --xvfb.")
+                return
+            if parsed.force_opengl or parsed.force_vulkan:
+                dtslogger.error("--metal-capture uses Metal; do not force OpenGL or Vulkan.")
+                return
+            if not delegate_renderer_to_host and (parsed.os_family or get_os_family()) != "macos":
+                dtslogger.error("--metal-capture requires a native macOS Renderer.")
+                return
         trace_recording = None
         trace_interrupted = False
         trace_enabled = getattr(parsed, "trace", False)
@@ -1000,7 +1014,7 @@ class DTCommand(DTCommandAbs):
 
                     else:
                         if os_family == "macos":
-                            if host_renderer_only and not trace_enabled:
+                            if host_renderer_only and not (trace_enabled or metal_capture):
                                 app_cmd = build_macos_app_command(app_path, app_config)
                             else:
                                 try:
@@ -1023,9 +1037,14 @@ class DTCommand(DTCommandAbs):
                             xvfb_args = shlex.split(parsed.xvfb_args or "")
                             app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
                         dtslogger.debug(f"$ > {app_cmd}")
+                        renderer_environment = None
+                        if metal_capture:
+                            renderer_environment = dict(os.environ, MTL_CAPTURE_ENABLED="1")
+                            dtslogger.info("Metal GPU frame capture enabled for this Renderer process.")
                         try:
                             renderer, renderer_stream = launch_renderer_process(
                                 app_cmd,
+                                env=renderer_environment,
                             )
                         except OSError as error:
                             if error.errno == errno.ENOEXEC:
@@ -1034,7 +1053,7 @@ class DTCommand(DTCommandAbs):
                             raise
                         renderer_log_stop_event, renderer_shutdown_event, renderer_log_thread = start_renderer_log_tailer(
                             renderer_log_path,
-                            parsed.verbose or parsed.profiler or parsed.live_profiler or trace_enabled,
+                            parsed.verbose or parsed.profiler or parsed.live_profiler or trace_enabled or metal_capture,
                             on_line=trace_recording.observe_renderer_line if trace_recording is not None else None,
                         )
                         # this is how we terminate the renderer
@@ -1042,7 +1061,7 @@ class DTCommand(DTCommandAbs):
                         def terminate_renderer(*_):
                             # noinspection PyBroadException
                             try:
-                                if trace_enabled:
+                                if trace_enabled or metal_capture:
                                     renderer.terminate()
                                     if not wait_for_process_exit(renderer, RENDERER_FORCE_KILL_WAIT_SECONDS):
                                         renderer.kill()

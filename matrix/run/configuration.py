@@ -227,6 +227,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Positive live-profiler reporting interval in seconds (default: 1)",
         )
         parser.add_argument(
+            "--metal-capture",
+            default=False,
+            action="store_true",
+            help="Enable Metal GPU frame capture for the native macOS Renderer process (does not start a capture)",
+        )
+        parser.add_argument(
             "--trace",
             default=False,
             action="store_true",
