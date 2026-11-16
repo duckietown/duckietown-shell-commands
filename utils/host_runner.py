@@ -15,10 +15,17 @@ from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
+from utils.matrix_capture import (
+    CAPTURE_INPUT_NAME,
+    capture_artifact_paths,
+    validate_gpu_trace,
+)
 from utils.matrix_trace import (
     TRACE_EXPORT_TIMEOUT_SECONDS,
     TRACE_FINALIZE_TIMEOUT_SECONDS,
     collect_delegated_trace,
+    collect_delegated_bundles,
+    copy_trace_bundle,
     resolve_trace_output,
     resolve_trace_template,
     trace_artifact_paths,
@@ -950,6 +957,8 @@ def _delegate_command_via_requests_dir(
     timeout: float,
     interactive: bool,
     trace_output: Optional[Path] = None,
+    capture_output: Optional[Path] = None,
+    capture_input: Optional[Path] = None,
 ) -> int:
     requests_path = Path(requests_dir)
     trace_export = trace_output is not None and "--trace-export" in payload["argv"]
@@ -960,6 +969,11 @@ def _delegate_command_via_requests_dir(
     stream_file = requests_path / f"{request_id}{STREAM_FILE_SUFFIX}"
     cancel_file = _cancel_file_path(requests_path, request_id)
     heartbeat_file = _heartbeat_file_path(requests_path, request_id)
+    if capture_input is not None:
+        _, _, staged_input = capture_artifact_paths(requests_path, request_id)
+        validate_gpu_trace(capture_input)
+        staged_input.parent.mkdir(mode=0o700)
+        copy_trace_bundle(capture_input, staged_input, allow_internal_links=True)
     payload_json = json.dumps(payload)
     _refresh_request_heartbeat(heartbeat_file)
     _write_request_file(request_file, payload_json)
@@ -1048,6 +1062,8 @@ def _delegate_command_via_requests_dir(
             if exit_code is not None:
                 if trace_output is not None:
                     _collect_request_trace(requests_path, request_id, trace_output, exit_code, export=trace_export)
+                if capture_output is not None:
+                    _collect_request_capture(requests_path, request_id, capture_output, exit_code)
                 return exit_code
             time.sleep(0.1)
     except KeyboardInterrupt:
@@ -1088,6 +1104,8 @@ def _delegate_command_via_requests_dir(
             if exit_code is not None:
                 if trace_output is not None:
                     _collect_request_trace(requests_path, request_id, trace_output, exit_code, export=trace_export)
+                if capture_output is not None:
+                    _collect_request_capture(requests_path, request_id, capture_output, exit_code)
                 break
             try:
                 _refresh_request_heartbeat(heartbeat_file)
@@ -1127,6 +1145,30 @@ def _collect_request_trace(
         "The host did not publish a completed Renderer trace. "
         "Check that the host runner and Shell commands are updated. "
         f"Any incomplete host artifacts remain at {source.parent}."
+    )
+    if exit_code == 0:
+        raise HostRunnerError(message)
+    sys.stderr.write(message + "\n")
+
+
+def _collect_request_capture(
+    requests_path: Path, request_id: str, output: Path, exit_code: int,
+) -> None:
+    source, ready, _ = capture_artifact_paths(requests_path, request_id)
+    try:
+        collected = collect_delegated_bundles(
+            [(source, output)], ready, allow_internal_links=True,
+        )
+    except (OSError, ValueError) as error:
+        raise HostRunnerError(f"Could not retrieve Metal results at {source.parent}: {error}") from error
+    if collected:
+        sys.stdout.write(f"Metal capture and analysis saved on the calling machine: {output}\n")
+        sys.stdout.flush()
+        return
+    message = (
+        "The host did not publish completed Metal capture results; "
+        "see the host command diagnostics above. "
+        f"Any incomplete artifacts remain at {source.parent}."
     )
     if exit_code == 0:
         raise HostRunnerError(message)
@@ -1229,6 +1271,8 @@ def delegate_command_to_host(
     forwarded_env: Optional[dict[str, str]] = None,
     interactive: bool = False,
     trace_output: Optional[Path] = None,
+    capture_output: Optional[Path] = None,
+    capture_input: Optional[Path] = None,
 ) -> int:
     command_list = list(command)
     if not command_list:
@@ -1276,8 +1320,15 @@ def delegate_command_to_host(
                 timeout=timeout,
                 interactive=interactive,
                 trace_output=trace_output,
+                capture_output=capture_output,
+                capture_input=capture_input,
             )
         except HostRunnerQueueUnavailableError as queue_error:
+            if capture_output is not None:
+                raise HostRunnerError(
+                    f"{queue_error} Metal capture requires the shared request queue; "
+                    "HTTP fallback cannot transfer capture results."
+                ) from queue_error
             if trace_output is not None:
                 raise HostRunnerError(
                     f"{queue_error} Trace capture requires the shared request queue; "
@@ -1312,6 +1363,8 @@ def delegate_command_to_host(
                 raise HostRunnerError(
                     f"{queue_error} Fallback via HTTP host runner also failed: {http_error}"
                 ) from http_error
+    if capture_output is not None:
+        raise HostRunnerError("Metal capture delegation requires a shared host-runner request queue.")
     if trace_output is not None:
         raise HostRunnerError("--trace delegation requires a shared host-runner request queue.")
     if interactive:
@@ -1393,6 +1446,30 @@ def delegate_matrix_run_to_host(
         emit_client_context=emit_client_context,
         forwarded_env=forwarded_env or None,
         **trace_arguments,
+    )
+
+
+def delegate_matrix_capture_to_host(options: argparse.Namespace, output: Path) -> int:
+    arguments = []
+    for name in ("version", "pid", "device", "boundary", "profile_execution"):
+        value = getattr(options, name)
+        if value is not None:
+            arguments.extend([f"--{name.replace('_', '-')}", str(value)])
+    for name in ("check", "profile", "verbose"):
+        if getattr(options, name):
+            arguments.append(f"--{name}")
+    for name in ("browse", "inspect", "fetch"):
+        for node in getattr(options, name):
+            arguments.extend([f"--{name}", node])
+    source = None
+    if options.input:
+        source = Path(options.input).expanduser().absolute()
+        validate_gpu_trace(source)
+        arguments.extend(["--input", CAPTURE_INPUT_NAME])
+    return delegate_command_to_host(
+        [*get_current_dts_cli_options(), "matrix", "capture"], arguments,
+        cwd=_host_runner_fallback_cwd(), emit_client_context=options.verbose,
+        capture_output=output, capture_input=source,
     )
 
 

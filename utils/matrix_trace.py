@@ -345,13 +345,28 @@ def trace_artifact_paths(requests_dir: Path, request_id: str) -> tuple[Path, Pat
     return directory / "renderer.trace", directory / "complete"
 
 
-def validate_trace_bundle(path: Path) -> None:
+def _internal_bundle_link(path: Path, root: Path) -> Path:
+    if Path(os.readlink(path)).is_absolute():
+        raise ValueError("Diagnostic resource links must be relative.")
+    try:
+        target = path.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise ValueError(f"Invalid diagnostic resource link: {path}") from error
+    if not target.is_relative_to(root.resolve()) or not stat.S_ISREG(target.lstat().st_mode):
+        raise ValueError("Diagnostic resource links must target regular files inside their bundle.")
+    return target
+
+
+def validate_trace_bundle(path: Path, *, allow_internal_links: bool = False) -> None:
     if path.is_symlink() or not path.is_dir():
         raise ValueError("A completed trace must be a regular directory.")
     files = 0
     for entry in path.rglob("*"):
         mode = entry.lstat().st_mode
         if stat.S_ISREG(mode):
+            files += 1
+        elif allow_internal_links and stat.S_ISLNK(mode):
+            _internal_bundle_link(entry, path)
             files += 1
         elif not stat.S_ISDIR(mode):
             raise ValueError("Trace bundles cannot contain links or special files.")
@@ -374,24 +389,51 @@ def collect_delegated_trace(
     requests_dir: Path, request_id: str, output: Path, *, export: bool = False,
 ) -> bool:
     source, ready = trace_artifact_paths(requests_dir, request_id)
-    if source.parent.is_symlink() or ready.is_symlink():
-        raise ValueError("Trace artifacts cannot be symbolic links.")
-    if not ready.is_file():
-        return False
     artifacts = [(source, output)]
     if export:
         artifacts.append((trace_export_path(source), trace_export_path(output)))
+    return collect_delegated_bundles(artifacts, ready)
+
+
+def copy_trace_bundle(
+    source: Path, destination: Path, *, allow_internal_links: bool = False,
+) -> None:
+    validate_trace_bundle(source, allow_internal_links=allow_internal_links)
+
+    def copy_file(incoming: str, outgoing: str) -> None:
+        path = Path(incoming)
+        if allow_internal_links and path.is_symlink():
+            path = _internal_bundle_link(path, source)
+        _copy_trace_file(str(path), outgoing)
+
+    shutil.copytree(
+        source, destination, symlinks=not allow_internal_links, copy_function=copy_file,
+    )
+    validate_trace_bundle(destination)
+    destination.chmod(0o700)
+
+
+def collect_delegated_bundles(
+    artifacts: list[tuple[Path, Path]], ready: Path, *, allow_internal_links: bool = False,
+) -> bool:
+    if not artifacts:
+        raise ValueError("At least one diagnostic bundle is required.")
+    source, output = artifacts[0]
+    if source.parent.is_symlink() or ready.is_symlink():
+        raise ValueError("Diagnostic artifacts cannot be symbolic links.")
+    if any(incoming.parent != source.parent for incoming, _ in artifacts):
+        raise ValueError("Diagnostic bundles must belong to one request directory.")
+    if not ready.is_file():
+        return False
     for incoming, destination in artifacts:
-        validate_trace_bundle(incoming)
+        validate_trace_bundle(incoming, allow_internal_links=allow_internal_links)
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(f"Refusing to overwrite trace output: {destination}")
     with TemporaryDirectory(prefix=".matrix-trace-", dir=output.parent) as directory:
         staged_artifacts = []
         for incoming, destination in artifacts:
             staged = Path(directory) / destination.name
-            shutil.copytree(incoming, staged, symlinks=True, copy_function=_copy_trace_file)
-            validate_trace_bundle(staged)
-            staged.chmod(0o700)
+            copy_trace_bundle(incoming, staged, allow_internal_links=allow_internal_links)
             staged_artifacts.append((staged, destination))
         for staged, destination in staged_artifacts:
             if destination.exists() or destination.is_symlink():
