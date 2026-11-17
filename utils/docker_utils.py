@@ -139,6 +139,12 @@ def get_endpoint_architecture(hostname=None, port=DEFAULT_DOCKER_TCP_PORT) -> st
 
 # JetPack major version of each NVIDIA L4T kernel series. Only JetPack 4 (Jetson Nano: DB21M, DB21J) is listed because
 # it is the only one images have a Jetson variant for; add a series here once its variants are published.
+#
+# The kernel series gives the major version and no more: JetPack 4.2 through 4.6 all run a 4.9-tegra kernel, while the
+# CUDA they provide changed (10.0 up to 4.3, 10.2 from 4.4). The JetPack 4 variant of an image is built against the
+# 4.6 libraries, the ones the Duckiebot disk image ships, so on an older Jetson its GPU providers will not load and
+# inference falls back to the CPU. The Docker API exposes the kernel but not the L4T release, so this cannot be
+# narrowed here; `dt-launcher-self-test` in the machine learning base image reports which providers actually loaded.
 JETPACK_PER_L4T_KERNEL = {
     "4.9": "4",
 }
@@ -156,10 +162,13 @@ def get_endpoint_jetpack(epoint=None) -> Optional[str]:
 
     A Jetson and, e.g., a Mac with Apple Silicon are both linux/arm64 to Docker; their kernels tell them apart.
     """
-    client = get_client_OLD(epoint)
     try:
+        # inside the try: get_client_OLD() resolves the hostname and can raise on its own, and this probe is
+        # optional -- a transient failure here must leave JETPACK unset, not stop the build
+        client = get_client_OLD(epoint)
         kernel = client.info().get("KernelVersion", "")
-    except BaseException:
+    except Exception:
+        # not BaseException: Ctrl+C during the request should cancel the build, not start a generic one
         dtslogger.warning("Failed to retrieve the kernel version of the Docker endpoint. Assuming it is not a Jetson.")
         return None
     return jetpack_from_kernel_version(kernel)

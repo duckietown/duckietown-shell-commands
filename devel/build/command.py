@@ -472,12 +472,21 @@ class DTCommand(DTCommandAbs):
 
         # NVIDIA Jetson endpoints (e.g., Duckiebots): tell the build which JetPack the host provides, so that images
         # with a Jetson variant (e.g., the machine learning base images) can select it; other images ignore the argument.
-        # A `--build-arg JETPACK ...` given by the user overrides it.
-        if parsed.arch == endpoint_arch:
+        # A `--build-arg JETPACK ...` given by the user wins, and skips the probe altogether.
+        jetpack_tag_suffix: str = ""
+        if parsed.arch == endpoint_arch and "JETPACK" not in {k for k, _ in parsed.build_arg}:
             jetpack: Optional[str] = get_endpoint_jetpack(parsed.machine)
             if jetpack is not None:
                 docker_build_args["JETPACK"] = jetpack
                 dtslogger.info(f"Building on an NVIDIA Jetson with JetPack {jetpack} (build argument JETPACK={jetpack}).")
+                # What comes out is the Jetson variant of the image, not the plain one. It must not be published
+                # under the plain tag, where every non-Jetson machine would then pull a Jetson image, so name it
+                # after the variant. This applies to an explicit --tag as well, because CI always passes one; a
+                # tag that already names this variant is left alone.
+                jetpack_tag_suffix = f"-jetpack{jetpack}"
+                if not version.endswith(jetpack_tag_suffix):
+                    version = f"{version}{jetpack_tag_suffix}"
+                    dtslogger.info(f"Publishing this build as {version!r}.")
 
         # create defaults
         image = project.image(
@@ -664,8 +673,8 @@ class DTCommand(DTCommandAbs):
                 owner=parsed.username,
                 # NOTE: this is the public default registry
                 registry=DEFAULT_REGISTRY,
-                # NOTE: this is the repo's branch name only in CI
-                version=project.version_name,
+                # NOTE: this is the repo's branch name only in CI, plus the variant this build produced
+                version=f"{project.version_name}{jetpack_tag_suffix}",
             )
             buildargs["tags"].append(pimage)
 
@@ -675,11 +684,20 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(
-                arch=parsed.arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-            )
+            if jetpack_tag_suffix:
+                # image_release() takes no version, so build the variant's release tag by hand
+                rimage = project.image(
+                    arch=parsed.arch,
+                    owner=parsed.username,
+                    registry=registry_to_use,
+                    version=f"{project.safe_head_version}{jetpack_tag_suffix}",
+                )
+            else:
+                rimage = project.image_release(
+                    arch=parsed.arch,
+                    owner=parsed.username,
+                    registry=registry_to_use,
+                )
             buildargs["tags"].append(rimage)
 
         dtslogger.debug("Build arguments:\n%s\n" % json.dumps(buildargs, sort_keys=True, indent=4))
