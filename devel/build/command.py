@@ -654,8 +654,10 @@ class DTCommand(DTCommandAbs):
             "platforms": [ARCH_TO_PLATFORM[arch] for arch in parsed.arch.split(",")],
         }
 
-        # when building on CI, we also want to push the real tag to the public default registry
-        if parsed.ci:
+        # when building on CI, we also want to push the real tag to the public default registry.
+        # A variant build (one that sets --tag, e.g. a JetPack image built from the same branch) must
+        # opt out: its image is not what the branch's own tag should point at.
+        if parsed.ci and not parsed.ci_no_branch_tag:
             pimage = project.image(
                 arch=parsed.arch,
                 loop=parsed.loop,
