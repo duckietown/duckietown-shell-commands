@@ -479,14 +479,19 @@ class DTCommand(DTCommandAbs):
             if jetpack is not None:
                 docker_build_args["JETPACK"] = jetpack
                 dtslogger.info(f"Building on an NVIDIA Jetson with JetPack {jetpack} (build argument JETPACK={jetpack}).")
-                # What comes out is the Jetson variant of the image, not the plain one. It must not be published
-                # under the plain tag, where every non-Jetson machine would then pull a Jetson image, so name it
-                # after the variant. This applies to an explicit --tag as well, because CI always passes one; a
-                # tag that already names this variant is left alone.
-                jetpack_tag_suffix = f"-jetpack{jetpack}"
-                if not version.endswith(jetpack_tag_suffix):
-                    version = f"{version}{jetpack_tag_suffix}"
-                    dtslogger.info(f"Publishing this build as {version!r}.")
+                # What comes out is the Jetson variant of the image, not the plain one. Where it is published it
+                # must not land on the plain tag, or every non-Jetson machine pulling that tag gets a Jetson
+                # image, so the variant names itself -- including over an explicit --tag, because CI always
+                # passes one; a tag that already names the variant is left alone.
+                #
+                # Only when publishing, though. A build that stays on the robot keeps the plain tag, because
+                # `devel run` (and so `dts code workbench`) looks the image up by it and does not know about
+                # variants: renaming a local build leaves the LX with an image nothing can find.
+                if parsed.push:
+                    jetpack_tag_suffix = f"-jetpack{jetpack}"
+                    if not version.endswith(jetpack_tag_suffix):
+                        version = f"{version}{jetpack_tag_suffix}"
+                        dtslogger.info(f"Publishing this build as {version!r}.")
 
         # create defaults
         image = project.image(
