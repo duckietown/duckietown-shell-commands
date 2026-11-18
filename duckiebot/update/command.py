@@ -401,6 +401,9 @@ class DTCommand(DTCommandAbs):
             stack_fmt = stack_fmt.format(robot_type=rtype, ros_version=ros_version)
             resolved_stacks[project] = stack_fmt
         stacks = resolved_stacks
+        # the Duckiedrone runs its height node from ros2-core
+        if rtype == "duckiedrone":
+            stacks["ros2-core"] = "ros2-core/duckiedrone"
 
         # check whether the robot is using a different distro
         rdistro: Optional[str]
