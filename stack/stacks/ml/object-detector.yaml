@@ -1,0 +1,30 @@
+# Relays the object detections into the ROS 2 stack.
+#
+#   dts stack up -R ROBOT ml/object-detector
+#
+# The detections themselves come from the object-detection LX agent, which publishes them on
+# `switchboard/<robot>/object_detector/detections` while it runs (see lx-recipe-object-detection).
+# This relay republishes them as `duckietown_msgs` obstacle lists for the ROS 2 stack
+# (`dts stack up -R ROBOT ros2/duckiebot` must be running), on the topics
+# `<robot>/object_detector_node/image_detections`, `.../projected_detections` and
+# `.../debug/summary`.
+#
+# There is no detector service here: nothing is published until the LX agent is running, and the
+# relay simply waits. A standalone detector sidecar, so that detections are available without the
+# LX, is still to be built.
+name: object-detector
+
+services:
+
+  ros2-detection-relayer:
+    image: ${REGISTRY}/duckietown/dt-ros2-interface:ente-${ARCH}
+    container_name: ros2-detection-relayer
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: detection-relayer
+      DT_SUPERUSER: 1
+    volumes:
+      - /data/ramdisk/dtps:/dtps
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
