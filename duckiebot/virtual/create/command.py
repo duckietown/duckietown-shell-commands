@@ -30,6 +30,7 @@ DISK_TEMPLATE_DIR = os.path.join(COMMANDS_DIR, "disk_image", "create", "virtual"
 
 STACKS_BASE_DIR = os.path.join(COMMANDS_DIR, "stack", "stacks")
 STACKS = ["robot/basics", "duckietown/{robot_type}", "ros{ros_version}/{robot_type}"]
+DUCKIEDRONE_CALIBRATIONS_DIR = os.path.join(COMMANDS_DIR, "assets", "calibrations", "duckiedrone", "virtual")
 
 
 class DTCommand(DTCommandAbs):
@@ -121,6 +122,15 @@ class DTCommand(DTCommandAbs):
             origin = os.path.join(DISK_TEMPLATE_DIR, DISK_NAME)
             dtslogger.info("Copying skeleton root disk to the root of your virtual robot.")
             run_cmd(["cp", "-r", origin, vbot_root_dir])
+            # a Duckiedrone gets the virtual Duckiedrone camera calibration, the template one is a Duckiebot's
+            if parsed.type == "duckiedrone":
+                for kind in ["camera_intrinsic", "camera_extrinsic"]:
+                    origin = os.path.join(DUCKIEDRONE_CALIBRATIONS_DIR, f"{kind}.yaml")
+                    destination = os.path.join(
+                        vbot_root_dir, "data", "config", "calibrations", kind, f"{parsed.robot}.yaml"
+                    )
+                    dtslogger.debug(f"Copying '{origin}' -> '{destination}'")
+                    run_cmd(["cp", origin, destination])
             # copy stacks
             for s in STACKS:
                 robot_type = parsed.type
