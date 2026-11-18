@@ -1,5 +1,6 @@
 services:
 
+  # takes its floor zero in the first 3 s, so it must start with the drone on the floor
   altitude:
     image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
     container_name: altitude
@@ -7,32 +8,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-altitude-node
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data:/data
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  state-estimator:
-    image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
-    container_name: state-estimator
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      DT_LAUNCHER: duckiedrone-state-estimation-node
-      ROS_DOMAIN_ID: 42
-    volumes:
-      - /data:/data
-      # avahi socket
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
-
-  visual-odometry:
-    image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
-    container_name: visual-odometry
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      DT_LAUNCHER: duckiedrone-visual-odometry
       ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data

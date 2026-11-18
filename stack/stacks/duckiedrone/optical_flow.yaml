@@ -1,0 +1,35 @@
+# Optional Duckiedrone optical flow. It measures the drone's speed over the floor from the bottom
+# camera, the height from the `altitude` service and the IMU. It is not needed to fly on height alone.
+#
+# It needs the camera calibration files of the robot in /data/config/calibrations; without them the
+# node does not start.
+#
+# To start this stack and detach from the running containers, run the following command, where
+# `DUCKIEDRONE_NAME` is the name of the Duckiedrone:
+#
+#   dts stack up -H DUCKIEDRONE_NAME -d duckiedrone/optical_flow
+#
+# To stop this stack, run the following command, where `DUCKIEDRONE_NAME` is the name of the
+# Duckiedrone:
+#
+#   dts stack down -H DUCKIEDRONE_NAME duckiedrone/optical_flow
+
+# This pins the Compose project name. Without it, Compose would default to the name of this
+# directory, which the other optional Duckiedrone stacks share. Taking one down would remove the
+# others' containers.
+name: duckiedrone-optical-flow
+
+services:
+
+  optical-flow:
+    image: ${REGISTRY}/duckietown/dt-ros2-core:ente-${ARCH}
+    container_name: optical-flow
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DT_LAUNCHER: duckiedrone-optical-flow
+      ROS_DOMAIN_ID: 42
+    volumes:
+      - /data:/data
+      # avahi socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
