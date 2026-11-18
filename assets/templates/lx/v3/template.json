@@ -1,7 +1,7 @@
 {
   "lx-template-repo": "duckietown/template-lx",
   "recipe-template-repo": "duckietown/template-lx-recipe",
-  "template-version": "v3",
+  "template-version": "ente",
   "lx-dev-dtproject": {
     "VERSION": "0.0.0",
     "TYPE": "lx-development",
