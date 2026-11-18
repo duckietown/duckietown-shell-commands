@@ -49,6 +49,9 @@ ROBOT_PROXY_SETUP_SCRIPT = "/usr/local/bin/dts-proxy-setup"
 ROBOT_PROXY_ENV_FILE = "/run/dts-proxy.env"
 SOCAT_LAN_PORT = 17897
 DOCKER_RESTART_TIMEOUT = 60
+DUCKIEDRONE_CALIBRATIONS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "calibrations", "duckiedrone"
+)
 
 
 def _get_robot_image(client: DockerClient) -> str:
@@ -304,6 +307,38 @@ def _delete_config_node_directory(client: DockerClient, run_image: str) -> None:
         dtslogger.warning(f"Error deleting node configuration directory: {e}")
 
 
+def _write_missing_duckiedrone_calibrations(client: DockerClient, run_image: str, variant: str) -> None:
+    # the optical flow node needs the robot's own camera calibration; an existing one is never overwritten
+    script = (
+        'f="/data/config/calibrations/$KIND/$(hostname).yaml"; '
+        '[ -f "$f" ] && exit 0; '
+        'mkdir -p "$(dirname "$f")" && printf "%s" "$CALIBRATION" > "$f" && echo "written: $f"'
+    )
+    for kind in ["camera_intrinsic", "camera_extrinsic"]:
+        with open(os.path.join(DUCKIEDRONE_CALIBRATIONS_DIR, variant, f"{kind}.yaml")) as f:
+            calibration = f.read()
+        try:
+            out = client.containers.run(
+                image=run_image,
+                command=["sh", "-c", script],
+                environment={"KIND": kind, "CALIBRATION": calibration},
+                network_mode="host",
+                volumes={
+                    "/data": {
+                        "bind": "/data",
+                        "mode": "rw"
+                    }
+                },
+                remove=True,
+                detach=False
+            )
+        except Exception as e:
+            dtslogger.warning(f"Could not write the default {kind} calibration: {e}")
+            continue
+        if b"written: " in out:
+            dtslogger.info(f"No {kind} calibration found, wrote the default {variant} Duckiedrone one.")
+
+
 class DTCommand(DTCommandAbs):
     @staticmethod
     def command(shell: DTShell, args):
@@ -508,6 +543,10 @@ class DTCommand(DTCommandAbs):
                     )
                     if choice.lower() != "n":
                         _delete_config_node_directory(client, run_image)
+
+            if rtype == "duckiedrone":
+                variant = "virtual" if robot_hardware == "virtual" else "physical"
+                _write_missing_duckiedrone_calibrations(client, run_image, variant)
 
             # stack/up options
 
