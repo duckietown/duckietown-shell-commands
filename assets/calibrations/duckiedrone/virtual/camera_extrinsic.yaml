@@ -1,0 +1,15 @@
+# Default camera position of a virtual Duckiedrone: calibration of a virtual Duckiedrone in Duckiematrix, 2026-11-17.
+date: '2026-11-17T15:04:30.296515+00:00'
+format: resolution-independent
+frame: robot
+homography:
+- 0.0006661325171899561
+- 0.052161993779357464
+- 0.1704293781102198
+- -0.07177106783018924
+- -1.9314113449467087e-05
+- 0.00018059722552304236
+- 0.0027711438849655863
+- 0.8645102048026714
+- 1.0
+version: '2'
