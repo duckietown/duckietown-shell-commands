@@ -95,6 +95,8 @@ services:
       DT_LAUNCHER: sensor-wheel-encoders
       DT_SUPERUSER: 1
     volumes:
+      # robot calibrations (encoder resolution)
+      - /data:/data
       - /data/ramdisk/dtps:/dtps
       # avahi socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
