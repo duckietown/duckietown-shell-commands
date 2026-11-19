@@ -191,6 +191,25 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Disable showing the tutorial",
         )
         parser.add_argument(
+            "--camera-cache",
+            default=False,
+            action="store_true",
+            help=(
+                "Reuse JPEG encoding results for identical camera pixels and encoding settings. "
+                "Rendering and GPU readback still run (incompatible with --shared-camera-cache)"
+            ),
+        )
+        parser.add_argument(
+            "--shared-camera-cache",
+            default=False,
+            action="store_true",
+            help=(
+                "Reuse and share JPEG encoding results for identical camera pixels and encoding "
+                "settings between cameras within one Renderer, including different environments. "
+                "Rendering and GPU readback still run (incompatible with --camera-cache)"
+            ),
+        )
+        parser.add_argument(
             "--profiler",
             default=False,
             action="store_true",

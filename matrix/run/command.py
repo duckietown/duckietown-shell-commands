@@ -632,6 +632,10 @@ def configure_renderer_launch(
         app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
     if parsed.no_spectator_cameras:
         app_config += ["--no-spectator-cameras"]
+    if getattr(parsed, "camera_cache", False):
+        app_config += ["--camera-cache"]
+    if getattr(parsed, "shared_camera_cache", False):
+        app_config += ["--shared-camera-cache"]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -692,6 +696,13 @@ class DTCommand(DTCommandAbs):
             return
         if parsed.no_spectator_cameras and parsed.no_tutorial:
             dtslogger.error("You cannot use --no-spectator-cameras and --no-tutorial together.")
+            return
+        camera_cache = getattr(parsed, "camera_cache", False)
+        shared_camera_cache = getattr(parsed, "shared_camera_cache", False)
+        if camera_cache and shared_camera_cache:
+            dtslogger.error(
+                "You cannot use --camera-cache and --shared-camera-cache together."
+            )
             return
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
@@ -954,6 +965,10 @@ class DTCommand(DTCommandAbs):
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
                     url += f"no-spectator-cameras={'true' if parsed.no_spectator_cameras else 'false'}&"
+                    if camera_cache:
+                        url += "camera-cache=true&"
+                    elif shared_camera_cache:
+                        url += "shared-camera-cache=true&"
                     if parsed.profiler:
                         url += "profiler=true&"
                     elif parsed.live_profiler:
