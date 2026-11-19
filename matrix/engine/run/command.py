@@ -10,7 +10,9 @@ from threading import Thread
 from typing import Optional, Dict
 
 import yaml
+from docker.errors import DockerException
 from docker.models.containers import Container
+from requests.exceptions import RequestException
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD, get_endpoint_architecture
@@ -291,6 +293,8 @@ class MatrixEngine:
     def stop(self):
         if self.config is None:
             raise ValueError("Configure the engine first.")
+        if self.engine is None:
+            return
         dtslogger.info("Cleaning up containers...")
         if self.is_running:
             # noinspection PyBroadException
@@ -370,14 +374,20 @@ class MatrixEngine:
                 raise TimeoutError()
 
     def join(self) -> bool:
+        if self.engine is None:
+            dtslogger.warning("No Engine container to wait for.")
+            return False
+
         try:
-            # wait for the engine to terminate
             self.engine.wait()
-        except BaseException:
+            return True
+        except KeyboardInterrupt:
+            return False
+        except (DockerException, RequestException) as error:
+            dtslogger.warning("Could not wait for the Engine container: %s", error)
             return False
         finally:
             self.stop()
-        return True
 
 
 class DTCommand(DTCommandAbs):
