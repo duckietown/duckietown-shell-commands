@@ -132,7 +132,8 @@ class DTCommand(DTCommandAbs):
                     dtslogger.debug(f"Copying '{origin}' -> '{destination}'")
                     run_cmd(["cp", origin, destination])
             # copy stacks
-            for s in STACKS:
+            extra = ["ros2-core/{robot_type}"] if parsed.type == "duckiedrone" else []
+            for s in STACKS + extra:
                 robot_type = parsed.type
                 stack: str = s.format(robot_type=robot_type, ros_version="2" if robot_type == "duckiedrone" else "1")
                 origin = os.path.join(STACKS_BASE_DIR, f"{stack}.yaml")
