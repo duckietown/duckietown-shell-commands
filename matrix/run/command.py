@@ -21,6 +21,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from typing import BinaryIO, Optional, Callable
 from shutil import which
+from urllib.parse import quote
 
 try:
     import pty
@@ -444,6 +445,7 @@ class RendererLaunchConfiguration:
     app_prefix: list[str]
     os_family: str
     renderer_log_path: Optional[Path]
+    screen_billboard: Optional[str] = None
 
 
 def configure_renderer_launch(
@@ -593,6 +595,7 @@ def configure_renderer_launch(
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
+    billboard = None
     if billboard_names:
         billboard = shell.get_billboard(billboards_database, billboard_names)
         if billboard:
@@ -609,6 +612,7 @@ def configure_renderer_launch(
         app_prefix=app_prefix,
         os_family=os_family,
         renderer_log_path=renderer_log_path,
+        screen_billboard=billboard,
     )
 
 class DTCommand(DTCommandAbs):
@@ -820,21 +824,20 @@ class DTCommand(DTCommandAbs):
                     elif parsed.live_profiler:
                         url += "live-profiler=true&"
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
+                    if renderer_configuration.screen_billboard:
+                        url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
                     server_thread.start()
                     browser_opened = False
-                    if os_family == "windows":
+                    if os_family == "windows" and hasattr(os, "startfile"):
                         try:
-                            url = url.replace("&", "^&")
-                            subprocess.run(
-                                ["cmd.exe", "/c", "start", f"{url}"], 
-                                stderr=subprocess.DEVNULL, 
-                                stdout=subprocess.DEVNULL,
-                            )
+                            os.startfile(url)
                             browser_opened = True
-                        except Exception:
-                            pass
+                        except (OSError, NotImplementedError) as error:
+                            dtslogger.debug(
+                                f"Could not open the browser through Windows ({type(error).__name__})."
+                            )
                     if not browser_opened:
                         browser_opened = open_browser_url(url)
                     if not browser_opened:

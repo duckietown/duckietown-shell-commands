@@ -219,6 +219,48 @@ class MatrixRendererViewTests(unittest.TestCase):
                 query = parse_qs(urlsplit(open_browser.call_args.args[0]).query)
                 self.assertEqual(query["no-spectator-cameras"], [str(disabled).lower()])
                 self.assertEqual(query["tutorial"], [str(not disabled).lower()])
+                self.assertNotIn("billboard", query)
+
+    def test_browser_forwards_only_the_selected_screen_billboard(self):
+        billboard = "Duckies \U0001f424 + 1\nhttps://example.invalid/?p=a&b=x=y#details 100%"
+        self.shell.get_billboard_names.return_value = ["notice"]
+        self.shell.get_billboard.return_value = billboard
+        database = SimpleNamespace(yaml="/host/private/billboards.yaml")
+        flags = ["--browser", "--version", "test"]
+        parsed = self.parser.parse_args(flags)
+        server = SimpleNamespace(server=Mock(), display_host="localhost", port=8080)
+        for platform, fails_to_start in (("linux", False), ("windows", False), ("windows", True)):
+            with (
+                self.subTest(platform=platform, fails_to_start=fails_to_start),
+                patch.object(renderer_command.DTCommand, "parser", self.parser),
+                patch.object(renderer_command, "get_os_family", return_value=platform),
+                patch.object(renderer_command, "should_delegate_matrix_run", return_value=False),
+                patch.object(renderer_command, "resolve_delegated_engine_host", return_value=None),
+                patch.object(renderer_command, "get_path_to_app", return_value="/test/browser"),
+                patch.object(renderer_command, "create_renderer_log_path", return_value=None),
+                patch.object(renderer_command.DTShellDatabase, "open", return_value=database),
+                patch.object(renderer_command, "create_browser_http_server", return_value=server),
+                patch.object(renderer_command, "Thread"),
+                patch.object(renderer_command.os, "chdir"),
+                patch.object(
+                    renderer_command.os, "startfile", create=True,
+                    side_effect=OSError("test") if fails_to_start else None,
+                ) as startfile,
+                patch.object(renderer_command, "open_browser_url", return_value=True) as open_browser,
+            ):
+                renderer_command.DTCommand.command(self.shell, flags, parsed=parsed)
+                browser = startfile if platform == "windows" and not fails_to_start else open_browser
+                browser.assert_called_once()
+                url = browser.call_args.args[0]
+                query = parse_qs(urlsplit(url).query)
+                self.assertEqual(query.get("billboard"), [billboard])
+                self.assertEqual(query.get("token"), ["unit-test-placeholder/"])
+                self.assertNotIn("billboards-path", query)
+                self.assertNotIn("billboard-names", query)
+                self.assertNotIn(database.yaml, url)
+                if fails_to_start:
+                    startfile.assert_called_once_with(url)
+        self.assertEqual(self.shell.get_billboard.call_count, 3)
 
     def test_redundant_no_tutorial_option_is_rejected_before_launch(self):
         flags = ["--no-spectator-cameras", "--no-tutorial"]
