@@ -1,0 +1,57 @@
+# Default lens of a physical Duckiedrone: lens calibration of a physical Duckiedrone, 2026-11-16.
+camera_matrix:
+  cols: 3
+  data:
+  - 319.90606912243544
+  - 0.0
+  - 213.59447288059965
+  - 0.0
+  - 320.2345681325165
+  - 319.72983263687547
+  - 0.0
+  - 0.0
+  - 1.0
+  rows: 3
+camera_name: front_center
+date: '2026-11-16T11:11:41.654341+00:00'
+distortion_coefficients:
+  cols: 4
+  data:
+  - -0.0232328813382703
+  - -0.02987467767088732
+  - 0.02151989048122534
+  - -0.00652634176514664
+  rows: 1
+distortion_model: equidistant
+image_height: 640
+image_width: 480
+projection_matrix:
+  cols: 4
+  data:
+  - 319.90606912243544
+  - 0.0
+  - 213.59447288059965
+  - 0.0
+  - 0.0
+  - 320.2345681325165
+  - 319.72983263687547
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0
+  rows: 3
+rectification_matrix:
+  cols: 3
+  data:
+  - 1
+  - 0
+  - 0
+  - 0
+  - 1
+  - 0
+  - 0
+  - 0
+  - 1
+  rows: 3
+version: '2'

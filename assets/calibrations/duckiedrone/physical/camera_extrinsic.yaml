@@ -1,0 +1,15 @@
+# Default camera position of a physical Duckiedrone: calibration of a physical Duckiedrone with the rigid camera mount, 2026-11-17.
+date: '2026-11-17T05:11:56.460700+00:00'
+format: resolution-independent
+frame: robot
+homography:
+- -0.00033660881501870694
+- 0.04985060234089611
+- 0.17373183278165255
+- -0.07865956249555271
+- -0.0013599815107765325
+- -0.0019804915268935457
+- -0.006635888429891751
+- 0.9025590404547836
+- 1.0
+version: '2'

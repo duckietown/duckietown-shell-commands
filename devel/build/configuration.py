@@ -153,6 +153,13 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Overwrites configuration for CI (Continuous Integration) builds",
         )
         parser.add_argument(
+            "--ci-no-branch-tag",
+            default=False,
+            action="store_true",
+            help="In CI, do not also publish the image under the branch's own tag. Use for variant "
+                 "builds, which set --tag and must not overwrite the branch's image",
+        )
+        parser.add_argument(
             "--ci-force-builder-arch",
             dest="ci_force_builder_arch",
             default=None,

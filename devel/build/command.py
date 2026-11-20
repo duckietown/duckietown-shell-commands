@@ -37,6 +37,7 @@ from utils.docker_utils import (
     CLOUD_BUILDERS,
     copy_docker_env_into_configuration,
     get_endpoint_architecture,
+    get_endpoint_jetpack,
     get_endpoint_ncpus,
     get_registry_to_use,
     sanitize_docker_baseurl,
@@ -469,6 +470,29 @@ class DTCommand(DTCommandAbs):
         if "BASE_TAG" in docker_build_args:
             docker_build_args["BASE_TAG"] = docker_build_args["BASE_TAG"].replace("${ARCH}", parsed.arch)
 
+        # NVIDIA Jetson endpoints (e.g., Duckiebots): tell the build which JetPack the host provides, so that images
+        # with a Jetson variant (e.g., the machine learning base images) can select it; other images ignore the argument.
+        # A `--build-arg JETPACK ...` given by the user wins, and skips the probe altogether.
+        jetpack_tag_suffix: str = ""
+        if parsed.arch == endpoint_arch and "JETPACK" not in {k for k, _ in parsed.build_arg}:
+            jetpack: Optional[str] = get_endpoint_jetpack(parsed.machine)
+            if jetpack is not None:
+                docker_build_args["JETPACK"] = jetpack
+                dtslogger.info(f"Building on an NVIDIA Jetson with JetPack {jetpack} (build argument JETPACK={jetpack}).")
+                # What comes out is the Jetson variant of the image, not the plain one. Where it is published it
+                # must not land on the plain tag, or every non-Jetson machine pulling that tag gets a Jetson
+                # image, so the variant names itself -- including over an explicit --tag, because CI always
+                # passes one; a tag that already names the variant is left alone.
+                #
+                # Only when publishing, though. A build that stays on the robot keeps the plain tag, because
+                # `devel run` (and so `dts code workbench`) looks the image up by it and does not know about
+                # variants: renaming a local build leaves the LX with an image nothing can find.
+                if parsed.push:
+                    jetpack_tag_suffix = f"-jetpack{jetpack}"
+                    if not version.endswith(jetpack_tag_suffix):
+                        version = f"{version}{jetpack_tag_suffix}"
+                        dtslogger.info(f"Publishing this build as {version!r}.")
+
         # create defaults
         image = project.image(
             arch=parsed.arch,
@@ -644,16 +668,18 @@ class DTCommand(DTCommandAbs):
             "platforms": [ARCH_TO_PLATFORM[arch] for arch in parsed.arch.split(",")],
         }
 
-        # when building on CI, we also want to push the real tag to the public default registry
-        if parsed.ci:
+        # when building on CI, we also want to push the real tag to the public default registry.
+        # A variant build (one that sets --tag, e.g. a JetPack image built from the same branch) must
+        # opt out: its image is not what the branch's own tag should point at.
+        if parsed.ci and not parsed.ci_no_branch_tag:
             pimage = project.image(
                 arch=parsed.arch,
                 loop=parsed.loop,
                 owner=parsed.username,
                 # NOTE: this is the public default registry
                 registry=DEFAULT_REGISTRY,
-                # NOTE: this is the repo's branch name only in CI
-                version=project.version_name,
+                # NOTE: this is the repo's branch name only in CI, plus the variant this build produced
+                version=f"{project.version_name}{jetpack_tag_suffix}",
             )
             buildargs["tags"].append(pimage)
 
@@ -663,11 +689,20 @@ class DTCommand(DTCommandAbs):
 
         # tag release images
         if project.is_release():
-            rimage = project.image_release(
-                arch=parsed.arch,
-                owner=parsed.username,
-                registry=registry_to_use,
-            )
+            if jetpack_tag_suffix:
+                # image_release() takes no version, so build the variant's release tag by hand
+                rimage = project.image(
+                    arch=parsed.arch,
+                    owner=parsed.username,
+                    registry=registry_to_use,
+                    version=f"{project.safe_head_version}{jetpack_tag_suffix}",
+                )
+            else:
+                rimage = project.image_release(
+                    arch=parsed.arch,
+                    owner=parsed.username,
+                    registry=registry_to_use,
+                )
             buildargs["tags"].append(rimage)
 
         dtslogger.debug("Build arguments:\n%s\n" % json.dumps(buildargs, sort_keys=True, indent=4))

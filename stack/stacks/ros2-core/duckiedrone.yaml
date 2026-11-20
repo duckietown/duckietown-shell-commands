@@ -8,7 +8,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-altitude-node
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data
       # avahi socket
