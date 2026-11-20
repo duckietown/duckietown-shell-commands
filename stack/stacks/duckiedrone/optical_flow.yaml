@@ -28,7 +28,6 @@ services:
     network_mode: host
     environment:
       DT_LAUNCHER: duckiedrone-optical-flow
-      ROS_DOMAIN_ID: 42
     volumes:
       - /data:/data
       # avahi socket
