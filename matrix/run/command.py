@@ -10,6 +10,7 @@ import threading
 from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
+from random import choices
 
 import subprocess
 import platform
@@ -21,6 +22,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from typing import BinaryIO, Optional, Callable
 from shutil import which
+from urllib.parse import quote
 
 try:
     import pty
@@ -127,7 +129,7 @@ def _mask_token_in_text(text: str) -> str:
         token = token[:-1] if suffix else token
         return f"token={_mask_token_value(token)}{suffix}"
 
-    return re.sub(r"token=(?P<token>[^&\s\"]+)", replace, text)
+    return re.sub(r"token=(?P<token>[^&#\s\"]+)", replace, text)
 
 
 def _format_navigation_url(url: str, token: str) -> str:
@@ -463,6 +465,28 @@ class RendererLaunchConfiguration:
     app_prefix: list[str]
     os_family: str
     renderer_log_path: Optional[Path]
+    screen_billboard: Optional[str] = None
+    world_billboards: Optional[str] = None
+
+
+def _webgl_billboard_payload(
+    database: DTShellDatabase[dict], weights: Counter[str],
+) -> Optional[str]:
+    remaining = weights.copy()
+    records = []
+    while remaining:
+        # Keep the desktop weighted selection without reusing a record on another board.
+        name = choices(list(remaining), weights=list(remaining.values()))[0]
+        del remaining[name]
+        entry = database.get(name, None)
+        if entry is None or entry.get("enabled") is False:
+            continue
+        records.append({
+            "content": entry.get("content"),
+            "graphics": entry.get("graphics"),
+            "end_time": entry.get("end_time"),
+        })
+    return json.dumps(records, ensure_ascii=False, separators=(",", ":")) if records else None
 
 
 def configure_renderer_launch(
@@ -627,14 +651,18 @@ def configure_renderer_launch(
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
+    billboard = None
+    world_billboards = None
     if billboard_names:
         billboard = shell.get_billboard(billboards_database, billboard_names)
-        if billboard:
-            app_config += ["--billboard", billboard]
-        app_config += ["--billboards-path", billboards_database.yaml]
         counter = Counter(billboard_names)
-        billboard_names_dict = dict(counter)
-        app_config += ["--billboard-names", json.dumps(billboard_names_dict)]
+        if browser:
+            world_billboards = _webgl_billboard_payload(billboards_database, counter)
+        else:
+            if billboard:
+                app_config += ["--billboard", billboard]
+            app_config += ["--billboards-path", billboards_database.yaml]
+            app_config += ["--billboard-names", json.dumps(dict(counter))]
     dtslogger.info("Renderer configured!")
     return RendererLaunchConfiguration(
         app_bin=app_bin,
@@ -643,6 +671,8 @@ def configure_renderer_launch(
         app_prefix=app_prefix,
         os_family=os_family,
         renderer_log_path=renderer_log_path,
+        screen_billboard=billboard,
+        world_billboards=world_billboards,
     )
 
 class DTCommand(DTCommandAbs):
@@ -953,21 +983,23 @@ class DTCommand(DTCommandAbs):
                     if profiler_report_interval is not None:
                         url += f"profiler-report-interval={profiler_report_interval}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
+                    if renderer_configuration.screen_billboard:
+                        url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
+                    if renderer_configuration.world_billboards:
+                        # Fragments are available to the player without growing the HTTP request.
+                        url += f"#billboards={quote(renderer_configuration.world_billboards, safe='')}"
                     server_thread.start()
                     browser_opened = False
-                    if os_family == "windows":
+                    if os_family == "windows" and hasattr(os, "startfile"):
                         try:
-                            url = url.replace("&", "^&")
-                            subprocess.run(
-                                ["cmd.exe", "/c", "start", f"{url}"], 
-                                stderr=subprocess.DEVNULL, 
-                                stdout=subprocess.DEVNULL,
-                            )
+                            os.startfile(url)
                             browser_opened = True
-                        except Exception:
-                            pass
+                        except (OSError, NotImplementedError) as error:
+                            dtslogger.debug(
+                                f"Could not open the browser through Windows ({type(error).__name__})."
+                            )
                     if not browser_opened:
                         browser_opened = open_browser_url(url)
                     if not browser_opened:
