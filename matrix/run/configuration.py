@@ -191,6 +191,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Disable showing the tutorial",
         )
         parser.add_argument(
+            "--no-cinematics",
+            default=False,
+            action="store_true",
+            help="Skip the Renderer startup and shutdown cinematics",
+        )
+        parser.add_argument(
             "--profiler",
             default=False,
             action="store_true",

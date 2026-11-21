@@ -59,6 +59,7 @@ class DTCommand(DTCommandAbs):
             no_pull=parsed.no_pull,
             verbose=parsed.verbose,
             no_tutorial=parsed.no_tutorial,
+            no_cinematics=parsed.no_cinematics,
             browser=parsed.browser,
         )
 

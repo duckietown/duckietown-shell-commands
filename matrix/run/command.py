@@ -626,8 +626,12 @@ def configure_renderer_launch(
         app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
     if parsed.renderer_key is not None:
         app_config += ["--renderer-key", parsed.renderer_key]
-    if not parsed.no_tutorial and not parsed.no_spectator_cameras:
+    if parsed.no_tutorial:
+        app_config += ["--no-tutorial"]
+    elif not parsed.no_spectator_cameras:
         app_config += ["--tutorial"]
+    if getattr(parsed, "no_cinematics", False):
+        app_config += ["--no-cinematics"]
     if parsed.profiler:
         app_config += ["--profiler"]
     elif parsed.live_profiler:
@@ -713,6 +717,7 @@ class DTCommand(DTCommandAbs):
         if parsed.no_spectator_cameras and parsed.no_tutorial:
             dtslogger.error("You cannot use --no-spectator-cameras and --no-tutorial together.")
             return
+        no_cinematics = getattr(parsed, "no_cinematics", False)
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
@@ -936,9 +941,16 @@ class DTCommand(DTCommandAbs):
 
                 if delegate_renderer_to_host:
                     dtslogger.info("Launching the native renderer on the host...")
+                    host_args = list(args)
+                    for flag, enabled in (
+                        ("--no-tutorial", parsed.no_tutorial),
+                        ("--no-cinematics", no_cinematics),
+                    ):
+                        if enabled and flag not in host_args:
+                            host_args.append(flag)
                     try:
                         exit_code = delegate_matrix_run_to_host(
-                            args,
+                            host_args,
                             engine_host=delegated_engine_host,
                             renderer_only=True,
                         )
@@ -983,6 +995,8 @@ class DTCommand(DTCommandAbs):
                     if profiler_report_interval is not None:
                         url += f"profiler-report-interval={profiler_report_interval}&"
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
+                    if no_cinematics:
+                        url += "no-cinematics=true&"
                     if renderer_configuration.screen_billboard:
                         url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
                     token = shell.profile.secrets.dt_token
