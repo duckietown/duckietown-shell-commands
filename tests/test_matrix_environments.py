@@ -1,39 +1,16 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from matrix.engine.run.command import DTCommand as EngineCommand, MatrixEngine
-from matrix.engine.run.configuration import DTCommandConfiguration as EngineConfiguration
 from matrix.run.configuration import DTCommandConfiguration as MatrixConfiguration
 from utils.host_runner import (
     HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV,
     delegate_matrix_run_to_host,
 )
+from tests.matrix_fixtures import EngineConfigurationFixture
 
 
-class MatrixEnvironmentTests(unittest.TestCase):
-    def setUp(self):
-        self.parser = EngineConfiguration.parser()
-        distro = SimpleNamespace(name="ente")
-        profile = SimpleNamespace(distro=distro)
-        self.shell = SimpleNamespace(profile=profile)
-        self.arguments = [
-            "--embedded", "--map", "loop",
-            "--engine-name", "replication-test-engine",
-        ]
-        architecture = patch(
-            "matrix.engine.run.command.get_endpoint_architecture",
-            return_value="arm64",
-        )
-        architecture.start()
-        self.addCleanup(architecture.stop)
-        docker = patch(
-            "matrix.engine.run.command.get_client_OLD",
-            side_effect=AssertionError("Configuration must not access Docker."),
-        )
-        docker.start()
-        self.addCleanup(docker.stop)
-
+class MatrixEnvironmentTests(EngineConfigurationFixture):
     def test_default_preserves_legacy_engine_command(self):
         for arguments in ([], ["--environments", "1"]):
             with self.subTest(arguments=arguments):

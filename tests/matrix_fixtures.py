@@ -3,10 +3,36 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic, sleep
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
+from matrix.engine.run.configuration import DTCommandConfiguration as EngineConfiguration
 from matrix.run.configuration import DTCommandConfiguration as MatrixConfiguration
 from matrix.run.map_control import MapControl
+
+
+class EngineConfigurationFixture(unittest.TestCase):
+    def setUp(self):
+        self.parser = EngineConfiguration.parser()
+        distro = SimpleNamespace(name="ente")
+        profile = SimpleNamespace(distro=distro)
+        self.shell = SimpleNamespace(profile=profile)
+        self.arguments = [
+            "--embedded", "--map", "loop",
+            "--engine-name", "replication-test-engine",
+        ]
+        architecture = patch(
+            "matrix.engine.run.command.get_endpoint_architecture",
+            return_value="arm64",
+        )
+        architecture.start()
+        self.addCleanup(architecture.stop)
+        docker = patch(
+            "matrix.engine.run.command.get_client_OLD",
+            side_effect=AssertionError("Configuration must not access Docker."),
+        )
+        docker.start()
+        self.addCleanup(docker.stop)
 
 
 class MapControlFixture(unittest.TestCase):

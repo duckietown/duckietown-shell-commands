@@ -38,7 +38,8 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--standalone",
             default=False,
             action="store_true",
-            help="Run both engine and renderer",
+            help="Run both Engine and Renderer. Without --map or --sandbox, select a map "
+                 "in the local Renderer before starting the Engine.",
         )
         parser.add_argument(
             "--gym",
@@ -73,7 +74,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--embedded",
             default=False,
             action="store_true",
-            help="Use the embedded map directory as the root directory for '--map'",
+            help="Use a map embedded in the Engine (requires --map)",
         )
         parser.add_argument(
             "--environments",

@@ -1,4 +1,4 @@
-"""Map selection and shutdown for an Engine owned by the local Duckiematrix launcher."""
+"""Map selection, simulation settings and shutdown for the launcher-owned Engine."""
 
 from __future__ import annotations
 
@@ -10,8 +10,9 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from math import isfinite
 from pathlib import Path
-from threading import Lock, Thread
+from threading import Condition, Thread
 from time import monotonic
 
 from docker.errors import ContainerError, DockerException, NotFound
@@ -20,6 +21,7 @@ from docker.types import Mount
 from requests.exceptions import RequestException
 
 from dt_shell import dtslogger
+from utils.docker_utils import get_client_OLD
 
 from ..engine.run.command import MatrixEngine
 from .map_preview import read_map_preview
@@ -94,10 +96,66 @@ class MapSelection:
 
 
 @dataclass
+class EngineSettings:
+    mode: str = "realtime"
+    environments: int = 1
+    delta_t: float = 0.0  # Zero means no command-line override.
+
+    @classmethod
+    def from_command(cls, command: list[str]) -> EngineSettings:
+        return cls(
+            _option(command, "--mode", "realtime"),
+            int(_option(command, "--environments", "1")),
+            float(_option(command, "--delta-t", "0")),
+        )
+
+    @classmethod
+    def from_request(cls, data: object) -> EngineSettings:
+        if not isinstance(data, dict) or set(data) != {"mode", "environments", "delta_t"}:
+            raise ValueError("Invalid simulation settings.")
+        mode, environments, delta_t = data["mode"], data["environments"], data["delta_t"]
+        if mode not in ("realtime", "gym"):
+            raise ValueError("Choose Realtime or Gym mode.")
+        if type(environments) is not int or not 1 <= environments <= 2_147_483_647:
+            raise ValueError("Enter a positive whole number of environments.")
+        try:
+            valid_step = type(delta_t) in (float, int) and isfinite(delta_t) and delta_t >= 0
+        except OverflowError:
+            valid_step = False
+        if not valid_step or (mode != "gym" and delta_t != 0):
+            raise ValueError("A positive time step can only be set in Gym mode.")
+        return cls(mode, environments, float(delta_t))
+
+    def write_to(self, command: list[str], original: EngineSettings) -> None:
+        if self.mode != original.mode:
+            _set_option(command, "--mode", self.mode)
+        if self.environments != original.environments:
+            _set_option(command, "--environments", str(self.environments) if self.environments > 1 else None)
+        if self.delta_t != original.delta_t:
+            _set_option(command, "--delta-t", str(self.delta_t) if self.delta_t else None)
+
+
+def _option(command: list[str], flag: str, default: str) -> str:
+    return command[command.index(flag) + 1] if flag in command else default
+
+
+def _set_option(command: list[str], flag: str, value: str | None) -> None:
+    if flag in command:
+        index = command.index(flag)
+        if value is None:
+            del command[index:index + 2]
+        else:
+            command[index + 1] = value
+    elif value is not None:
+        command.extend((flag, value))
+
+
+@dataclass
 class MapChange:
     ticket: str
     selection: MapSelection
     config: dict
+    settings: EngineSettings
     expires: float
     result: dict | None = None
 
@@ -113,12 +171,12 @@ class EngineStop:
 
 class MapControl:
     def __init__(self, engine: MatrixEngine, directory: Path):
-        if engine.config is None or engine.engine is None:
-            raise ValueError("Map selection requires a running Engine.")
+        if engine.config is None:
+            raise ValueError("Map selection requires a configured Engine.")
         self.token = secrets.token_hex(32)
         self._engine = engine
         self._directory = directory
-        self._lock = Lock()
+        self._condition = Condition()
         self._worker: Thread | None = None
         self._closed = False
         self._change: MapChange | None = None
@@ -126,35 +184,56 @@ class MapControl:
         self._stopped = False
 
         self._base = deepcopy(engine.config)
-        self._name_index = self._base["command"].index("--map") + 1
-        name = self._base["command"][self._name_index]
-        volumes = self._base.get("volumes", {})
-        custom = next((path for path, mount in volumes.items()
-                       if mount["bind"] == f"/maps/{name}"), None)
-        if custom is None:
-            self._current = MapSelection(True, name)
+        command = self._base["command"]
+        self._launch_settings = self._settings = EngineSettings.from_command(command)
+        self._gym_only = bool(self._base.get("environment", {}).get("DTSHELL_SHM_PATH"))
+        self._can_replicate = (_option(command, "--renderers", "1") == "1"
+                               and "--link" not in command and "--build-assets" not in command)
+        self._name_index = command.index("--map") + 1 if "--map" in command else None
+        self._current: MapSelection | None = None
+        if self._name_index is None:
+            if engine.engine is not None:
+                raise ValueError("Startup map selection requires an Engine that has not started.")
+            client = get_client_OLD()
+            image = client.images.get(self._base["image"])
         else:
-            self._current = MapSelection(False, str(Path(custom).resolve()))
-            del volumes[custom]
+            if engine.engine is None:
+                raise ValueError("Map switching requires a running Engine.")
+            name = command[self._name_index]
+            volumes = self._base.get("volumes", {})
+            custom = next((path for path, mount in volumes.items()
+                           if mount["bind"] == f"/maps/{name}"), None)
+            if custom is None:
+                self._current = MapSelection(True, name)
+            else:
+                self._current = MapSelection(False, str(Path(custom).resolve()))
+                del volumes[custom]
+            client, image = engine.engine.client, engine.engine.image
         self._factory = self._current
 
-        # Inspect the packaged image, not the live /maps mount, which can shadow an embedded map.
-        self._base["image"] = engine.engine.image.id
-        self._containers = engine.engine.client.containers
+        # Pin the image for the catalog, validation and the subsequent Engine start.
+        self._base["image"] = image.id
+        self._containers = client.containers
         catalog = json.loads(self._probe(MAP_CATALOG_COMMAND))
         self._embedded_previews = {name: preview for name, preview in catalog.items()
                                    if SAFE_MAP_NAME.fullmatch(name)}
         self._embedded = tuple(sorted(self._embedded_previews))
 
     def status(self) -> dict:
-        with self._lock:
+        with self._condition:
             if self._stopped:
                 return {"error": "The launcher-owned Engine was stopped."}
             return {
                 "embedded_maps": self._embedded,
                 "can_preview_maps": True,
-                "current": asdict(self._current),
-                "factory": asdict(self._factory),
+                "current": asdict(self._current) if self._current is not None else None,
+                "factory": asdict(self._factory) if self._factory is not None else None,
+                "engine_settings": asdict(self._settings),
+                "factory_engine_settings": asdict(EngineSettings(mode="gym" if self._gym_only else "realtime")),
+                "can_replicate": self._can_replicate,
+                "gym_only": self._gym_only,
+                "awaiting_selection": self._current is None,
+                "ready": self._current is not None and self._engine.engine is not None and self._worker is None,
             }
 
     def _probe(self, script: str, *args: str, mounts: list[Mount] | None = None) -> bytes:
@@ -174,56 +253,81 @@ class MapControl:
 
     def prepare(self, data: object) -> dict:
         selection = MapSelection.from_request(data, self._embedded, self._directory)
-        with self._lock:
-            if (self._closed or self._stopped or self._worker is not None
-                    or (self._change is not None and self._change.result is None
-                        and monotonic() < self._change.expires)):
-                raise ValueError("The Engine is already changing maps or shutting down.")
+        with self._condition:
             if selection == self._current:
                 raise ValueError("That map is already loaded.")
-            config = deepcopy(self._base)
-            name = selection.value
-            mounts = []
-            if not selection.embedded:
-                name = Path(selection.value).name
-                if not SAFE_MAP_NAME.fullmatch(name):
-                    name = "local-" + sha256(selection.value.encode()).hexdigest()[:12]
-                mounts.append(Mount(
-                    target=f"/maps/{name}", source=selection.value, type="bind", read_only=True,
-                ))
-                config.setdefault("mounts", []).extend(mounts)
-            config["command"][self._name_index] = name
-            command = config["command"]
-            environments = command[command.index("--environments") + 1] if "--environments" in command else "1"
-            try:
-                self._probe(MAP_VALIDATE_COMMAND, name, environments, mounts=mounts)
-            except ContainerError as error:
-                raise ValueError("The Engine rejected this map. Check its YAML layers and environment count.") from error
-            except (DockerException, RequestException) as error:
-                dtslogger.warning("Could not validate the selected map: %s", error)
-                raise ValueError("Could not open this map in the Engine. Check the directory and Docker access.") from error
-            self._change = MapChange(secrets.token_hex(16), selection, config, monotonic() + 60)
-            return {"ticket": self._change.ticket}
+            return self._prepare(selection, self._settings)
+
+    def prepare_engine_settings(self, data: object) -> dict:
+        settings = EngineSettings.from_request(data)
+        with self._condition:
+            if self._current is None or self._engine.engine is None:
+                raise ValueError("Start the Engine with a map first.")
+            if settings == self._settings:
+                raise ValueError("The Engine is already using these settings.")
+            if self._gym_only and settings.mode != "gym":
+                raise ValueError("This Engine uses shared memory and must stay in Gym mode.")
+            if settings.environments > 1 and not self._can_replicate:
+                raise ValueError("Replication requires one Renderer and no physical links or asset building.")
+            return self._prepare(self._current, settings)
+
+    def _prepare(self, selection: MapSelection, settings: EngineSettings) -> dict:
+        if (self._closed or self._stopped or self._worker is not None
+                or (self._change is not None and self._change.result is None
+                    and monotonic() < self._change.expires)):
+            raise ValueError("The Engine is already changing settings or shutting down.")
+        config = deepcopy(self._base)
+        name = selection.value
+        mounts = []
+        if not selection.embedded:
+            name = Path(selection.value).name
+            if not SAFE_MAP_NAME.fullmatch(name):
+                name = "local-" + sha256(selection.value.encode()).hexdigest()[:12]
+            mounts.append(Mount(
+                target=f"/maps/{name}", source=selection.value, type="bind", read_only=True,
+            ))
+            config.setdefault("mounts", []).extend(mounts)
+        command = config["command"]
+        if self._name_index is None:
+            command.extend(("--map", name))
+        else:
+            command[self._name_index] = name
+        settings.write_to(command, self._launch_settings)
+        try:
+            if selection != self._current or settings.environments != self._settings.environments:
+                self._probe(MAP_VALIDATE_COMMAND, name, str(settings.environments), mounts=mounts)
+        except ContainerError as error:
+            raise ValueError("The Engine rejected this map. Check its YAML layers and environment count.") from error
+        except (DockerException, RequestException) as error:
+            dtslogger.warning("Could not validate the selected map: %s", error)
+            raise ValueError("Could not open this map in the Engine. Check the directory and Docker access.") from error
+        self._change = MapChange(secrets.token_hex(16), selection, config, settings, monotonic() + 60)
+        return {"ticket": self._change.ticket}
 
     def apply(self, ticket: object) -> dict:
-        with self._lock:
+        with self._condition:
             change = self._change
-            if self._worker is not None:
-                return {"switching": True}
             if self._closed or self._stopped or self._engine.config is None:
                 return {"error": "The Engine is shutting down. Restart dts matrix run."}
-            if change is not None and change.result is not None:
-                if ticket == change.ticket or not change.result.get("ready"):
-                    return change.result
-            if change is None or ticket != change.ticket or monotonic() >= change.expires:
-                return {"ready": True, "error": "The map selection expired. Open the Map panel and try again."}
-            previous = {**self._engine.config, "image": self._base["image"]}
+            if change is None or ticket != change.ticket:
+                return {"error": "There is no matching Engine change. Open Settings and try again."}
+            if change.result is not None:
+                return change.result
+            if self._worker is not None:
+                return {"switching": True}
+            if monotonic() >= change.expires:
+                return {
+                    "ready": self._current is not None and self._engine.engine is not None,
+                    "error": "The Engine change expired. Open Settings and try again.",
+                }
+            previous = None if self._current is None else {**self._engine.config, "image": self._base["image"]}
             self._worker = Thread(target=self._switch, args=(change, previous))
             self._worker.start()
             return {"switching": True}
 
     def _restart(self, config: dict) -> None:
-        self._engine.stop()
+        if self._engine.engine is not None:
+            self._engine.stop()
         self._engine.config = config
         if not self._engine.start():
             raise DockerException("The Engine could not start.")
@@ -232,29 +336,41 @@ class MapControl:
         except TimeoutError as error:
             raise TimeoutError("The Engine did not become healthy within 20 seconds.") from error
 
-    def _switch(self, change: MapChange, previous: dict) -> None:
-        result = {"error": "Could not change maps. Restart dts matrix run."}
+    def _switch(self, change: MapChange, previous: dict | None) -> None:
+        map_change = change.selection != self._current
+        subject = "map" if map_change else "simulation settings"
+        result = {"error": f"Could not change the {subject}. Restart dts matrix run."}
         try:
             self._restart(change.config)
         except (DockerException, RequestException, TimeoutError) as error:
-            dtslogger.warning("Could not load the selected map: %s", error)
-            try:
-                self._restart(previous)
-            except (DockerException, RequestException, TimeoutError) as restore_error:
-                dtslogger.error("Could not restore the previous map: %s", restore_error)
+            dtslogger.warning("Could not apply the selected %s: %s", subject, error)
+            if previous is None:
+                self._engine.stop()
+                self._engine.config = self._base
+                result = {"error": "Could not start the Engine with this map. Check dts matrix run and try again."}
             else:
-                result = {"ready": True, "error": "The selected map could not load. The previous map was restored."}
+                try:
+                    self._restart(previous)
+                except (DockerException, RequestException, TimeoutError) as restore_error:
+                    dtslogger.error("Could not restore the previous %s: %s", subject, restore_error)
+                else:
+                    restored = "map was" if map_change else "simulation settings were"
+                    result = {"ready": True, "error": f"The change failed. The previous {restored} restored."}
         else:
             result = {"ready": True}
         finally:
-            with self._lock:
+            with self._condition:
                 if "error" not in result:
                     self._current = change.selection
+                    self._settings = change.settings
+                    if self._factory is None:
+                        self._factory = change.selection
                 change.result = result
                 self._worker = None
+                self._condition.notify_all()
 
     def prepare_stop(self) -> dict:
-        with self._lock:
+        with self._condition:
             container = self._engine.engine
             if self._closed or self._worker is not None or container is None:
                 raise ValueError("The launcher-owned Engine is unavailable or changing maps.")
@@ -262,7 +378,7 @@ class MapControl:
             return {"ticket": self._stop.ticket}
 
     def stop(self, ticket: object) -> dict:
-        with self._lock:
+        with self._condition:
             stop = self._stop
             if stop is None or ticket != stop.ticket:
                 raise ValueError("The Engine stop request is invalid. No Engine was stopped.")
@@ -296,14 +412,18 @@ class MapControl:
         else:
             result = {"ready": True}
         finally:
-            with self._lock:
+            with self._condition:
                 self._stopped = result.get("ready", False)
                 stop.result = result
                 self._worker = None
 
     def wait_for_engine(self) -> bool:
         while True:
-            with self._lock:
+            with self._condition:
+                # A failed first start leaves the picker and browser server available for another Save.
+                self._condition.wait_for(lambda: self._closed or self._current is not None)
+                if self._closed:
+                    return False
                 worker, container = self._worker, self._engine.engine
                 if self._stopped:
                     return False
@@ -319,7 +439,7 @@ class MapControl:
                 container.wait()
             except (DockerException, RequestException) as error:
                 dtslogger.debug("Engine wait ended: %s", error)
-            with self._lock:
+            with self._condition:
                 if self._stopped:
                     return False
                 if self._worker is None and container is self._engine.engine:
@@ -327,9 +447,10 @@ class MapControl:
                     return True
 
     def close(self) -> None:
-        with self._lock:
+        with self._condition:
             self._closed = True
             worker = self._worker
+            self._condition.notify_all()
         if worker is not None:
             worker.join()
 
@@ -375,9 +496,12 @@ def serve_launcher_request(request: BaseHTTPRequestHandler) -> bool:
                     if not isinstance(data, dict) or data.keys() - {"ticket"}:
                         raise ValueError("Invalid Engine stop request.")
                     result = control.stop(data["ticket"]) if data else control.prepare_stop()
+                elif isinstance(data, dict) and data.keys() == {"ticket"}:
+                    result = control.apply(data["ticket"])
+                elif isinstance(data, dict) and data.keys() == {"engine_settings"}:
+                    result = control.prepare_engine_settings(data["engine_settings"])
                 else:
-                    result = (control.apply(data["ticket"])
-                              if isinstance(data, dict) and "ticket" in data else control.prepare(data))
+                    result = control.prepare(data)
             except ValueError as error:
                 status, result = HTTPStatus.BAD_REQUEST, {"error": str(error)}
             else:

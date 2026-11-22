@@ -86,7 +86,7 @@ class MatrixEngine:
     def is_running(self) -> bool:
         return self.engine is not None and self.engine.status == "running"
 
-    def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
+    def configure(self, shell: DTShell, parsed: argparse.Namespace, *, defer_map: bool = False) -> bool:
         self.verbose = parsed.verbose or parsed.profiler or parsed.live_profiler
         environments = getattr(parsed, "environments", 1)
         if (
@@ -117,8 +117,11 @@ class MatrixEngine:
             dtslogger.error("The sandbox map contains scripts and cannot be replicated. "
                             "Use --embedded --map loop with --environments instead.")
             return False
-        # make sure the map is given (when not in sandbox standalone mode)
-        if not map and not sandbox:
+        if parsed.embedded and not map:
+            dtslogger.error("--embedded requires -m/--map.")
+            return False
+        # Only the combined launcher can fill in the map later.
+        if not map and not sandbox and not defer_map:
             dtslogger.error("You need to specify a map with -m/--map or choose to run in "
                             "--sandbox mode to use a default map.")
             return False
@@ -216,7 +219,7 @@ class MatrixEngine:
                 "--maps-dir", "/maps",
                 "--map", map_name
             ]
-        else:
+        elif map_dir is not None:
             map_location = f"/maps/{map_name}"
             engine_config["volumes"] = {
                 map_dir: {
@@ -256,8 +259,8 @@ class MatrixEngine:
                     with open(connector_ports_fpath, "rt") as fin:
                         connector_ports = yaml.safe_load(fin).get("connector_ports", {})
             else:
-                # we are using an embedded map
-                connector_ports = DEFAULT_STATIC_NETWORK_PORTS
+                # The Renderer needs stable ports even before a map is picked.
+                connector_ports = DEFAULT_STATIC_NETWORK_PORTS.copy()
             # add ports that are not already defined
             for name, port in DEFAULT_STATIC_NETWORK_PORTS.items():
                 if (name not in connector_ports) or static_ports:
@@ -395,13 +398,14 @@ class DTCommand(DTCommandAbs):
     help = f'Runs the {APP_NAME} engine'
 
     @staticmethod
-    def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False) \
+    def make_engine(shell: DTShell, parsed: argparse.Namespace, use_defaults: bool = False,
+                    *, defer_map: bool = False) \
             -> Optional[MatrixEngine]:
         if use_defaults:
             parsed = DTCommand._resolve_parsed([], parsed)
         # create engine
         engine = MatrixEngine()
-        configured = engine.configure(shell, parsed)
+        configured = engine.configure(shell, parsed, defer_map=defer_map)
         if not configured:
             return None
         # ---

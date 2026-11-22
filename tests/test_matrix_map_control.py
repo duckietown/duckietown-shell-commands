@@ -155,8 +155,9 @@ class MatrixMapControlLaunchTests(RendererLaunchFixture):
             app_bin=None, app_config=[], app_path="/test/browser",
             app_prefix=[], os_family="linux", renderer_log_path=None,
         )
-        for build_assets in (False, True):
-            with self.subTest(build_assets=build_assets):
+        for source, build_assets in ((flags, False), (flags, True),
+                                     (["--standalone", "--sandbox", "--no-pull", "--browser"], False)):
+            with self.subTest(source=source, build_assets=build_assets):
                 command = ["--map", "sandbox"]
                 if build_assets:
                     command.append("--build-assets")
@@ -178,9 +179,12 @@ class MatrixMapControlLaunchTests(RendererLaunchFixture):
                     patch.dict(renderer_command.os.environ, {"DOCKER_HOST": ""}),
                     patch.object(renderer_command, "open_browser_url", return_value=True) as open_browser,
                 ):
-                    renderer_command.DTCommand.command(self.shell, flags)
+                    renderer_command.DTCommand.command(self.shell, source)
+                engine.start.assert_called_once()
                 engine.wait_until_healthy.assert_called_once_with(20)
-                fragment = parse_qs(urlsplit(open_browser.call_args.args[0]).fragment)
+                url = urlsplit(open_browser.call_args.args[0])
+                self.assertNotIn("select-map", parse_qs(url.query))
+                fragment = parse_qs(url.fragment)
                 if build_assets:
                     make_map_control.assert_not_called()
                     self.assertIsNone(server.server.map_control)

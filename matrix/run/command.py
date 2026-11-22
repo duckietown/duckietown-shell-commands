@@ -135,6 +135,14 @@ def renderer_uses_local_engine(parsed, config: dict) -> bool:
     return (default if renderer_port is None else renderer_port) == engine_port
 
 
+def can_manage_local_engine(parsed, config: dict) -> bool:
+    docker_endpoint = os.environ.get("DOCKER_HOST", "")
+    return (not parsed.container_image and "--build-assets" not in config["command"]
+            and renderer_uses_local_engine(parsed, config)
+            and (not docker_endpoint or docker_endpoint.startswith(("unix://", "npipe://")))
+            and (not parsed.browser or parsed.host in MAP_CONTROL_HOSTS))
+
+
 def _mask_token_value(token: str) -> str:
     parts = token.split("-", maxsplit=2)
     if len(parts) == 3:
@@ -818,11 +826,19 @@ class DTCommand(DTCommandAbs):
                 "You cannot use --container-image together with --browser.",
             )
             return
-        # make sure the map is given (in standalone mode)
-        if run_engine and not parsed.map and not parsed.sandbox:
-            dtslogger.error("You need to specify a map with -m/--map when running in "
-                            "Standalone mode, or use a default map with -s/--sandbox.")
+        if parsed.embedded and not parsed.map:
+            dtslogger.error("--embedded requires -m/--map.")
             return
+        if run_engine and parsed.map == "":
+            dtslogger.error("-m/--map cannot be empty.")
+            return
+        select_map_at_start = run_engine and parsed.map is None and not parsed.sandbox
+        if select_map_at_start and delegate_renderer_to_host:
+            dtslogger.error("Startup map selection requires a local Renderer. "
+                            "Use --local or --browser, or supply a map with --map or --sandbox.")
+            return
+        if select_map_at_start:
+            delegated_engine_host = parsed.engine_hostname
         # make sure the time step is only given in gym mode
         if parsed.delta_t is not None and not parsed.simulation:
             dtslogger.error("You can specify a --delta-t only when running with "
@@ -911,8 +927,15 @@ class DTCommand(DTCommandAbs):
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
         if run_engine:
-            engine = shell.include.matrix.engine.run.make_engine(shell, parsed, use_defaults=True)
-            if engine is None:
+            engine = shell.include.matrix.engine.run.make_engine(
+                shell, parsed, use_defaults=True, defer_map=select_map_at_start,
+            )
+            if engine is None or engine.config is None:
+                return
+            if select_map_at_start and not can_manage_local_engine(parsed, engine.config):
+                dtslogger.error("Startup map selection requires a local Docker Engine and a local "
+                                "Renderer with matching control ports (and a loopback --host in browser mode). "
+                                "Use these settings, or supply a map with --map or --sandbox.")
                 return
             # ENGINE is now configured
             # -------------------------------------------------------------------------------------
@@ -962,12 +985,13 @@ class DTCommand(DTCommandAbs):
             if run_engine:
                 if not parsed.no_pull:
                     engine.pull()
-                engine.start()
+                if not select_map_at_start:
+                    engine.start()
 
             # - renderer
             if run_renderer:
                 # wait for the engine (if any) to become healthy
-                if run_engine:
+                if run_engine and not select_map_at_start:
                     timeout = 20
                     dtslogger.info(f"Waiting up to {timeout} seconds for the Engine to start...")
                     try:
@@ -1004,12 +1028,7 @@ class DTCommand(DTCommandAbs):
                             dtslogger.error(f"Host-side 'dts matrix run' exited with code {exit_code}.")
                         return
 
-                docker_endpoint = os.environ.get("DOCKER_HOST", "")
-                if (engine is not None and engine.config is not None and not container_image
-                        and "--build-assets" not in engine.config["command"]
-                        and renderer_uses_local_engine(parsed, engine.config)
-                        and (not docker_endpoint or docker_endpoint.startswith(("unix://", "npipe://")))
-                        and (not browser or parsed.host in MAP_CONTROL_HOSTS)):
+                if engine is not None and engine.config is not None and can_manage_local_engine(parsed, engine.config):
                     try:
                         map_control = MapControl(engine, Path.cwd())
                         if not browser:
@@ -1017,6 +1036,9 @@ class DTCommand(DTCommandAbs):
                             server_thread = Thread(target=renderer_server.serve_forever, daemon=True)
                             server_thread.start()
                     except (DockerException, RequestException, OSError, ValueError) as error:
+                        if select_map_at_start:
+                            dtslogger.error("Could not open startup map selection: %s", error)
+                            return
                         dtslogger.warning("Map selection is unavailable for this launch: %s", error)
                         map_control = None
 
@@ -1060,6 +1082,8 @@ class DTCommand(DTCommandAbs):
                     url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
                     if no_cinematics:
                         url += "no-cinematics=true&"
+                    if select_map_at_start:
+                        url += "select-map=true&"
                     if renderer_configuration.screen_billboard:
                         url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
                     token = shell.profile.secrets.dt_token
@@ -1099,6 +1123,8 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
+                    if select_map_at_start:
+                        app_config += ["--select-map"]
                     os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
                     time.sleep(2)
