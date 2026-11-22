@@ -1,4 +1,4 @@
-"""Map selection for an Engine owned by the local Duckiematrix launcher."""
+"""Map selection and shutdown for an Engine owned by the local Duckiematrix launcher."""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ from pathlib import Path
 from threading import Lock, Thread
 from time import monotonic
 
-from docker.errors import ContainerError, DockerException
+from docker.errors import ContainerError, DockerException, NotFound
+from docker.models.containers import Container
 from docker.types import Mount
 from requests.exceptions import RequestException
 
@@ -26,6 +27,7 @@ from .map_preview import read_map_preview
 
 MAP_CONTROL_PATH = "/__duckiematrix/map"
 MAP_PREVIEW_PATH = "/__duckiematrix/map/preview"
+ENGINE_STOP_PATH = "/__duckiematrix/engine/stop"
 MAP_CONTROL_HEADER = "X-Duckiematrix-Map-Token"
 MAP_CONTROL_PORT_ENV = "DT_MATRIX_MAP_CONTROL_PORT"
 MAP_CONTROL_TOKEN_ENV = "DT_MATRIX_MAP_CONTROL_TOKEN"
@@ -100,6 +102,15 @@ class MapChange:
     result: dict | None = None
 
 
+@dataclass
+class EngineStop:
+    ticket: str
+    container: Container
+    expires: float
+    started: bool = False
+    result: dict | None = None
+
+
 class MapControl:
     def __init__(self, engine: MatrixEngine, directory: Path):
         if engine.config is None or engine.engine is None:
@@ -111,6 +122,8 @@ class MapControl:
         self._worker: Thread | None = None
         self._closed = False
         self._change: MapChange | None = None
+        self._stop: EngineStop | None = None
+        self._stopped = False
 
         self._base = deepcopy(engine.config)
         self._name_index = self._base["command"].index("--map") + 1
@@ -135,6 +148,8 @@ class MapControl:
 
     def status(self) -> dict:
         with self._lock:
+            if self._stopped:
+                return {"error": "The launcher-owned Engine was stopped."}
             return {
                 "embedded_maps": self._embedded,
                 "can_preview_maps": True,
@@ -160,7 +175,7 @@ class MapControl:
     def prepare(self, data: object) -> dict:
         selection = MapSelection.from_request(data, self._embedded, self._directory)
         with self._lock:
-            if (self._closed or self._worker is not None
+            if (self._closed or self._stopped or self._worker is not None
                     or (self._change is not None and self._change.result is None
                         and monotonic() < self._change.expires)):
                 raise ValueError("The Engine is already changing maps or shutting down.")
@@ -195,7 +210,7 @@ class MapControl:
             change = self._change
             if self._worker is not None:
                 return {"switching": True}
-            if self._closed or self._engine.config is None:
+            if self._closed or self._stopped or self._engine.config is None:
                 return {"error": "The Engine is shutting down. Restart dts matrix run."}
             if change is not None and change.result is not None:
                 if ticket == change.ticket or not change.result.get("ready"):
@@ -238,10 +253,60 @@ class MapControl:
                 change.result = result
                 self._worker = None
 
+    def prepare_stop(self) -> dict:
+        with self._lock:
+            container = self._engine.engine
+            if self._closed or self._worker is not None or container is None:
+                raise ValueError("The launcher-owned Engine is unavailable or changing maps.")
+            self._stop = EngineStop(secrets.token_hex(16), container, monotonic() + 120)
+            return {"ticket": self._stop.ticket}
+
+    def stop(self, ticket: object) -> dict:
+        with self._lock:
+            stop = self._stop
+            if stop is None or ticket != stop.ticket:
+                raise ValueError("The Engine stop request is invalid. No Engine was stopped.")
+            if stop.result is not None:
+                return stop.result
+            if stop.started:
+                return {"switching": True}
+            if (self._closed or self._worker is not None or stop.container is not self._engine.engine
+                    or monotonic() >= stop.expires):
+                raise ValueError("The previous Engine changed or the stop request expired. No Engine was stopped.")
+            stop.started = True
+            self._worker = Thread(target=self._stop_engine, args=(stop,))
+            self._worker.start()
+            return {"switching": True}
+
+    def _stop_engine(self, stop: EngineStop) -> None:
+        result = {"error": "Could not confirm that the previous Engine stopped. Check dts matrix run."}
+        try:
+            self._engine.stop()
+            try:
+                stop.container.reload()
+            except NotFound:
+                pass
+            else:
+                if stop.container.status not in ("exited", "dead"):
+                    raise DockerException(f"Previous Engine status: {stop.container.status}.")
+        except (DockerException, RequestException) as error:
+            dtslogger.warning("Could not confirm Engine shutdown: %s", error)
+            # MatrixEngine.stop() may clear its handle even if Docker did not stop the container.
+            self._engine.engine = stop.container
+        else:
+            result = {"ready": True}
+        finally:
+            with self._lock:
+                self._stopped = result.get("ready", False)
+                stop.result = result
+                self._worker = None
+
     def wait_for_engine(self) -> bool:
         while True:
             with self._lock:
                 worker, container = self._worker, self._engine.engine
+                if self._stopped:
+                    return False
                 if worker is None and self._change and self._change.result and not self._change.result.get("ready"):
                     # Leave the browser server up so the Renderer can report the failure.
                     return False
@@ -255,6 +320,8 @@ class MapControl:
             except (DockerException, RequestException) as error:
                 dtslogger.debug("Engine wait ended: %s", error)
             with self._lock:
+                if self._stopped:
+                    return False
                 if self._worker is None and container is self._engine.engine:
                     self._closed = True
                     return True
@@ -267,8 +334,8 @@ class MapControl:
             worker.join()
 
 
-def serve_map_request(request: BaseHTTPRequestHandler) -> bool:
-    if request.path not in (MAP_CONTROL_PATH, MAP_PREVIEW_PATH):
+def serve_launcher_request(request: BaseHTTPRequestHandler) -> bool:
+    if request.path not in (MAP_CONTROL_PATH, MAP_PREVIEW_PATH, ENGINE_STOP_PATH):
         return False
     control = getattr(request.server, "map_control", None)
     if not isinstance(control, MapControl):
@@ -283,8 +350,9 @@ def serve_map_request(request: BaseHTTPRequestHandler) -> bool:
         request.send_error(HTTPStatus.FORBIDDEN)
         return True
 
+    stopping = request.path == ENGINE_STOP_PATH
     previewing = request.path == MAP_PREVIEW_PATH
-    if previewing and request.command != "POST":
+    if (stopping or previewing) and request.command != "POST":
         request.send_error(HTTPStatus.METHOD_NOT_ALLOWED)
         return True
     status = HTTPStatus.OK
@@ -298,11 +366,15 @@ def serve_map_request(request: BaseHTTPRequestHandler) -> bool:
             request.connection.settimeout(5)
             data = json.loads(request.rfile.read(length))
         except (UnicodeError, ValueError, TimeoutError):
-            status, result = HTTPStatus.BAD_REQUEST, {"error": "Invalid map selection request."}
+            status, result = HTTPStatus.BAD_REQUEST, {"error": "Invalid Engine control request."}
         else:
             try:
                 if previewing:
                     result = control.preview(data)
+                elif stopping:
+                    if not isinstance(data, dict) or data.keys() - {"ticket"}:
+                        raise ValueError("Invalid Engine stop request.")
+                    result = control.stop(data["ticket"]) if data else control.prepare_stop()
                 else:
                     result = (control.apply(data["ticket"])
                               if isinstance(data, dict) and "ticket" in data else control.prepare(data))
@@ -323,7 +395,7 @@ def serve_map_request(request: BaseHTTPRequestHandler) -> bool:
 
 class MapControlRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if not serve_map_request(self):
+        if not serve_launcher_request(self):
             self.send_error(HTTPStatus.NOT_FOUND)
 
     do_POST = do_GET

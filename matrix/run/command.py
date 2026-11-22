@@ -42,7 +42,7 @@ from .map_control import (
     MAP_CONTROL_TOKEN_ENV,
     MapControl,
     MapControlHTTPServer,
-    serve_map_request,
+    serve_launcher_request,
 )
 from utils.host_runner import (
     HOST_RUNNER_ACTIVE_ENV,
@@ -176,11 +176,11 @@ def _format_navigation_url(url: str, token: str) -> str:
 class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
-        if not serve_map_request(self):
+        if not serve_launcher_request(self):
             super().do_GET()
 
     def do_POST(self) -> None:
-        if not serve_map_request(self):
+        if not serve_launcher_request(self):
             self.send_error(404)
 
     def log_message(self, format: str, *args) -> None:
@@ -1038,12 +1038,14 @@ class DTCommand(DTCommandAbs):
                     if parsed.renderer_key is not None:
                         url += f"renderer-key={parsed.renderer_key}&"
                     if parsed.engine_hostname is not None:
-                        url += f"engine-hostname={parsed.engine_hostname}&"
+                        url += f"engine-hostname={quote(parsed.engine_hostname, safe='')}&"
                     _ep, _ewp = renderer_control_ports(parsed)
                     if _ep is not None:
                         url += f"engine-control-port={_ep}&"
                     if _ewp is not None:
                         url += f"engine-ws-control-port={_ewp}&"
+                    if parsed.port_offset:
+                        url += f"port-offset={parsed.port_offset}&"
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
                     url += f"no-spectator-cameras={'true' if parsed.no_spectator_cameras else 'false'}&"
@@ -1089,6 +1091,7 @@ class DTCommand(DTCommandAbs):
                     # wait for the engine to terminate
                     if map_control is not None:
                         if not map_control.wait_for_engine():
+                            # Keep serving the player after a requested stop (or a failed map switch).
                             server_thread.join()
                     elif run_engine:
                         engine.join()

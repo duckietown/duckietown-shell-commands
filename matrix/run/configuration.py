@@ -87,7 +87,9 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             dest="engine_hostname",
             default=None,
             type=str,
-            help="Hostname or IP address of the engine to connect to",
+            help="Hostname or IP address of the Engine to connect to. In the Renderer Host panel, "
+                 "select a different address and optionally check Stop current Engine before saving. "
+                 "Only a launcher-owned Engine can be stopped, and only once the new Engine is ready.",
         )
         parser.add_argument(
             "-ep",
@@ -107,7 +109,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--port-offset",
             default=0,
             type=int,
-            help="Port offset applied to the engine (sets -ep and -ewp automatically)"
+            help="Port offset applied to the Engine (also sets the Renderer control and WebSocket data ports)"
         )
         parser.add_argument(
             "-r",

@@ -1,9 +1,5 @@
-import json
-import unittest
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from threading import Thread
-from time import monotonic, sleep
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -16,50 +12,15 @@ from matrix.run.map_control import (
     MAP_CONTROL_HEADER,
     MAP_CONTROL_PATH,
     MAP_PREVIEW_PATH,
-    MapControl,
     MapControlHTTPServer,
 )
-from tests.matrix_fixtures import RendererLaunchFixture
+from tests.matrix_fixtures import (
+    MapControlFixture,
+    RendererLaunchFixture,
+)
 
 
-class MatrixMapControlTests(unittest.TestCase):
-    def setUp(self):
-        scratch = TemporaryDirectory()
-        self.addCleanup(scratch.cleanup)
-        self.folder = Path(scratch.name).resolve()
-        self.custom = self.folder / "work maps" / "loop"
-        self.custom.mkdir(parents=True)
-        (self.custom / "main.yaml").write_text("main: {}")
-        self.engine = Mock()
-        self.engine.engine.image.id = "sha256:original"
-        self.probe = self.engine.engine.client.containers.run
-        self.loop_layout = {"tiles": [
-            {"kind": "curve", "x": 0.3, "y": 0.3, "width": 0.6, "height": 0.6, "yaw": 0.0}
-        ]}
-        self.probe.return_value = json.dumps({
-            "empty": {"tiles": []},
-            "loop": self.loop_layout,
-            "sandbox": {"error": "The map preview supports planar tile layouts only."},
-        }).encode()
-        self.engine.config = {
-            "image": "original:tag",
-            "command": ["--", "--mode", "gym", "--environments", "2", "--map", "loop"],
-            "ports": {"7503/tcp": 7503},
-            "volumes": {"/test/shm": {"bind": "/tmp/duckietown/shm", "mode": "rw"}},
-        }
-        self.original = self.engine.config
-        self.control = MapControl(self.engine, self.folder)
-        self.addCleanup(self.control.close)
-
-    def apply(self, ticket):
-        deadline = monotonic() + 3
-        while monotonic() < deadline:
-            reply = self.control.apply(ticket)
-            if not reply.get("switching"):
-                return reply
-            sleep(0.01)
-        self.fail("The Engine did not finish switching maps.")
-
+class MatrixMapControlTests(MapControlFixture):
     def test_custom_preview_projects_tiles_without_changing_the_engine(self):
         (self.custom / "tiles.yaml").write_text(
             "tiles:\n  lot/road: {type: straight}\n  wing/hub: {type: 3way}\n"

@@ -31,10 +31,10 @@ class MatrixRendererLaunchTests(RendererLaunchFixture):
                     self.assertEqual("--no-spectator-cameras" in configured.app_config, disabled)
                     self.assertEqual("--tutorial" in configured.app_config, not disabled)
 
-    def test_browser_spectator_camera_option_preserves_tutorial_behavior(self):
+    def test_browser_passes_engine_ports_and_preserves_tutorial_behavior(self):
         for disabled in (False, True):
             with self.subTest(disabled=disabled):
-                flags = ["--browser"]
+                flags = ["--browser", "--engine", "::1", "--port-offset", "1000"]
                 if disabled:
                     flags.append("--no-spectator-cameras")
                 parsed = self.parser.parse_args(flags)
@@ -57,6 +57,9 @@ class MatrixRendererLaunchTests(RendererLaunchFixture):
                 ):
                     renderer_command.DTCommand.command(self.shell, flags, parsed=parsed)
                 query = parse_qs(urlsplit(open_browser.call_args.args[0]).query)
+                self.assertEqual(query["engine-hostname"], ["::1"])
+                self.assertEqual(query["engine-ws-control-port"], ["8503"])
+                self.assertEqual(query["port-offset"], ["1000"])
                 self.assertEqual(query["no-spectator-cameras"], [str(disabled).lower()])
                 self.assertEqual(query["tutorial"], [str(not disabled).lower()])
 
