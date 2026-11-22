@@ -24,6 +24,9 @@ from typing import BinaryIO, Optional, Callable
 from shutil import which
 from urllib.parse import quote
 
+from docker.errors import DockerException
+from requests.exceptions import RequestException
+
 try:
     import pty
 except ImportError:
@@ -32,7 +35,15 @@ except ImportError:
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
-from ..engine.run.command import MatrixEngine
+from ..engine.run.command import DEFAULT_STATIC_NETWORK_PORTS, MatrixEngine
+from .map_control import (
+    MAP_CONTROL_HOSTS,
+    MAP_CONTROL_PORT_ENV,
+    MAP_CONTROL_TOKEN_ENV,
+    MapControl,
+    MapControlHTTPServer,
+    serve_map_request,
+)
 from utils.host_runner import (
     HOST_RUNNER_ACTIVE_ENV,
     HOST_RUNNER_MATRIX_RENDERER_ONLY_ENV,
@@ -102,6 +113,28 @@ def format_http_host(host: str) -> str:
     return f"[{host}]"
 
 
+def renderer_control_ports(parsed) -> tuple[Optional[int], Optional[int]]:
+    return (
+        parsed.engine_control_port if parsed.engine_control_port is not None
+        else (7502 + parsed.port_offset if parsed.port_offset else None),
+        parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None
+        else (7503 + parsed.port_offset if parsed.port_offset else None),
+    )
+
+
+def renderer_uses_local_engine(parsed, config: dict) -> bool:
+    if parsed.engine_hostname is not None and parsed.engine_hostname not in MAP_CONTROL_HOSTS:
+        return False
+    port, ws_port = renderer_control_ports(parsed)
+    name = "matrix-websocket-bridge-control-out-port" if parsed.browser else "matrix-control-out-port"
+    command = config["command"]
+    flag = f"--{name}"
+    default = DEFAULT_STATIC_NETWORK_PORTS[name]
+    engine_port = int(command[command.index(flag) + 1]) if flag in command else default
+    renderer_port = ws_port if parsed.browser else port
+    return (default if renderer_port is None else renderer_port) == engine_port
+
+
 def _mask_token_value(token: str) -> str:
     parts = token.split("-", maxsplit=2)
     if len(parts) == 3:
@@ -141,6 +174,14 @@ def _format_navigation_url(url: str, token: str) -> str:
 
 
 class RedactingSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
+
+    def do_GET(self) -> None:
+        if not serve_map_request(self):
+            super().do_GET()
+
+    def do_POST(self) -> None:
+        if not serve_map_request(self):
+            self.send_error(404)
 
     def log_message(self, format: str, *args) -> None:
         sanitized_args = tuple(
@@ -255,12 +296,17 @@ def _build_renderer_container_command(
     return command, container_name
 
 
-def launch_renderer_process(command: list[str]) -> tuple[subprocess.Popen, BinaryIO]:
+def launch_renderer_process(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> tuple[subprocess.Popen, BinaryIO]:
     if pty is None:
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
         stream = process.stdout
         if stream is None:
@@ -273,6 +319,7 @@ def launch_renderer_process(command: list[str]) -> tuple[subprocess.Popen, Binar
             stdout=slave_fd,
             stderr=slave_fd,
             close_fds=True,
+            env=env,
         )
     except Exception:
         os.close(master_fd)
@@ -608,16 +655,7 @@ def configure_renderer_launch(
             app_config += ["-force-vulkan"]
     if delegated_engine_host is not None:
         app_config += ["--engine-hostname", delegated_engine_host]
-    _ep = (
-        parsed.engine_control_port
-        if parsed.engine_control_port is not None
-        else (7502 + parsed.port_offset if parsed.port_offset else None)
-    )
-    _ewp = (
-        parsed.engine_ws_control_port
-        if parsed.engine_ws_control_port is not None
-        else (7503 + parsed.port_offset if parsed.port_offset else None)
-    )
+    _ep, _ewp = renderer_control_ports(parsed)
     if _ep is not None:
         app_config += ["--engine-control-port", str(_ep)]
     if _ewp is not None:
@@ -910,6 +948,9 @@ class DTCommand(DTCommandAbs):
             renderer_log_path = renderer_configuration.renderer_log_path
 
         profiler_output = None
+        map_control: Optional[MapControl] = None
+        renderer_server: Optional[HTTPServer] = None
+        server_thread: Optional[Thread] = None
         if parsed.live_profiler and not host_renderer_only:
             from utils.matrix_profiler import LiveProfilerOutput
 
@@ -963,22 +1004,42 @@ class DTCommand(DTCommandAbs):
                             dtslogger.error(f"Host-side 'dts matrix run' exited with code {exit_code}.")
                         return
 
+                docker_endpoint = os.environ.get("DOCKER_HOST", "")
+                if (engine is not None and engine.config is not None and not container_image
+                        and "--build-assets" not in engine.config["command"]
+                        and renderer_uses_local_engine(parsed, engine.config)
+                        and (not docker_endpoint or docker_endpoint.startswith(("unix://", "npipe://")))
+                        and (not browser or parsed.host in MAP_CONTROL_HOSTS)):
+                    try:
+                        map_control = MapControl(engine, Path.cwd())
+                        if not browser:
+                            renderer_server = MapControlHTTPServer(map_control)
+                            server_thread = Thread(target=renderer_server.serve_forever, daemon=True)
+                            server_thread.start()
+                    except (DockerException, RequestException, OSError, ValueError) as error:
+                        dtslogger.warning("Map selection is unavailable for this launch: %s", error)
+                        map_control = None
+
                 if browser:
                     dtslogger.info("Launching Renderer in browser...")
                     os.chdir(app_path)
                     host = parsed.host
                     server_configuration = create_browser_http_server(host, parsed.port)
-                    server_thread = Thread(target=server_configuration.server.serve_forever)
-                    server_thread.daemon = True
-                    url = f"http://{format_http_host(server_configuration.display_host)}:{server_configuration.port}/?"
+                    renderer_server = server_configuration.server
+                    renderer_server.map_control = map_control
+                    web_host = format_http_host(server_configuration.display_host)
+                    renderer_server.map_control_host = (
+                        web_host if server_configuration.port == 80 else f"{web_host}:{server_configuration.port}"
+                    )
+                    server_thread = Thread(target=renderer_server.serve_forever, daemon=True)
+                    url = f"http://{web_host}:{server_configuration.port}/?"
                     if parsed.renderer_id is not None:
                         url += f"renderer-id={parsed.renderer_id}&"
                     if parsed.renderer_key is not None:
                         url += f"renderer-key={parsed.renderer_key}&"
                     if parsed.engine_hostname is not None:
                         url += f"engine-hostname={parsed.engine_hostname}&"
-                    _ep = parsed.engine_control_port if parsed.engine_control_port is not None else (7502 + parsed.port_offset if parsed.port_offset else None)
-                    _ewp = parsed.engine_ws_control_port if parsed.engine_ws_control_port is not None else (7503 + parsed.port_offset if parsed.port_offset else None)
+                    _ep, _ewp = renderer_control_ports(parsed)
                     if _ep is not None:
                         url += f"engine-control-port={_ep}&"
                     if _ewp is not None:
@@ -1001,9 +1062,14 @@ class DTCommand(DTCommandAbs):
                         url += f"billboard={quote(renderer_configuration.screen_billboard, safe='')}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
+                    fragment = []
                     if renderer_configuration.world_billboards:
                         # Fragments are available to the player without growing the HTTP request.
-                        url += f"#billboards={quote(renderer_configuration.world_billboards, safe='')}"
+                        fragment.append(f"billboards={quote(renderer_configuration.world_billboards, safe='')}")
+                    if map_control is not None:
+                        fragment.append(f"map-token={map_control.token}")
+                    if fragment:
+                        url += "#" + "&".join(fragment)
                     server_thread.start()
                     browser_opened = False
                     if os_family == "windows" and hasattr(os, "startfile"):
@@ -1021,7 +1087,10 @@ class DTCommand(DTCommandAbs):
                     formatted_url = _format_navigation_url(url, token)
                     dtslogger.info(f"Navigate to {formatted_url}.")
                     # wait for the engine to terminate
-                    if run_engine:
+                    if map_control is not None:
+                        if not map_control.wait_for_engine():
+                            server_thread.join()
+                    elif run_engine:
                         engine.join()
                     else:
                         server_thread.join()
@@ -1087,6 +1156,14 @@ class DTCommand(DTCommandAbs):
                         if metal_capture:
                             renderer_environment = dict(os.environ, MTL_CAPTURE_ENABLED="1")
                             dtslogger.info("Metal GPU frame capture enabled for this Renderer process.")
+                        if map_control is not None:
+                            renderer_environment = renderer_environment or dict(os.environ)
+                            renderer_environment[MAP_CONTROL_PORT_ENV] = str(renderer_server.server_port)
+                            renderer_environment[MAP_CONTROL_TOKEN_ENV] = map_control.token
+                            if os_family == "windows" and "WSL_DISTRO_NAME" in os.environ:
+                                renderer_environment["WSLENV"] = ":".join(filter(None, (
+                                    renderer_environment.get("WSLENV"), MAP_CONTROL_PORT_ENV, MAP_CONTROL_TOKEN_ENV,
+                                )))
                         try:
                             renderer, renderer_stream = launch_renderer_process(
                                 app_cmd,
@@ -1147,6 +1224,12 @@ class DTCommand(DTCommandAbs):
             raise
         finally:
             try:
+                if renderer_server is not None:
+                    if server_thread is not None and server_thread.is_alive():
+                        renderer_server.shutdown()
+                    renderer_server.server_close()
+                if map_control is not None:
+                    map_control.close()
                 if run_engine:
                     engine.stop()
                 if (

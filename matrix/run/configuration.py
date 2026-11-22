@@ -67,7 +67,7 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             "--map",
             default=None,
             type=str,
-            help="Directory containing the map to load",
+            help="Map directory containing main.yaml on the launcher host, or a name with --embedded",
         )
         parser.add_argument(
             "--embedded",

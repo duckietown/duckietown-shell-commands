@@ -1,19 +1,12 @@
-import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from matrix.run import command as renderer_command
-from matrix.run.configuration import DTCommandConfiguration as MatrixConfiguration
+from tests.matrix_fixtures import RendererLaunchFixture
 
 
-class MatrixRendererLaunchTests(unittest.TestCase):
-    def setUp(self):
-        self.parser = MatrixConfiguration.parser()
-        self.shell = Mock()
-        self.shell.profile.secrets.dt_token = "unit-test-placeholder"
-        self.shell.get_billboard_names.return_value = []
-
+class MatrixRendererLaunchTests(RendererLaunchFixture):
     def test_native_spectator_camera_option_preserves_tutorial_behavior(self):
         for platform in ("linux", "macos", "windows"):
             for disabled in (False, True):
