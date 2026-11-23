@@ -36,6 +36,7 @@ from dt_shell import DTCommandAbs, dtslogger, DTShell
 from dt_shell.constants import DB_BILLBOARDS
 from dt_shell.database import DTShellDatabase
 from ..engine.run.command import DEFAULT_STATIC_NETWORK_PORTS, MatrixEngine
+from . import graphics_control
 from .map_control import (
     MAP_CONTROL_HOSTS,
     MAP_CONTROL_PORT_ENV,
@@ -664,13 +665,13 @@ def configure_renderer_launch(
         renderer_log_target = str(renderer_log_path)
     app_config = ["-logFile", renderer_log_target]
     if parsed.force_opengl:
-        app_config += ["-force-opengl"]
+        app_config += ["-force-glcore" if os_family == "linux" else "-force-opengl"]
     elif parsed.force_vulkan:
         app_config += ["-force-vulkan"]
     elif getattr(parsed, "metal_capture", False):
         app_config += ["-force-metal"]
     else:
-        if os_family != "windows" and not getattr(parsed, "trace", False):
+        if os_family == "linux":
             app_config += ["-force-vulkan"]
     if delegated_engine_host is not None:
         app_config += ["--engine-hostname", delegated_engine_host]
@@ -709,6 +710,10 @@ def configure_renderer_launch(
         app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
     if parsed.no_spectator_cameras:
         app_config += ["--no-spectator-cameras"]
+    if getattr(parsed, "camera_cache", False):
+        app_config += ["--camera-cache"]
+    if getattr(parsed, "shared_camera_cache", False):
+        app_config += ["--shared-camera-cache"]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -775,6 +780,13 @@ class DTCommand(DTCommandAbs):
             dtslogger.error("You cannot use --no-spectator-cameras and --no-tutorial together.")
             return
         no_cinematics = getattr(parsed, "no_cinematics", False)
+        camera_cache = getattr(parsed, "camera_cache", False)
+        shared_camera_cache = getattr(parsed, "shared_camera_cache", False)
+        if camera_cache and shared_camera_cache:
+            dtslogger.error(
+                "You cannot use --camera-cache and --shared-camera-cache together."
+            )
+            return
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
@@ -1086,6 +1098,10 @@ class DTCommand(DTCommandAbs):
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
                     url += f"no-spectator-cameras={'true' if parsed.no_spectator_cameras else 'false'}&"
+                    if camera_cache:
+                        url += "camera-cache=true&"
+                    elif shared_camera_cache:
+                        url += "shared-camera-cache=true&"
                     if parsed.profiler:
                         url += "profiler=true&"
                     elif parsed.live_profiler:
@@ -1195,7 +1211,6 @@ class DTCommand(DTCommandAbs):
                                 return
                             xvfb_args = shlex.split(parsed.xvfb_args or "")
                             app_cmd = ["xvfb-run", "-a", *xvfb_args, "--", *app_cmd]
-                        dtslogger.debug(f"$ > {app_cmd}")
                         renderer_environment = None
                         if metal_capture:
                             renderer_environment = dict(os.environ, MTL_CAPTURE_ENABLED="1")
@@ -1210,6 +1225,10 @@ class DTCommand(DTCommandAbs):
                                 renderer_environment["WSLENV"] = ":".join(filter(None, (
                                     renderer_environment.get("WSLENV"), MAP_CONTROL_PORT_ENV, MAP_CONTROL_TOKEN_ENV,
                                 )))
+                        if graphics_control.enabled(parsed, os_family):
+                            run_with_graphics_restart(app_cmd, app_path, parsed, renderer_environment)
+                            return
+                        dtslogger.debug(f"$ > {app_cmd}")
                         try:
                             renderer, renderer_stream = launch_renderer_process(
                                 app_cmd,
@@ -1360,6 +1379,63 @@ def join_renderer(
         if output_reader is not None:
             output_reader.join(timeout=RENDERER_FORCE_KILL_WAIT_SECONDS)
         stream.close()
+
+
+def run_with_graphics_restart(
+    app_cmd: list[str], app_path: str, parsed, environment: Optional[dict[str, str]],
+) -> None:
+    database = DTShellDatabase.open(graphics_control.GRAPHICS_DB)
+    saved = database.get("linux", "auto")
+    current = ("opengl" if parsed.force_opengl else "vulkan" if parsed.force_vulkan
+               else saved if isinstance(saved, str) and saved in graphics_control.LINUX_API_FLAGS else "auto")
+    previous = None
+    feedback = None
+    verbose = parsed.verbose or parsed.profiler or parsed.live_profiler
+    with tempfile.TemporaryDirectory(prefix="duckiematrix-graphics-") as directory:
+        request = Path(directory) / "request"
+        ready = Path(directory) / "ready"
+        renderer_env = dict(environment if environment is not None else os.environ)
+        renderer_env[graphics_control.GRAPHICS_RESTART_FILE] = str(request)
+        while True:
+            command = graphics_control.with_api(app_cmd, current)
+            renderer_env[graphics_control.GRAPHICS_API_ENV] = current
+            ready.unlink(missing_ok=True)
+            if feedback:
+                renderer_env[graphics_control.GRAPHICS_RESTART_ERROR] = feedback
+            dtslogger.debug("Starting the Renderer with graphics API: %s", current)
+            try:
+                process, stream = launch_renderer_process(command, env=renderer_env)
+            except OSError as error:
+                if previous is not None:
+                    feedback = "The selected graphics API could not start. Restored the previous API."
+                    dtslogger.warning("%s (%s)", feedback, error.strerror)
+                    current, previous = previous, None
+                    continue
+                if error.errno == errno.ENOEXEC:
+                    show_exec_format_error("linux", app_path)
+                    return
+                raise
+            try:
+                join_renderer(process, stream, verbose)
+            finally:
+                if process_is_running(process):
+                    process.terminate()
+                    if not wait_for_process_exit(process, RENDERER_FORCE_KILL_WAIT_SECONDS):
+                        process.kill()
+                        wait_for_process_exit(process, RENDERER_FORCE_KILL_WAIT_SECONDS)
+                if previous is not None and ready.is_file():
+                    database.set("linux", current)
+            choice = graphics_control.consume_request(request)
+            if previous is not None and not ready.is_file():
+                feedback = "The selected graphics API could not start. Restored the previous API."
+                dtslogger.warning(feedback)
+                current, previous = previous, None
+                continue
+            if choice is None or choice == current:
+                return
+            previous, current = current, choice
+            feedback = None
+            renderer_env.pop(graphics_control.GRAPHICS_RESTART_ERROR, None)
 
 
 def forward_renderer_shutdown_output(stream: BinaryIO, verbose: bool) -> None:

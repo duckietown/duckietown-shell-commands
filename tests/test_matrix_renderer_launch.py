@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -62,6 +63,62 @@ class MatrixRendererLaunchTests(RendererLaunchFixture):
                 self.assertEqual(query["port-offset"], ["1000"])
                 self.assertEqual(query["no-spectator-cameras"], [str(disabled).lower()])
                 self.assertEqual(query["tutorial"], [str(not disabled).lower()])
+
+    def test_linux_renderer_restarts_with_validated_api_and_rolls_back_a_failed_boot(self):
+        flags = self.parser.parse_args(["--force-vulkan"])
+        launches = []
+        database = Mock()
+        common = ["/test/renderer", "-force-vulkan", "--engine-hostname", "localhost"]
+
+        def launch(command, env):
+            launches.append((command, env.copy()))
+            return Mock(poll=lambda: 0), Mock()
+
+        def join(process, stream, verbose):
+            env = launches[-1][1]
+            request = Path(env[renderer_command.graphics_control.GRAPHICS_RESTART_FILE])
+            if len(launches) == 1:
+                request.write_text("opengl")
+            elif len(launches) == 3:
+                request.write_text("auto")
+            elif len(launches) == 4:
+                (request.parent / "ready").touch()
+
+        with (
+            patch.object(renderer_command.DTShellDatabase, "open", return_value=database),
+            patch.object(renderer_command, "launch_renderer_process", side_effect=launch),
+            patch.object(renderer_command, "join_renderer", side_effect=join),
+        ):
+            renderer_command.run_with_graphics_restart(common, "/test/renderer", flags, {"TEST_ENGINE": "keep"})
+        self.assertEqual([cmd[-1] for cmd, _ in launches], ["-force-vulkan", "-force-glcore", "-force-vulkan", "localhost"])
+        self.assertTrue(all(env["TEST_ENGINE"] == "keep" for _, env in launches))
+        self.assertIn("Restored", launches[2][1][renderer_command.graphics_control.GRAPHICS_RESTART_ERROR])
+        database.set.assert_called_once_with("linux", "auto")
+
+    def test_graphics_restart_restores_the_original_api_if_process_creation_fails(self):
+        flags = self.parser.parse_args(["--force-vulkan"])
+        launches = []
+        database = Mock()
+
+        def launch(command, env):
+            launches.append((command, env.copy()))
+            if command[-1] == "-force-glcore":
+                raise OSError(13, "Renderer could not be started")
+            return Mock(poll=lambda: 0), Mock()
+
+        def join(process, stream, verbose):
+            if len(launches) == 1:
+                Path(launches[0][1][renderer_command.graphics_control.GRAPHICS_RESTART_FILE]).write_text("opengl")
+
+        with (
+            patch.object(renderer_command.DTShellDatabase, "open", return_value=database),
+            patch.object(renderer_command, "launch_renderer_process", side_effect=launch),
+            patch.object(renderer_command, "join_renderer", side_effect=join),
+        ):
+            renderer_command.run_with_graphics_restart(["/test/renderer"], "/test/renderer", flags, {})
+        self.assertEqual([cmd[-1] for cmd, _ in launches], ["-force-vulkan", "-force-glcore", "-force-vulkan"])
+        self.assertIn("Restored", launches[2][1][renderer_command.graphics_control.GRAPHICS_RESTART_ERROR])
+        database.set.assert_not_called()
 
     def test_redundant_no_tutorial_option_is_rejected_before_launch(self):
         flags = ["--no-spectator-cameras", "--no-tutorial"]

@@ -183,6 +183,7 @@ class MatrixStartupMapLaunchTests(RendererLaunchFixture):
             patch.object(renderer_command.time, "sleep"),
             patch.object(renderer_command, "launch_renderer_process", return_value=(Mock(), Mock())) as launch,
             patch.object(renderer_command, "join_renderer"),
+            patch.object(renderer_command.graphics_control, "enabled", return_value=False),
             patch.dict(renderer_command.os.environ, {"DOCKER_HOST": ""}),
         ):
             renderer_command.DTCommand.command(self.shell, flags)
