@@ -35,6 +35,19 @@ class EngineConfigurationFixture(unittest.TestCase):
         self.addCleanup(docker.stop)
 
 
+class HostDelegationFixture(unittest.TestCase):
+    def setUp(self):
+        delegate = patch("utils.host_runner.delegate_command_to_host", return_value=0)
+        self.delegate = delegate.start()
+        self.addCleanup(delegate.stop)
+        cwd = patch("utils.host_runner._host_runner_fallback_cwd", return_value="/host")
+        cwd.start()
+        self.addCleanup(cwd.stop)
+        options = patch("utils.host_runner.get_current_dts_cli_options", return_value=[])
+        options.start()
+        self.addCleanup(options.stop)
+
+
 class MapControlFixture(unittest.TestCase):
     def setUp(self):
         scratch = TemporaryDirectory()

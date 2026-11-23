@@ -14,10 +14,21 @@ from matrix.run.map_control import (
     MAP_PREVIEW_PATH,
     MapControlHTTPServer,
 )
+from utils.host_runner import delegate_matrix_run_to_host
 from tests.matrix_fixtures import (
+    HostDelegationFixture,
     MapControlFixture,
     RendererLaunchFixture,
 )
+
+
+class MatrixMapControlDelegationTests(HostDelegationFixture):
+    def test_map_control_capability_is_forwarded_without_appearing_in_arguments(self):
+        capability = f"8082:{'a' * 64}:1"
+        delegate_matrix_run_to_host(["--standalone"], renderer_only=True, map_control=capability)
+        call = self.delegate.call_args
+        self.assertEqual(call.args[1], ["--standalone"])
+        self.assertEqual(call.kwargs["forwarded_env"]["HOST_DTS_HOST_RUNNER_MATRIX_MAP_CONTROL"], capability)
 
 
 class MatrixMapControlTests(MapControlFixture):

@@ -46,6 +46,7 @@ from .map_control import (
 )
 from utils.host_runner import (
     HOST_RUNNER_ACTIVE_ENV,
+    HOST_RUNNER_MATRIX_MAP_CONTROL_ENV,
     HOST_RUNNER_MATRIX_RENDERER_ONLY_ENV,
     HostRunnerError,
     delegate_matrix_run_to_host,
@@ -141,6 +142,16 @@ def can_manage_local_engine(parsed, config: dict) -> bool:
             and renderer_uses_local_engine(parsed, config)
             and (not docker_endpoint or docker_endpoint.startswith(("unix://", "npipe://")))
             and (not parsed.browser or parsed.host in MAP_CONTROL_HOSTS))
+
+
+def delegated_map_control() -> Optional[tuple[str, str, bool]]:
+    if not should_run_host_renderer_only():
+        return None
+    address = os.environ.get(HOST_RUNNER_MATRIX_MAP_CONTROL_ENV, "")
+    match = re.fullmatch(r"([0-9]{1,5}):([a-f0-9]{64}):(0|1)", address)
+    if match is None or not 1 <= int(match[1]) <= 65535:
+        return None
+    return match[1], match[2], match[3] == "1"
 
 
 def _mask_token_value(token: str) -> str:
@@ -832,12 +843,14 @@ class DTCommand(DTCommandAbs):
         if run_engine and parsed.map == "":
             dtslogger.error("-m/--map cannot be empty.")
             return
-        select_map_at_start = run_engine and parsed.map is None and not parsed.sandbox
-        if select_map_at_start and delegate_renderer_to_host:
-            dtslogger.error("Startup map selection requires a local Renderer. "
-                            "Use --local or --browser, or supply a map with --map or --sandbox.")
+        launch_picker = parsed.standalone and parsed.map is None and not parsed.sandbox
+        select_map_at_start = run_engine and launch_picker
+        forwarded_map_control = delegated_map_control() if host_renderer_only else None
+        if host_renderer_only and launch_picker and not (forwarded_map_control and forwarded_map_control[2]):
+            dtslogger.error("The host runner did not forward startup map selection. "
+                            "Update the host runner or use --local, --browser, or an explicit --map.")
             return
-        if select_map_at_start:
+        if select_map_at_start and not delegate_renderer_to_host:
             delegated_engine_host = parsed.engine_hostname
         # make sure the time step is only given in gym mode
         if parsed.delta_t is not None and not parsed.simulation:
@@ -1004,30 +1017,6 @@ class DTCommand(DTCommandAbs):
                         engine.stop()
                         return
 
-                if delegate_renderer_to_host:
-                    dtslogger.info("Launching the native renderer on the host...")
-                    host_args = list(args)
-                    for flag, enabled in (
-                        ("--no-tutorial", parsed.no_tutorial),
-                        ("--no-cinematics", no_cinematics),
-                    ):
-                        if enabled and flag not in host_args:
-                            host_args.append(flag)
-                    try:
-                        exit_code = delegate_matrix_run_to_host(
-                            host_args,
-                            engine_host=delegated_engine_host,
-                            renderer_only=True,
-                        )
-                    except HostRunnerError as error:
-                        error_string = str(error)
-                        dtslogger.error(error_string)
-                        return
-                    else:
-                        if exit_code != 0:
-                            dtslogger.error(f"Host-side 'dts matrix run' exited with code {exit_code}.")
-                        return
-
                 if engine is not None and engine.config is not None and can_manage_local_engine(parsed, engine.config):
                     try:
                         map_control = MapControl(engine, Path.cwd())
@@ -1041,6 +1030,32 @@ class DTCommand(DTCommandAbs):
                             return
                         dtslogger.warning("Map selection is unavailable for this launch: %s", error)
                         map_control = None
+
+                if delegate_renderer_to_host:
+                    dtslogger.info("Launching the native renderer on the host...")
+                    host_args = list(args)
+                    for flag, enabled in (
+                        ("--no-tutorial", parsed.no_tutorial),
+                        ("--no-cinematics", no_cinematics),
+                    ):
+                        if enabled and flag not in host_args:
+                            host_args.append(flag)
+                    capability = None
+                    if map_control is not None:
+                        capability = f"{renderer_server.server_port}:{map_control.token}:{int(select_map_at_start)}"
+                    try:
+                        exit_code = delegate_matrix_run_to_host(
+                            host_args,
+                            engine_host=delegated_engine_host,
+                            renderer_only=True,
+                            map_control=capability,
+                        )
+                    except HostRunnerError as error:
+                        dtslogger.error(str(error))
+                    else:
+                        if exit_code != 0:
+                            dtslogger.error(f"Host-side 'dts matrix run' exited with code {exit_code}.")
+                    return
 
                 if browser:
                     dtslogger.info("Launching Renderer in browser...")
@@ -1123,7 +1138,7 @@ class DTCommand(DTCommandAbs):
                         server_thread.join()
                 else:
                     # run the app
-                    if select_map_at_start:
+                    if select_map_at_start or (forwarded_map_control is not None and forwarded_map_control[2]):
                         app_config += ["--select-map"]
                     os.makedirs("/tmp/Duckietown/Duckiematrix", exist_ok=True)
                     dtslogger.info("Launching Renderer...")
@@ -1158,7 +1173,7 @@ class DTCommand(DTCommandAbs):
 
                     else:
                         if os_family == "macos":
-                            if host_renderer_only and not (trace_enabled or metal_capture):
+                            if host_renderer_only and forwarded_map_control is None and not (trace_enabled or metal_capture):
                                 app_cmd = build_macos_app_command(app_path, app_config)
                             else:
                                 try:
@@ -1185,10 +1200,12 @@ class DTCommand(DTCommandAbs):
                         if metal_capture:
                             renderer_environment = dict(os.environ, MTL_CAPTURE_ENABLED="1")
                             dtslogger.info("Metal GPU frame capture enabled for this Renderer process.")
+                        control_address = forwarded_map_control
                         if map_control is not None:
+                            control_address = (str(renderer_server.server_port), map_control.token, select_map_at_start)
+                        if control_address is not None:
                             renderer_environment = renderer_environment or dict(os.environ)
-                            renderer_environment[MAP_CONTROL_PORT_ENV] = str(renderer_server.server_port)
-                            renderer_environment[MAP_CONTROL_TOKEN_ENV] = map_control.token
+                            renderer_environment[MAP_CONTROL_PORT_ENV], renderer_environment[MAP_CONTROL_TOKEN_ENV], _ = control_address
                             if os_family == "windows" and "WSL_DISTRO_NAME" in os.environ:
                                 renderer_environment["WSLENV"] = ":".join(filter(None, (
                                     renderer_environment.get("WSLENV"), MAP_CONTROL_PORT_ENV, MAP_CONTROL_TOKEN_ENV,
@@ -1225,7 +1242,7 @@ class DTCommand(DTCommandAbs):
                                         ["taskkill.exe", "/F", "/IM", app_basename],
                                         stderr=subprocess.DEVNULL,
                                     )
-                                elif os_family == "macos" and host_renderer_only:
+                                elif os_family == "macos" and host_renderer_only and forwarded_map_control is None:
                                     terminate_macos_app(app_path)
                                 else:
                                     renderer.kill()
@@ -1265,7 +1282,7 @@ class DTCommand(DTCommandAbs):
                     run_renderer
                     and terminate_renderer is not None
                     and (
-                        (os_family == "macos" and host_renderer_only)
+                        (os_family == "macos" and host_renderer_only and forwarded_map_control is None)
                         or process_is_running(renderer)
                     )
                 ):

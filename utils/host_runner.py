@@ -48,6 +48,8 @@ HOST_RUNNER_ENGINE_HOST_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_ENGINE_HOST"
 HOST_RUNNER_FRONTEND_URL_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_FRONTEND_URL"
 HOST_RUNNER_MATRIX_RENDERER_ONLY_ENV = "DTS_HOST_RUNNER_MATRIX_RENDERER_ONLY"
 HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_MATRIX_RENDERER_ONLY"
+HOST_RUNNER_MATRIX_MAP_CONTROL_ENV = "DTS_HOST_RUNNER_MATRIX_MAP_CONTROL"
+HOST_RUNNER_MATRIX_MAP_CONTROL_FORWARD_ENV = "HOST_DTS_HOST_RUNNER_MATRIX_MAP_CONTROL"
 HOST_RUNNER_TIMEOUT_ENV = "DTS_HOST_RUNNER_TIMEOUT"
 HOST_RUNNER_REQUESTS_DIR_ENV = "DTS_HOST_RUNNER_REQUESTS_DIR"
 HOST_RUNNER_EXIT_CODE_PREFIXES = ("===DTS_HOST_RUNNER_EXIT_CODE===",)
@@ -1410,6 +1412,7 @@ def delegate_matrix_run_to_host(
     *,
     engine_host: Optional[str] = None,
     renderer_only: bool = False,
+    map_control: Optional[str] = None,
 ) -> int:
     args_list = list(args)
     emit_client_context = "--verbose" in args_list or "-vv" in args_list
@@ -1438,6 +1441,8 @@ def delegate_matrix_run_to_host(
         parser.add_argument("--environments", type=int)
         _, args_list = parser.parse_known_args(args_list)
         forwarded_env[HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV] = "1"
+        if map_control is not None:
+            forwarded_env[HOST_RUNNER_MATRIX_MAP_CONTROL_FORWARD_ENV] = map_control
         delegated_cwd = _host_runner_fallback_cwd()
     return delegate_command_to_host(
         [*command_prefix, "matrix", "run"],

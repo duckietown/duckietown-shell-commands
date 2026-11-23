@@ -1,4 +1,3 @@
-import unittest
 from unittest.mock import patch
 
 from matrix.engine.run.command import DTCommand as EngineCommand, MatrixEngine
@@ -7,7 +6,10 @@ from utils.host_runner import (
     HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV,
     delegate_matrix_run_to_host,
 )
-from tests.matrix_fixtures import EngineConfigurationFixture
+from tests.matrix_fixtures import (
+    EngineConfigurationFixture,
+    HostDelegationFixture,
+)
 
 
 class MatrixEnvironmentTests(EngineConfigurationFixture):
@@ -99,18 +101,7 @@ class MatrixEnvironmentTests(EngineConfigurationFixture):
         self.assertEqual(command[count_index + 1], "3")
 
 
-class MatrixEnvironmentDelegationTests(unittest.TestCase):
-    def setUp(self):
-        delegate = patch("utils.host_runner.delegate_command_to_host", return_value=0)
-        self.delegate = delegate.start()
-        self.addCleanup(delegate.stop)
-        cwd = patch("utils.host_runner._host_runner_fallback_cwd", return_value="/host")
-        cwd.start()
-        self.addCleanup(cwd.stop)
-        options = patch("utils.host_runner.get_current_dts_cli_options", return_value=[])
-        options.start()
-        self.addCleanup(options.stop)
-
+class MatrixEnvironmentDelegationTests(HostDelegationFixture):
     def test_renderer_only_delegation_omits_engine_replication_option(self):
         for arguments in (
             ["--environments", "3"],

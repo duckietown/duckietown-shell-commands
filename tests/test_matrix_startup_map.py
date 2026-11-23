@@ -193,6 +193,40 @@ class MatrixStartupMapLaunchTests(RendererLaunchFixture):
         self.assertEqual(launch.call_args.kwargs["env"][renderer_command.MAP_CONTROL_PORT_ENV], "8001")
         self.assertEqual(launch.call_args.kwargs["env"][renderer_command.MAP_CONTROL_TOKEN_ENV], control.token)
 
+    def test_delegated_startup_picker_keeps_the_engine_under_the_guest_launcher(self):
+        flags = ["--standalone", "--no-pull"]
+        engine = Mock(config={"command": ["--mode", "realtime"]})
+        self.shell.include.matrix.engine.run.make_engine.return_value = engine
+        token = "b" * 64
+        with (
+            patch.object(renderer_command.DTCommand, "parser", self.parser),
+            patch.object(renderer_command, "should_run_host_renderer_only", return_value=False),
+            patch.object(renderer_command, "should_delegate_matrix_run", return_value=True),
+            patch.object(renderer_command, "resolve_delegated_engine_host", return_value="localhost"),
+            patch.object(renderer_command, "MapControl", return_value=Mock(token=token)),
+            patch.object(renderer_command, "MapControlHTTPServer", return_value=Mock(server_port=8120)),
+            patch.object(renderer_command, "Thread"),
+            patch.dict(renderer_command.os.environ, {"DOCKER_HOST": ""}),
+            patch.object(renderer_command, "delegate_matrix_run_to_host", return_value=0) as delegate,
+        ):
+            renderer_command.DTCommand.command(self.shell, flags)
+        self.assertTrue(self.shell.include.matrix.engine.run.make_engine.call_args.kwargs["defer_map"])
+        engine.start.assert_not_called()
+        delegate.assert_called_once_with(flags, engine_host="localhost", renderer_only=True,
+                                         map_control=f"8120:{token}:1")
+
+    def test_delegated_startup_without_a_forwarded_capability_fails_before_launch(self):
+        with (
+            patch.object(renderer_command.DTCommand, "parser", self.parser),
+            patch.object(renderer_command, "should_run_host_renderer_only", return_value=True),
+            patch.object(renderer_command, "delegated_map_control", return_value=None),
+            patch.object(renderer_command, "configure_renderer_launch") as configure,
+            patch.object(renderer_command.dtslogger, "error") as error,
+        ):
+            renderer_command.DTCommand.command(self.shell, ["--standalone"])
+        configure.assert_not_called()
+        self.assertIn("did not forward startup map selection", error.call_args.args[0])
+
     def test_embedded_with_no_map_is_rejected_before_launch(self):
         for flags in (["--standalone", "--embedded"], ["--standalone", "--embedded", "--sandbox"]):
             with (
