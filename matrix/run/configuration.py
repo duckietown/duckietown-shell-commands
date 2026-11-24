@@ -76,6 +76,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Use the embedded map directory as the root directory for '--map'",
         )
         parser.add_argument(
+            "--environments",
+            default=1,
+            type=int,
+            help="Number of co-located environments (requires --standalone)",
+        )
+        parser.add_argument(
             "-e",
             "--engine",
             dest="engine_hostname",
@@ -197,6 +203,116 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Continuously update profiling tables (requires -S/--standalone)",
         )
         parser.add_argument(
+            "--profiler-level",
+            choices=("counters", "timeline"),
+            default=None,
+            help="Collect counters only or include sampled camera timelines (default: timeline)",
+        )
+        parser.add_argument(
+            "--profiler-memory",
+            default=False,
+            action="store_true",
+            help="Collect native allocation bytes and GC marker time (requires --live-profiler and a Development Renderer)",
+        )
+        parser.add_argument(
+            "--profiler-no-table",
+            default=False,
+            action="store_true",
+            help="Omit table formatting from native live-profiler JSON snapshots",
+        )
+        parser.add_argument(
+            "--profiler-report-interval",
+            type=int,
+            default=None,
+            help="Positive live-profiler reporting interval in seconds (default: 1)",
+        )
+        parser.add_argument(
+            "--metal-capture",
+            default=False,
+            action="store_true",
+            help="Enable Metal GPU frame capture for the native macOS Renderer process (does not start a capture)",
+        )
+        parser.add_argument(
+            "--trace",
+            default=False,
+            action="store_true",
+            help="Record the native macOS Renderer with Instruments Metal System Trace",
+        )
+        parser.add_argument(
+            "--trace-export",
+            default=False,
+            action="store_true",
+            help="Export selected CPU/Metal XML tables beside the recording (requires --trace)",
+        )
+        parser.add_argument(
+            "--trace-template",
+            default=None,
+            metavar="PATH.tracetemplate",
+            help="Use a saved Instruments template containing Metal Application and Time Profiler (requires --trace)",
+        )
+        parser.add_argument(
+            "--trace-performance-state",
+            choices=("default", "minimum", "medium", "maximum"),
+            default=None,
+            help=(
+                "Verify the template and recording use this GPU performance selector; "
+                "non-default states require --trace-template saved with that state "
+                "(requires --trace; does not guarantee fixed hardware clocks)"
+            ),
+        )
+        for option, description in (
+            ("--trace-waiting-threads", "Record waiting-thread call stacks"),
+            ("--trace-kernel-callstacks", "Record kernel call stacks"),
+            ("--trace-context-switch-sampling", "Sample context switches"),
+        ):
+            parser.add_argument(
+                option,
+                default=False,
+                action="store_true",
+                help=f"{description} (requires --trace and Xcode recording-options support)",
+            )
+        parser.add_argument(
+            "--trace-start-session",
+            default=None,
+            type=int,
+            metavar="SESSION",
+            help=(
+                "Wait for Renderer session 1-1000000 before recording "
+                "(requires --trace --live-profiler; default: record at launch)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-duration",
+            default=30,
+            type=int,
+            metavar="SECONDS",
+            help=(
+                "Request a stop after 1-300 seconds, or -1 until the Renderer exits "
+                "(default: 30; Instruments setup/shutdown can extend the run envelope)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-window",
+            default=None,
+            type=int,
+            metavar="SECONDS",
+            help=(
+                "Retain only the last 1-60 seconds, or -1 for the entire recording; "
+                "this does not stop recording (default: 10, or the duration if shorter; "
+                "an equal-duration window retains the whole capture without rolling)"
+            ),
+        )
+        parser.add_argument(
+            "--trace-output",
+            default=None,
+            type=str,
+            metavar="PATH.trace",
+            help=(
+                "Save --trace to this path on the calling machine "
+                "(default: ~/.duckietown/duckiematrix/traces/<unique-name>.trace)"
+            ),
+        )
+        parser.add_argument(
             "--container-image",
             default=None,
             type=str,
@@ -209,10 +325,14 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Target renderer frame rate",
         )
         parser.add_argument(
-            "--cameras-only",
+            "--no-spectator-cameras",
             default=False,
             action="store_true",
-            help="Render sensor cameras without the spectator's 3D world view",
+            help=(
+                "Disable Main Camera, Bird View, and their associated controls. "
+                "Robot camera and telemetry views remain available. "
+                "Sensor publishing and external actuator control remain enabled."
+            ),
         )
         parser.add_argument(
             "--shm-path",

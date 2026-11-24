@@ -27,6 +27,12 @@ class DTCommandConfiguration(DTCommandConfigurationAbs):
             help="Use the embedded map directory as the root directory for '--map'"
         )
         parser.add_argument(
+            "--environments",
+            default=1,
+            type=int,
+            help="Number of co-located environments (default: 1)"
+        )
+        parser.add_argument(
             "--sandbox",
             default=False,
             action="store_true",

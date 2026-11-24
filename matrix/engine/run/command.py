@@ -10,7 +10,9 @@ from threading import Thread
 from typing import Optional, Dict
 
 import yaml
+from docker.errors import DockerException
 from docker.models.containers import Container
+from requests.exceptions import RequestException
 
 from dt_shell import DTCommandAbs, dtslogger, DTShell
 from utils.docker_utils import DEFAULT_REGISTRY, get_client_OLD, pull_image_OLD, get_endpoint_architecture
@@ -86,6 +88,20 @@ class MatrixEngine:
 
     def configure(self, shell: DTShell, parsed: argparse.Namespace) -> bool:
         self.verbose = parsed.verbose or parsed.profiler or parsed.live_profiler
+        environments = getattr(parsed, "environments", 1)
+        if (
+            isinstance(environments, bool)
+            or not isinstance(environments, int)
+            or environments < 1
+        ):
+            dtslogger.error("--environments must be a positive integer.")
+            return False
+        if environments > 1 and (
+            parsed.renderers != 1 or parsed.links or parsed.build_assets
+        ):
+            dtslogger.error("Replicated environments require one Renderer, no physical links, "
+                            "and no --build-assets.")
+            return False
         if parsed.profiler and parsed.live_profiler:
             dtslogger.error("You cannot use --profiler and --live-profiler together.")
             return False
@@ -96,6 +112,10 @@ class MatrixEngine:
         if sandbox and map is not None:
             dtslogger.error("Sandbox mode (--sandbox) and custom map (-m/--map) "
                             "cannot be used together.")
+            return False
+        if sandbox and environments > 1:
+            dtslogger.error("The sandbox map contains scripts and cannot be replicated. "
+                            "Use --embedded --map loop with --environments instead.")
             return False
         # make sure the map is given (when not in sandbox standalone mode)
         if not map and not sandbox:
@@ -185,6 +205,8 @@ class MatrixEngine:
         # set the mode
         engine_mode = "realtime" if not parsed.simulation else "gym"
         engine_config["command"] += ["--mode", engine_mode]
+        if environments > 1:
+            engine_config["command"] += ["--environments", str(environments)]
         # set the number of renderers
         num_renderers = min(max(1, parsed.renderers), MAX_RENDERERS)
         engine_config["command"] += ["--renderers", str(num_renderers)]
@@ -271,6 +293,8 @@ class MatrixEngine:
     def stop(self):
         if self.config is None:
             raise ValueError("Configure the engine first.")
+        if self.engine is None:
+            return
         dtslogger.info("Cleaning up containers...")
         if self.is_running:
             # noinspection PyBroadException
@@ -350,14 +374,20 @@ class MatrixEngine:
                 raise TimeoutError()
 
     def join(self) -> bool:
+        if self.engine is None:
+            dtslogger.warning("No Engine container to wait for.")
+            return False
+
         try:
-            # wait for the engine to terminate
             self.engine.wait()
-        except BaseException:
+            return True
+        except KeyboardInterrupt:
+            return False
+        except (DockerException, RequestException) as error:
+            dtslogger.warning("Could not wait for the Engine container: %s", error)
             return False
         finally:
             self.stop()
-        return True
 
 
 class DTCommand(DTCommandAbs):
