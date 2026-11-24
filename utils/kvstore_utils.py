@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import TypeVar, Type, Union, Any
+from typing import TypeVar, Type, Union, Any, Optional
 
 import cbor2
 import requests
@@ -22,8 +22,9 @@ class KVStoreUnreachable(NoTracebackException):
 
 class KVStore:
 
-    def __init__(self, robot: str, port: int = KVSTORE_DEFAULT_PORT):
+    def __init__(self, robot: str, port: int = KVSTORE_DEFAULT_PORT, *, timeout: Optional[float] = None):
         self._robot: str = robot
+        self._timeout = timeout
         host: str = best_host_for_robot(robot)
         self.url = KVSTORE_URL.format(host=host, port=port, path="{path}")
 
@@ -34,7 +35,7 @@ class KVStore:
     def is_available(self) -> bool:
         url = self._url("dtps")
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=self._timeout)
             return response.status_code == 200
         except requests.exceptions.ConnectionError:
             return False
@@ -44,7 +45,7 @@ class KVStore:
         dtslogger.debug(f"KVStore[{self._robot}]: Probing key '{key}' for existence...")
         dtslogger.debug(f"$ HEAD {url}")
         try:
-            response = requests.head(url)
+            response = requests.head(url, timeout=self._timeout)
         except requests.exceptions.ConnectionError:
             raise KVStoreUnreachable(f"KVStore at '{url}' is unreachable")
         dtslogger.debug(f" << {response.status_code}: {response.text}")
@@ -60,22 +61,24 @@ class KVStore:
         url = self._url(f"data/{key}")
         dtslogger.debug(f"KVStore[{self._robot}]: Fetching value for key '{key}'...")
         dtslogger.debug(f"$ GET {url}")
-        response = requests.get(url)
+        response = requests.get(url, timeout=self._timeout)
+        response.raise_for_status()
         dtslogger.debug(f" << {response.status_code}: {response.text}")
         # decode the response
         native: Union[dict, list, str, int, float, bool, bytes]
         # - json
-        if response.headers["Content-Type"] == "application/json":
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0]
+        if content_type == "application/json":
             native = response.json()
         # - cbor
-        elif response.headers["Content-Type"] == "application/cbor":
+        elif content_type == "application/cbor":
             native = cbor2.loads(response.content)
         # - text
-        elif response.headers["Content-Type"] == "text/plain":
+        elif content_type == "text/plain":
             native = response.text
         # - others
         else:
-            msg = f"Unsupported content type '{response.headers['Content-Type']}'"
+            msg = f"Unsupported content type '{content_type}'"
             raise ValueError(msg)
         # ---
         if not isinstance(native, cls):
@@ -97,7 +100,7 @@ class KVStore:
                             f"--- request body ---\n"
                             f"{value}\n"
                             f"--------------------")
-            response = requests.post(url, json=value)
+            response = requests.post(url, json=value, timeout=self._timeout)
             dtslogger.debug(f"$ POST {url}\n"
                             f"--- response [{response.status_code}] ---  (url: {url})\n"
                             f"{response.text}\n"
@@ -111,7 +114,7 @@ class KVStore:
             adj = "persistent" if persist else "volatile"
             dtslogger.debug(f"KVStore[{self._robot}]: Defining new {adj} key '{key}' with initial value '{value}'")
             dtslogger.debug(f"$ POST {url}\n\t{data}")
-            response = requests.post(url, json=data)
+            response = requests.post(url, json=data, timeout=self._timeout)
             dtslogger.debug(f" << {response.status_code}: {response.text}")
             if not fail_quietly:
                 response.raise_for_status()
