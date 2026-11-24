@@ -115,14 +115,13 @@ Where <space> can be one of {str(VALID_SPACES)}.
         handler = storage.download(parsed.object, parsed.file)
         handler.register_callback(cb)
 
-        # capture SIGINT and abort
-        signal.signal(signal.SIGINT, lambda *_: handler.abort())
-
-        # wait for the download to finish
-        handler.join()
-
-        # check status
-        check_status(handler)
+        # A caller such as `matrix run` still needs its SIGINT handler after the download.
+        previous_handler = signal.signal(signal.SIGINT, lambda *_: handler.abort())
+        try:
+            handler.join()
+            check_status(handler)
+        finally:
+            signal.signal(signal.SIGINT, previous_handler)
 
         # if we got here, the download is completed
         dtslogger.info("Download complete!")

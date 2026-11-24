@@ -40,6 +40,15 @@ from utils.host_runner import (
     should_delegate_matrix_run,
 )
 from utils.misc_utils import open_browser_url
+from utils.matrix_trace import (
+    RendererTrace,
+    TraceSettings,
+    TRACE_DURATION_DEFAULT,
+    TRACE_OUTPUT_ENV,
+    resolve_trace_output,
+    trace_limits,
+    trace_start_session,
+)
 from utils.duckiematrix_utils import \
     APP_NAME, \
     get_most_recent_version_installed, \
@@ -282,12 +291,15 @@ def flush_renderer_log_chunk_with_shutdown_signal(
     chunk: str,
     buffered: str,
     shutdown_event: threading.Event,
+    *, on_line: Callable[[str], None] | None = None,
 ) -> str:
     buffered += chunk
     while "\n" in buffered:
         line, buffered = buffered.split("\n", 1)
         if EXTERNAL_SHUTDOWN_REQUEST in line:
             shutdown_event.set()
+        if on_line is not None:
+            on_line(line)
         write_renderer_output(line + "\n")
     return buffered
 
@@ -296,6 +308,7 @@ def tail_renderer_log_file(
     log_path: Path,
     stop_event: threading.Event,
     shutdown_event: threading.Event,
+    *, on_line: Callable[[str], None] | None = None,
 ) -> None:
     buffered = ""
     offset = 0
@@ -310,6 +323,7 @@ def tail_renderer_log_file(
                     chunk,
                     buffered,
                     shutdown_event,
+                    on_line=on_line,
                 )
         should_stop = stop_event.wait(0.1)
         if not should_stop:
@@ -324,10 +338,13 @@ def tail_renderer_log_file(
                     chunk,
                     buffered,
                     shutdown_event,
+                    on_line=on_line,
                 )
         if buffered:
             if EXTERNAL_SHUTDOWN_REQUEST in buffered:
                 shutdown_event.set()
+            if on_line is not None:
+                on_line(buffered)
             write_renderer_output(buffered)
         return
 
@@ -365,6 +382,7 @@ def create_renderer_log_path(
 def start_renderer_log_tailer(
     log_path: Optional[Path],
     verbose: bool,
+    *, on_line: Callable[[str], None] | None = None,
 ) -> tuple[Optional[threading.Event], Optional[threading.Event], Optional[Thread]]:
     if log_path is None or not verbose:
         return None, None, None
@@ -375,6 +393,7 @@ def start_renderer_log_tailer(
     tailer_thread = Thread(
         target=tail_renderer_log_file,
         args=(log_path, stop_event, shutdown_event),
+        kwargs={"on_line": on_line},
         daemon=True,
         name=thread_name,
     )
@@ -539,7 +558,9 @@ def configure_renderer_launch(
             )
 
     use_tailed_log_file = (
-        os_family == "macos" and should_run_host_renderer_only()
+        os_family == "macos" and (
+            should_run_host_renderer_only() or getattr(parsed, "trace", False)
+        )
     )
 
     renderer_log_path = create_renderer_log_path(
@@ -556,7 +577,7 @@ def configure_renderer_launch(
     elif parsed.force_vulkan:
         app_config += ["-force-vulkan"]
     else:
-        if os_family != "windows":
+        if os_family != "windows" and not getattr(parsed, "trace", False):
             app_config += ["-force-vulkan"]
     if delegated_engine_host is not None:
         app_config += ["--engine-hostname", delegated_engine_host]
@@ -578,7 +599,7 @@ def configure_renderer_launch(
         app_config += ["--renderer-id", f"renderer_{parsed.renderer_id}"]
     if parsed.renderer_key is not None:
         app_config += ["--renderer-key", parsed.renderer_key]
-    if not parsed.no_tutorial and not parsed.cameras_only:
+    if not parsed.no_tutorial and not parsed.no_spectator_cameras:
         app_config += ["--tutorial"]
     if parsed.profiler:
         app_config += ["--profiler"]
@@ -588,8 +609,8 @@ def configure_renderer_launch(
         app_config += ["--on-top"]
     if parsed.target_frame_rate is not None:
         app_config += ["--target-frame-rate", str(parsed.target_frame_rate)]
-    if parsed.cameras_only:
-        app_config += ["--cameras-only"]
+    if parsed.no_spectator_cameras:
+        app_config += ["--no-spectator-cameras"]
     app_config += ["--token", shell.profile.secrets.dt_token]
     billboards_database = DTShellDatabase.open(DB_BILLBOARDS)
     billboard_names = shell.get_billboard_names(billboards_database)
@@ -634,8 +655,20 @@ class DTCommand(DTCommandAbs):
         # check for conflicting arguments
         run_engine: bool = parsed.standalone and not host_renderer_only
         run_renderer: bool = True
-        if parsed.cameras_only and parsed.no_tutorial:
-            dtslogger.error("You cannot use --cameras-only and --no-tutorial together.")
+        environments = getattr(parsed, "environments", 1)
+        if (
+            isinstance(environments, bool)
+            or not isinstance(environments, int)
+            or environments < 1
+        ):
+            dtslogger.error("--environments must be a positive integer.")
+            return
+        if environments > 1 and not parsed.standalone:
+            dtslogger.error("--environments requires --standalone; "
+                            "the Engine owns replication.")
+            return
+        if parsed.no_spectator_cameras and parsed.no_tutorial:
+            dtslogger.error("You cannot use --no-spectator-cameras and --no-tutorial together.")
             return
         # - map VS sandbox
         if parsed.sandbox and parsed.map is not None:
@@ -694,6 +727,61 @@ class DTCommand(DTCommandAbs):
         if container_image and platform.system() != "Linux":
             dtslogger.error("You cannot use --container-image outside Linux.")
             return
+        trace_recording = None
+        trace_interrupted = False
+        trace_enabled = getattr(parsed, "trace", False)
+        trace_export = getattr(parsed, "trace_export", False)
+        trace_output = getattr(parsed, "trace_output", None)
+        trace_duration = getattr(parsed, "trace_duration", TRACE_DURATION_DEFAULT)
+        trace_window = getattr(parsed, "trace_window", None)
+        trace_session = getattr(parsed, "trace_start_session", None)
+        trace_settings = TraceSettings(
+            template=getattr(parsed, "trace_template", None),
+            performance_state=getattr(parsed, "trace_performance_state", None),
+            waiting_threads=getattr(parsed, "trace_waiting_threads", False),
+            kernel_callstacks=getattr(parsed, "trace_kernel_callstacks", False),
+            context_switch_sampling=getattr(parsed, "trace_context_switch_sampling", False),
+        )
+        if not trace_enabled and (
+            trace_output is not None or trace_window is not None
+            or trace_duration != TRACE_DURATION_DEFAULT or trace_export or trace_session is not None
+            or trace_settings.customized
+        ):
+            dtslogger.error("Trace control options require --trace.")
+            return
+        if trace_enabled:
+            if parsed.browser or container_image is not None or parsed.xvfb:
+                dtslogger.error("--trace requires a native macOS Renderer, without --browser, --container-image, or --xvfb.")
+                return
+            if parsed.force_opengl or parsed.force_vulkan:
+                dtslogger.error("--trace uses Metal; do not force OpenGL or Vulkan.")
+                return
+            try:
+                trace_settings.validate()
+                trace_duration, trace_window = trace_limits(trace_duration, trace_window)
+                trace_session = trace_start_session(trace_session)
+                if trace_session is not None and not parsed.live_profiler:
+                    raise ValueError("--trace-start-session requires --live-profiler to observe Renderer sessions.")
+                if not delegate_renderer_to_host:
+                    if (parsed.os_family or get_os_family()) != "macos":
+                        raise ValueError("--trace requires a native macOS Renderer.")
+                    if host_renderer_only:
+                        trace_output = os.environ.get(TRACE_OUTPUT_ENV)
+                        if trace_output is None:
+                            raise ValueError("Delegated --trace requires an updated shared-queue host runner.")
+                    output_path = resolve_trace_output(trace_output, export=trace_export)
+                    trace_recording = RendererTrace(
+                        output_path, trace_duration, trace_window, export=trace_export,
+                        start_session=trace_session, settings=trace_settings,
+                    )
+                    dtslogger.info(f"Renderer trace output: {output_path}")
+                    if trace_session is not None:
+                        dtslogger.info(f"Waiting for Renderer session >= {trace_session} before Instruments recording.")
+                    if trace_duration == -1 and trace_window == -1:
+                        dtslogger.warning("Tracing the entire Renderer lifetime without a history cap can use substantial disk space.")
+            except (ValueError, OSError) as error:
+                dtslogger.error(str(error))
+                return
         # configure the engine if in standalone
         engine: Optional[MatrixEngine] = None
         if run_engine:
@@ -802,12 +890,12 @@ class DTCommand(DTCommandAbs):
                         url += f"engine-ws-control-port={_ewp}&"
                     if parsed.target_frame_rate is not None:
                         url += f"target-frame-rate={parsed.target_frame_rate}&"
-                    url += f"cameras-only={'true' if parsed.cameras_only else 'false'}&"
+                    url += f"no-spectator-cameras={'true' if parsed.no_spectator_cameras else 'false'}&"
                     if parsed.profiler:
                         url += "profiler=true&"
                     elif parsed.live_profiler:
                         url += "live-profiler=true&"
-                    url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.cameras_only else 'false'}&"
+                    url += f"tutorial={'true' if not parsed.no_tutorial and not parsed.no_spectator_cameras else 'false'}&"
                     token = shell.profile.secrets.dt_token
                     url += f"token={token}/"
                     server_thread.start()
@@ -869,7 +957,7 @@ class DTCommand(DTCommandAbs):
 
                     else:
                         if os_family == "macos":
-                            if host_renderer_only:
+                            if host_renderer_only and not trace_enabled:
                                 app_cmd = build_macos_app_command(app_path, app_config)
                             else:
                                 try:
@@ -903,14 +991,20 @@ class DTCommand(DTCommandAbs):
                             raise
                         renderer_log_stop_event, renderer_shutdown_event, renderer_log_thread = start_renderer_log_tailer(
                             renderer_log_path,
-                            parsed.verbose or parsed.profiler or parsed.live_profiler,
+                            parsed.verbose or parsed.profiler or parsed.live_profiler or trace_enabled,
+                            on_line=trace_recording.observe_renderer_line if trace_recording is not None else None,
                         )
                         # this is how we terminate the renderer
 
                         def terminate_renderer(*_):
                             # noinspection PyBroadException
                             try:
-                                if os_family == "windows":
+                                if trace_enabled:
+                                    renderer.terminate()
+                                    if not wait_for_process_exit(renderer, RENDERER_FORCE_KILL_WAIT_SECONDS):
+                                        renderer.kill()
+                                        wait_for_process_exit(renderer, RENDERER_FORCE_KILL_WAIT_SECONDS)
+                                elif os_family == "windows":
                                     # For Windows binaries in WSL, kill by process name since WSL PIDs don't map to Windows
                                     app_basename = os.path.basename(app_path)
                                     subprocess.run(
@@ -924,6 +1018,8 @@ class DTCommand(DTCommandAbs):
                             except Exception:
                                 pass
 
+                    if trace_recording is not None:
+                        trace_recording.start(renderer.pid)
                     # wait for the renderer to terminate
                     if renderer_stream is None:
                         raise RuntimeError("Renderer stream was not initialized.")
@@ -938,6 +1034,9 @@ class DTCommand(DTCommandAbs):
                 # wait for the engine to terminate
                 engine.join()
 
+        except KeyboardInterrupt:
+            trace_interrupted = True
+            raise
         finally:
             try:
                 if run_engine:
@@ -957,8 +1056,14 @@ class DTCommand(DTCommandAbs):
                 )
                 remove_renderer_log_file(renderer_log_path)
             finally:
-                if profiler_output is not None:
-                    profiler_output.stop()
+                try:
+                    if trace_recording is not None:
+                        trace_recording.finish(interrupted=trace_interrupted)
+                        if trace_recording.output.is_dir():
+                            dtslogger.info(f"Renderer trace saved: {trace_recording.output}")
+                finally:
+                    if profiler_output is not None:
+                        profiler_output.stop()
 
     @staticmethod
     def complete(shell, word, line):
@@ -975,6 +1080,12 @@ def join_renderer(
     output_reader = None
     try:
         if shutdown_event is not None:
+            output_reader = Thread(
+                target=forward_renderer_shutdown_output,
+                args=(stream, False),
+                daemon=True,
+            )
+            output_reader.start()
             wait_for_tailed_renderer_shutdown(
                 process,
                 shutdown_event,
