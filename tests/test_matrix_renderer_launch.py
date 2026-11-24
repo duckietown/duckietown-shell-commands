@@ -1,0 +1,84 @@
+import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlsplit
+
+from matrix.run import command as renderer_command
+from matrix.run.configuration import DTCommandConfiguration as MatrixConfiguration
+
+
+class MatrixRendererLaunchTests(unittest.TestCase):
+    def setUp(self):
+        self.parser = MatrixConfiguration.parser()
+        self.shell = Mock()
+        self.shell.profile.secrets.dt_token = "unit-test-placeholder"
+        self.shell.get_billboard_names.return_value = []
+
+    def test_native_spectator_camera_option_preserves_tutorial_behavior(self):
+        for platform in ("linux", "macos", "windows"):
+            for disabled in (False, True):
+                with self.subTest(platform=platform, disabled=disabled):
+                    flags = ["--no-spectator-cameras"] if disabled else []
+                    parsed = self.parser.parse_args([
+                        "--renderer-binary", "/test/renderer",
+                        "--os-family", platform, *flags,
+                    ])
+                    with (
+                        patch.object(renderer_command.os.path, "isfile", return_value=True),
+                        patch.object(renderer_command.os.path, "exists", return_value=True),
+                        patch.object(renderer_command, "create_renderer_log_path", return_value=None),
+                        patch.object(renderer_command, "should_run_linux_renderer_through_fex", return_value=False),
+                        patch.object(renderer_command, "is_arm64_windows_host", return_value=False),
+                        patch.object(renderer_command.DTShellDatabase, "open"),
+                    ):
+                        configured = renderer_command.configure_renderer_launch(
+                            self.shell, parsed, None,
+                        )
+                    self.assertIsNotNone(configured)
+                    self.assertEqual("--no-spectator-cameras" in configured.app_config, disabled)
+                    self.assertEqual("--tutorial" in configured.app_config, not disabled)
+
+    def test_browser_spectator_camera_option_preserves_tutorial_behavior(self):
+        for disabled in (False, True):
+            with self.subTest(disabled=disabled):
+                flags = ["--browser"]
+                if disabled:
+                    flags.append("--no-spectator-cameras")
+                parsed = self.parser.parse_args(flags)
+                configured = renderer_command.RendererLaunchConfiguration(
+                    app_bin=None, app_config=[], app_path="/test/browser",
+                    app_prefix=[], os_family="linux", renderer_log_path=None,
+                )
+                server = SimpleNamespace(
+                    server=Mock(), display_host="localhost", port=8080,
+                )
+                with (
+                    patch.object(renderer_command.DTCommand, "parser", self.parser),
+                    patch.object(renderer_command, "should_delegate_matrix_run", return_value=False),
+                    patch.object(renderer_command, "resolve_delegated_engine_host", return_value=None),
+                    patch.object(renderer_command, "configure_renderer_launch", return_value=configured),
+                    patch.object(renderer_command, "create_browser_http_server", return_value=server),
+                    patch.object(renderer_command, "Thread"),
+                    patch.object(renderer_command.os, "chdir"),
+                    patch.object(renderer_command, "open_browser_url", return_value=True) as open_browser,
+                ):
+                    renderer_command.DTCommand.command(self.shell, flags, parsed=parsed)
+                query = parse_qs(urlsplit(open_browser.call_args.args[0]).query)
+                self.assertEqual(query["no-spectator-cameras"], [str(disabled).lower()])
+                self.assertEqual(query["tutorial"], [str(not disabled).lower()])
+
+    def test_redundant_no_tutorial_option_is_rejected_before_launch(self):
+        flags = ["--no-spectator-cameras", "--no-tutorial"]
+        parsed = self.parser.parse_args(flags)
+        with (
+            patch.object(renderer_command.DTCommand, "parser", self.parser),
+            patch.object(renderer_command, "should_delegate_matrix_run", return_value=False),
+            patch.object(renderer_command, "resolve_delegated_engine_host", return_value=None),
+            patch.object(renderer_command, "configure_renderer_launch") as configure,
+            patch.object(renderer_command.dtslogger, "error") as error,
+        ):
+            renderer_command.DTCommand.command(self.shell, flags, parsed=parsed)
+        configure.assert_not_called()
+        error.assert_called_once_with(
+            "You cannot use --no-spectator-cameras and --no-tutorial together."
+        )

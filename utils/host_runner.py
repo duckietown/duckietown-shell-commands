@@ -1,4 +1,5 @@
 from collections import deque
+import argparse
 import json
 import os
 import re
@@ -1308,6 +1309,9 @@ def delegate_matrix_run_to_host(
     if engine_host:
         forwarded_env[HOST_RUNNER_ENGINE_HOST_FORWARD_ENV] = engine_host
     if renderer_only:
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--environments", type=int)
+        _, args_list = parser.parse_known_args(args_list)
         forwarded_env[HOST_RUNNER_MATRIX_RENDERER_ONLY_FORWARD_ENV] = "1"
         delegated_cwd = _host_runner_fallback_cwd()
     return delegate_command_to_host(
