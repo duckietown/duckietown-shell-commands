@@ -609,6 +609,7 @@ class DTCommand(DTCommandAbs):
 
         except KeyboardInterrupt:
             dtslogger.warning("Update interrupted by user.")
+            return
         finally:
             _restore_proxy_if_needed()
             if _socat_process is not None and _socat_process.poll() is None:
