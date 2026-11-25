@@ -69,6 +69,19 @@ def _get_robot_image(client: DockerClient) -> str:
     return "alpine:3.23.3"
 
 
+def _get_robot_info_from_avahi(robot: str, service: str, key: str) -> Optional[str]:
+    """Read a value the robot announces over mDNS, for when its KVStore is not running yet."""
+    from utils.avahi_utils import wait_for_service
+
+    name = robot[: -len(".local")] if robot.endswith(".local") else robot
+    try:
+        _, _, data = wait_for_service(service, name, timeout=5)
+    except Exception:
+        return None
+    value = data.get(key)
+    return value if value and value != "NOTSET" else None
+
+
 def _wait_for_docker(hostname: str, timeout: int = DOCKER_RESTART_TIMEOUT) -> None:
     """Block until the robot's Docker daemon responds on its TCP endpoint after a restart.
 
@@ -397,6 +410,12 @@ class DTCommand(DTCommandAbs):
         else:
             robot_hardware = None
             rtype = None
+
+        # a freshly flashed robot announces its type and hardware before its KVStore runs
+        if rtype is None and parsed.robot_type is None:
+            rtype = _get_robot_info_from_avahi(robot, "DT::ROBOT_TYPE", "type")
+        if robot_hardware is None and parsed.robot_hardware is None:
+            robot_hardware = _get_robot_info_from_avahi(robot, "DT::ROBOT_HARDWARE", "hardware")
 
         if rtype is None and parsed.robot_type is None:
             dtslogger.warning(f"Could not get the robot type from robot '{robot}'")
