@@ -1,3 +1,10 @@
 #!/usr/bin/env bash
 
-# empty
+# dt-run-basics-stacks does not set ARCH, so basics.yaml asks for `portainer:ente-` and the stack
+# fails before kvstore starts. Start kvstore alone: portainer started now is cut off by the first-boot
+# reboot and corrupts its database, so it starts with the first `dts duckiebot update` instead.
+stack_file=/data/stacks/available/basics.yaml
+if [ -f "${{stack_file}}" ] && [ "$(uname -m)" = "aarch64" ]; then
+    ARCH=arm64v8 VEHICLE_NAME="$(hostname)" docker --host unix:///var/run/docker.sock compose \
+        --project-name basics --file "${{stack_file}}" up -d kvstore || true
+fi
