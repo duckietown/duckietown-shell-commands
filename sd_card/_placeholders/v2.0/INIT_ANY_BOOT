@@ -1,3 +1,18 @@
 #!/usr/bin/env bash
 
-# empty
+# `netplan apply` drops and re-adds the Wi-Fi address at every boot. avahi can take that blip for a
+# name conflict and rename the robot to <name>-2.local, which breaks every dts command by name.
+# For three minutes after boot, give avahi its name back if it renamed itself (at most 3 restarts).
+if systemctl -q is-active avahi-daemon; then
+    (
+        restarts=0
+        for _ in $(seq 1 12); do
+            sleep 15
+            current=$(journalctl -b -u avahi-daemon -o cat | grep -o "Host name is [^ ]*" | tail -1)
+            if [ -n "${{current}}" ] && [ "${{current}}" != "Host name is $(hostname).local." ] && [ "${{restarts}}" -lt 3 ]; then
+                systemctl restart avahi-daemon
+                restarts=$((restarts + 1))
+            fi
+        done
+    ) > /dev/null 2>&1 &
+fi
