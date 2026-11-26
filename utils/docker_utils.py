@@ -48,7 +48,7 @@ DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
 PULL_PROGRESS_HEARTBEAT_SECONDS = 15
 PULL_READER_JOIN_TIMEOUT_SECONDS = 1
-# a stalled pull is detected from real progress and from whether the robot still answers;
+# a stalled pull is detected from real progress and from whether the Docker endpoint still answers;
 # these are only the limits for giving up
 PULL_MAX_ATTEMPTS = 5
 PULL_RECONNECT_TIMEOUT_SECONDS = 300
@@ -436,7 +436,7 @@ def _read_pull_events(event_stream, events: queue.Queue, stop_event: threading.E
 
 
 class _PullInterrupted(Exception):
-    """The robot stopped answering or Docker hit a network error: wait for the robot, then retry."""
+    """The endpoint stopped answering or Docker hit a network error: wait for the endpoint, then retry."""
 
     def __init__(self, message: str, progressed_at: Optional[float] = None):
         super().__init__(message)
@@ -444,7 +444,7 @@ class _PullInterrupted(Exception):
 
 
 class _PullStalled(_PullInterrupted):
-    """The robot answers but nothing moved: attach a new stream to the same pull."""
+    """The endpoint answers but nothing moved: attach a new stream to the same pull."""
 
 
 def _is_transient_pull_error(message: str) -> bool:
@@ -521,12 +521,12 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
                 stuck = time.monotonic() - last_progress_at
                 if stuck >= PULL_STUCK_TIMEOUT_SECONDS:
                     raise UserError(
-                        f"Pulling '{image}' made no progress for {int(stuck / 60)} minutes although the robot "
-                        f"answers. The download on the robot looks stuck: reboot the robot and run the command "
-                        f"again."
+                        f"Pulling '{image}' made no progress for {int(stuck / 60)} minutes although the "
+                        f"Docker endpoint answers. The download looks stuck there: reboot the robot (or "
+                        f"restart Docker if the endpoint is this computer) and run the command again."
                     )
                 dtslogger.warning(
-                    f"Pulling '{image}': {e} but the robot answers. Re-attaching to the download "
+                    f"Pulling '{image}': {e} but the Docker endpoint answers. Re-attaching to the download "
                     f"(no progress for {int(stuck)}s, giving up after {PULL_STUCK_TIMEOUT_SECONDS}s)..."
                 )
             except _PullInterrupted as e:
@@ -538,13 +538,13 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
                     break
                 dtslogger.warning(
                     f"Pulling '{image}' was interrupted ({e}). "
-                    f"Waiting for the robot to answer ({failures}/{PULL_MAX_ATTEMPTS})..."
+                    f"Waiting for the Docker endpoint to answer ({failures}/{PULL_MAX_ATTEMPTS})..."
                 )
                 if not _wait_until_endpoint_answers(client):
                     raise UserError(
-                        f"Lost the connection to the robot while pulling '{image}' and it did not answer "
-                        f"for {PULL_RECONNECT_TIMEOUT_SECONDS}s. Check that it is on and reachable, then run "
-                        f"the command again."
+                        f"Lost the connection to the Docker endpoint while pulling '{image}' and it did not "
+                        f"answer for {PULL_RECONNECT_TIMEOUT_SECONDS}s. Check that it is on and reachable, "
+                        f"then run the command again."
                     )
                 last_progress_at = time.monotonic()
     finally:
@@ -552,7 +552,7 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
             _cut_pull_stream(response)
     raise UserError(
         f"Could not pull image '{image}' after {PULL_MAX_ATTEMPTS} attempts ({reason}). "
-        f"Check that the robot is reachable and has internet access, then run the command again."
+        f"Check that the Docker endpoint is reachable and has internet access, then run the command again."
     )
 
 
@@ -571,6 +571,9 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
             raise _PullInterrupted(str(e))
         raise
     except requests.exceptions.RequestException as e:
+        # an endpoint that never answered in this pull fails at once, as before; a lost one is waited for
+        if not streams and isinstance(e, requests.exceptions.ConnectionError):
+            raise
         raise _PullInterrupted(f"cannot reach the Docker endpoint: {e.__class__.__name__}")
     streams.append(response)
     reader_stop_event = threading.Event()
@@ -594,11 +597,15 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
             # quiet means no bytes moved and no layer finished, even if Docker keeps sending lines
             now = time.monotonic()
             quiet = now - last_progress_at
-            if quiet >= PULL_PROGRESS_HEARTBEAT_SECONDS and now - last_check_at >= PULL_PROGRESS_HEARTBEAT_SECONDS:
+            if (
+                quiet >= PULL_PROGRESS_HEARTBEAT_SECONDS
+                and now - last_check_at >= PULL_PROGRESS_HEARTBEAT_SECONDS
+            ):
                 last_check_at = now
                 if not _endpoint_answers(client):
                     raise _PullInterrupted(
-                        f"no progress for {int(quiet)}s and the robot does not answer", progressed_at
+                        f"no progress for {int(quiet)}s and the Docker endpoint does not answer",
+                        progressed_at,
                     )
                 if quiet >= 2 * PULL_PROGRESS_HEARTBEAT_SECONDS:
                     raise _PullStalled(f"no progress for {int(quiet)}s", progressed_at)

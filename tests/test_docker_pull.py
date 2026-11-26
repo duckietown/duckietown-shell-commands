@@ -132,7 +132,9 @@ class PullRetryTests(unittest.TestCase):
         self.assertEqual(robot.opens, 1)
 
     def test_quiet_stream_shorter_than_a_stall(self):
-        robot = FakeEndpoint([line("L1", "Downloading", 1), 1.5 * HEARTBEAT, line("L1", "Downloading", 2)] + COMPLETE)
+        robot = FakeEndpoint(
+            [line("L1", "Downloading", 1), 1.5 * HEARTBEAT, line("L1", "Downloading", 2)] + COMPLETE
+        )
         self.pull(robot)
         self.assertEqual(robot.opens, 1)
 
@@ -145,12 +147,16 @@ class PullRetryTests(unittest.TestCase):
 
     def test_robot_gone_and_back(self):
         pings = iter([False, False, False])
-        robot = FakeEndpoint([line("L1", "Downloading", 1), HANG], COMPLETE, answers=lambda: next(pings, True))
+        robot = FakeEndpoint(
+            [line("L1", "Downloading", 1), HANG], COMPLETE, answers=lambda: next(pings, True)
+        )
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
 
     def test_broken_stream(self):
-        robot = FakeEndpoint([line("L1", "Downloading", 1), requests.exceptions.ChunkedEncodingError()], COMPLETE)
+        robot = FakeEndpoint(
+            [line("L1", "Downloading", 1), requests.exceptions.ChunkedEncodingError()], COMPLETE
+        )
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
 
@@ -160,7 +166,9 @@ class PullRetryTests(unittest.TestCase):
         self.assertEqual(robot.opens, 2)
 
     def test_eof_after_the_seen_layers_finished_but_before_the_final_status_retries(self):
-        robot = FakeEndpoint([line("L1", "Already exists")], [line("L1", "Already exists"), line("L2", "Pull complete"), DONE])
+        robot = FakeEndpoint(
+            [line("L1", "Already exists")], [line("L1", "Already exists"), line("L2", "Pull complete"), DONE]
+        )
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
 
@@ -198,6 +206,21 @@ class PullRetryTests(unittest.TestCase):
             self.pull(robot)
         self.assertEqual(robot.opens, 1)
 
+    def test_endpoint_unreachable_at_start_fails_at_once(self):
+        robot = FakeEndpoint(requests.exceptions.ConnectionError("connection refused"))
+        with self.assertRaises(requests.exceptions.ConnectionError):
+            self.pull(robot)
+        self.assertEqual(robot.opens, 1)
+
+    def test_endpoint_unreachable_after_a_drop_is_waited_for(self):
+        robot = FakeEndpoint(
+            [line("L1", "Downloading", 1), requests.exceptions.ChunkedEncodingError()],
+            requests.exceptions.ConnectionError("connection refused"),
+            [line("L1", "Downloading", 2)] + COMPLETE,
+        )
+        self.pull(robot)
+        self.assertEqual(robot.opens, 3)
+
     def test_image_not_found_fails_at_once(self):
         robot = FakeEndpoint(NotFound("manifest unknown"))
         with self.assertRaises(NotFound):
@@ -205,7 +228,9 @@ class PullRetryTests(unittest.TestCase):
         self.assertEqual(robot.opens, 1)
 
     def test_stuck_download_gives_up_with_reboot_hint(self):
-        robot = FakeEndpoint([line("L1", "Downloading", 1)] + chatter(10 * HEARTBEAT), chatter(10 * HEARTBEAT))
+        robot = FakeEndpoint(
+            [line("L1", "Downloading", 1)] + chatter(10 * HEARTBEAT), chatter(10 * HEARTBEAT)
+        )
         with self.assertRaisesRegex(UserError, "reboot the robot"):
             self.pull(robot)
         self.assertGreaterEqual(self.elapsed, TIMINGS["PULL_STUCK_TIMEOUT_SECONDS"])
@@ -217,7 +242,10 @@ class PullRetryTests(unittest.TestCase):
         # stall; each re-attached stream first gets the last line again, then the next one
         gap = 3 * HEARTBEAT
         scripts = [[line("L1", "Downloading", 1), gap]]
-        scripts += [[line("L1", "Downloading", k - 1), gap - 2 * HEARTBEAT, line("L1", "Downloading", k), gap] for k in range(2, 6)]
+        scripts += [
+            [line("L1", "Downloading", k - 1), gap - 2 * HEARTBEAT, line("L1", "Downloading", k), gap]
+            for k in range(2, 6)
+        ]
         scripts += [[line("L1", "Downloading", 5)] + COMPLETE]
         robot = FakeEndpoint(*scripts)
         self.pull(robot)
@@ -232,7 +260,11 @@ class PullRetryTests(unittest.TestCase):
 
     def test_drops_that_made_progress_do_not_use_up_attempts(self):
         drops = [
-            [line("L1", "Downloading", 2 * k + 1), line("L1", "Downloading", 2 * k + 2), requests.exceptions.ChunkedEncodingError()]
+            [
+                line("L1", "Downloading", 2 * k + 1),
+                line("L1", "Downloading", 2 * k + 2),
+                requests.exceptions.ChunkedEncodingError(),
+            ]
             for k in range(6)
         ]
         robot = FakeEndpoint(*drops, [line("L1", "Downloading", 20)] + COMPLETE)
@@ -245,6 +277,7 @@ class PullRetryTests(unittest.TestCase):
         with self.assertRaisesRegex(UserError, "after 5 attempts"):
             self.pull(robot)
         self.assertLess(self.elapsed, TIMINGS["PULL_RECONNECT_TIMEOUT_SECONDS"])
+
 
 if __name__ == "__main__":
     unittest.main()
