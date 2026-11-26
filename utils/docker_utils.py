@@ -510,6 +510,8 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
                 return
             except _PullInterrupted as e:
                 reason = str(e)
+                if attempt == PULL_MAX_ATTEMPTS:
+                    break
                 stalled = isinstance(e, _PullStalled)
                 if not e.made_progress and len(streams) > 1:
                     # re-attaching joined a download that is itself stuck on the robot: cut every

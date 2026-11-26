@@ -196,6 +196,13 @@ class PullRetryTests(unittest.TestCase):
         with self.assertRaisesRegex(UserError, "after 5 attempts"):
             self.pull(robot)
 
+    def test_last_attempt_fails_at_once(self):
+        robot = FakeEndpoint([requests.exceptions.ChunkedEncodingError()])
+        robot.answers = lambda: robot.opens < 5
+        with self.assertRaisesRegex(UserError, "after 5 attempts"):
+            self.pull(robot)
+        self.assertLess(self.elapsed, TIMINGS["PULL_RECONNECT_TIMEOUT_SECONDS"])
+
     def test_reattach_joining_a_stuck_download_restarts_it(self):
         robot = FakeEndpoint(chatter(3 * HEARTBEAT), chatter(3 * HEARTBEAT), [line("L1", "Downloading", 1)] + COMPLETE)
         self.pull(robot)
