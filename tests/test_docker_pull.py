@@ -146,6 +146,11 @@ class PullRetryTests(unittest.TestCase):
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
 
+    def test_eof_after_the_seen_layers_finished_but_before_the_final_status_retries(self):
+        robot = FakeEndpoint([line("L1", "Already exists")], [line("L1", "Already exists"), line("L2", "Pull complete"), DONE])
+        self.pull(robot)
+        self.assertEqual(robot.opens, 2)
+
     def test_no_space_fails_at_once(self):
         robot = FakeEndpoint([{"error": "write /var/lib/docker/tmp: no space left on device"}])
         with self.assertRaisesRegex(UserError, "no space left"):

@@ -602,8 +602,9 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
                 continue
 
             if event_type == "done":
-                # a stream that just ends, without Docker's final status, was cut
-                if not finished and not (layers and pulled == layers):
+                # a stream that ends without Docker's final status was cut, even if every layer
+                # seen so far is done: later layers and the tag may still be missing
+                if not finished:
                     raise _PullInterrupted("the connection closed before the pull finished", made_progress)
                 break
             if event_type == "error":
@@ -652,7 +653,7 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
             close = getattr(event_stream, "close", None)
             if callable(close):
                 close()
-        if progress and not finished and not (layers and pulled == layers):
+        if progress and not finished:
             print()
     if progress:
         pbar.done()
