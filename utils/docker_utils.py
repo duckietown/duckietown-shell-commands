@@ -52,6 +52,7 @@ PULL_READER_JOIN_TIMEOUT_SECONDS = 1
 # these are only the limits for giving up
 PULL_MAX_ATTEMPTS = 5
 PULL_RECONNECT_TIMEOUT_SECONDS = 300
+PULL_STUCK_TIMEOUT_SECONDS = 300
 PULL_PING_TIMEOUT_SECONDS = 5
 # Docker-reported pull errors worth retrying; anything else (not found, no space left,
 # input/output error, ...) fails at once
@@ -437,9 +438,9 @@ def _read_pull_events(event_stream, events: queue.Queue, stop_event: threading.E
 class _PullInterrupted(Exception):
     """The robot stopped answering or Docker hit a network error: wait for the robot, then retry."""
 
-    def __init__(self, message: str, made_progress: bool = False):
+    def __init__(self, message: str, progressed_at: Optional[float] = None):
         super().__init__(message)
-        self.made_progress = made_progress
+        self.progressed_at = progressed_at
 
 
 class _PullStalled(_PullInterrupted):
@@ -503,44 +504,44 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
     client = get_client_OLD(endpoint)
     streams = []
     reason = ""
+    failures = 0
+    last_progress_at = time.monotonic()
     try:
-        for attempt in range(1, PULL_MAX_ATTEMPTS + 1):
+        while True:
             try:
                 _pull_image_once_OLD(client, image, progress, streams)
                 return
+            except _PullStalled as e:
+                # Docker attaches a new pull of the same image to the download already running, so
+                # nothing is lost; give up only when nothing moved for a long time
+                last_progress_at = e.progressed_at or last_progress_at
+                stuck = time.monotonic() - last_progress_at
+                if stuck >= PULL_STUCK_TIMEOUT_SECONDS:
+                    raise UserError(
+                        f"Pulling '{image}' made no progress for {int(stuck / 60)} minutes although the robot "
+                        f"answers. The download on the robot looks stuck: reboot the robot and run the command "
+                        f"again."
+                    )
+                dtslogger.warning(
+                    f"Pulling '{image}': {e} but the robot answers. Re-attaching to the download "
+                    f"(no progress for {int(stuck)}s, giving up after {PULL_STUCK_TIMEOUT_SECONDS}s)..."
+                )
             except _PullInterrupted as e:
                 reason = str(e)
-                if attempt == PULL_MAX_ATTEMPTS:
+                failures += 1
+                if failures == PULL_MAX_ATTEMPTS:
                     break
-                stalled = isinstance(e, _PullStalled)
-                if not e.made_progress and len(streams) > 1:
-                    # re-attaching joined a download that is itself stuck on the robot: cut every
-                    # stream so Docker cancels it; finished layers are kept, the cut one starts again
-                    dtslogger.warning(
-                        f"Pulling '{image}': the download on the robot looks stuck ({e}). "
-                        f"Restarting it ({attempt}/{PULL_MAX_ATTEMPTS})..."
-                    )
-                    for response in streams:
-                        _cut_pull_stream(response)
-                    streams.clear()
-                    time.sleep(PULL_PING_TIMEOUT_SECONDS)
-                elif stalled:
-                    # Docker attaches a new pull of the same image to the download already running
-                    dtslogger.warning(
-                        f"Pulling '{image}': {e} but the robot answers. "
-                        f"Re-attaching to the download ({attempt}/{PULL_MAX_ATTEMPTS})..."
-                    )
-                else:
-                    dtslogger.warning(
-                        f"Pulling '{image}' was interrupted ({e}). "
-                        f"Waiting for the robot to answer ({attempt}/{PULL_MAX_ATTEMPTS})..."
-                    )
-                if not stalled and not _wait_until_endpoint_answers(client):
+                dtslogger.warning(
+                    f"Pulling '{image}' was interrupted ({e}). "
+                    f"Waiting for the robot to answer ({failures}/{PULL_MAX_ATTEMPTS})..."
+                )
+                if not _wait_until_endpoint_answers(client):
                     raise UserError(
                         f"Lost the connection to the robot while pulling '{image}' and it did not answer "
                         f"for {PULL_RECONNECT_TIMEOUT_SECONDS}s. Check that it is on and reachable, then run "
                         f"the command again."
                     )
+                last_progress_at = time.monotonic()
     finally:
         for response in streams:
             _cut_pull_stream(response)
@@ -555,7 +556,7 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
     pulled = set()
     seen = {}
     finished = False
-    made_progress = False
+    progressed_at = None
     pbar = ProgressBar() if progress else None
     events = queue.Queue()
     try:
@@ -593,10 +594,10 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
                 last_check_at = now
                 if not _endpoint_answers(client):
                     raise _PullInterrupted(
-                        f"no progress for {int(quiet)}s and the robot does not answer", made_progress
+                        f"no progress for {int(quiet)}s and the robot does not answer", progressed_at
                     )
                 if quiet >= 2 * PULL_PROGRESS_HEARTBEAT_SECONDS:
-                    raise _PullStalled(f"no progress for {int(quiet)}s", made_progress)
+                    raise _PullStalled(f"no progress for {int(quiet)}s", progressed_at)
                 heartbeat_detail = f"No Docker update for {int(quiet)}s | {last_detail}"
                 if progress:
                     pbar.set_detail(heartbeat_detail)
@@ -610,10 +611,10 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
                 # a stream that ends without Docker's final status was cut, even if every layer
                 # seen so far is done: later layers and the tag may still be missing
                 if not finished:
-                    raise _PullInterrupted("the connection closed before the pull finished", made_progress)
+                    raise _PullInterrupted("the connection closed before the pull finished", progressed_at)
                 break
             if event_type == "error":
-                raise _PullInterrupted(f"the connection broke: {payload.__class__.__name__}", made_progress)
+                raise _PullInterrupted(f"the connection broke: {payload.__class__.__name__}", progressed_at)
 
             line = payload
             if not isinstance(line, dict):
@@ -621,7 +622,7 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
             if "error" in line:
                 error_message = line.get("errorDetail", {}).get("message", line["error"])
                 if _is_transient_pull_error(error_message):
-                    raise _PullInterrupted(error_message, made_progress)
+                    raise _PullInterrupted(error_message, progressed_at)
                 raise UserError(f"Could not pull image '{image}': {error_message}")
             status = line.get("status")
             if status is None:
@@ -640,8 +641,11 @@ def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, st
                     moved = key not in seen and status in ("Download complete", "Pull complete")
                 seen[key] = current if current is not None else 0
                 if moved:
-                    last_progress_at = time.monotonic()
-                    made_progress = True
+                    progressed_at = last_progress_at = time.monotonic()
+                    # this stream now watches the moving download: the older ones are not needed
+                    for older in streams[:-1]:
+                        _cut_pull_stream(older)
+                    del streams[:-1]
                 layers.add(layer_id)
                 if status in ["Already exists", "Pull complete"]:
                     pulled.add(layer_id)

@@ -15,6 +15,7 @@ TIMINGS = dict(
     PULL_PROGRESS_HEARTBEAT_SECONDS=HEARTBEAT,
     PULL_PING_TIMEOUT_SECONDS=0.01,
     PULL_RECONNECT_TIMEOUT_SECONDS=0.3,
+    PULL_STUCK_TIMEOUT_SECONDS=1.5,
     PULL_READER_JOIN_TIMEOUT_SECONDS=0.01,
 )
 DONE = {"status": "Status: Downloaded newer image for x:y"}
@@ -56,7 +57,7 @@ class FakeEndpoint:
         self.scripts = list(scripts)
         self.answers = answers or (lambda: True)
         self.opens = 0
-        self.cuts_at = []
+        self.log = []
 
     def open(self, client, image):
         script = self.scripts[min(self.opens, len(self.scripts) - 1)]
@@ -79,13 +80,14 @@ class FakeEndpoint:
             yield item
 
     def cut(self, stream):
-        self.cuts_at.append(self.opens)
+        self.log.append("cut")
         stream.cut.set()
 
     @property
     def cuts(self):
-        # cuts made while the pull was still running, not the cleanup after it returned
-        return sum(1 for opens in self.cuts_at if opens < self.opens)
+        # cuts made while the pull was still running, not the cleanup after the last attempt
+        last = max((i for i, event in enumerate(self.log) if event == "attempt ended"), default=0)
+        return self.log[:last].count("cut")
 
 
 class PullRetryTests(unittest.TestCase):
@@ -100,9 +102,19 @@ class PullRetryTests(unittest.TestCase):
         self.client = object.__new__(du.DockerClientOLD)
 
     def pull(self, robot):
+        attempt = du._pull_image_once_OLD
+
+        def logged_attempt(*args):
+            try:
+                attempt(*args)
+            finally:
+                robot.log.append("attempt ended")
+
         with patch.object(du, "_open_pull_stream", robot.open), patch.object(
             du, "_cut_pull_stream", robot.cut
-        ), patch.object(du, "_endpoint_answers", lambda client: robot.answers()):
+        ), patch.object(du, "_endpoint_answers", lambda client: robot.answers()), patch.object(
+            du, "_pull_image_once_OLD", logged_attempt
+        ):
             started = time.monotonic()
             try:
                 du.pull_image_OLD("x:y", endpoint=self.client, progress=False)
@@ -128,7 +140,8 @@ class PullRetryTests(unittest.TestCase):
         robot = FakeEndpoint(chatter(3 * HEARTBEAT), [line("L1", "Downloading", 1)] + COMPLETE)
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
-        self.assertEqual(robot.cuts, 0)
+        # the second stream moved bytes, so the first one is closed; the download itself is never cut
+        self.assertEqual(robot.cuts, 1)
 
     def test_robot_gone_and_back(self):
         pings = iter([False, False, False])
@@ -191,10 +204,13 @@ class PullRetryTests(unittest.TestCase):
             self.pull(robot)
         self.assertEqual(robot.opens, 1)
 
-    def test_stalls_in_a_row_give_up(self):
-        robot = FakeEndpoint(chatter(3 * HEARTBEAT))
-        with self.assertRaisesRegex(UserError, "after 5 attempts"):
+    def test_stuck_download_gives_up_with_reboot_hint(self):
+        robot = FakeEndpoint([line("L1", "Downloading", 1)] + chatter(10 * HEARTBEAT), chatter(10 * HEARTBEAT))
+        with self.assertRaisesRegex(UserError, "reboot the robot"):
             self.pull(robot)
+        self.assertGreaterEqual(self.elapsed, TIMINGS["PULL_STUCK_TIMEOUT_SECONDS"])
+        self.assertGreater(robot.opens, 2)
+        self.assertEqual(robot.cuts, 0)
 
     def test_last_attempt_fails_at_once(self):
         robot = FakeEndpoint([requests.exceptions.ChunkedEncodingError()])
@@ -202,13 +218,6 @@ class PullRetryTests(unittest.TestCase):
         with self.assertRaisesRegex(UserError, "after 5 attempts"):
             self.pull(robot)
         self.assertLess(self.elapsed, TIMINGS["PULL_RECONNECT_TIMEOUT_SECONDS"])
-
-    def test_reattach_joining_a_stuck_download_restarts_it(self):
-        robot = FakeEndpoint(chatter(3 * HEARTBEAT), chatter(3 * HEARTBEAT), [line("L1", "Downloading", 1)] + COMPLETE)
-        self.pull(robot)
-        self.assertEqual(robot.opens, 3)
-        self.assertEqual(robot.cuts, 2)
-
 
 if __name__ == "__main__":
     unittest.main()
