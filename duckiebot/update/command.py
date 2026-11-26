@@ -74,6 +74,9 @@ def _get_robot_info_from_avahi(robot: str, service: str, key: str) -> Optional[s
     from utils.avahi_utils import wait_for_service
 
     name = robot[: -len(".local")] if robot.endswith(".local") else robot
+    if "." in name or ":" in name:
+        # services are announced under the short hostname, which an IP address or FQDN does not give
+        return None
     try:
         _, _, data = wait_for_service(service, name, timeout=5)
     except Exception:
