@@ -54,6 +54,8 @@ PULL_MAX_ATTEMPTS = 5
 PULL_RECONNECT_TIMEOUT_SECONDS = 300
 PULL_STUCK_TIMEOUT_SECONDS = 300
 PULL_PING_TIMEOUT_SECONDS = 5
+# Docker answers a pull once it has the image manifest; after that the stream has no read timeout
+PULL_RESPONSE_TIMEOUT_SECONDS = 60
 # Docker-reported pull errors worth retrying; anything else (not found, no space left,
 # input/output error, ...) fails at once
 PULL_TRANSIENT_ERRORS = (
@@ -483,18 +485,27 @@ def _open_pull_stream(client: DockerClientOLD, image: str):
         params={"tag": tag or "latest", "fromImage": repository},
         headers=headers,
         stream=True,
-        timeout=None,
+        timeout=PULL_RESPONSE_TIMEOUT_SECONDS,
     )
+    try:
+        # a download that keeps moving is judged by the progress watchdog, never by a read timeout
+        _pull_stream_socket(response).settimeout(None)
+    except Exception:
+        pass
     api._raise_for_status(response)
     return response, api._stream_helper(response, decode=True)
+
+
+def _pull_stream_socket(response):
+    raw = response.raw._fp.fp.raw
+    return getattr(raw, "_sock", raw)
 
 
 def _cut_pull_stream(response) -> None:
     # shutdown wakes a reader blocked on the socket and tells Docker this client left;
     # Docker cancels a pull once no client is left watching it
     try:
-        raw = response.raw._fp.fp.raw
-        getattr(raw, "_sock", raw).shutdown(socket.SHUT_RDWR)
+        _pull_stream_socket(response).shutdown(socket.SHUT_RDWR)
     except Exception:
         pass
 

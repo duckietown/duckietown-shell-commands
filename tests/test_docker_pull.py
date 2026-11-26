@@ -1,4 +1,5 @@
 import logging
+import socket
 import threading
 import time
 import unittest
@@ -277,6 +278,95 @@ class PullRetryTests(unittest.TestCase):
         with self.assertRaisesRegex(UserError, "after 5 attempts"):
             self.pull(robot)
         self.assertLess(self.elapsed, TIMINGS["PULL_RECONNECT_TIMEOUT_SECONDS"])
+
+
+class FakeDockerServer:
+    """A local socket that answers one pull request the way a test needs."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.server = socket.create_server(("127.0.0.1", 0))
+        self.port = self.server.getsockname()[1]
+        self.done = threading.Event()
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self):
+        connection, _ = self.server.accept()
+        with connection:
+            request = b""
+            while b"\r\n\r\n" not in request:
+                request += connection.recv(4096)
+            try:
+                self.answer(connection)
+            except OSError:
+                pass
+            self.done.wait(10)
+
+    def close(self):
+        self.done.set()
+        self.server.close()
+
+
+def send_headers(connection):
+    connection.sendall(
+        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+    )
+
+
+def send_line(connection, text):
+    data = text.encode() + b"\r\n"
+    connection.sendall(b"%x\r\n%s\r\n" % (len(data), data))
+
+
+class PullStreamSocketTests(unittest.TestCase):
+    RESPONSE_TIMEOUT = 0.5
+
+    def setUp(self):
+        patcher = patch.object(du, "PULL_RESPONSE_TIMEOUT_SECONDS", self.RESPONSE_TIMEOUT)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def open(self, answer):
+        server = FakeDockerServer(answer)
+        self.addCleanup(server.close)
+        client = du.DockerClientOLD(base_url=f"tcp://127.0.0.1:{server.port}", version="1.41")
+        self.addCleanup(client.close)
+        return du._open_pull_stream(client, "x:y")
+
+    def test_no_answer_to_the_request_times_out(self):
+        started = time.monotonic()
+        with self.assertRaises(requests.exceptions.ReadTimeout):
+            self.open(lambda connection: None)
+        self.assertLess(time.monotonic() - started, 3 * self.RESPONSE_TIMEOUT)
+
+    def test_slow_stream_after_the_answer_has_no_read_timeout(self):
+        def answer(connection):
+            send_headers(connection)
+            send_line(connection, '{"status": "Downloading", "id": "L1"}')
+            time.sleep(3 * self.RESPONSE_TIMEOUT)
+            send_line(connection, '{"status": "Status: Downloaded newer image for x:y"}')
+            connection.sendall(b"0\r\n\r\n")
+
+        _, events = self.open(answer)
+        self.assertEqual([event["status"] for event in events][-1], "Status: Downloaded newer image for x:y")
+
+    def test_cut_wakes_a_blocked_reader(self):
+        response, events = self.open(send_headers)
+        ended = threading.Event()
+
+        def read():
+            try:
+                for _ in events:
+                    pass
+            except Exception:
+                pass
+            ended.set()
+
+        threading.Thread(target=read, daemon=True).start()
+        time.sleep(0.2)
+        self.assertFalse(ended.is_set())
+        du._cut_pull_stream(response)
+        self.assertTrue(ended.wait(2))
 
 
 if __name__ == "__main__":
