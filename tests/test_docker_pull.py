@@ -168,6 +168,17 @@ class PullRetryTests(unittest.TestCase):
         self.pull(robot)
         self.assertEqual(robot.opens, 2)
 
+    def test_network_errors_retry(self):
+        for error in (
+            "dial tcp 1.2.3.4:443: connect: connection timed out",
+            "dial tcp 1.2.3.4:443: connect: no route to host",
+            "context deadline exceeded",
+        ):
+            with self.subTest(error=error):
+                robot = FakeEndpoint([{"error": error}], COMPLETE)
+                self.pull(robot)
+                self.assertEqual(robot.opens, 2)
+
     def test_robot_never_back(self):
         robot = FakeEndpoint([line("L1", "Downloading", 1), HANG], answers=lambda: False)
         with self.assertRaisesRegex(UserError, "did not answer"):

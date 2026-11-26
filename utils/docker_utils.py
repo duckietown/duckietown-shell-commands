@@ -57,6 +57,8 @@ PULL_PING_TIMEOUT_SECONDS = 5
 # input/output error, ...) fails at once
 PULL_TRANSIENT_ERRORS = (
     "timeout",
+    "timed out",
+    "deadline exceeded",
     "tls handshake",
     "connection reset",
     "connection refused",
@@ -64,6 +66,7 @@ PULL_TRANSIENT_ERRORS = (
     "temporary failure",
     "no such host",
     "network is unreachable",
+    "no route to host",
     "context canceled",
 )
 DOCKER_INFO = """
