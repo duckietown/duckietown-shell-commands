@@ -212,6 +212,33 @@ class PullRetryTests(unittest.TestCase):
         self.assertGreater(robot.opens, 2)
         self.assertEqual(robot.cuts, 0)
 
+    def test_slow_link_is_never_cut(self):
+        # Docker reports about every 512 kB, so on a slow link its lines come further apart than a
+        # stall; each re-attached stream first gets the last line again, then the next one
+        gap = 3 * HEARTBEAT
+        scripts = [[line("L1", "Downloading", 1), gap]]
+        scripts += [[line("L1", "Downloading", k - 1), gap - 2 * HEARTBEAT, line("L1", "Downloading", k), gap] for k in range(2, 6)]
+        scripts += [[line("L1", "Downloading", 5)] + COMPLETE]
+        robot = FakeEndpoint(*scripts)
+        self.pull(robot)
+        self.assertEqual(robot.opens, 6)
+
+    def test_replayed_completion_is_not_progress(self):
+        # L1 finished, L2 is stuck on the robot: every re-attach replays "Download complete" for L1
+        stuck = [line("L1", "Download complete"), line("L2", "Downloading", 5)] + chatter(10 * HEARTBEAT)
+        robot = FakeEndpoint(*([stuck] * 20), COMPLETE)
+        with self.assertRaisesRegex(UserError, "reboot the robot"):
+            self.pull(robot)
+
+    def test_drops_that_made_progress_do_not_use_up_attempts(self):
+        drops = [
+            [line("L1", "Downloading", 2 * k + 1), line("L1", "Downloading", 2 * k + 2), requests.exceptions.ChunkedEncodingError()]
+            for k in range(6)
+        ]
+        robot = FakeEndpoint(*drops, [line("L1", "Downloading", 20)] + COMPLETE)
+        self.pull(robot)
+        self.assertEqual(robot.opens, 7)
+
     def test_last_attempt_fails_at_once(self):
         robot = FakeEndpoint([requests.exceptions.ChunkedEncodingError()])
         robot.answers = lambda: robot.opens < 5

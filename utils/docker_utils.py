@@ -503,13 +503,16 @@ def _cut_pull_stream(response) -> None:
 def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
     streams = []
+    # what each layer reported last, kept across attempts: Docker replays its last event to a stream
+    # that re-attaches, and a replay is not progress
+    seen = {}
     reason = ""
     failures = 0
     last_progress_at = time.monotonic()
     try:
         while True:
             try:
-                _pull_image_once_OLD(client, image, progress, streams)
+                _pull_image_once_OLD(client, image, progress, streams, seen)
                 return
             except _PullStalled as e:
                 # Docker attaches a new pull of the same image to the download already running, so
@@ -528,7 +531,9 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
                 )
             except _PullInterrupted as e:
                 reason = str(e)
-                failures += 1
+                # an attempt that moved bytes before it broke is not a failure, however often it happens
+                if e.progressed_at is None:
+                    failures += 1
                 if failures == PULL_MAX_ATTEMPTS:
                     break
                 dtslogger.warning(
@@ -551,10 +556,9 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
     )
 
 
-def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, streams: list):
+def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, streams: list, seen: dict):
     layers = set()
     pulled = set()
-    seen = {}
     finished = False
     progressed_at = None
     pbar = ProgressBar() if progress else None
