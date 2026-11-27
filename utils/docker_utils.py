@@ -2,6 +2,7 @@ import copy
 import os
 import queue
 import re
+import socket
 import platform
 import subprocess
 import threading
@@ -12,7 +13,10 @@ from typing import Tuple, Optional, Union, Dict, List
 
 # TODO: move away from dockerpy
 import docker as dockerOLD
+import requests
 from docker import DockerClient as DockerClientOLD
+from docker import auth as docker_auth
+from docker import utils as docker_lib_utils
 from docker.errors import NotFound
 from dt_shell import dtslogger, UserError
 
@@ -44,6 +48,30 @@ DEFAULT_MACHINE = "unix:///var/run/docker.sock"
 DEFAULT_REGISTRY = "docker.io"
 PULL_PROGRESS_HEARTBEAT_SECONDS = 15
 PULL_READER_JOIN_TIMEOUT_SECONDS = 1
+# a stalled pull is detected from real progress and from whether the Docker endpoint still answers;
+# these are only the limits for giving up
+PULL_MAX_ATTEMPTS = 5
+PULL_RECONNECT_TIMEOUT_SECONDS = 300
+PULL_STUCK_TIMEOUT_SECONDS = 300
+PULL_PING_TIMEOUT_SECONDS = 5
+# Docker answers a pull once it has the image manifest; after that the stream has no read timeout
+PULL_RESPONSE_TIMEOUT_SECONDS = 60
+# Docker-reported pull errors worth retrying; anything else (not found, no space left,
+# input/output error, ...) fails at once
+PULL_TRANSIENT_ERRORS = (
+    "timeout",
+    "timed out",
+    "deadline exceeded",
+    "tls handshake",
+    "connection reset",
+    "connection refused",
+    "unexpected eof",
+    "temporary failure",
+    "no such host",
+    "network is unreachable",
+    "no route to host",
+    "context canceled",
+)
 DOCKER_INFO = """
 Docker Endpoint:
   Hostname: {Name}
@@ -409,14 +437,156 @@ def _read_pull_events(event_stream, events: queue.Queue, stop_event: threading.E
         events.put(("done", None))
 
 
+class _PullInterrupted(Exception):
+    """The endpoint stopped answering or Docker hit a network error: wait for the endpoint, then retry."""
+
+    def __init__(self, message: str, progressed_at: Optional[float] = None):
+        super().__init__(message)
+        self.progressed_at = progressed_at
+
+
+class _PullStalled(_PullInterrupted):
+    """The endpoint answers but nothing moved: attach a new stream to the same pull."""
+
+
+def _is_transient_pull_error(message: str) -> bool:
+    message = message.lower()
+    return any(pattern in message for pattern in PULL_TRANSIENT_ERRORS)
+
+
+def _endpoint_answers(client: DockerClientOLD) -> bool:
+    try:
+        client.api._get(client.api._url("/_ping"), timeout=PULL_PING_TIMEOUT_SECONDS).raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
+def _wait_until_endpoint_answers(client: DockerClientOLD) -> bool:
+    deadline = time.monotonic() + PULL_RECONNECT_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(PULL_PING_TIMEOUT_SECONDS)
+        if _endpoint_answers(client):
+            return True
+    return False
+
+
+def _open_pull_stream(client: DockerClientOLD, image: str):
+    # the request docker-py's APIClient.pull() sends, keeping the response so a stuck pull can be cut
+    api = client.api
+    repository, tag = docker_lib_utils.parse_repository_tag(image)
+    registry, _ = docker_auth.resolve_repository_name(repository)
+    headers = {}
+    auth_header = docker_auth.get_config_header(api, registry)
+    if auth_header:
+        headers["X-Registry-Auth"] = auth_header
+    response = api._post(
+        api._url("/images/create"),
+        params={"tag": tag or "latest", "fromImage": repository},
+        headers=headers,
+        stream=True,
+        timeout=PULL_RESPONSE_TIMEOUT_SECONDS,
+    )
+    try:
+        # a download that keeps moving is judged by the progress watchdog, never by a read timeout
+        _pull_stream_socket(response).settimeout(None)
+    except Exception:
+        pass
+    api._raise_for_status(response)
+    return response, api._stream_helper(response, decode=True)
+
+
+def _pull_stream_socket(response):
+    raw = response.raw._fp.fp.raw
+    return getattr(raw, "_sock", raw)
+
+
+def _cut_pull_stream(response) -> None:
+    # shutdown wakes a reader blocked on the socket and tells Docker this client left;
+    # Docker cancels a pull once no client is left watching it
+    try:
+        _pull_stream_socket(response).shutdown(socket.SHUT_RDWR)
+    except Exception:
+        pass
+
+
 # TODO: this should be removed
 def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = None, progress=True):
     client = get_client_OLD(endpoint)
+    streams = []
+    # what each layer reported last, kept across attempts: Docker replays its last event to a stream
+    # that re-attaches, and a replay is not progress
+    seen = {}
+    reason = ""
+    failures = 0
+    last_progress_at = time.monotonic()
+    try:
+        while True:
+            try:
+                _pull_image_once_OLD(client, image, progress, streams, seen)
+                return
+            except _PullStalled as e:
+                # Docker attaches a new pull of the same image to the download already running, so
+                # nothing is lost; give up only when nothing moved for a long time
+                last_progress_at = e.progressed_at or last_progress_at
+                stuck = time.monotonic() - last_progress_at
+                if stuck >= PULL_STUCK_TIMEOUT_SECONDS:
+                    raise UserError(
+                        f"Pulling '{image}' made no progress for {int(stuck / 60)} minutes although the "
+                        f"Docker endpoint answers. The download looks stuck there: reboot the robot (or "
+                        f"restart Docker if the endpoint is this computer) and run the command again."
+                    )
+                dtslogger.warning(
+                    f"Pulling '{image}': {e} but the Docker endpoint answers. Re-attaching to the download "
+                    f"(no progress for {int(stuck)}s, giving up after {PULL_STUCK_TIMEOUT_SECONDS}s)..."
+                )
+            except _PullInterrupted as e:
+                reason = str(e)
+                # an attempt that moved bytes before it broke is not a failure, however often it happens
+                if e.progressed_at is None:
+                    failures += 1
+                if failures == PULL_MAX_ATTEMPTS:
+                    break
+                dtslogger.warning(
+                    f"Pulling '{image}' was interrupted ({e}). "
+                    f"Waiting for the Docker endpoint to answer ({failures}/{PULL_MAX_ATTEMPTS})..."
+                )
+                if not _wait_until_endpoint_answers(client):
+                    raise UserError(
+                        f"Lost the connection to the Docker endpoint while pulling '{image}' and it did not "
+                        f"answer for {PULL_RECONNECT_TIMEOUT_SECONDS}s. Check that it is on and reachable, "
+                        f"then run the command again."
+                    )
+                last_progress_at = time.monotonic()
+    finally:
+        for response in streams:
+            _cut_pull_stream(response)
+    raise UserError(
+        f"Could not pull image '{image}' after {PULL_MAX_ATTEMPTS} attempts ({reason}). "
+        f"Check that the Docker endpoint is reachable and has internet access, then run the command again."
+    )
+
+
+def _pull_image_once_OLD(client: DockerClientOLD, image: str, progress: bool, streams: list, seen: dict):
     layers = set()
     pulled = set()
+    finished = False
+    progressed_at = None
     pbar = ProgressBar() if progress else None
     events = queue.Queue()
-    event_stream = client.api.pull(image, stream=True, decode=True)
+    try:
+        response, event_stream = _open_pull_stream(client, image)
+    except dockerOLD.errors.APIError as e:
+        # APIError (and NotFound) subclass requests' HTTPError, so they go first
+        if _is_transient_pull_error(str(e)):
+            raise _PullInterrupted(str(e))
+        raise
+    except requests.exceptions.RequestException as e:
+        # an endpoint that never answered in this pull fails at once, as before; a lost one is waited for
+        if not streams and isinstance(e, requests.exceptions.ConnectionError):
+            raise
+        raise _PullInterrupted(f"cannot reach the Docker endpoint: {e.__class__.__name__}")
+    streams.append(response)
     reader_stop_event = threading.Event()
     reader = threading.Thread(
         target=_read_pull_events,
@@ -424,7 +594,7 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
         daemon=True,
     )
     reader.start()
-    last_event_at = time.monotonic()
+    last_progress_at = last_check_at = time.monotonic()
     last_percentage = 0.0
     last_detail = "Waiting for Docker pull status"
 
@@ -433,32 +603,71 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
             try:
                 event_type, payload = events.get(timeout=PULL_PROGRESS_HEARTBEAT_SECONDS)
             except queue.Empty:
-                idle_seconds = int(time.monotonic() - last_event_at)
-                heartbeat_detail = f"No Docker update for {idle_seconds}s | {last_detail}"
+                event_type, payload = None, None
+
+            # quiet means no bytes moved and no layer finished, even if Docker keeps sending lines
+            now = time.monotonic()
+            quiet = now - last_progress_at
+            if (
+                quiet >= PULL_PROGRESS_HEARTBEAT_SECONDS
+                and now - last_check_at >= PULL_PROGRESS_HEARTBEAT_SECONDS
+            ):
+                last_check_at = now
+                if not _endpoint_answers(client):
+                    raise _PullInterrupted(
+                        f"no progress for {int(quiet)}s and the Docker endpoint does not answer",
+                        progressed_at,
+                    )
+                if quiet >= 2 * PULL_PROGRESS_HEARTBEAT_SECONDS:
+                    raise _PullStalled(f"no progress for {int(quiet)}s", progressed_at)
+                heartbeat_detail = f"No Docker update for {int(quiet)}s | {last_detail}"
                 if progress:
                     pbar.set_detail(heartbeat_detail)
                     pbar.update(last_percentage)
                 else:
                     dtslogger.info(f"Still pulling `{image}`: {heartbeat_detail}.")
+            if event_type is None:
                 continue
 
             if event_type == "done":
+                # a stream that ends without Docker's final status was cut, even if every layer
+                # seen so far is done: later layers and the tag may still be missing
+                if not finished:
+                    raise _PullInterrupted("the connection closed before the pull finished", progressed_at)
                 break
             if event_type == "error":
-                raise payload
+                raise _PullInterrupted(f"the connection broke: {payload.__class__.__name__}", progressed_at)
 
             line = payload
-            last_event_at = time.monotonic()
             if not isinstance(line, dict):
                 continue
             if "error" in line:
                 error_message = line.get("errorDetail", {}).get("message", line["error"])
+                if _is_transient_pull_error(error_message):
+                    raise _PullInterrupted(error_message, progressed_at)
                 raise UserError(f"Could not pull image '{image}': {error_message}")
             status = line.get("status")
             if status is None:
                 continue
+            if status.startswith("Status:"):
+                finished = True
             layer_id = line.get("id")
             if layer_id is not None:
+                # bytes moving within a stage, or a layer finishing a stage, is progress; lines a
+                # re-attached stream replays (Waiting, Already exists, the first byte count) are not
+                key = (layer_id, status)
+                current = (line.get("progressDetail") or {}).get("current")
+                if current is not None:
+                    moved = key in seen and current > seen[key]
+                else:
+                    moved = key not in seen and status in ("Download complete", "Pull complete")
+                seen[key] = current if current is not None else 0
+                if moved:
+                    progressed_at = last_progress_at = time.monotonic()
+                    # this stream now watches the moving download: the older ones are not needed
+                    for older in streams[:-1]:
+                        _cut_pull_stream(older)
+                    del streams[:-1]
                 layers.add(layer_id)
                 if status in ["Already exists", "Pull complete"]:
                     pulled.add(layer_id)
@@ -471,12 +680,12 @@ def pull_image_OLD(image: str, endpoint: Union[None, str, DockerClientOLD] = Non
     finally:
         reader_stop_event.set()
         reader.join(timeout=PULL_READER_JOIN_TIMEOUT_SECONDS)
-        if reader.is_alive():
-            dtslogger.warning(f"Docker pull reader for '{image}' is still closing in the background.")
-        else:
+        if not reader.is_alive():
             close = getattr(event_stream, "close", None)
             if callable(close):
                 close()
+        if progress and not finished:
+            print()
     if progress:
         pbar.done()
 
